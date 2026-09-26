@@ -49,7 +49,7 @@ export function EngineCatalogPanel() {
       </h2>
       <p className="text-sm text-muted-foreground">
         由当前匿名 Runner
-        的实际引擎和插件生成。一个站点可能有多个提取器，候选数量不代表可下载的平台数量；平台策略、部署状态和近期验证见运行诊断。
+        的实际引擎和插件生成。一个站点可能有多个提取器，候选数量不代表可下载的平台数量；实际可用性仍以平台状态和真实下载验证为准。
       </p>
       <Button
         disabled={result.isFetching}

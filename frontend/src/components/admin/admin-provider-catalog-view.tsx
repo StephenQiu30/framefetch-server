@@ -17,7 +17,6 @@ import { ProviderCatalogDelete } from '@/components/admin/admin-provider-catalog
 import { ProviderCatalogEditor } from '@/components/admin/admin-provider-catalog/provider-catalog-editor';
 import { ProviderCatalogScreen } from '@/components/admin/admin-provider-catalog/provider-catalog-screen';
 import { EngineCatalogPanel } from '@/components/admin/engine-catalog-panel';
-import { ProviderRuntimePanel } from '@/components/admin/provider-runtime-panel';
 import { displayError } from '@/lib/request-error';
 
 const EMPTY_DELETE: CatalogDeleteState = {
@@ -170,7 +169,6 @@ export function AdminProviderCatalogView() {
         onConfirm={() => void confirmDelete()}
         state={deleting}
       />
-      <ProviderRuntimePanel />
       <EngineCatalogPanel />
     </>
   );
