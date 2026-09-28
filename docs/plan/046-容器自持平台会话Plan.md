@@ -142,9 +142,9 @@ M3 是破坏性替换：S5–S8 同一发布，发布前部署者需按新手册
 
 ### L2 broker 转发与管理员接口
 
-- [ ] **L2**；状态：未开始；依赖：L1。
+- [x] **L2**；状态：已完成（2026-09-28），见执行记录；依赖：L1。
   - 需求：FR-01、FR-10、FR-11。
-  - 步骤：broker 签名通道 `SITE_SESSION_ADMIN_SECRET` 与登录转发、保存时过滤加密写入；API 管理员接口（Design §6.1 表）写入 OpenAPI，请求体不进入操作日志；撤销由 API 条件写入墓碑；两份 Compose 与 `.env.example` 同步；删除 `chrome_reader.py`、`seed import` 及测试；没有访客模式的平台在无会话时把 “Fresh cookies are needed” 归为 `provider_session_not_ready`；运行手册 011 改为管理页面登录。
+  - 步骤：broker 签名通道 `SITE_SESSION_ADMIN_SECRET` 与登录转发、保存时过滤加密写入；API 管理员接口（Design §6.1 表）写入 OpenAPI，请求体不进入操作日志；撤销由 API 条件写入墓碑；两份 Compose 与 `.env.example` 同步；删除 `seed.py`（含 `status`／`revoke`，由管理页面取代）、`chrome_reader.py` 及测试；没有访客模式的平台在无会话时把 “Fresh cookies are needed” 归为 `provider_session_not_ready`；运行手册 011 改为管理页面登录。
   - 验收：PRD AC-01、AC-07；接口与 broker 单元、集成测试；`rg chrome_reader` 无结果；后端全量检查。
 
 <a id="l3"></a>
@@ -250,4 +250,14 @@ M3 是破坏性替换：S5–S8 同一发布，发布前部署者需按新手册
 - 测试：`tests/unit/workers/session/test_login.py`（临时 Profile 与替换、未登录不能保存且旧 Profile 不变、操作顺序、并发限制、起始链接校验、空闲取消、启动失败清理、导航拦截、遗留清理、动作字段校验）；`test_browser_app.py` 增加登录契约（jar 封装给 broker、409／404 映射）。
 - 门禁：`ruff`、`mypy`（586 文件）通过；`pytest` 2064 passed、3 skipped。
 - 本机实测：重建 `session-browser` 后在容器内启动元宝登录 0.9 s，画面为微信扫码登录弹窗（JPEG 30 KB），转发滚轮后取消，临时 Profile 已删除。
+
+### L2（2026-09-28）
+
+- broker：`save_login`（与浏览器共用 `app/workers/session/seeding.py` 的接受规则：站点 Cookie 域、未过期、至少一个持久 Cookie、满足注册表）与五个登录转发；管理员通道使用独立密钥 `SITE_SESSION_ADMIN_SECRET`，与 Runner 通道密钥相同时拒绝启动。浏览器在替换 Profile 前执行同一规则，页面看似已登录但没有持久登录 Cookie 时返回 `login_not_accepted`，旧 Profile 不变。
+- API：`app/integrations/site_session_admin.py` 与 `app/api/routes/admin_site_sessions.py`（列表、开始、画面、输入、保存、放弃、撤销，全部仅管理员、`no-store`、不记录请求体）；新增 7 个 `site_session_*` 错误码；站点可为已知键、域名或任意 https 链接。
+- 修正：注册表中抖音的 `ttwid` 与 Reddit 的 `loid` 是未登录访客也有的 Cookie，已从登录判定中移除；没有访客路线的平台遇到 “Fresh cookies are needed” 时返回 `provider_session_not_ready`，不再误报“访客环境准备中”（视频号截图问题）。
+- 删除：`seed.py`、`chrome_reader.py` 及其测试；`provider-sources` 服务角色、`provider_source_encryption_key`、`provider_source_poll_seconds`／`lease_seconds`。
+- 部署：两份 Compose 为 broker 与 API 注入 `SITE_SESSION_ADMIN_SECRET`（生产必填），API 增加 `SITE_SESSION_BROKER_URL`；契约测试断言只有 API 与 broker 持有该密钥。运行手册 011、README、AGENTS 与相关设计改为管理页面登录。
+- 门禁：`ruff`、`mypy`（588 文件）通过；`pytest` 2041 passed、3 skipped（删除导入命令测试后数量下降）。
+- 本机实测：重建全部服务后，在 `video-api` 容器内经真实 broker 与浏览器：列表返回全部已知平台；开始视频号登录 1.2 s；画面主机 `yuanbao.tencent.com`；未登录时保存返回 `site_session_login_incomplete`；`10.0.0.1` 返回 `site_session_invalid`。
 

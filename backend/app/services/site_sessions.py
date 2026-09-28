@@ -142,9 +142,8 @@ _KNOWN_POLICIES = {
             "douyin.com",
             ProviderKey.DOUYIN,
             "https://www.douyin.com/",
-            required_cookie_names=frozenset(
-                {"sessionid", "sessionid_ss", "sid_tt", "ttwid"}
-            ),
+            # ``ttwid`` is issued to every visitor, so it proves nothing.
+            required_cookie_names=frozenset({"sessionid", "sessionid_ss", "sid_tt"}),
         ),
         SiteSessionPolicy(
             "xiaohongshu.com",
@@ -176,7 +175,8 @@ _KNOWN_POLICIES = {
             "reddit.com",
             ProviderKey.REDDIT,
             "https://www.reddit.com/",
-            required_cookie_names=frozenset({"loid", "reddit_session"}),
+            # ``loid`` is Reddit's logged-out visitor id.
+            required_cookie_names=frozenset({"reddit_session"}),
         ),
         SiteSessionPolicy(
             "pinterest.com",
@@ -218,6 +218,10 @@ def known_site_policy(provider_key: str) -> SiteSessionPolicy | None:
         return _KNOWN_POLICIES.get(ProviderKey(provider_key))
     except ValueError:
         return None
+
+
+def known_site_policies() -> tuple[SiteSessionPolicy, ...]:
+    return tuple(sorted(_KNOWN_SITES.values(), key=lambda policy: policy.site))
 
 
 def known_session_provider_keys() -> frozenset[str]:

@@ -490,7 +490,7 @@ async def test_youtube_rate_limit_precedes_unavailable_fallback(tmp_path: Path) 
             "credential_expired",
             422,
         ),
-        (b"ERROR: Fresh cookies are needed", "guest_context_required", 503),
+        (b"ERROR: Fresh cookies are needed", "provider_session_not_ready", 503),
     ),
 )
 async def test_youtube_terminal_failure_precedes_rate_limit_warning(
@@ -1456,3 +1456,24 @@ async def test_guest_cookie_rejection_requests_guest_refresh(tmp_path: Path) -> 
         )
     assert caught.value.code == "guest_context_required"
     assert caught.value.status == 503
+
+
+@pytest.mark.asyncio
+async def test_platform_without_guest_route_asks_for_a_deployment_session(
+    tmp_path: Path,
+) -> None:
+    # WeChat Channels has no anonymous path: it needs an administrator login.
+    commands = MediaCommands(
+        settings(tmp_path),
+        FailingSupervisor(
+            b"ERROR: [WeChatChannelsPublic] Fresh cookies are needed to resolve this"
+        ),
+    )
+
+    with pytest.raises(RunnerFailure) as caught:
+        await commands.inspect("https://weixin.qq.com/sph/Az42YceBcb", tmp_path)
+
+    assert (caught.value.code, caught.value.status) == (
+        "provider_session_not_ready",
+        503,
+    )

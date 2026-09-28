@@ -14,6 +14,11 @@ from pydantic import BaseModel, ConfigDict, Field, StringConstraints, model_vali
 STATUS_PATH: Final = "/internal/v1/site-sessions/status"
 LEASE_PATH: Final = "/internal/v1/site-sessions/lease"
 FAILURE_PATH: Final = "/internal/v1/site-sessions/failures"
+ADMIN_LOGIN_START_PATH: Final = "/internal/v1/site-sessions/logins/start"
+ADMIN_LOGIN_FRAME_PATH: Final = "/internal/v1/site-sessions/logins/frame"
+ADMIN_LOGIN_INPUT_PATH: Final = "/internal/v1/site-sessions/logins/input"
+ADMIN_LOGIN_FINISH_PATH: Final = "/internal/v1/site-sessions/logins/finish"
+ADMIN_LOGIN_CANCEL_PATH: Final = "/internal/v1/site-sessions/logins/cancel"
 BROWSER_IDENTITY_PATH: Final = "/v1/identity"
 BROWSER_BOOTSTRAP_PATH: Final = "/v1/sites/bootstrap"
 BROWSER_KEEPALIVE_PATH: Final = "/v1/sites/keepalive"
@@ -229,3 +234,8 @@ class LoginFinishRequest(_Strict):
 class LoginFinished(_Strict):
     site: Site
     jar: Encoded
+
+
+class LoginSaved(_Strict):
+    site: Site
+    seed_revision: int = Field(ge=1)

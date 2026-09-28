@@ -55,6 +55,13 @@ class Context:
         self.closed = False
         self.store = [
             {
+                "name": "hy_user",
+                "value": "u",
+                "domain": ".yuanbao.tencent.com",
+                "path": "/",
+                "expires": 4102444800,
+            },
+            {
                 "name": "hy_token",
                 "value": "t",
                 "domain": ".yuanbao.tencent.com",
@@ -144,7 +151,7 @@ async def test_login_runs_in_a_temporary_profile_and_replaces_the_site_profile(
     site, jar = await logins.finish(login_id)
 
     assert site == "weixin.qq.com"
-    assert b"hy_token" in jar and b"evil" not in jar
+    assert b"hy_token" in jar and b"hy_user" in jar and b"evil" not in jar
     assert context.closed
     assert old.is_dir() and not (old / "stale").exists()
     assert [p.name for p in tmp_path.iterdir()] == ["weixin.qq.com"]
@@ -279,3 +286,19 @@ def test_actions_carry_exactly_the_fields_of_their_kind():
         LoginAction(kind="click", x=1280, y=0)
     with pytest.raises(ValueError):
         LoginAction(kind="key", key="Meta")
+
+
+async def test_a_login_without_a_persistent_login_cookie_keeps_the_old_profile(
+    tmp_path,
+):
+    logins, playwright, _ = make(tmp_path)
+    old = tmp_path / "weixin.qq.com"
+    old.mkdir()
+    login_id = await logins.start("weixin.qq.com", None)
+    context = playwright.chromium.contexts[0]
+    logged_in(context)
+    context.store = [c for c in context.store if c["name"] != "hy_user"]
+
+    with pytest.raises(LoginError, match="login_not_accepted"):
+        await logins.finish(login_id)
+    assert old.is_dir() and not context.closed

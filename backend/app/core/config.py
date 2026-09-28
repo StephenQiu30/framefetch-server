@@ -113,7 +113,6 @@ class Settings(BaseSettings):
         "analysis-worker",
         "report-worker",
         "provider-canary",
-        "provider-sources",
         "provider-guest",
         "session-broker",
     ] = "api"
@@ -133,24 +132,21 @@ class Settings(BaseSettings):
     )
 
     database_url: str = "postgresql+asyncpg://video:video@localhost:5432/video"
-    provider_source_encryption_key: SecretStr | None = None
     # Only the session broker and the one-time host import receive this key.
     site_session_encryption_key: SecretStr | None = None
     # Runner -> broker and broker -> browser use independent HMAC secrets.
     site_session_rpc_secret: SecretStr | None = None
     site_session_browser_secret: SecretStr | None = None
+    site_session_admin_secret: SecretStr | None = None
+    site_session_broker_url: str = "http://session-broker:19200"
     site_session_browser_url: str = "http://session-browser:19300"
     site_session_scan_seconds: int = Field(default=15, ge=5, le=60)
     site_session_keepalive_seconds: int = Field(default=1800, ge=600, le=6 * 3600)
     site_session_keepalive_jitter_seconds: int = Field(default=300, ge=0, le=1800)
     site_session_lease_seconds: int = Field(default=600, ge=60, le=3600)
     provider_source_root: Path = Path("/run/provider-sources")
-    provider_source_poll_seconds: int = Field(default=15, ge=5, le=60)
-    provider_source_lease_seconds: int = Field(default=90, ge=30, le=300)
 
-    @field_validator(
-        "provider_source_encryption_key", "site_session_encryption_key", mode="before"
-    )
+    @field_validator("site_session_encryption_key", mode="before")
     @classmethod
     def validate_encryption_key(cls, value: object, info: ValidationInfo) -> object:
         if value is None or value == "":
@@ -163,12 +159,6 @@ class Settings(BaseSettings):
                 f"{str(info.field_name).upper()} must be a Fernet key"
             ) from None
         return value
-
-    @model_validator(mode="after")
-    def validate_provider_source_lease(self) -> Settings:
-        if self.provider_source_lease_seconds < self.provider_source_poll_seconds * 3:
-            raise ValueError("provider source lease must cover three polling intervals")
-        return self
 
     rabbitmq_url: str = "amqp://video-api:video-api-secret@localhost:5673/video"
     rabbitmq_vhost: str = Field(
@@ -615,6 +605,7 @@ class Settings(BaseSettings):
         "runner_hmac_secret",
         "site_session_rpc_secret",
         "site_session_browser_secret",
+        "site_session_admin_secret",
     )
     @classmethod
     def validate_signing_secret(cls, value: SecretStr | None) -> SecretStr | None:
@@ -701,7 +692,6 @@ class Settings(BaseSettings):
             rabbitmq_url = self.analysis_rabbitmq_url
         elif self.service_role not in {
             "provider-canary",
-            "provider-sources",
             "provider-guest",
             "session-broker",
         }:

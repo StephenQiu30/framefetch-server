@@ -3,20 +3,34 @@ from contextlib import asynccontextmanager
 
 import httpx
 import pytest
-from app.workers.session.broker import LeaseGrant, SessionNotReady
+from app.workers.session.broker import LeaseGrant, LoginNotAccepted, SessionNotReady
 from app.workers.session.broker_app import create_app, settings_factory
+from app.workers.session.browser_client import BrowserUnavailable, LoginRejected
 from app.workers.session.contracts import (
+    ADMIN_LOGIN_CANCEL_PATH,
+    ADMIN_LOGIN_FINISH_PATH,
+    ADMIN_LOGIN_FRAME_PATH,
+    ADMIN_LOGIN_INPUT_PATH,
+    ADMIN_LOGIN_START_PATH,
     FAILURE_PATH,
     LEASE_PATH,
     FailureReport,
     LeaseRequest,
     LeaseResponse,
+    LoginAction,
+    LoginFrame,
+    LoginInputRequest,
+    LoginRef,
+    LoginSaved,
+    LoginStarted,
+    LoginStartRequest,
 )
 from app.workers.session.rpc import RpcError, SignedClient
 from app.workers.session.sealing import decode, encode, public_key
 from cryptography.hazmat.primitives.asymmetric.x25519 import X25519PrivateKey
 
 SECRET = b"r" * 32
+ADMIN = b"a" * 32
 KEY = encode(public_key(X25519PrivateKey.generate()))
 
 
@@ -36,6 +50,27 @@ class StubBroker:
     async def report_failure(self, **kwargs) -> None:
         self.failures.append(kwargs)
 
+    async def login_start(self, site, url):
+        return LoginStarted(login_id="l1", site=site)
+
+    async def login_frame(self, login_id):
+        if login_id == "gone":
+            raise LoginRejected("login_not_found", 404)
+        if login_id == "down":
+            raise BrowserUnavailable("rpc_unavailable")
+        return LoginFrame(image="AAAA", host="yuanbao.tencent.com", logged_in=True)
+
+    async def login_input(self, login_id, actions):
+        self.failures.append({"actions": list(actions)})
+
+    async def login_finish(self, login_id):
+        if login_id == "bare":
+            raise LoginNotAccepted("weixin.qq.com")
+        return "weixin.qq.com", 4
+
+    async def login_cancel(self, login_id):
+        self.failures.append({"cancel": login_id})
+
 
 @asynccontextmanager
 async def running(broker: StubBroker):
@@ -43,7 +78,12 @@ async def running(broker: StubBroker):
     async def factory():
         yield broker
 
-    app = create_app(broker_factory=factory, rpc_secret=SECRET, scan_seconds=0.01)
+    app = create_app(
+        broker_factory=factory,
+        rpc_secret=SECRET,
+        admin_secret=ADMIN,
+        scan_seconds=0.01,
+    )
     async with app.router.lifespan_context(app):
         transport = httpx.ASGITransport(app=app)
         async with httpx.AsyncClient(transport=transport, base_url="http://b") as raw:
@@ -122,3 +162,60 @@ def test_broker_refuses_to_start_without_its_secrets():
 
     with pytest.raises(SystemExit):
         settings_factory(Settings(_env_file=None, service_role="session-broker"))
+
+
+async def test_admin_login_endpoints_use_their_own_secret():
+    broker = StubBroker()
+    async with running(broker) as raw:
+        admin = SignedClient(raw, ADMIN)
+        started = await admin.post(
+            ADMIN_LOGIN_START_PATH,
+            LoginStartRequest(site="weixin.qq.com"),
+            LoginStarted,
+        )
+        assert started.login_id == "l1"
+        frame = await admin.post(
+            ADMIN_LOGIN_FRAME_PATH, LoginRef(login_id="l1"), LoginFrame
+        )
+        assert frame.logged_in
+        await admin.post_empty(
+            ADMIN_LOGIN_INPUT_PATH,
+            LoginInputRequest(
+                login_id="l1", actions=(LoginAction(kind="key", key="Tab"),)
+            ),
+        )
+        saved = await admin.post(
+            ADMIN_LOGIN_FINISH_PATH, LoginRef(login_id="l1"), LoginSaved
+        )
+        assert (saved.site, saved.seed_revision) == ("weixin.qq.com", 4)
+        await admin.post_empty(ADMIN_LOGIN_CANCEL_PATH, LoginRef(login_id="l1"))
+
+        for login_id, path, model, expected in (
+            ("gone", ADMIN_LOGIN_FRAME_PATH, LoginFrame, ("login_not_found", 404)),
+            ("down", ADMIN_LOGIN_FRAME_PATH, LoginFrame, ("browser_unavailable", 503)),
+            ("bare", ADMIN_LOGIN_FINISH_PATH, LoginSaved, ("login_not_accepted", 409)),
+        ):
+            with pytest.raises(RpcError) as error:
+                await admin.post(path, LoginRef(login_id=login_id), model)
+            assert (error.value.code, error.value.status) == expected
+
+        # A Runner holding the lease secret cannot drive a login.
+        with pytest.raises(RpcError) as error:
+            await SignedClient(raw, SECRET).post(
+                ADMIN_LOGIN_START_PATH,
+                LoginStartRequest(site="weixin.qq.com"),
+                LoginStarted,
+            )
+        assert error.value.status == 401
+
+
+def test_runner_and_admin_channels_need_distinct_secrets():
+    from app.workers.session.broker_app import create_app as build
+
+    with pytest.raises(ValueError):
+        build(
+            broker_factory=None,  # type: ignore[arg-type]
+            rpc_secret=SECRET,
+            admin_secret=SECRET,
+            scan_seconds=1,
+        )

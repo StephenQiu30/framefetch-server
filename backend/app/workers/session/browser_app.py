@@ -124,6 +124,7 @@ _LOGIN_STATUS = {
     "login_not_found": 404,
     "login_busy": 409,
     "login_incomplete": 409,
+    "login_not_accepted": 409,
     "login_url_invalid": 422,
 }
 _SWEEP_SECONDS = 30

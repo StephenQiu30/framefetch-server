@@ -129,14 +129,7 @@ uv run --project backend python -m app.workers.bootstrap_admin \
   --env-file .env --username your-admin --email you@example.com
 ```
 
-Sites that need a login (YouTube, Douyin accounts, Reddit, WeChat Channels, Youku, Tencent Video or any other site) use one mechanism: import the logged-in state from your local Chrome **once**, and the container session browser keeps it alive afterwards. A site with an imported session never falls back to anonymous access. From `backend/` in a local terminal (macOS asks for Keychain access once):
-
-```bash
-uv run python -m app.workers.session.seed import --site youtube.com
-uv run python -m app.workers.session.seed status
-```
-
-See the [site session runbook](docs/operations/011-站点会话运行手册.md).
+Sites that need a login (YouTube, Douyin accounts, Reddit, WeChat Channels, Youku, Tencent Video or any other site) use one mechanism: an administrator logs in **once** from the Web app's platform status page, which streams the container session browser so the administrator scans the QR code, solves any slider or types the password; the container keeps the session alive afterwards. A site with a session never falls back to anonymous access. See the [site session runbook](docs/operations/011-站点会话运行手册.md).
 
 Log in to the Web app with that account, then paste a public link. The default registration flow needs SMTP for email verification, so set up SMTP before inviting users to self-register. Do not reuse the example development secrets in a public deployment.
 

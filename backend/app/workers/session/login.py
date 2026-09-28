@@ -26,6 +26,7 @@ from app.services.site_sessions import InvalidSessionSite
 from app.workers.runner.errors import RunnerFailure
 from app.workers.session.browser import SiteBrowser, export_jar
 from app.workers.session.contracts import LOGIN_HEIGHT, LOGIN_WIDTH, LoginAction
+from app.workers.session.seeding import seedable_payload
 from playwright.async_api import BrowserContext, Page, Route
 
 IDLE_SECONDS = 300
@@ -138,6 +139,10 @@ class RemoteLogins:
             if not await self._browser.logged_in(page, login.context, login.target):
                 raise LoginError("login_incomplete")
             jar = await export_jar(login.context, login.target)
+            # The page can look logged in while the site keeps its login out of
+            # cookies; such a login cannot become a seed, so keep the old profile.
+            if seedable_payload(jar, login.target, time.time()) is None:
+                raise LoginError("login_not_accepted")
             await login.context.close()
             self._logins.pop(login_id, None)
             await self._browser.adopt_profile(login.site, login.profile)

@@ -355,8 +355,10 @@ PROVIDER_FAILURE_RULES: tuple[FailureRule, ...] = (
         any_stderr=(b"no video formats found",),
         providers=frozenset({ProviderKey.INSTAGRAM}),
     ),
+    # Only Douyin has a guest route (rule above); every other platform that
+    # asks for cookies needs a deployment session an administrator logs in.
     FailureRule(
-        "guest_context_required",
+        "provider_session_not_ready",
         503,
         all_stderr=(b"fresh cookies", b"needed"),
         authenticated=False,

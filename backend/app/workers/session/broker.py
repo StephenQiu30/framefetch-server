@@ -10,11 +10,12 @@ from __future__ import annotations
 import asyncio
 import logging
 import random
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 
 from app.core.security.site_session_cipher import SiteSessionCipher
+from app.integrations.site_session_catalog import site_target
 from app.repositories.providers.site_sessions import (
     SiteSessionConflict,
     SiteSessionSecret,
@@ -38,8 +39,15 @@ from app.workers.session.browser_client import (
     BrowserUnavailable,
     SessionBrowser,
 )
-from app.workers.session.contracts import BrowserOutcome, lease_associated_data
+from app.workers.session.contracts import (
+    BrowserOutcome,
+    LoginAction,
+    LoginFrame,
+    LoginStarted,
+    lease_associated_data,
+)
 from app.workers.session.sealing import SealError, seal
+from app.workers.session.seeding import seedable_payload
 
 _logger = logging.getLogger(__name__)
 _EVENTS = {
@@ -57,8 +65,16 @@ _LIVE = frozenset(
 )
 
 
+# S6 replaces this with the per-site route recorded at login time.
+DEFAULT_EGRESS_ROUTE = "default"
+
+
 class SessionNotReady(Exception):
     """No executable session for this site and import revision."""
+
+
+class LoginNotAccepted(Exception):
+    """The page looks logged in, but no persistent login cookie came with it."""
 
 
 @dataclass(frozen=True, slots=True)
@@ -354,3 +370,44 @@ class SessionBroker:
         if status is None or status.seed_revision != seed_revision:
             return
         await self._apply(status, decide(status, event, error_code=error_code))
+
+    # Remote login ------------------------------------------------------------
+
+    async def login_start(self, site: str, url: str | None) -> LoginStarted:
+        return await self._browser.login_start(site, url)
+
+    async def login_frame(self, login_id: str) -> LoginFrame:
+        return await self._browser.login_frame(login_id)
+
+    async def login_input(self, login_id: str, actions: Sequence[LoginAction]) -> None:
+        await self._browser.login_input(login_id, actions)
+
+    async def login_cancel(self, login_id: str) -> None:
+        await self._browser.login_cancel(login_id)
+
+    async def login_finish(self, login_id: str) -> tuple[str, int]:
+        """Store a finished login as a new seed revision of its site."""
+        site, jar = await self._browser.login_finish(login_id)
+        return site, await self.save_login(site, jar)
+
+    async def save_login(self, site: str, jar: bytes) -> int:
+        target = site_target(site)
+        payload = seedable_payload(jar, target, self._clock().timestamp())
+        if payload is None:
+            raise LoginNotAccepted(site)
+        async with self._lock(site):
+            current = await self._states.get(site)
+            expected = 0 if current is None else current.seed_revision
+            revision = await self._secrets.seed(
+                site,
+                provider_key=(
+                    None
+                    if target.policy.provider_key is None
+                    else target.policy.provider_key.value
+                ),
+                expected_seed_revision=expected,
+                ciphertext=self._cipher.encrypt(site, expected + 1, 0, payload),
+                egress_route=DEFAULT_EGRESS_ROUTE,
+            )
+        _logger.info("site session %s logged in as revision %s", site, revision)
+        return revision

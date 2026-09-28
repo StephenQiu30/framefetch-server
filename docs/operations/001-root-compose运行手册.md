@@ -69,7 +69,7 @@ docker compose --env-file .env -f docker-compose.yml up -d --build --wait
 ~~~
 
 最后一条命令是本机完整项目的启动与重建入口，不需要任何宿主进程。需要登录态的站点由
-部署者一次性导入站点会话，之后由 `session-broker`、`session-browser`、`session-runner`
+管理员在管理页面登录站点会话，之后由 `session-broker`、`session-browser`、`session-runner`
 在容器内维护；步骤见 [011 站点会话运行手册](011-站点会话运行手册.md)。服务健康与平台
 接受会话分别检查，不把核心健康冒充为平台可下载。
 不要使用不会应用代码、镜像或配置变化的
