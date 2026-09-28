@@ -5,7 +5,7 @@ from http.cookiejar import CookieJar
 from pathlib import Path
 
 import pytest
-from app.workers.runner import chrome_provider_cookies as chrome
+from app.workers.session import chrome_reader as chrome
 
 
 class _Decryptor:
@@ -268,3 +268,46 @@ def test_extract_is_macos_only(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) 
 
     with pytest.raises(OSError, match="macOS"):
         chrome.extract_chrome_cookies(("youtube.com",), chrome_root=root)
+
+
+class _DeniedDecryptor:
+    def decrypt(self, value: bytes) -> str | None:
+        return None
+
+
+def test_withheld_keychain_key_is_a_permission_error_not_a_missing_login(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    root, _ = _profile(tmp_path)
+    monkeypatch.setattr(chrome.sys, "platform", "darwin")
+    monkeypatch.setattr(chrome, "_pinned_decryptor", lambda *args: _DeniedDecryptor())
+
+    with pytest.raises(PermissionError):
+        chrome.extract_chrome_cookies(("youtube.com",), chrome_root=root)
+    # Plain-text rows alone do not prove the key is available, but no encrypted
+    # row also means there is nothing to withhold.
+    jar = chrome.extract_chrome_cookies(("youtube-nocookie.com",), chrome_root=root)
+    assert {item.name for item in jar} == {"embed"}
+
+
+def test_profiles_are_listed_with_their_chrome_names(tmp_path: Path) -> None:
+    root = tmp_path / "Chrome"
+    for name in ("Default", "Profile 2", "System Profile", "Guest Profile"):
+        (root / name).mkdir(parents=True)
+    (root / "Profile 3").mkdir()
+    (root / "Profile 4").symlink_to(root / "Default")
+    (root / "Local State").write_text(
+        '{"profile": {"info_cache": {"Profile 2": {"name": "Alt"}}}}'
+    )
+
+    assert chrome.chrome_profiles(chrome_root=root) == (
+        chrome.ChromeProfile("Default", "Default"),
+        chrome.ChromeProfile("Profile 2", "Alt"),
+        chrome.ChromeProfile("Profile 3", "Profile 3"),
+    )
+    (root / "Local State").write_text("not json")
+    assert [p.display_name for p in chrome.chrome_profiles(chrome_root=root)] == [
+        "Default",
+        "Profile 2",
+        "Profile 3",
+    ]

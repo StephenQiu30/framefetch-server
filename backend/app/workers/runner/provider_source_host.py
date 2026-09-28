@@ -30,7 +30,6 @@ from app.workers.runner._secure_file import (
     read_private_json,
     validate_private_file,
 )
-from app.workers.runner.chrome_provider_cookies import DEFAULT_CHROME_ROOT
 from app.workers.runner.provider_cookie_boundary import (
     export_provider_cookie_lease_bounded,
 )
@@ -42,6 +41,7 @@ from app.workers.runner.provider_session_policy import (
     ProviderSessionSource,
     browser_session_policy,
 )
+from app.workers.session.chrome_reader import DEFAULT_CHROME_ROOT
 from cryptography.fernet import InvalidToken
 from dotenv import dotenv_values
 

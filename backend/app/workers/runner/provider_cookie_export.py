@@ -10,7 +10,6 @@ from pathlib import Path
 from typing import Final
 
 from app.services.provider_types import ProviderKey, ProviderSessionVersion
-from app.workers.runner.chrome_provider_cookies import extract_chrome_cookies
 from app.workers.runner.netscape_cookie import (
     has_safe_cookie_fields,
     is_allowed_domain,
@@ -28,6 +27,7 @@ from app.workers.runner.provider_session_source import (
     ProviderSessionLoader,
     load_provider_session,
 )
+from app.workers.session.chrome_reader import extract_chrome_cookies
 
 OK: Final = ProviderCookieLeaseStatus.OK
 CREDENTIAL_REQUIRED: Final = ProviderCookieLeaseStatus.CREDENTIAL_REQUIRED

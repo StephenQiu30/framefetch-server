@@ -17,6 +17,7 @@ from pydantic import (
     EmailStr,
     Field,
     SecretStr,
+    ValidationInfo,
     field_validator,
     model_validator,
 )
@@ -133,13 +134,17 @@ class Settings(BaseSettings):
 
     database_url: str = "postgresql+asyncpg://video:video@localhost:5432/video"
     provider_source_encryption_key: SecretStr | None = None
+    # Only the session broker and the one-time host import receive this key.
+    site_session_encryption_key: SecretStr | None = None
     provider_source_root: Path = Path("/run/provider-sources")
     provider_source_poll_seconds: int = Field(default=15, ge=5, le=60)
     provider_source_lease_seconds: int = Field(default=90, ge=30, le=300)
 
-    @field_validator("provider_source_encryption_key", mode="before")
+    @field_validator(
+        "provider_source_encryption_key", "site_session_encryption_key", mode="before"
+    )
     @classmethod
-    def validate_provider_source_key(cls, value: object) -> object:
+    def validate_encryption_key(cls, value: object, info: ValidationInfo) -> object:
         if value is None or value == "":
             return None
         raw = value.get_secret_value() if isinstance(value, SecretStr) else str(value)
@@ -147,7 +152,7 @@ class Settings(BaseSettings):
             Fernet(raw.encode("ascii"))
         except (ValueError, UnicodeError):
             raise ValueError(
-                "PROVIDER_SOURCE_ENCRYPTION_KEY must be a Fernet key"
+                f"{str(info.field_name).upper()} must be a Fernet key"
             ) from None
         return value
 

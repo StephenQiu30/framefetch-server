@@ -5,12 +5,12 @@ from __future__ import annotations
 from collections.abc import Callable
 from http.cookiejar import CookieJar
 
-from app.workers.runner.chrome_provider_cookies import extract_chrome_cookies
 from app.workers.runner.provider_session_policy import (
     ProviderBrowserSessionPolicy,
     ProviderSessionSource,
 )
 from app.workers.runner.yuanbao_session import YuanbaoSession
+from app.workers.session.chrome_reader import extract_chrome_cookies
 
 type ProviderSessionLoader = Callable[[ProviderBrowserSessionPolicy, str], CookieJar]
 

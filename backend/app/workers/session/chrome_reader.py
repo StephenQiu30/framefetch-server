@@ -1,12 +1,17 @@
-"""Read a provider-scoped Cookie jar from local macOS Chrome."""
+"""Read a site-scoped Cookie jar from local macOS Chrome.
+
+Only the one-time host import runs this; containers never read a host browser.
+"""
 
 from __future__ import annotations
 
+import json
 import os
 import re
 import sqlite3
 import stat
 import sys
+from dataclasses import dataclass
 from http.cookiejar import Cookie, CookieJar
 from pathlib import Path
 from typing import Protocol, cast
@@ -46,6 +51,39 @@ def extract_chrome_cookies(
     profile_dir = _safe_profile(chrome_root, profile)
     database = _cookie_database(profile_dir)
     return _read_filtered(database, chrome_root, normalized)
+
+
+@dataclass(frozen=True, slots=True)
+class ChromeProfile:
+    directory: str
+    display_name: str
+
+
+def chrome_profiles(
+    *, chrome_root: Path = DEFAULT_CHROME_ROOT
+) -> tuple[ChromeProfile, ...]:
+    """List real profile directories with the names Chrome shows the user."""
+    _require_directory(chrome_root)
+    names: dict[str, str] = {}
+    try:
+        state = json.loads((chrome_root / "Local State").read_text(encoding="utf-8"))
+        cache = state.get("profile", {}).get("info_cache", {})
+        names = {
+            str(directory): str(info.get("name") or directory)
+            for directory, info in cache.items()
+            if isinstance(info, dict)
+        }
+    except (OSError, ValueError, AttributeError):
+        pass
+    profiles = []
+    for entry in sorted(chrome_root.iterdir(), key=lambda path: path.name):
+        if _PROFILE.fullmatch(entry.name) is None or entry.is_symlink():
+            continue
+        if entry.is_dir():
+            profiles.append(
+                ChromeProfile(entry.name, names.get(entry.name, entry.name))
+            )
+    return tuple(profiles)
 
 
 def chrome_profile_directory(
@@ -136,10 +174,19 @@ def _read_filtered(
         rows = connection.execute(query, parameters)
         decryptor = _pinned_decryptor(chrome_root, meta_version)
         jar = CookieJar()
+        encrypted = decrypted = 0
         for row in rows:
+            if not row[2] and row[3]:
+                encrypted += 1
             cookie = _to_cookie(decryptor, row)
             if cookie is not None:
                 jar.set_cookie(cookie)
+                decrypted += bool(not row[2] and row[3])
+        if encrypted and not decrypted:
+            # The pinned decryptor returns None when macOS withholds the
+            # "Chrome Safe Storage" key; that is a permission problem, not a
+            # missing login.
+            raise PermissionError("Chrome Safe Storage key is unavailable")
         return jar
     finally:
         connection.close()

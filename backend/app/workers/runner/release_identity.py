@@ -24,7 +24,7 @@ _PROVIDER_MODULES = {
     "wechat_channels_policy.py": "wechat_channels",
     "yuanbao_session.py": "wechat_channels",
 }
-_OPERATOR_MODULES = frozenset({"chrome_provider_cookies.py", "yuanbao_session.py"})
+_OPERATOR_MODULES = frozenset({"yuanbao_session.py"})
 _PROVIDER_PLUGINS = {
     "bilibili_access.py": "bilibili",
     "douyin_note.py": "douyin",
