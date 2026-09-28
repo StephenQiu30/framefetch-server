@@ -9,31 +9,18 @@ Extractor、访问和下载链路问题；生产发布仍必须使用项目自�
 
 ## 1. 前置检查
 
-当 `.env` 配置 Provider Operator 时，先确认一次性登记的 Secret，再启动 Compose
-Profile。项目不启动 Session Broker：
+本机 macOS 从根目录执行 `./start`，自动准备来源并启动当前业务 Compose。纯容器恢复与系统授权边界见 [011 站点会话运行手册](011-站点会话运行手册.md)。所有在线探针统一使用 `session-runner`、`session-broker`、`session-browser`，没有匿名／访客服务或旧 Operator profile 启动入口。
 
 ```bash
-docker compose --env-file .env -f docker-compose.yml \
-  --profile youtube-operator --profile douyin-operator \
-  --profile reddit-operator --profile wechat-channels-operator \
-  up -d --build --wait
-
+./start
 curl --fail http://127.0.0.1:8111/health/ready
 ```
 
-全局就绪检查只证明核心 API 依赖可用，媒体 Runner 和受控会话使用各自探针。
-API 就绪不能替代固定 Provider metadata/media 验收。`provider-canary` 必须显示 `runner_work:/work` 挂载，且容器内
-`RUNNER_WORKSPACE_ROOT=/work`。
-
-`PROVIDER_CANARY_TARGETS` 的每条目标必须显式声明 `access_mode`。公开路由写
-`anonymous`，会话路由写 `operator_managed`；同一样本的两种路由必须使用
-不同 `target_id` 分别配置 metadata/media 目标。Canary 只执行声明的单一
-Runner，不存在 anonymous→operator 回退。未配置对应 Operator Runner 的
-`operator_managed` 目标会如实记录为访问失败。
+API 就绪只证明核心依赖可用，不能替代平台 metadata／media 验收。`provider-canary` 需要共享的 `runner_work:/work`；所有固定目标使用 `operator_managed`，未配置会话或不能通过登录探针时必须明确失败。
 
 ## 2. 固定矩阵
 
-样本位于 `backend/app/workers/canary/fixed_public_cases.json`。矩阵覆盖已登记会话机制的平台，每个 target 包含 metadata 与 media 两条记录；URL 不会出现在命令输出或数据库 canary 行中。所有探针固定使用 `operator_managed`，会话缺失或登录探针未验证时明确失败，不自动准备访客或回退匿名。矩阵登记仅代表测试目标，不等于该站点已经通过真实文件验收。
+样本位于 `backend/app/workers/canary/fixed_public_cases.json`。当前矩阵只有 9 个平台，每个 target 包含 metadata 与 media 两条记录；页面登记的 23 个下载解析器尚未全部纳入，不能据此宣布全平台通过；URL 不会出现在命令输出或数据库 canary 行中。所有探针固定使用 `operator_managed`，会话缺失或登录探针未验证时明确失败，不自动准备访客或回退匿名。矩阵登记仅代表测试目标，不等于该站点已经通过真实文件验收。
 
 media 阶段必须下载解析结果中的第一项格式，与 Web 界面默认选项保持一致；不得改成
 最低清晰度来缩短探针时间，否则会漏掉真实用户默认格式的签名或客户端兼容问题。
@@ -67,7 +54,7 @@ docker exec video-provider-canary \
 
 | 稳定错误 | 判定 |
 | --- | --- |
-| `provider_auth_required` / `provider_session_expired` | 会话缺失或失效；重新执行一次对应 Provider 授权并重建 Operator，不轮换账号放大请求 |
+| `provider_auth_required` / `provider_session_expired` | 会话缺失或失效；检查部署会话与自动接入；必要时在 Chrome 重新登录，不轮换账号放大请求 |
 | `provider_verification_failed` | 平台人机验证/挑战未通过；保留最后有效登录态并降级平台，不自动规避 CAPTCHA |
 | `format_unavailable` | 相邻 rendition 漂移或原规格消失；探针有界重检三次，用户重试自动选择当前兼容规格 |
 | `provider_drm_protected` / `provider_content_restricted` | 内容能力边界，不重试、不绕过 |
@@ -84,20 +71,11 @@ metadata、media、完整视频 Analysis attestation 和显式批准才能提升
 公开任务、用户、账号、Cookie 或出口标识。固定探针用于无人使用时的主动监测，真实
 任务用于及时反映用户实际链路，两者不需要维护平行的手工状态。
 
-2026-08-29 当前版本对 22 个已启用 Provider 执行了 44 个固定探针（metadata/media
-各 22 个）。其中 16 个 Provider 在全矩阵中两阶段均成功，哔哩哔哩的 media
-阶段成功；TikTok 已以 `tiktok-public-player` Profile 单独复测，anonymous
-metadata 与完整媒体探针分别在 2678ms、4771ms 成功。该版本删除了遗留的浏览器、会话与
-device-id 参数，只使用第一方公开播放器 API，不依赖 Cookie、本地浏览器或 Operator
-会话。YouTube、抖音、Reddit 和微信视频号的
-固定公开样本仍被平台授权、验证或公开媒体边界拒绝；这些结果必须如实投影为
-`access_required` 或 `degraded`，不得通过为绕过失败而更换样本、手工改数据库或恢复个人
-浏览器会话伪造可用。对应的 C 端降级入口是上传用户拥有或已获授权的文件。
-所有成功任务由状态服务自动显示为最近真实下载，无需手工更新页面状态。
+2026-09-29 的全平台浏览器验收覆盖 23 个解析器入口的暖启动与冷启动。结果未通过；详细逐平台矩阵、真实文件、启动等待和阻塞项统一记录在 [046 Plan](../plan/046-容器自持平台会话Plan.md#全平台注册范围与无感冷启动验收2026-09-29)。历史匿名路线的成功率不作为当前强制会话路线的验收结果。
 
 ## 4. 更新固定样本
 
 只在原内容删除、链接写错或不再属于预期能力边界时升级 target 版本。更新前先用
-当前 Runner 验证 Provider identity、单视频边界、最低规格完整下载、SHA-256 和
+当前 Runner 验证 Provider identity、单视频边界、默认规格完整下载、SHA-256 和
 ffprobe；同一版本不得静默换 URL。测试要求矩阵和 Registry 双向一致，新增/删除
 Provider 时必须同步更新。
