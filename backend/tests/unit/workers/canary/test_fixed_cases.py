@@ -5,9 +5,9 @@ from app.services.provider_types import (
     ProviderCanaryStage,
     ProviderSupportStatus,
 )
+from app.services.site_sessions import known_session_provider_keys
 from app.workers.canary.fixed_cases import fixed_public_diagnostic_targets
 from app.workers.runner.provider_registry import current_provider_registry
-from app.workers.runner.provider_session_policy import browser_session_providers
 
 _KNOWN_INVALID_UPSTREAM_FIXTURES = {
     "BaW_jenozKc",
@@ -41,8 +41,8 @@ def test_fixed_public_matrix_covers_every_registered_provider_and_stage() -> Non
         if profile.support_status is not ProviderSupportStatus.DISABLED
         and ProviderAccessMode.ANONYMOUS in profile.access_modes
     }
-    session_providers = {provider.value for provider in browser_session_providers()}
-    assert session_providers == (
+    # Youku and Tencent Video have no public fixed matrix: account-only media.
+    assert known_session_provider_keys() - {"youku", "qqvideo"} == (
         _FIXED_OPERATOR_PROVIDERS
         | _FIXED_GUEST_PROVIDERS
         | _PROVEN_ANONYMOUS_SESSION_PROVIDERS

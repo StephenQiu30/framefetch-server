@@ -112,6 +112,7 @@ class DownloadErrorCode(StrEnum):
     PROVIDER_MEDIA_UNSUPPORTED = "provider_media_unsupported"
     PROVIDER_RATE_LIMITED = "provider_rate_limited"
     PROVIDER_SESSION_EXPIRED = "provider_session_expired"
+    PROVIDER_SESSION_NOT_READY = "provider_session_not_ready"
     PROVIDER_TEMPORARILY_UNAVAILABLE = "provider_temporarily_unavailable"
     PROVIDER_UNSUPPORTED = "provider_unsupported"
     PROVIDER_VERIFICATION_FAILED = "provider_verification_failed"

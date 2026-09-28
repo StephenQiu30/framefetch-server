@@ -44,6 +44,15 @@ def components(
     cipher = FernetUrlEnvelope(URLCipher(Fernet.generate_key()), key_id="test")
     fingerprint = HmacRequestFingerprinter(b"f" * 32)
     clock = [NOW]
+
+    async def select_policy(url: str) -> ProviderAccessPolicy:
+        key = provider_profile(url).key
+        if key in operator_providers:
+            return ProviderAccessPolicy.OPERATOR_PUBLIC
+        if key in guest_providers:
+            return ProviderAccessPolicy.PUBLIC_SESSION
+        return ProviderAccessPolicy.PUBLIC
+
     service = IntentService(
         repo,
         MediaUrlValidator(),
@@ -51,15 +60,7 @@ def components(
         fingerprint,
         now=lambda: clock[0],
         new_id=uuid4,
-        select_policy=lambda url: (
-            ProviderAccessPolicy.OPERATOR_PUBLIC
-            if provider_profile(url).key in operator_providers
-            else (
-                ProviderAccessPolicy.PUBLIC_SESSION
-                if provider_profile(url).key in guest_providers
-                else ProviderAccessPolicy.PUBLIC
-            )
-        ),
+        select_policy=select_policy,
     )
     inspector = InspectMedia(
         repository=SqlAlchemyDownloadRepository(sessions),

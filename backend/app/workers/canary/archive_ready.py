@@ -10,12 +10,14 @@ from app.core.config import get_settings_for_role
 from app.core.db import create_engine, create_session_factory
 from app.integrations.media_runner_factory import (
     media_runner_router,
-    operator_provider_keys,
+    session_provider_keys,
 )
 from app.integrations.provider_status import configured_provider_statuses
+from app.integrations.site_session_catalog import SiteSessionRoutes
 from app.repositories.providers.canary_repository import (
     SqlAlchemyProviderCanaryRepository,
 )
+from app.repositories.providers.site_sessions import SiteSessionStates
 from app.services.provider_canaries import ProviderStatusService
 from app.services.provider_types import ProviderSupportStatus
 from app.workers.runner.provider_registry import configure_provider_instances
@@ -25,12 +27,14 @@ async def pending_provider_statuses() -> tuple[dict[str, str], ...]:
     settings = get_settings_for_role("provider-canary")
     configure_provider_instances(settings.peertube_allowed_instances)
     engine = create_engine(settings.database_url)
-    runner = media_runner_router(settings)
+    sessions = create_session_factory(engine)
+    runner = media_runner_router(
+        settings, session_routes=SiteSessionRoutes(SiteSessionStates(sessions))
+    )
     service = ProviderStatusService(
-        SqlAlchemyProviderCanaryRepository(create_session_factory(engine)),
+        SqlAlchemyProviderCanaryRepository(sessions),
         configured_provider_statuses(
-            operator_provider_keys(settings),
-            settings.runner_default_access_policies,
+            session_provider_keys(settings),
             enabled_guest_keys=frozenset(settings.runner_guest_base_urls),
         ),
         now=lambda: datetime.now(UTC),

@@ -1,6 +1,5 @@
 export const youtubeProvider: API.ProviderStatusResponse = {
   key: 'youtube',
-  authorization_action: 'managed_session',
   display_name: 'YouTube',
   registered: true,
   extractor_exists: true,

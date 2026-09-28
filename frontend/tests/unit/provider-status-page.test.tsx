@@ -384,7 +384,6 @@ function statuses(): API.ProviderListResponse {
     items: [
       {
         key: 'youtube',
-        authorization_action: 'managed_session',
         access_policies: [],
         default_access_policy_id: null,
         evidence_state: 'missing',
@@ -408,7 +407,6 @@ function statuses(): API.ProviderListResponse {
       },
       {
         key: 'tiktok',
-        authorization_action: 'none',
         access_policies: [],
         default_access_policy_id: null,
         evidence_state: 'fresh',
@@ -431,7 +429,6 @@ function statuses(): API.ProviderListResponse {
       },
       {
         key: 'bilibili',
-        authorization_action: 'none',
         access_policies: [],
         default_access_policy_id: null,
         evidence_state: 'fresh',
@@ -454,7 +451,6 @@ function statuses(): API.ProviderListResponse {
       },
       {
         key: 'hongguo_web',
-        authorization_action: 'none',
         access_policies: [],
         default_access_policy_id: null,
         evidence_state: 'fresh',
@@ -478,7 +474,6 @@ function statuses(): API.ProviderListResponse {
       },
       {
         key: 'qqvideo',
-        authorization_action: 'none',
         access_policies: [],
         default_access_policy_id: null,
         evidence_state: 'missing',
@@ -502,7 +497,6 @@ function statuses(): API.ProviderListResponse {
       },
       {
         key: 'vimeo',
-        authorization_action: 'none',
         access_policies: [],
         default_access_policy_id: null,
         evidence_state: 'stale',

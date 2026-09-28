@@ -24,12 +24,12 @@ class ProviderCanaryRunner:
     def __init__(
         self,
         anonymous: MediaRunnerClient,
-        operators: Mapping[str, MediaRunnerClient] | None = None,
+        session: MediaRunnerClient | None = None,
         *,
         guests: Mapping[str, MediaRunnerClient] | None = None,
     ) -> None:
         self._anonymous = anonymous
-        self._operators = dict(operators or {})
+        self._session = session
         self._guests = dict(guests or {})
 
     async def context(
@@ -84,7 +84,9 @@ class ProviderCanaryRunner:
 
     async def close(self) -> None:
         await self._anonymous.close()
-        for client in (*self._operators.values(), *self._guests.values()):
+        if self._session is not None:
+            await self._session.close()
+        for client in self._guests.values():
             await client.close()
 
     def _inspection_client(
@@ -99,10 +101,9 @@ class ProviderCanaryRunner:
             if guest is None:
                 raise MediaInspectionGuestContextRequired(access_mode=access_mode)
             return guest
-        operator = self._operators.get(provider_key)
-        if operator is None:
+        if self._session is None:
             raise MediaInspectionAuthRequired(access_mode=access_mode)
-        return operator
+        return self._session
 
     def _client_for_context(
         self, context: ProviderAccessContextRef
@@ -114,7 +115,6 @@ class ProviderCanaryRunner:
             if guest is None:
                 raise MediaRunnerClientError("guest_context_required", 503)
             return guest
-        operator = self._operators.get(context.provider_key)
-        if operator is None:
+        if self._session is None:
             raise MediaRunnerClientError("credential_required", 422)
-        return operator
+        return self._session

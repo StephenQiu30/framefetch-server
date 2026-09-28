@@ -19,6 +19,7 @@ from app.integrations.media_runner_factory import media_runner_router
 from app.integrations.messaging import RabbitMqTopology
 from app.integrations.object_storage import MinioObjectStorage
 from app.integrations.readiness import assert_download_execution_schema
+from app.integrations.site_session_catalog import SiteSessionRoutes
 from app.integrations.thumbnail_storage import MinioThumbnailStorage
 from app.integrations.url_security import FernetUrlEnvelope, MediaUrlValidator
 from app.repositories.downloads.execution import DownloadExecutionRepository
@@ -26,6 +27,7 @@ from app.repositories.downloads.intent_repository import IntentRepository
 from app.repositories.downloads.repository import SqlAlchemyDownloadRepository
 from app.repositories.providers.guest_contexts import GuestContexts
 from app.repositories.providers.route_cooldowns import SqlAlchemyProviderRouteCooldowns
+from app.repositories.providers.site_sessions import SiteSessionStates
 from app.services.download_execution.models import DownloadExecutionSettings
 from app.services.download_execution.service import DownloadExecution
 from app.services.downloads.fingerprints import HmacRequestFingerprinter
@@ -67,10 +69,12 @@ def build_runtime(settings: Settings) -> DownloadWorkerRuntime:
     raw_repository = SqlAlchemyDownloadRepository(sessions)
     repository = DownloadExecutionRepository(raw_repository)
     workspace_cleaner = SharedWorkspaceCleaner(settings.runner_workspace_root)
+    session_routes = SiteSessionRoutes(SiteSessionStates(sessions))
     runner = media_runner_router(
         settings,
         ProviderRouteAdmission(SqlAlchemyProviderRouteCooldowns(sessions)),
         reject_guest=GuestContexts(sessions).reject,
+        session_routes=session_routes,
     )
     storage = MinioObjectStorage(settings)
     thumbnail_recovery = ArtifactThumbnailRecovery(

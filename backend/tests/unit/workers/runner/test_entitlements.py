@@ -27,16 +27,23 @@ def test_operator_allows_unrestricted_public_web_metadata(provider: str) -> None
     )
 
 
-@pytest.mark.parametrize("provider", ("tiktok", "vimeo"))
-def test_anonymous_only_provider_is_not_operator_allowlisted(provider: str) -> None:
+@pytest.mark.parametrize("provider", ("tiktok", "vimeo", "generic"))
+def test_any_imported_site_session_may_process_clear_public_media(
+    provider: str,
+) -> None:
+    # The broker admits a site; entitlement rules still apply per media item.
+    enforce_media_rights(
+        {"availability": "public"},
+        provider_key=provider,
+        access_mode=ProviderAccessMode.OPERATOR_MANAGED,
+    )
     with pytest.raises(RunnerFailure) as caught:
         enforce_media_rights(
-            {},
+            {"availability": "private"},
             provider_key=provider,
             access_mode=ProviderAccessMode.OPERATOR_MANAGED,
         )
-
-    assert caught.value.code == "provider_session_not_allowed"
+    assert caught.value.code == "content_private"
 
 
 @pytest.mark.parametrize(
@@ -60,17 +67,6 @@ def test_operator_entitlement_drift_disables_personal_account(
         )
 
     assert caught.value.code == "credential_entitlement_drift"
-
-
-def test_unapproved_operator_provider_remains_blocked() -> None:
-    with pytest.raises(RunnerFailure) as caught:
-        enforce_media_rights(
-            {},
-            provider_key="generic",
-            access_mode=ProviderAccessMode.OPERATOR_MANAGED,
-        )
-
-    assert caught.value.code == "provider_session_not_allowed"
 
 
 @pytest.mark.parametrize(

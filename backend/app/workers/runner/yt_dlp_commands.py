@@ -124,9 +124,11 @@ class YtDlpCommandBuilder:
         include_playlist: bool = False,
     ) -> BuiltYtDlpCommand:
         profile = request.profile
+        # The access context already admitted the jar: the session broker for
+        # any site with a deployment session, the guest profile for guests.
         if (
             cookie_jar is not None
-            and ProviderAccessMode.OPERATOR_MANAGED not in profile.access_modes
+            and self._settings.runner_access_mode is ProviderAccessMode.ANONYMOUS
         ):
             raise RunnerFailure("provider_session_not_allowed", status=422)
         egress_proxy = self._settings.egress_proxy_for(profile.key)

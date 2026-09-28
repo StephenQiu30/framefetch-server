@@ -1,5 +1,9 @@
 # BACKLOG — 视频解析与平台支持 可维护性/可用性 修复
 
+## 容器自持平台会话（046）
+
+[PRD](docs/prd/046-容器自持平台会话PRD.md) · [Design](docs/design/046-容器自持平台会话设计.md) · [Plan](docs/plan/046-容器自持平台会话Plan.md) · [运行手册](docs/operations/011-站点会话运行手册.md)。取代 044 FR-17／AC-21 与 043；任务状态只在 046 Plan 维护。
+
 ## 统一解析中心（045）
 
 [PRD](docs/prd/045-统一解析中心PRD.md) · [Design](docs/design/045-统一解析中心设计.md) · [Plan](docs/plan/045-统一解析中心Plan.md)。任务执行顺序与验收状态只在 045 Plan 维护；当前为方案设计，未实现。

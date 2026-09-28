@@ -75,14 +75,14 @@ async def test_guest_runner_only_reads_scoped_lease_and_cleans_operation(tmp_pat
         config, credential_lease=Lease(), enforce_memory_backing=False
     )
     assert await store.is_ready()
-    context = store.context_for(provider_profile_for_key("douyin"))
+    context = await store.context_for(provider_profile_for_key("douyin"))
     assert context.access_mode is ProviderAccessMode.GUEST
     async with store.operation(context) as jar:
         assert jar.read_bytes() == COOKIE
         assert jar.stat().st_mode & 0o777 == 0o600
     assert not jar.exists()
     with pytest.raises(RunnerFailure):
-        store.context_for(provider_profile_for_key("youtube"))
+        await store.context_for(provider_profile_for_key("youtube"))
     publish_guest_lease(
         config.runner_guest_cookie_file,
         key,
@@ -94,7 +94,7 @@ async def test_guest_runner_only_reads_scoped_lease_and_cleans_operation(tmp_pat
     with pytest.raises(RunnerFailure):
         async with store.operation(context):
             pytest.fail("stale guest revision entered execution")
-    refreshed = store.validate_context(
+    refreshed = await store.validate_context(
         provider_profile_for_key("douyin"), context, allow_guest_refresh=True
     )
     assert refreshed.credential_version_id == "guest-2"
@@ -106,7 +106,7 @@ async def test_guest_runner_only_reads_scoped_lease_and_cleans_operation(tmp_pat
         replace(context, access_mode=ProviderAccessMode.OPERATOR_MANAGED),
     ):
         with pytest.raises(RunnerFailure):
-            store.validate_context(
+            await store.validate_context(
                 provider_profile_for_key("douyin"), changed, allow_guest_refresh=True
             )
     await store.close()

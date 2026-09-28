@@ -2,14 +2,12 @@ from __future__ import annotations
 
 import copy
 import json
-from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
 from app.services.provider_types import (
     ProviderAccessMode,
     ProviderKey,
-    ProviderSessionVersion,
 )
 from app.workers.runner.entitlements import enforce_media_rights
 from app.workers.runner.errors import RunnerFailure
@@ -19,13 +17,6 @@ from app.workers.runner.plugins.yt_dlp_plugins.extractor.personal_video import (
     full_youku_streams,
     positive_duration,
 )
-from app.workers.runner.provider_cookie_file import ProviderCookieFile
-from app.workers.runner.provider_session_policy import (
-    browser_session_providers,
-    session_providers,
-)
-from app.workers.runner.provider_sessions import ProviderSessionStore
-from app.workers.runner.settings import RunnerSettings
 from yt_dlp import YoutubeDL
 from yt_dlp.extractor.common import InfoExtractor
 from yt_dlp.utils import ExtractorError
@@ -256,64 +247,6 @@ def test_personal_membership_disables_account_on_entitlement_drift(
             provider_key=provider,
             access_mode=ProviderAccessMode.ANONYMOUS,
         )
-
-
-@pytest.mark.parametrize(
-    "provider,domain,names,url",
-    [
-        (
-            "youku",
-            "youku.com",
-            ("P_sck",),
-            "https://v.youku.com/v_show/id_fixture.html",
-        ),
-        (
-            "qqvideo",
-            "v.qq.com",
-            ("vqq_vuserid", "vqq_vusession"),
-            "https://v.qq.com/x/page/fixture.html",
-        ),
-    ],
-)
-async def test_personal_sessions_survive_fresh_store_without_browser(
-    tmp_path: Path, provider, domain, names, url
-) -> None:
-    payload = b"# Netscape HTTP Cookie File\n" + b"".join(
-        f".{domain}\tTRUE\t/\tTRUE\t2147483647\t{name}\tsynthetic\n".encode()
-        for name in names
-    )
-    source = tmp_path / "cookies.txt"
-    source.write_bytes(payload)
-    source.chmod(0o600)
-    settings = RunnerSettings(
-        runner_hmac_secret="synthetic-secret-at-least-thirty-two-bytes",
-        runner_egress_proxy="http://egress-proxy:3128",
-        runner_workspace_root=tmp_path / "work",
-        runner_access_mode=ProviderAccessMode.OPERATOR_MANAGED,
-        runner_operator_session_versions={provider: "browser"},
-        runner_operator_account_baseline_attested=True,
-        runner_provider_cookie_file=source,
-        runner_provider_session_temp_root=tmp_path / "sessions",
-        runner_max_active_tasks=1,
-    )
-    store = ProviderSessionStore(settings, enforce_memory_backing=False)
-    context = store.context_for(url)
-    for _ in range(2):
-        fresh = ProviderSessionStore(settings, enforce_memory_backing=False)
-        assert await fresh.is_ready()
-        assert fresh.context_for(url) == context
-        async with fresh.operation(context) as jar:
-            assert jar.read_bytes() == payload
-        assert not jar.exists()
-    assert source.read_bytes() == payload
-    assert (
-        ProviderCookieFile(source).read(
-            ProviderKey(provider), ProviderSessionVersion.BROWSER
-        )
-        == payload
-    )
-    assert ProviderKey(provider) in session_providers()
-    assert ProviderKey(provider) not in browser_session_providers()
 
 
 @pytest.mark.parametrize("provider", ["youku", "qqvideo"])

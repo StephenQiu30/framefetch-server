@@ -4,17 +4,15 @@ FastAPI API、下载/分析领域逻辑、异步 Worker、当前态数据库 SQL
 
 所有 Python 与 `uv` 命令都应从 `backend/` 执行。数据库当前结构定义在可重复执行的 `sql/schema.sql`；由部署者按需在已有项目数据库中幂等加载；业务启动不创建基础服务，也不重复初始化已有环境。项目不维护迁移历史或旧 schema 兼容路径。本目录 `Dockerfile` 构建 API、Worker 与 Runner 镜像；前端使用 frontend/Dockerfile 独立构建。
 
-## 本机运行状态与部署密钥
+## 站点会话（046）
 
-Provider 启动器从本次 `--env-file` 指定的环境读取配置，在内存中计算启动计划，并把计划作为进程环境交给 Compose 与宿主来源维护器；它不会生成第二份 `provider-startup.env`。PID、状态和锁文件，以及没有显式配置密钥时生成的稳定来源密钥，保存在 `backend/.local-runtime/`。目录权限限制为当前用户，Git 全局忽略该目录；这些私有运行状态由代码自动创建，不需要从 Git 下载，也不应提交。
+需要登录态的平台统一为“站点会话”：部署者在本机执行一次 `uv run python -m app.workers.session.seed import --site <站点>`，从 Chrome 读取该站点 Cookie、以 `SITE_SESSION_ENCRYPTION_KEY` 加密写入 PostgreSQL `site_sessions`。之后全部在容器内运行：
 
-部署时优先把稳定的 `PROVIDER_SOURCE_ENCRYPTION_KEY` 配在仓库根目录的未提交 `.env`，或注入部署 Secret。`.env.example` 只保留空值模板。macOS 首次自动维护浏览器来源时若该变量为空，启动器会在 `backend/.local-runtime/provider-source.key` 创建稳定密钥；后续启动复用此文件。PostgreSQL 中的来源密文必须由同一把密钥解密，所以换机或恢复数据库时，也要恢复此密钥文件，或注入原密钥。丢失后不能解密旧来源；需要重新采集并登记来源。
+- `session-broker`（`app/workers/session/broker_app.py`）唯一持有密钥，维护状态机、调度保活，并为每个 Runner 任务签发绑定任务与站点的一次性加密租约。
+- `session-browser`（`app/workers/session/browser_app.py`，Dockerfile `session-browser` 目标）为每个站点保存持久 Chromium Profile，验证登录、保活并采集平台轮换后的 Cookie；没有数据库与密钥。
+- `session-runner`（`RUNNER_ACCESS_MODE=operator_managed`）只在 tmpfs 中为单次操作写入 `0600` Cookie jar，操作结束即删除。
 
-### Provider 会话材料的生命周期
-
-- `.provider-sessions/<provider>/cookies.txt` 是部署者显式采集或导入的持久来源文件。`provider_session_setup capture-chrome` 会从指定的 Chrome Profile 采集并校验；`provider-source-replica publish` 可导入已有文件。它不是普通解析时自动生成的文件，也不应提交 Git。
-- macOS 自动浏览器路线不维护上述 Cookie 文件。宿主后台进程从已登录 Chrome 提取单个平台所需 Cookie，加密写入 PostgreSQL 的 `provider_session_sources`，再由 Compose 来源副本发布到平台隔离的命名卷。
-- Runner 的 `/run/provider-session` 是每次受控操作自动创建在 tmpfs 中的一次性 Cookie jar；操作结束后删除，不由部署者维护或备份。
+已导入会话的站点一律走会话路线，不回退匿名。密钥必须稳定并与数据库备份分开保管；丢失后需要重新导入。运维步骤见 [站点会话运行手册](../docs/operations/011-站点会话运行手册.md)。
 
 ## 目录约定
 
@@ -48,11 +46,7 @@ Web 登录、注册、退出和 Cookie 写操作都校验精确 Origin（缺失�
 
 Media Runner 通过 `app/workers/runner/plugins/yt_dlp_plugins/` 加载随项目交付的可信站点提取器。MediaTrack 适配仅处理无需登录的公开审片视频和 API 明确授权的播放转码；抖音适配用数字视频 ID 构造固定公开分享页并修正 landscape 下载规格的短边尺寸语义，TikTok 适配只使用其第一方嵌入播放器 item API 和 yt-dlp 默认客户端，明确无 item/HTTPS 格式、API 临时故障与响应结构漂移分别返回链接不可用、临时不可用和提取器回归，不回退网页挑战；快手适配把公开作品规范化到第一方移动分享页并限制短链重定向域，Tumblr 适配优先读取当前 `www.tumblr.com` 公开页而不强制改写到旧 blog 子域。小红书适配识别第一方 `300031` 笔记失效和 `300012` 平台验证边界，避免把失效内容误报成提取器故障。视频号适配只接受公开 `weixin.qq.com/sph/...` 单视频，读取第一方公开信息，并可在受控线路使用专用元宝会话解析；只接受批准腾讯媒体域上的非加密媒体，保护材料直接拒绝。所有适配都继续经过受控代理、作品身份校验、大小/时长限制、重新 inspect、FFmpeg 和 ffprobe 校验，不支持图集截断、账号内容、无水印承诺或原文件权限绕过。
 
-主流视频源使用声明式 Provider Profile 接入：`provider_catalog_*.py` 按策略族登记能力和运行参数，`ProviderRegistry.prepare()` 一次解析得到贯穿 inspect/download 的不可变 `ProviderRequest`，`YtDlpCommandBuilder` 只消费该请求生成固定参数，错误由有序 `FailureRule` 归一化。已有 yt-dlp extractor 的公开单视频平台通常只需增加一个 Profile、契约测试和 metadata/media canary；需要自定义解析时再按 yt-dlp 官方插件目录增加可信 extractor，不修改通用命令执行器。未知站点使用无凭据 Generic extractor。可选的 YouTube、抖音、Reddit 运维会话由 `provider-sources` 从现有 PostgreSQL 加密记录自动恢复到单平台只读命名卷；新宿主复用稳定来源密钥即可恢复本地副本，普通客户端不安装扩展。其他受控平台沿用各自批准来源，经租约交给物理隔离的 Docker Runner，并仅在 tmpfs 中建立操作级 `0600` Cookie jar。
-
-macOS 标准部署已加入宿主浏览器来源维护进程：对经准入的平台（默认 YouTube）按域名从部署者已登录的日常 Chrome 读取唯一可用 Profile，加密发布到既有来源库；普通用户请求不读取浏览器，也不复制完整 Profile 或把 Cookie 返回 API。既有按需 Access Agent 仍用于明确维护授权，来源边界分别见个人部署手册。来源选择和授权成功状态以非敏感标记保存，后续 Runner 自动复用。每次 Runner 操作生成一次性 X25519 私钥，助手返回的 Cookie 只能由该操作解密；队列确认后删除密文，Runner 终态删除 tmpfs jar。助手空闲时无进程。视频号是明确批准的专用持久元宝来源，不复制普通 Chrome：首次执行 `uv run python -m app.workers.runner.yuanbao_session login` 并由用户登录，后续按需启动浏览器读取当前元宝状态，结束关闭浏览器但保留专用目录。目录权限、互斥和撤销见[个人部署手册](../docs/operations/008-个人部署重启与换机手册.md)。单次读取在独立进程组中执行，15 秒超时、取消或异常都会回收整个进程组。项目仍只通过根 Docker Compose 运行；平台出口信誉需要隔离时，由运维使用 `RUNNER_PROVIDER_EGRESS_PROXIES` 按稳定 key 指向受控内部代理。
-
-完整的 Provider 一次性会话租约、撤销与故障流程见 `docs/operations/003-多平台受控会话运行手册.md`。
+主流视频源使用声明式 Provider Profile 接入：`provider_catalog_*.py` 按策略族登记能力和运行参数，`ProviderRegistry.prepare()` 一次解析得到贯穿 inspect/download 的不可变 `ProviderRequest`，`YtDlpCommandBuilder` 只消费该请求生成固定参数，错误由有序 `FailureRule` 归一化。已有 yt-dlp extractor 的公开单视频平台通常只需增加一个 Profile、契约测试和 metadata/media canary；需要自定义解析时再按 yt-dlp 官方插件目录增加可信 extractor，不修改通用命令执行器。未知站点使用无凭据 Generic extractor；导入了站点会话的任何站点（包括未适配站点）改走 `session-runner`。
 
 管理员可通过只读接口 `GET /api/admin/provider-runtime/engine-catalog` 查询匿名 Runner 实际安装的提取器及项目插件，获取安装版本、固定依赖是否匹配和清单摘要；extractor 数量不代表可下载的平台数。首次读取在独立子进程中有界枚举，后续复用当前进程快照，更新镜像后重新生成；不访问平台、不读取账号材料。API 或 Runner 缺失时返回服务不可用，不改变本站身份。平台策略、部署就绪和真实下载证据仍分别由 Profile、管理员运行诊断 API 与实际下载验证决定。
 
@@ -63,8 +57,6 @@ macOS 标准部署已加入宿主浏览器来源维护进程：对经准入的�
 内置 `local-codex` 不可删除或改造为第三方结构；模型和线路仅由数据库 Web Profile 决定，`.env` 只保留宿主机 CLI 二进制路径。
 
 ## 资源准入
-
-管理员的平台来源维护事务保存在 PostgreSQL `provider_authorizations`，API 后台在页面关闭后继续协调回执、超时及控制队列缺投；Web 切页只停止观察，明确取消才终止事务。来源维护有独立截止和 24 小时结果保留，结果清理后才回收对应队列标记。`source_available` 仅表示来源可读，不是内容授权，也不会自动恢复其他用户的下载。升级前应用当前 `sql/schema.sql`，并等待旧 Redis 中尚在进行的维护操作结束；不迁移旧临时事务或从其回执生成内容授权。API 与宿主 Agent 使用同一版本，具体状态见 [P9.06](../docs/plan/044-开源部署无感解析Plan.md#p9-06)。
 
 公开访客访问由 `provider-guest` 自动维护，当前启用抖音第一方访客初始化；`douyin-guest-runner` 只读短期材料，与匿名／账号 Runner 分离。标准 Compose 为持久解析意图配置此路线，无需导入账号 Cookie；保留稳定 `URL_ENCRYPTION_KEY` 和 PostgreSQL 数据即可恢复，丢失访客副本也可自动重建。部署前须应用当前 `sql/schema.sql`。运行预算与验收边界见 [044 设计](../docs/design/044-开源部署无感解析需求与系统设计.md) 和 [044 Plan](../docs/plan/044-开源部署无感解析Plan.md)；其他平台及 Web／App 的整体切换仍按 Plan 验收，不能以访客进程健康代替媒体成功。
 
@@ -79,23 +71,21 @@ macOS 标准部署已加入宿主浏览器来源维护进程：对经准入的�
 本机必须先提供 PostgreSQL、RabbitMQ、Redis 和 MinIO，并预置数据库 schema、消息拓扑、对象存储身份与 bucket。随后从仓库根目录启动前端、API 和业务 Worker；业务 Compose 只连接已有基础设施，沿用当前 `.env`，不再启动另一套环境：
 
 ```bash
-uv run --project backend python -m app.workers.runner.provider_startup start --env-file .env --compose-file docker-compose.yml
+docker compose --env-file .env -f docker-compose.yml up -d --build --wait
 docker compose --env-file .env -f docker-compose.yml ps --all
 ```
 
-这是完整项目唯一的运行入口。它为已声明的 Operator 保留路线，macOS 默认尝试从部署者已登录的 Chrome 自动维护 YouTube 来源；来源暂缺只影响该平台，不阻断核心 API。宿主来源维护与真实媒体成功分别验收。
-更新代码时先独立执行 `git pull --ff-only`，再重复该命令；不要使用不会重新评估来源、
-应用代码、镜像或配置变化的 `docker compose restart`。固定 Provider 探针仍是独立验收步骤，
-启动预检不等于平台接受来源或真实媒体下载成功。
+这是完整项目唯一的运行入口，不需要宿主进程。站点会话暂不可用只影响对应站点，不阻断核心 API。
+更新代码时先独立执行 `git pull --ff-only`，再重复该命令；不要使用不会应用镜像或配置变化的
+`docker compose restart`。固定 Provider 探针仍是独立验收步骤。
 
 本地开发复用 Homebrew 的 PostgreSQL、RabbitMQ、Redis 和 MinIO，业务进程仍只通过根 Compose 启动。根目录 `.env` 应分别使用标准端口 `5432`、`5672`、`6379` 和 `9000`。确认 `brew services list` 中四项均为 `started` 后，从根目录执行：
 
 ```bash
-uv run --project backend python -m app.workers.runner.provider_startup start \
-  --env-file .env --compose-file docker-compose.yml
+docker compose --env-file .env -f docker-compose.yml up -d --build --wait
 ```
 
-该入口启动前端、API、Media Runner、Outbox、下载/导入/报告 Worker、Provider Canary 和已声明的 Operator Profile；所有进程读取根目录 `.env`。只启动 API 时，HTTP 查询仍可用，但 Outbox 不会发布、异步任务不会被消费，平台状态也无法取得 Runner 上下文。
+该入口启动前端、API、Media Runner、Outbox、下载/导入/报告 Worker、Provider Canary 与站点会话服务；所有进程读取根目录 `.env`。只启动 API 时，HTTP 查询仍可用，但 Outbox 不会发布、异步任务不会被消费，平台状态也无法取得 Runner 上下文。
 
 只调试无异步依赖的 API 路由时，才使用 Python 模块入口：
 
@@ -115,9 +105,9 @@ docker compose --env-file .env -f docker-compose.yml \
   --profile reddit-operator --profile wechat-channels-operator up -d --build
 ```
 
-API readiness 与媒体 Runner 健康隔离。生产 Compose 只为已证明需要会话的 YouTube、抖音、Reddit、微信视频号以及实验性的腾讯视频、优酷提供独立 Runner。前三个平台使用只读文件，视频号使用专用元宝来源；已验证公开下载的平台继续走匿名 Runner。个人配置与换机见 [运行手册](../docs/operations/008-个人部署重启与换机手册.md)。API、
+API readiness 与媒体 Runner 健康隔离。所有已导入的站点会话共用一个 `session-runner`，未导入会话的平台继续走匿名或访客 Runner。API、
 下载 Worker 与 Canary 不等待平台健康；Worker/Canary 仅等待共享工作目录初始化。
-受控 Runner 通过无凭据 probe 验证宿主代理实际响应，平台可用性仍由探针和真实任务证明。
+站点会话的可用性由 broker 状态、探针和真实任务证明，容器健康不代表平台接受会话。
 开发环境只需启用 `.env` 实际声明的平台 Profile。腾讯与优酷的实验个人线路仅在生产 Compose 提供，接入范围和未完成验证见 [032 设计](../docs/design/032-腾讯视频与优酷个人下载设计.md)。
 
 固定 Provider 诊断矩阵和真实媒体探针命令见
@@ -161,10 +151,6 @@ API 固定监听 `8111`，前端固定监听 `8101`。API `/health/live` 只证�
 uv sync --frozen --dev
 uv run pytest
 ```
-
-## 独立平台会话安装
-
-`uv run python -m app.workers.runner.provider_session_setup --help` 提供部署侧 现有 Chrome 单平台采集、文件校验与原子导入；日常下载仍使用既有只读文件 Runner。系统来源权限、容器 UID/GID、候选实测和来源切换顺序见 [个人部署手册](../docs/operations/008-个人部署重启与换机手册.md)。此命令不证明平台下载成功。
 
 ## 下载持久化与 API 生命周期
 

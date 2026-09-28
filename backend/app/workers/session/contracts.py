@@ -11,6 +11,7 @@ from typing import Annotated, Final
 
 from pydantic import BaseModel, ConfigDict, Field, StringConstraints
 
+STATUS_PATH: Final = "/internal/v1/site-sessions/status"
 LEASE_PATH: Final = "/internal/v1/site-sessions/lease"
 FAILURE_PATH: Final = "/internal/v1/site-sessions/failures"
 BROWSER_IDENTITY_PATH: Final = "/v1/identity"
@@ -32,6 +33,15 @@ class _Strict(BaseModel):
 
 
 # Runner → broker ------------------------------------------------------------
+
+
+class StatusRequest(_Strict):
+    site: Site
+
+
+class StatusResponse(_Strict):
+    site: Site
+    seed_revision: int = Field(ge=1)
 
 
 class LeaseRequest(_Strict):

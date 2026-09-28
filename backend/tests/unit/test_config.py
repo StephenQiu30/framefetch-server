@@ -5,7 +5,6 @@ from pathlib import Path
 
 import pytest
 from app.core.config import DEFAULT_URL_ENCRYPTION_KEY, REPOSITORY_ROOT, Settings
-from app.services.provider_access import ProviderAccessPolicy
 from cryptography.fernet import Fernet
 from pydantic import SecretStr, ValidationError
 
@@ -236,65 +235,28 @@ def test_peertube_allowlist_accepts_only_exact_domain_names() -> None:
             Settings(app_env="test", peertube_allowed_instances=frozenset({invalid}))
 
 
-def test_operator_runner_endpoints_are_provider_keyed_internal_urls() -> None:
+def test_session_runner_endpoint_is_one_isolated_internal_url() -> None:
     settings = Settings(
         app_env="test",
         _env_file=None,
-        runner_operator_base_urls={
-            "youtube": "http://youtube-operator-runner:19100/",
-            "x": "http://x-operator-runner:19100",
-        },
+        session_runner_base_url="http://session-runner:19100/",
     )
-
-    assert settings.runner_operator_base_urls == {
-        "youtube": "http://youtube-operator-runner:19100",
-        "x": "http://x-operator-runner:19100",
-    }
-    invalid_cases = (
-        {"X": "http://x-operator-runner:19100"},
-        {"x": "https://public.example/runner"},
-        {"x": "http://user:pass@x-operator-runner:19100"},
-        {"x": "http://x-operator-runner:19100/path"},
-    )
-    for invalid in invalid_cases:
-        with pytest.raises(ValidationError):
-            Settings(
-                app_env="test",
-                _env_file=None,
-                runner_operator_base_urls=invalid,
-            )
-
-    with pytest.raises(ValidationError, match="provider-isolated"):
-        Settings(
-            app_env="test",
-            _env_file=None,
-            runner_operator_base_urls={
-                "youtube": "http://shared-runner:19100",
-                "x": "http://shared-runner:19100",
-            },
-        )
-
-
-def test_operator_default_policy_requires_a_matching_runner_endpoint() -> None:
-    with pytest.raises(
-        ValidationError,
-        match="operator default policy requires a matching runner endpoint",
+    assert settings.session_runner_base_url == "http://session-runner:19100"
+    assert Settings(app_env="test", _env_file=None).session_runner_base_url is None
+    for invalid in (
+        "https://public.example/runner",
+        "http://user:pass@session-runner:19100",
+        "http://session-runner:19100/path",
     ):
+        with pytest.raises(ValidationError):
+            Settings(app_env="test", _env_file=None, session_runner_base_url=invalid)
+    with pytest.raises(ValidationError, match="isolated from anonymous"):
         Settings(
             app_env="test",
             _env_file=None,
-            runner_default_access_policies={"youtube": "operator_public"},
+            runner_base_url="http://media-runner:19100",
+            session_runner_base_url="http://media-runner:19100",
         )
-
-    settings = Settings(
-        app_env="test",
-        _env_file=None,
-        runner_default_access_policies={"youtube": "operator_public"},
-        runner_operator_base_urls={"youtube": "http://youtube-operator-runner:19100"},
-    )
-    assert settings.runner_default_access_policies == {
-        "youtube": ProviderAccessPolicy.OPERATOR_PUBLIC
-    }
 
 
 def test_article_discovery_proxy_is_an_http_authority() -> None:
@@ -551,7 +513,7 @@ def test_guest_endpoints_are_explicit_and_isolated():
         with pytest.raises(ValueError, match="isolated"):
             Settings(
                 runner_base_url="http://media-runner:19100",
-                runner_operator_base_urls={"douyin": "http://account:19100"},
+                session_runner_base_url="http://account:19100",
                 runner_guest_base_urls={"douyin": endpoint},
             )
     with pytest.raises(ValueError, match="does not allow guest"):

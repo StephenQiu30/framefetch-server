@@ -68,7 +68,7 @@ def test_context_endpoint_returns_only_signed_non_secret_runtime_refs(
 ) -> None:
     service = FakeService()
     client = TestClient(create_app(settings(tmp_path), service=service))
-    body = json.dumps({"provider_key": "generic"}).encode()
+    body = json.dumps({"url": "https://media.example.com/video"}).encode()
     path = "/internal/v1/context"
 
     response = client.post(
@@ -90,7 +90,7 @@ def test_context_endpoint_returns_only_signed_non_secret_runtime_refs(
         "engine_commit",
         "runtime_revision",
     }
-    assert service.context_requests == ["generic"]
+    assert service.context_requests == ["https://media.example.com/video"]
 
 
 def test_contexts_endpoint_resolves_a_signed_batch_without_network_input(
@@ -141,7 +141,7 @@ def test_readiness_fails_closed_until_runner_dependencies_are_ready(
 @pytest.mark.parametrize(
     ("path", "payload"),
     (
-        ("/internal/v1/context", {"provider_key": "generic"}),
+        ("/internal/v1/context", {"url": "https://media.example.com/video"}),
         ("/internal/v1/contexts", {"provider_keys": ["generic"]}),
         ("/internal/v1/inspect", {"url": "https://media.example.com/video"}),
         (

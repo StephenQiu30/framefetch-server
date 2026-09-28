@@ -6,6 +6,7 @@ from app.services.provider_types import (
     ProviderProfileVersion,
     ProviderSupportStatus,
 )
+from app.services.site_sessions import known_session_provider_keys
 from app.workers.runner.errors import RunnerFailure
 from app.workers.runner.provider_registry import (
     ProviderProfile,
@@ -15,7 +16,6 @@ from app.workers.runner.provider_registry import (
     provider_profile,
     provider_request,
 )
-from app.workers.runner.provider_session_policy import session_providers
 
 
 def provider_request_url(url: str) -> str:
@@ -65,14 +65,14 @@ def test_builtin_profiles_use_centralized_provider_identifiers() -> None:
     assert all(profile.version in profile_versions for profile in profiles)
 
 
-def test_operator_profiles_and_session_policies_are_the_same_provider_set() -> None:
+def test_operator_profiles_and_site_session_policies_are_the_same_set() -> None:
     operator_profiles = {
-        ProviderKey(profile.key)
+        profile.key
         for profile in default_provider_registry().profiles
         if ProviderAccessMode.OPERATOR_MANAGED in profile.access_modes
     }
 
-    assert operator_profiles == session_providers()
+    assert operator_profiles == known_session_provider_keys()
 
 
 def test_registry_rejects_negative_yt_dlp_retry_budget() -> None:

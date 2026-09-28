@@ -37,11 +37,6 @@ import {
   inspectMedia as inspectDiscoveredItem,
   inspectMedia,
 } from '@/api/inspections';
-import {
-  beginProviderAuthorization,
-  cancelProviderAuthorization,
-  getProviderAuthorization,
-} from '@/api/providers';
 import { createSourceDiscovery } from '@/api/sourceDiscoveries';
 import { getLiveness, getReadiness } from '@/api/system';
 import { updateCurrentUser } from '@/api/users';
@@ -59,46 +54,6 @@ import {
 import { httpRequests, mockHttpResponses } from '../helpers/http';
 
 describe('typed API client', () => {
-  it('uses the generated provider authorization transaction endpoints', async () => {
-    const transaction = {
-      transaction_id: '0123456789abcdef0123456789abcdef',
-      provider_key: 'youtube',
-      status: 'pending' as const,
-      expires_at: '2026-09-20T12:10:00Z',
-    };
-    mockHttpResponses(
-      transaction,
-      { ...transaction, status: 'source_available' },
-      undefined,
-    );
-
-    await beginProviderAuthorization(
-      { provider_key: 'youtube' },
-      { source: 'dedicated_chrome' },
-    );
-    await getProviderAuthorization({
-      transaction_id: transaction.transaction_id,
-    });
-    await cancelProviderAuthorization({
-      transaction_id: transaction.transaction_id,
-    });
-
-    expect(httpRequests()).toMatchObject([
-      {
-        method: 'POST',
-        url: '/api/providers/youtube/authorization',
-      },
-      {
-        method: 'GET',
-        url: `/api/providers/authorization/${transaction.transaction_id}`,
-      },
-      {
-        method: 'DELETE',
-        url: `/api/providers/authorization/${transaction.transaction_id}`,
-      },
-    ]);
-  });
-
   it('covers email registration, opaque session restore and logout endpoints', async () => {
     const user = {
       id: '11111111-1111-4111-8111-111111111111',

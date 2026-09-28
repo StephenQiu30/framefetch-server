@@ -1,6 +1,6 @@
 # 046 容器自持平台会话 Plan
 
-日期：2026-09-28。状态：已评审（2026-09-28），S1–S4 代码完成待验收，其余未开始。需求见 [PRD](../prd/046-容器自持平台会话PRD.md)，技术方案见 [Design](../design/046-容器自持平台会话设计.md)。**任务状态、证据只在本文维护。**
+日期：2026-09-28。状态：已评审（2026-09-28），S1–S5、S8 代码完成待验收；S7 完成删除部分，状态页未开始；S6、S9 未开始。需求见 [PRD](../prd/046-容器自持平台会话PRD.md)，技术方案见 [Design](../design/046-容器自持平台会话设计.md)。**任务状态、证据只在本文维护。**
 
 工作方式沿用 [044 Plan §1](044-开源部署无感解析Plan.md#1-sdd-工作方式)：先写能判定的测试，再实现最小闭环；代码完成不等于平台实测完成；只有“已验收”才勾选。
 
@@ -81,10 +81,10 @@ M3 是破坏性替换：S5–S8 同一发布，发布前部署者需按新手册
 
 ### S5 会话路由与 session-runner
 
-- [ ] **S5**；状态：未开始；依赖：S3。与 S6–S8 同一发布。
+- [ ] **S5**；状态：代码完成待验收；依赖：S3。与 S6–S8 同一发布。
   - 需求：FR-04、FR-06；NFR-01、NFR-06。
   - 步骤：
-    1. `SiteRouteResolver` 接入 API inspect 与下载 Worker；新增 `ProviderAccessPolicy.SITE_SESSION`，删除 `OPERATOR_PUBLIC`；`PERSONAL_ENTITLED` 改由注册表 `entitlement` 表达。
+    1. `SiteSessionRoutes` 接入 API inspect、下载意图与 Canary；会话记录强制 `OPERATOR_PUBLIC`／`PERSONAL_ENTITLED`（Design §3.4，未新增策略值）。
     2. 新增错误码 `provider_session_not_ready`，删除 Design §7 所列错误码；更新 `provider_errors.py` 规则与前端 `error-messages.ts`。
     3. Runner 新增 `session` 模式：按任务申请租约、tmpfs jar、结束删除、认证类失败上报；Redis 并发键改为站点。
     4. 访问上下文冻结 `site + seed_revision`；重新导入使旧 inspection 失效。
@@ -104,7 +104,7 @@ M3 是破坏性替换：S5–S8 同一发布，发布前部署者需按新手册
 
 ### S7 管理员状态页与删除授权事务
 
-- [ ] **S7**；状态：未开始；依赖：S5。
+- [ ] **S7**；状态：删除授权事务已完成（随 S8），站点会话状态接口与页面未开始；依赖：S5。
   - 需求：FR-05、FR-09。
   - 步骤：删除 `/api/providers/{key}/authorization*`、`ProviderAuthorizationService`、前端授权对话框和 `lib/provider-authorization.ts`；状态接口与页面改为展示 Design §7 字段和导入命令；按 `design.md` 实现，桌面与 390px 真实浏览器验证。
   - 验收：PRD AC-06（展示部分）、AC-12（API／前端部分）；前端 `format:check`、`lint`、`test`、`build`。
@@ -113,11 +113,11 @@ M3 是破坏性替换：S5–S8 同一发布，发布前部署者需按新手册
 
 ### S8 删除旧链路与文档
 
-- [ ] **S8**；状态：未开始；依赖：S5、S6、S7。
+- [ ] **S8**；状态：代码完成待验收；依赖：S5、S6、S7（S6 与 S7 状态页之外的部分先行删除，见执行记录）。
   - 需求：FR-09。
   - 步骤：
     1. 按 Design §8 删除模块、类型、Compose 服务与卷、配置键、测试；`schema.sql` 删除 `provider_session_sources`、`provider_authorizations`（`DROP TABLE IF EXISTS`）及其 ORM；删除 `provider_session_policy.py` 中与站点会话注册表重复的 Cookie 校验；开发与生产 Compose 同步。
-    2. 新增运行手册 `docs/operations/009-站点会话运行手册.md`（导入、状态、撤销、换机、告警处理）；删除 002、003、008 中宿主来源内容；043 标为已被 046 取代并删除正文；044 PRD 的 FR-17／AC-21 改为指向 046，044 Plan 同步追溯表。
+    2. 新增运行手册 `docs/operations/011-站点会话运行手册.md`（导入、状态、撤销、换机、告警处理）；删除 002、003、008 中宿主来源内容；043 标为已被 046 取代并删除正文；044 PRD 的 FR-17／AC-21 改为指向 046，044 Plan 同步追溯表。
     3. 改写 AGENTS.md“安全与运行约束”中的宿主元宝浏览器条款和“凭据 Runner 单 Provider 只读 Secret”条款；README 部署章节改为“一次导入 + compose up”。
     4. BACKLOG 增加 046 导航。
   - 验收：PRD AC-12；`rg` 检查 Design §8 列出的标识符在代码、Compose、文档中不再出现；后端全量检查；两份 Compose `config --quiet` 通过。
@@ -190,4 +190,14 @@ M3 是破坏性替换：S5–S8 同一发布，发布前部署者需按新手册
 - 门禁：`ruff check`、`ruff format --check`、`mypy app`（608 文件）通过；`pytest` 2249 passed、4 skipped（原因同 S1）；开发与生产 Compose `config --quiet` 通过。
 - 本机实测：`docker build --target session-browser` 成功（2.77 GB）；`docker compose up -d --build --no-deps session-browser session-broker` 后两个容器 healthy；在 broker 容器内经签名 RPC 对真实 youtube.com 执行 `bootstrap`（无登录 Cookie）→ `logged_out`，4.0 s；`keepalive` → `logged_out`，4.2 s；未知 Profile → `profile_missing`；`forget` 后 → `profile_missing`。浏览器容器直连外网失败（`URLError`），经 egress-proxy 访问 YouTube 返回 200。
 - 未验收边界：尚未用真实登录态导入（需部署者在本机 Terminal 执行一次 `seed import`）；AC-03 冷启动与 AC-11 视频号待 S5 路由接入后整体验收。
+
+### S5＋S8（2026-09-28）
+
+- 按用户要求（不做兼容、清理存在问题的代码）S5 与 S8 一次完成，S6、S7 状态页后续补齐；这段时间内会话路线使用默认出口。
+- 删除：宿主来源链路（`provider_startup`、`provider_source_host`、`provider_cookie_*` 八个模块、`provider_authorization_queue`、`managed_chrome_cdp`、`yuanbao_session`、`provider_session_setup`／`source_replica`／`session_source`／`session_maintainer`／`session_bundle`／`session_policy`）；授权事务 API、服务、仓储、ORM、前端对话框与 `lib/provider-authorization.ts`；`provider-sources` 服务与全部单平台账号 Runner；`provider_session_sources`、`provider_authorizations` 两张表（`DROP TABLE IF EXISTS`，已应用到本机库）；`RUNNER_OPERATOR_BASE_URLS`、`RUNNER_DEFAULT_ACCESS_POLICIES`、`PROVIDER_AUTHORIZATION_QUEUE_ROOT`、`PROVIDER_SOURCE_ENCRYPTION_KEY`、`*_ATTESTED` 等配置；运行手册 002、003、008 与设计 043。
+- 新增：`app/workers/runner/site_sessions.py`（broker 客户端：就绪修订、单任务封装租约、失败上报）；Runner `provider_sessions.py` 改为按站点冻结 `{site}:{seed_revision}`、每次操作领取租约写入 tmpfs；两份 Compose 中唯一的 `session-runner`；API `SESSION_RUNNER_BASE_URL`；错误码 `provider_session_not_ready`（503）贯通后端、OpenAPI 与前端文案；运行手册 `docs/operations/011-站点会话运行手册.md`。
+- 端到端修正：①Runner 命令构建原先要求平台目录声明账号模式才允许携带 Cookie，会拒绝未适配站点（AC-08）；改为匿名 Runner 一律拒绝，会话与访客 Runner 由上下文准入。②`POST /internal/v1/context` 原先只带平台键，未适配站点统一为 `generic` 后无法得到站点；改为携带 URL，下载 Worker 复验上下文时同样传 URL。
+- 门禁：后端 `ruff check`、`ruff format --check`、`mypy`（585 文件）通过，`pytest` 2054 passed、3 skipped；前端 `format:check`、`lint`、`test`（505）、`build` 通过；两份 Compose `config --quiet` 通过。
+- 本机实测：`docker compose up -d --build --wait` 起全部服务，健康检查全部通过，旧容器已移除，只剩 `site_sessions` 一张会话表。用 `import_session` 为 `example.com` 写入测试会话，broker 与真实浏览器 15 s 内推进到 `ready`；在 `video-api` 容器内解析 `https://example.com/` 被强制路由为 `operator_public`，请求到达 `session-runner` 并以会话 Cookie 运行 yt-dlp（该页无视频，yt-dlp 返回不支持，属预期）；无会话的 YouTube 走匿名路线解析成功。测试会话已撤销。
+- 未验收边界：真实登录态导入与冷启动（AC-01、AC-03、AC-11）待部署者在本机终端 App 执行 `seed import`（S9）；出口一致（AC-10）待 S6；状态页（AC-06 展示部分）待 S7。
 

@@ -25,9 +25,12 @@ from app.workers.session.browser_client import HttpSessionBrowser
 from app.workers.session.contracts import (
     FAILURE_PATH,
     LEASE_PATH,
+    STATUS_PATH,
     FailureReport,
     LeaseRequest,
     LeaseResponse,
+    StatusRequest,
+    StatusResponse,
 )
 from app.workers.session.rpc import SignedClient, authenticator, verified_model
 from app.workers.session.sealing import SealError, decode_public_key, encode
@@ -75,6 +78,16 @@ def create_app(
         openapi_url=None,
         lifespan=lifespan,
     )
+
+    @app.post(STATUS_PATH, response_model=StatusResponse)
+    async def status(request: Request) -> StatusResponse:
+        body = await verified_model(request, verifier, StatusRequest)
+        broker: SessionBroker = request.app.state.broker
+        try:
+            revision = await broker.ready_revision(body.site)
+        except SessionNotReady:
+            raise HTTPException(409, "provider_session_not_ready") from None
+        return StatusResponse(site=body.site, seed_revision=revision)
 
     @app.post(LEASE_PATH, response_model=LeaseResponse)
     async def lease(request: Request) -> LeaseResponse:

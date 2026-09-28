@@ -220,6 +220,10 @@ def known_site_policy(provider_key: str) -> SiteSessionPolicy | None:
         return None
 
 
+def known_session_provider_keys() -> frozenset[str]:
+    return frozenset(str(key) for key in _KNOWN_POLICIES)
+
+
 def site_policy(site: str) -> SiteSessionPolicy:
     """Policy for a stored site key: a known provider's key or a registrable domain."""
     known = _KNOWN_SITES.get(site)

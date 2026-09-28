@@ -108,8 +108,8 @@ class FakeRunner:
         self.download_arguments = None
         self.current_context: ProviderAccessContextRef | None = None
 
-    async def context_for_provider(
-        self, provider_key: str, access_mode: ProviderAccessMode
+    async def context(
+        self, url: str, access_mode: ProviderAccessMode
     ) -> ProviderAccessContextRef:
         if self.current_context is not None:
             return self.current_context

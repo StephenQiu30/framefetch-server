@@ -20,8 +20,6 @@ x-provider-session-runner: &provider-session-runner
       condition: service_healthy
     provider-lease-redis:
       condition: service_healthy
-    provider-sources-init:
-      condition: service_completed_successfully
   healthcheck:
     test:
       [
@@ -64,7 +62,6 @@ x-provider-session-environment: &provider-session-environment
   RUNNER_MAX_DURATION_SECONDS: "${RUNNER_MAX_DURATION_SECONDS:-86400}"
   RUNNER_MAX_OUTPUT_BYTES: "${RUNNER_MAX_OUTPUT_BYTES:-21474836480}"
   RUNNER_MAX_WORKSPACE_BYTES: "${RUNNER_MAX_WORKSPACE_BYTES:-42949672960}"
-  RUNNER_OPERATOR_ACCOUNT_BASELINE_ATTESTED: "true"
   RUNNER_PROVIDER_SESSION_TEMP_ROOT: /run/provider-session
   PEERTUBE_ALLOWED_INSTANCES: "${PEERTUBE_ALLOWED_INSTANCES:-[]}"
 
@@ -143,7 +140,6 @@ services:
       MINIO_REGION: '${MINIO_REGION:-us-east-1}'
       MINIO_SECRET_KEY: '${MINIO_SECRET_KEY:-video-secret-change-me}'
       PEERTUBE_ALLOWED_INSTANCES: '${PEERTUBE_ALLOWED_INSTANCES:-[]}'
-      PROVIDER_AUTHORIZATION_QUEUE_ROOT: /run/provider-authorization
       PROVIDER_VERIFIED_KEYS: '${PROVIDER_VERIFIED_KEYS:-[]}'
       QUOTA_LIMITS: '${QUOTA_LIMITS:-{"max_active_per_owner":5,"daily_tasks":50,"daily_bytes":107374182400,"storage_bytes":107374182400,"daily_analysis_attempts":60}}'
       RABBITMQ_CONNECTION_TIMEOUT_SECONDS: '${RABBITMQ_CONNECTION_TIMEOUT_SECONDS:-10}'
@@ -158,9 +154,8 @@ services:
       REQUEST_MAX_BYTES: '${REQUEST_MAX_BYTES:-262144}'
       REQUEST_TIMEOUT_SECONDS: '${REQUEST_TIMEOUT_SECONDS:-180}'
       RUNNER_HMAC_SECRET: '${RUNNER_HMAC_SECRET:-development-runner-secret-change-me}'
-      RUNNER_OPERATOR_BASE_URLS: '${RUNNER_OPERATOR_BASE_URLS:-{}}'
+      SESSION_RUNNER_BASE_URL: http://session-runner:19100
       RUNNER_GUEST_BASE_URLS: '${RUNNER_GUEST_BASE_URLS:-{"douyin":"http://douyin-guest-runner:19100"}}'
-      RUNNER_DEFAULT_ACCESS_POLICIES: '${RUNNER_DEFAULT_ACCESS_POLICIES:-{}}'
       RUNNER_SIGNATURE_TTL_SECONDS: '${RUNNER_SIGNATURE_TTL_SECONDS:-30}'
       SCREENPLAY_ANALYSIS_ENABLED: '${SCREENPLAY_ANALYSIS_ENABLED:-false}'
       URL_ENCRYPTION_KEY: '${URL_ENCRYPTION_KEY:-ZGV2ZWxvcG1lbnQtdXJsLWtleS0zMi1ieXRlcyEhISE=}'
@@ -191,13 +186,6 @@ services:
       - app_net
       - runner_rpc_net
       - runner_egress_net
-    volumes:
-      - type: bind
-        source: "${PROVIDER_COOKIE_AGENT_RUNTIME_DIR:-./tmp/provider-cookie-agent}/control"
-        target: /run/provider-authorization/control
-        read_only: false
-        bind:
-          create_host_path: true
     ports:
       - "${APP_HOST_BIND:-127.0.0.1}:${APP_HOST_PORT:-8111}:8111"
     healthcheck:
@@ -341,9 +329,8 @@ services:
       RABBITMQ_RECONNECT_INTERVAL_SECONDS: '${RABBITMQ_RECONNECT_INTERVAL_SECONDS:-5}'
       RABBITMQ_VHOST: '${RABBITMQ_VHOST:-video}'
       RUNNER_HMAC_SECRET: '${RUNNER_HMAC_SECRET:-development-runner-secret-change-me}'
-      RUNNER_OPERATOR_BASE_URLS: '${RUNNER_OPERATOR_BASE_URLS:-{}}'
+      SESSION_RUNNER_BASE_URL: http://session-runner:19100
       RUNNER_GUEST_BASE_URLS: '${RUNNER_GUEST_BASE_URLS:-{"douyin":"http://douyin-guest-runner:19100"}}'
-      RUNNER_DEFAULT_ACCESS_POLICIES: '${RUNNER_DEFAULT_ACCESS_POLICIES:-{}}'
       RUNNER_SIGNATURE_TTL_SECONDS: '${RUNNER_SIGNATURE_TTL_SECONDS:-30}'
       URL_ENCRYPTION_KEY: '${URL_ENCRYPTION_KEY:-ZGV2ZWxvcG1lbnQtdXJsLWtleS0zMi1ieXRlcyEhISE=}'
       URL_ENCRYPTION_KEY_ID: '${URL_ENCRYPTION_KEY_ID:-fernet}'
@@ -497,9 +484,8 @@ services:
       PROVIDER_CANARY_POLL_SECONDS: '${PROVIDER_CANARY_POLL_SECONDS:-60}'
       PROVIDER_CANARY_TARGETS: '${PROVIDER_CANARY_TARGETS:-[]}'
       RUNNER_HMAC_SECRET: '${RUNNER_HMAC_SECRET:-development-runner-secret-change-me}'
-      RUNNER_OPERATOR_BASE_URLS: '${RUNNER_OPERATOR_BASE_URLS:-{}}'
+      SESSION_RUNNER_BASE_URL: http://session-runner:19100
       RUNNER_GUEST_BASE_URLS: '${RUNNER_GUEST_BASE_URLS:-{"douyin":"http://douyin-guest-runner:19100"}}'
-      RUNNER_DEFAULT_ACCESS_POLICIES: '${RUNNER_DEFAULT_ACCESS_POLICIES:-{}}'
       RUNNER_SIGNATURE_TTL_SECONDS: '${RUNNER_SIGNATURE_TTL_SECONDS:-30}'
       URL_ENCRYPTION_KEY: '${URL_ENCRYPTION_KEY:-ZGV2ZWxvcG1lbnQtdXJsLWtleS0zMi1ieXRlcyEhISE=}'
       URL_ENCRYPTION_KEY_ID: '${URL_ENCRYPTION_KEY_ID:-fernet}'
@@ -647,52 +633,6 @@ services:
       retries: 12
       start_period: 3s
 
-  provider-sources-init:
-    build: *backend-build
-    image: video-server:prod
-    container_name: provider-sources-init
-    restart: "no"
-    network_mode: none
-    user: "0:0"
-    command: ["sh", "-c", "install -d -o 10001 -g 10001 -m 0700 /sources/youtube /sources/douyin /sources/reddit /sources/youku /sources/qqvideo"]
-    volumes: &provider-source-volumes
-      - provider_source_youtube:/sources/youtube
-      - provider_source_douyin:/sources/douyin
-      - provider_source_reddit:/sources/reddit
-      - provider_source_youku:/sources/youku
-      - provider_source_qqvideo:/sources/qqvideo
-
-  provider-sources:
-    build: *backend-build
-    image: video-server:prod
-    container_name: provider-sources
-    restart: unless-stopped
-    read_only: true
-    cap_drop: [ALL]
-    security_opt: ["no-new-privileges:true"]
-    networks: [app_net]
-    extra_hosts: ["host.docker.internal:host-gateway"]
-    tmpfs: ["/tmp:rw,noexec,nosuid,size=16m"]
-    environment:
-      APP_ENV: "${APP_ENV:-production}"
-      SERVICE_ROLE: provider-sources
-      DATABASE_URL: "postgresql+asyncpg://${POSTGRES_USER:-video}:${POSTGRES_PASSWORD:-video}@${POSTGRES_HOST:-host.docker.internal}:${POSTGRES_PORT:-5432}/${POSTGRES_DB:-video}"
-      PROVIDER_SOURCE_ENCRYPTION_KEY: "${PROVIDER_SOURCE_ENCRYPTION_KEY:-}"
-      PROVIDER_SOURCE_ROOT: /sources
-      PROVIDER_SOURCE_POLL_SECONDS: "15"
-      PROVIDER_SOURCE_LEASE_SECONDS: "90"
-    volumes: *provider-source-volumes
-    depends_on:
-      provider-sources-init:
-        condition: service_completed_successfully
-    command: ["python", "-m", "app.workers.runner.provider_source_replica", "serve"]
-    healthcheck:
-      test: ["CMD", "python", "-c", "import time,pathlib; assert time.time()-float(pathlib.Path('/tmp/provider-sources-heartbeat').read_text()) < 45"]
-      interval: 15s
-      timeout: 3s
-      retries: 3
-      start_period: 15s
-
   # 046: the broker is the only holder of SITE_SESSION_ENCRYPTION_KEY; it never
   # reaches the Internet. The browser owns per-site profiles and has no database.
   session-broker:
@@ -815,7 +755,6 @@ services:
     environment:
       <<: *provider-session-environment
       RUNNER_ACCESS_MODE: guest
-      RUNNER_OPERATOR_ACCOUNT_BASELINE_ATTESTED: "false"
       RUNNER_GUEST_PROVIDER: douyin
       RUNNER_GUEST_COOKIE_FILE: /guest/cookies.txt
     volumes:
@@ -842,96 +781,19 @@ services:
     volumes:
       - runner_work:/work
 
-  douyin-operator-runner:
+  # One Runner for every site session (046): per-task leases from the broker,
+  # one operation per site across replicas through provider-lease-redis.
+  session-runner:
     <<: *provider-session-runner
-    container_name: douyin-operator-runner
-    profiles: [douyin-operator]
+    container_name: session-runner
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
     environment:
       <<: *provider-session-environment
-      RUNNER_OPERATOR_SESSION_VERSIONS: '{"douyin":"browser"}'
-      RUNNER_PROVIDER_COOKIE_FILE: /run/provider-source/cookies.txt
-      RUNNER_PROVIDER_SOURCE_REQUIRE_LEASE: "true"
-    volumes:
-      - runner_work:/work
-      - type: volume
-        source: provider_source_douyin
-        target: /run/provider-source
-        read_only: true
-
-  reddit-operator-runner:
-    <<: *provider-session-runner
-    container_name: reddit-operator-runner
-    profiles: [reddit-operator]
-    environment:
-      <<: *provider-session-environment
-      RUNNER_OPERATOR_SESSION_VERSIONS: '{"reddit":"browser"}'
-      RUNNER_PROVIDER_COOKIE_FILE: /run/provider-source/cookies.txt
-      RUNNER_PROVIDER_SOURCE_REQUIRE_LEASE: "true"
-    volumes:
-      - runner_work:/work
-      - type: volume
-        source: provider_source_reddit
-        target: /run/provider-source
-        read_only: true
-
-  youku-operator-runner:
-    <<: *provider-session-runner
-    container_name: youku-operator-runner
-    profiles: [youku-operator]
-    environment:
-      <<: *provider-session-environment
-      RUNNER_OPERATOR_SESSION_VERSIONS: '{"youku":"browser"}'
-      RUNNER_PROVIDER_COOKIE_FILE: /run/provider-source/cookies.txt
-      RUNNER_PROVIDER_SOURCE_REQUIRE_LEASE: "true"
-    volumes:
-      - runner_work:/work
-      - type: volume
-        source: provider_source_youku
-        target: /run/provider-source
-        read_only: true
-
-  qqvideo-operator-runner:
-    <<: *provider-session-runner
-    container_name: qqvideo-operator-runner
-    profiles: [qqvideo-operator]
-    environment:
-      <<: *provider-session-environment
-      RUNNER_OPERATOR_SESSION_VERSIONS: '{"qqvideo":"browser"}'
-      RUNNER_PROVIDER_COOKIE_FILE: /run/provider-source/cookies.txt
-      RUNNER_PROVIDER_SOURCE_REQUIRE_LEASE: "true"
-    volumes:
-      - runner_work:/work
-      - type: volume
-        source: provider_source_qqvideo
-        target: /run/provider-source
-        read_only: true
-
-  wechat-channels-operator-runner:
-    <<: *provider-session-runner
-    container_name: wechat-channels-operator-runner
-    profiles: [wechat-channels-operator]
-    environment:
-      <<: *provider-session-environment
-      RUNNER_OPERATOR_SESSION_VERSIONS: '{"wechat_channels":"browser"}'
-      RUNNER_PROVIDER_COOKIE_SYNC_ROOT: /run/provider-cookie-agent
-    volumes:
-      - runner_work:/work
-      - type: bind
-        source: "${PROVIDER_COOKIE_AGENT_RUNTIME_DIR:-${HOME}/Library/Caches/FrameFetch/provider-cookie-agent}/wechat_channels"
-        target: /run/provider-cookie-agent
-        read_only: false
-        bind:
-          create_host_path: false
-
-  youtube-operator-runner:
-    <<: *provider-session-runner
-    container_name: youtube-operator-runner
-    profiles: [youtube-operator]
-    environment:
-      <<: *provider-session-environment
-      RUNNER_OPERATOR_SESSION_VERSIONS: '{"youtube":"browser"}'
-      RUNNER_PROVIDER_COOKIE_FILE: /run/provider-source/cookies.txt
-      RUNNER_PROVIDER_SOURCE_REQUIRE_LEASE: "true"
+      RUNNER_MAX_ACTIVE_TASKS: "${SESSION_RUNNER_MAX_ACTIVE_TASKS:-4}"
+      RUNNER_SESSION_BROKER_URL: http://session-broker:19200
+      RUNNER_SESSION_RPC_SECRET: "${SITE_SESSION_RPC_SECRET:?SITE_SESSION_RPC_SECRET is required}"
       RUNNER_YOUTUBE_POT_BASE_URL: http://youtube-pot-provider:4416
       RUNNER_YOUTUBE_POT_PROVIDER_VERSION: bgutil-http-1.3.2
     networks:
@@ -940,19 +802,17 @@ services:
       - youtube_pot_net
     volumes:
       - runner_work:/work
-      - type: volume
-        source: provider_source_youtube
-        target: /run/provider-source
-        read_only: true
     depends_on:
+      workspace-init:
+        condition: service_completed_successfully
       egress-proxy:
         condition: service_healthy
       provider-lease-redis:
         condition: service_healthy
       youtube-pot-provider:
         condition: service_healthy
-      provider-sources-init:
-        condition: service_completed_successfully
+      session-broker:
+        condition: service_healthy
 
   youtube-pot-provider:
     image: brainicism/bgutil-ytdlp-pot-provider:1.3.2@sha256:9a96e6385ce1928da87dea07b1cab0413d2cf8c07a3b8a8bd419f53df2c3843c
@@ -990,11 +850,6 @@ services:
 volumes:
   site_session_profiles:
   provider_guest_douyin:
-  provider_source_youtube:
-  provider_source_douyin:
-  provider_source_reddit:
-  provider_source_youku:
-  provider_source_qqvideo:
   runner_work:
 
 networks:

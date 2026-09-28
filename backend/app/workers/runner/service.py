@@ -87,11 +87,7 @@ class MediaRunnerService:
         safe_url = safe_media_url(url)
         source = provider_request(safe_url)
         await self._require_companion(source.profile.key)
-        return self._sessions.context_for(source.profile)
-
-    async def context_for_provider(self, provider_key: str) -> ProviderAccessContextRef:
-        await self._require_companion(provider_key)
-        return self._sessions.context_for(provider_profile_for_key(provider_key))
+        return await self._sessions.context_for(source.profile, url=safe_url)
 
     async def contexts_for_providers(
         self, provider_keys: tuple[str, ...]
@@ -99,8 +95,10 @@ class MediaRunnerService:
         if "youtube" in provider_keys:
             await self._require_companion("youtube")
         return tuple(
-            self._sessions.context_for(provider_profile_for_key(provider_key))
-            for provider_key in provider_keys
+            [
+                await self._sessions.context_for(provider_profile_for_key(key))
+                for key in provider_keys
+            ]
         )
 
     async def inspect(
@@ -114,9 +112,11 @@ class MediaRunnerService:
         source = provider_request(safe_url)
         await self._require_companion(source.profile.key)
         context = (
-            self._sessions.context_for(source.profile)
+            await self._sessions.context_for(source.profile, url=safe_url)
             if access_context is None
-            else self._sessions.validate_context(source.profile, access_context)
+            else await self._sessions.validate_context(
+                source.profile, access_context, url=safe_url
+            )
         )
         timeout = self._settings.runner_inspect_timeout_seconds
         if deadline_at is not None:
@@ -158,7 +158,7 @@ class MediaRunnerService:
                             thumbnail_data_url=thumbnail_data_url,
                         )
             except RunnerFailure as exc:
-                self._disable_credential_on_entitlement_drift(context, exc)
+                await self._sessions.report_failure(context, exc.code)
                 raise
             except TimeoutError as exc:
                 raise RunnerFailure("inspection_timeout", status=504) from exc
@@ -176,10 +176,8 @@ class MediaRunnerService:
             safe_url = safe_media_url(request.url)
             source = provider_request(safe_url)
             await self._require_companion(source.profile.key)
-            context = self._sessions.validate_context(
-                source.profile,
-                request.access_context.to_domain(),
-                allow_guest_refresh=False,
+            context = await self._sessions.validate_context(
+                source.profile, request.access_context.to_domain(), url=safe_url
             )
             workspace = self._workspaces.create(request.task_id)
             async with asyncio.timeout(self._settings.runner_download_timeout_seconds):
@@ -201,8 +199,8 @@ class MediaRunnerService:
         except WorkspaceViolation as exc:
             raise RunnerFailure("workspace_limit_exceeded", status=413) from exc
         except RunnerFailure as exc:
-            self._disable_credential_on_entitlement_drift(
-                request.access_context.to_domain(), exc
+            await self._sessions.report_failure(
+                request.access_context.to_domain(), exc.code
             )
             raise
         finally:
@@ -214,12 +212,6 @@ class MediaRunnerService:
         base_url = self._settings.runner_youtube_pot_base_url
         if provider_key == "youtube" and base_url is not None:
             await require_youtube_sidecar_identity(base_url)
-
-    def _disable_credential_on_entitlement_drift(
-        self, context: ProviderAccessContextRef, error: RunnerFailure
-    ) -> None:
-        if error.code == "credential_entitlement_drift":
-            self._sessions.disable_credential_version(context)
 
     async def cancel(self, task_id: str) -> CancelResponse:
         self._active.cancel(task_id)

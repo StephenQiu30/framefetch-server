@@ -1,6 +1,6 @@
 """Persist a validated public parsing request before any upstream operation."""
 
-from collections.abc import Callable
+from collections.abc import Awaitable, Callable
 from datetime import datetime, timedelta
 from typing import Protocol
 from uuid import UUID
@@ -91,9 +91,7 @@ class IntentService:
         *,
         now: Callable[[], datetime],
         new_id: Callable[[], UUID],
-        select_policy: Callable[[str], ProviderAccessPolicy] = (
-            lambda _: ProviderAccessPolicy.PUBLIC
-        ),
+        select_policy: Callable[[str], Awaitable[ProviderAccessPolicy]] | None = None,
     ) -> None:
         self._repository = repository
         self._validator = validator
@@ -117,7 +115,11 @@ class IntentService:
             url = self._validator.validate(value)
         except ValueError as exc:
             raise ApplicationError(ApplicationErrorCode.INVALID_URL) from exc
-        policy = self._select_policy(url)
+        policy = (
+            ProviderAccessPolicy.PUBLIC
+            if self._select_policy is None
+            else await self._select_policy(url)
+        )
         command = IntentCreate(
             id=self._new_id(),
             owner_hash=owner_hash,

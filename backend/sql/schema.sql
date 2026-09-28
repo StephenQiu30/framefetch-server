@@ -1530,57 +1530,10 @@ CREATE TABLE IF NOT EXISTS email_registration_challenges (
 
 CREATE INDEX IF NOT EXISTS ix_email_registration_expires ON email_registration_challenges (expires_at);
 
--- Administrator source maintenance is durable and is not a content grant.
-CREATE TABLE IF NOT EXISTS provider_authorizations (
-    id UUID PRIMARY KEY,
-    user_id UUID NOT NULL,
-    provider_key VARCHAR(32) NOT NULL,
-    source VARCHAR(32) NOT NULL,
-    purpose VARCHAR(32) NOT NULL,
-    status VARCHAR(32) NOT NULL,
-    expires_at TIMESTAMPTZ NOT NULL,
-    retain_until TIMESTAMPTZ NOT NULL,
-    created_at TIMESTAMPTZ NOT NULL,
-    updated_at TIMESTAMPTZ NOT NULL,
-    CONSTRAINT ck_provider_authorizations_status CHECK (
-        status IN ('pending','source_available','authorization_required',
-                   'permission_required','expired','cancelled','failed')
-    ),
-    CONSTRAINT ck_provider_authorizations_source CHECK (
-        source = 'dedicated_chrome'
-    ),
-    CONSTRAINT ck_provider_authorizations_purpose CHECK (
-        purpose = 'maintain_deployment_source'
-    ),
-    CONSTRAINT ck_provider_authorizations_deadline CHECK (
-        expires_at > created_at AND retain_until >= expires_at
-    )
-);
--- The removed browser connector had only short-lived maintenance intents.
--- Discard those obsolete intents before narrowing the current source contract.
-DELETE FROM provider_authorizations WHERE source <> 'dedicated_chrome';
-ALTER TABLE provider_authorizations
-    DROP CONSTRAINT IF EXISTS ck_provider_authorizations_source;
-ALTER TABLE provider_authorizations
-    ADD CONSTRAINT ck_provider_authorizations_source CHECK (source = 'dedicated_chrome');
-CREATE UNIQUE INDEX IF NOT EXISTS uq_provider_authorizations_active
-    ON provider_authorizations (provider_key) WHERE status = 'pending';
-CREATE INDEX IF NOT EXISTS ix_provider_authorizations_retention
-    ON provider_authorizations (retain_until);
-
--- Deployment sources survive application hosts; NULL ciphertext is a durable
--- revocation tombstone. Only the source publisher receives the decryption key.
-CREATE TABLE IF NOT EXISTS provider_session_sources (
-    provider_key VARCHAR(32) PRIMARY KEY,
-    revision BIGINT NOT NULL,
-    ciphertext BYTEA,
-    valid_until TIMESTAMPTZ,
-    updated_at TIMESTAMPTZ NOT NULL,
-    CONSTRAINT ck_provider_source_revision CHECK (revision > 0),
-    CONSTRAINT ck_provider_source_revocation CHECK (
-        (ciphertext IS NULL) = (valid_until IS NULL)
-    )
-);
+-- Replaced by site_sessions (046): host-side sources and authorization
+-- transactions no longer exist.
+DROP TABLE IF EXISTS provider_authorizations;
+DROP TABLE IF EXISTS provider_session_sources;
 
 -- Site sessions are deployment-owned logged-in identities keyed by domain.
 -- seed_revision changes only on import and fixes the access context version;

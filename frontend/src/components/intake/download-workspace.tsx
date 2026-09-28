@@ -32,17 +32,12 @@ import { useDownloadIntent } from '@/components/intake/use-download-intent';
 import { useMediaImport } from '@/components/intake/use-media-import';
 import { FeedbackNotice } from '@/components/layout/feedback-notice';
 import { markNavigationPush } from '@/components/layout/navigation-history';
-import { ProviderAuthorizationDialog } from '@/components/providers/provider-authorization-dialog';
 import { ScreenplayUploadForm } from '@/components/screenplay/screenplay-upload-form';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { localizedErrorMessage } from '@/lib/error-messages';
-import {
-  type ProviderAuthorizationTarget,
-  providerAuthorizationTarget,
-} from '@/lib/provider-authorization';
 import { privateQueryKey } from '@/lib/query-keys';
-import { ApiError, displayError } from '@/lib/request-error';
+import { displayError } from '@/lib/request-error';
 import { createUuid as createIdempotencyKey } from '@/lib/uuid';
 
 type BusyAction = 'inspect' | null;
@@ -65,13 +60,6 @@ export default function DownloadWorkspace() {
   const [busy, setBusy] = useState<BusyAction>(null);
   const [error, setError] = useState<string | null>(null);
   const observedActiveIntentId = useRef<string | null>(null);
-  const [authorizationTarget, setAuthorizationTarget] =
-    useState<ProviderAuthorizationTarget | null>(null);
-  const intentAuthorization =
-    intent.snapshot?.status === IntentStatusCode.Failed &&
-    intent.snapshot.reason_code
-      ? providerAuthorizationTarget(url, intent.snapshot.reason_code)
-      : null;
   const [urlInvalid, setUrlInvalid] = useState(false);
   useEffect(() => {
     if (!intent.attempt) observedActiveIntentId.current = null;
@@ -92,14 +80,12 @@ export default function DownloadWorkspace() {
   const showFailureToast =
     showTerminalStatus &&
     !intent.error &&
-    !intentAuthorization &&
     (snapshot?.status === IntentStatusCode.Failed ||
       snapshot?.status === IntentStatusCode.Expired);
   const showIntentAction =
     mode === 'link' &&
     !!intent.attempt &&
     (intent.resultExpired ||
-      !!intentAuthorization ||
       !!intent.error ||
       snapshot?.status === IntentStatusCode.ActionRequired ||
       (showTerminalStatus &&
@@ -263,17 +249,16 @@ export default function DownloadWorkspace() {
   }, [mediaImport.notice]);
 
   useEffect(() => {
-    if (error && !urlInvalid && !authorizationTarget) {
+    if (error && !urlInvalid) {
       toast.error('操作未完成', { description: error });
     }
-  }, [error, urlInvalid, authorizationTarget]);
+  }, [error, urlInvalid]);
 
   function clearLinkResult() {
     if (!intent.pending) {
       intent.clear();
       openingResultKey.current = null;
     }
-    setAuthorizationTarget(null);
   }
 
   async function inspect(
@@ -333,11 +318,6 @@ export default function DownloadWorkspace() {
         await intent.submit(input, intent.canResubmit);
       }
     } catch (reason) {
-      setAuthorizationTarget(
-        reason instanceof ApiError
-          ? providerAuthorizationTarget(input, reason.code)
-          : null,
-      );
       setError(displayError(reason));
     } finally {
       setBusy(null);
@@ -429,7 +409,6 @@ export default function DownloadWorkspace() {
           <AlertTitle>{intentStatusTitle}</AlertTitle>
           <AlertDescription>{intentStatusDescription}</AlertDescription>
           {((intent.resultExpired && !intent.pending) ||
-            intentAuthorization ||
             intent.error ||
             (snapshot &&
               (intent.pending ||
@@ -443,16 +422,6 @@ export default function DownloadWorkspace() {
                 >
                   更新结果
                 </Button>
-              ) : intentAuthorization ? (
-                <ProviderAuthorizationDialog
-                  onAuthorized={() => inspect(intentAuthorization.accessPolicy)}
-                  provider={{
-                    authorization_action:
-                      intentAuthorization.authorizationAction,
-                    display_name: intentAuthorization.displayName,
-                    key: intentAuthorization.key,
-                  }}
-                />
               ) : intent.error ? (
                 <Button
                   onClick={() => void intent.retry()}
@@ -480,7 +449,7 @@ export default function DownloadWorkspace() {
       ) : null}
       {(
         mode === 'link'
-          ? error && (urlInvalid || authorizationTarget)
+          ? error && urlInvalid
           : mode === 'video'
             ? mediaImport.error
             : null
@@ -488,20 +457,6 @@ export default function DownloadWorkspace() {
         <FeedbackNotice
           presentation={
             mode === 'video' && !mediaImport.fileInvalid ? 'toast' : 'inline'
-          }
-          action={
-            mode === 'link' && authorizationTarget ? (
-              <ProviderAuthorizationDialog
-                onAuthorized={() => {
-                  return inspect(authorizationTarget.accessPolicy);
-                }}
-                provider={{
-                  authorization_action: authorizationTarget.authorizationAction,
-                  display_name: authorizationTarget.displayName,
-                  key: authorizationTarget.key,
-                }}
-              />
-            ) : undefined
           }
           className="mt-8"
           description={mode === 'link' ? error : mediaImport.error}

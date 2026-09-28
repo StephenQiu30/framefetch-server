@@ -30,7 +30,7 @@ def test_runtime_revision_changes_with_plugin_and_policy(tmp_path: Path) -> None
     chrome_reader = tmp_path / "workers" / "session" / "chrome_reader.py"
     chrome_reader.parent.mkdir(parents=True)
     chrome_reader.write_text("extract = 1\n")
-    yuanbao_session = runner / "yuanbao_session.py"
+    yuanbao_session = runner / "provider_session_headers.py"
     yuanbao_session.write_text("session = 1\n")
     services = tmp_path / "services"
     services.mkdir()

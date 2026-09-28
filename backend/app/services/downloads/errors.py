@@ -27,6 +27,7 @@ class ApplicationErrorCode(StrEnum):
     PROVIDER_GUEST_CONTEXT_REQUIRED = "provider_guest_context_required"
     PROVIDER_ACCESS_POLICY_NOT_ALLOWED = "provider_access_policy_not_allowed"
     PROVIDER_SESSION_EXPIRED = "provider_session_expired"
+    PROVIDER_SESSION_NOT_READY = "provider_session_not_ready"
     PROVIDER_VERIFICATION_FAILED = "provider_verification_failed"
     PROVIDER_RATE_LIMITED = "provider_rate_limited"
     PROVIDER_GEO_RESTRICTED = "provider_geo_restricted"
@@ -114,6 +115,10 @@ class MediaInspectionPolicyNotAllowed(MediaInspectionFailure):
 
 class MediaInspectionSessionExpired(MediaInspectionFailure):
     """The selected provider session is no longer usable."""
+
+
+class MediaInspectionSessionNotReady(MediaInspectionFailure):
+    """The site has a deployment session, but it is not ready; never anonymous."""
 
 
 class MediaInspectionVerificationFailed(MediaInspectionFailure):

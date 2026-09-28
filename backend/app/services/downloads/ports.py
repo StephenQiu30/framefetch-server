@@ -41,7 +41,7 @@ class UrlCipher(Protocol):
 
 
 class MediaRunner(Protocol):
-    def resolve_access_policy(
+    async def resolve_access_policy(
         self, url: str, requested: ProviderAccessPolicy | None = None
     ) -> ProviderAccessPolicy: ...
 

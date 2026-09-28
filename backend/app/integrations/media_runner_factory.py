@@ -1,15 +1,15 @@
-"""Validated construction of anonymous and provider-isolated runner clients."""
+"""Validated construction of anonymous, guest and site session runner clients."""
 
 from __future__ import annotations
 
 from collections.abc import Awaitable, Callable
 
 from app.core.config import Settings
+from app.integrations.media_inspection_pipeline import SessionPolicyReader
 from app.integrations.media_runner import MediaRunnerHttpClient, MediaRunnerRouter
 from app.services.provider_route_admission import ProviderRouteAdmission
 from app.services.provider_types import ProviderAccessContextRef, ProviderAccessMode
-from app.workers.runner.provider_registry import provider_profile_for_key
-from app.workers.runner.provider_session_policy import browser_session_policy
+from app.services.site_sessions import known_session_provider_keys
 
 
 def anonymous_media_runner(
@@ -20,20 +20,17 @@ def anonymous_media_runner(
     )
 
 
-def operator_media_runners(
-    settings: Settings,
-    admission: ProviderRouteAdmission | None = None,
-) -> dict[str, MediaRunnerHttpClient]:
-    runners: dict[str, MediaRunnerHttpClient] = {}
-    for provider, base_url in settings.runner_operator_base_urls.items():
-        profile = provider_profile_for_key(provider)
-        if ProviderAccessMode.OPERATOR_MANAGED not in profile.access_modes:
-            raise ValueError(f"provider does not allow operator access: {provider}")
-        browser_session_policy(provider)
-        runners[provider.value] = _media_runner(
-            settings, base_url, admission, ProviderAccessMode.OPERATOR_MANAGED
-        )
-    return runners
+def session_media_runner(
+    settings: Settings, admission: ProviderRouteAdmission | None = None
+) -> MediaRunnerHttpClient | None:
+    if settings.session_runner_base_url is None:
+        return None
+    return _media_runner(
+        settings,
+        settings.session_runner_base_url,
+        admission,
+        ProviderAccessMode.OPERATOR_MANAGED,
+    )
 
 
 def guest_media_runners(
@@ -53,17 +50,22 @@ def media_runner_router(
     settings: Settings,
     admission: ProviderRouteAdmission | None = None,
     reject_guest: Callable[[ProviderAccessContextRef], Awaitable[None]] | None = None,
+    *,
+    session_routes: SessionPolicyReader | None = None,
 ) -> MediaRunnerRouter:
     return MediaRunnerRouter(
         anonymous_media_runner(settings, admission),
-        operator_media_runners(settings, admission),
+        session_media_runner(settings, admission),
         guests=guest_media_runners(settings, admission, reject_guest),
-        default_policies=settings.runner_default_access_policies,
+        session_routes=session_routes,
     )
 
 
-def operator_provider_keys(settings: Settings) -> frozenset[str]:
-    return frozenset(provider.value for provider in settings.runner_operator_base_urls)
+def session_provider_keys(settings: Settings) -> frozenset[str]:
+    """Known providers that can use a site session in this deployment."""
+    if settings.session_runner_base_url is None:
+        return frozenset()
+    return known_session_provider_keys()
 
 
 def _media_runner(

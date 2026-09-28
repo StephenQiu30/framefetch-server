@@ -77,6 +77,7 @@ _RUNNER_CODES = {
     "pot_provider_unavailable": DownloadErrorCode.PROVIDER_TEMPORARILY_UNAVAILABLE,
     "pot_provider_release_mismatch": DownloadErrorCode.PROVIDER_TEMPORARILY_UNAVAILABLE,
     "provider_session_unavailable": DownloadErrorCode.PROVIDER_TEMPORARILY_UNAVAILABLE,
+    "provider_session_not_ready": DownloadErrorCode.PROVIDER_SESSION_NOT_READY,
     "extractor_regression": DownloadErrorCode.PROVIDER_TEMPORARILY_UNAVAILABLE,
     "download_failed": DownloadErrorCode.PROVIDER_TEMPORARILY_UNAVAILABLE,
     "runner_dependency_unavailable": DownloadErrorCode.WORKER_LOST,

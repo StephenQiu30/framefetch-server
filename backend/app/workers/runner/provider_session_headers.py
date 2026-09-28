@@ -36,16 +36,9 @@ _MAX_HEADERS = 32
 _MAX_HEADER_VALUE_BYTES = 1024
 
 
-def yuanbao_session_cookie_jar(
-    raw_cookies: object,
-    auth: dict[str, object],
-) -> CookieJar:
+def yuanbao_session_cookie_jar(auth: dict[str, object]) -> CookieJar:
+    """Carry the Yuanbao page identity and headers as private Cookie entries."""
     jar = CookieJar()
-    if isinstance(raw_cookies, list):
-        for raw in raw_cookies:
-            cookie = _chrome_cookie(raw)
-            if cookie is not None:
-                jar.set_cookie(cookie)
     for name, key in (("hy_user", "userId"), ("hy_token", "token")):
         value = auth.get(key)
         if isinstance(value, str) and value:
@@ -84,20 +77,6 @@ def _validated_headers(raw: object) -> dict[str, str]:
         ):
             headers[name] = value
     return headers
-
-
-def _chrome_cookie(raw: object) -> Cookie | None:
-    if not isinstance(raw, dict):
-        return None
-    name, value, domain = raw.get("name"), raw.get("value"), raw.get("domain")
-    if not all(isinstance(item, str) for item in (name, value, domain)):
-        return None
-    normalized = str(domain).lstrip(".").casefold()
-    if normalized != "yuanbao.tencent.com" and not normalized.endswith(
-        ".yuanbao.tencent.com"
-    ):
-        return None
-    return _cookie(str(name), str(value), domain=str(domain))
 
 
 def _cookie(name: str, value: str, *, domain: str = ".yuanbao.tencent.com") -> Cookie:

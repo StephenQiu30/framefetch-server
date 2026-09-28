@@ -1,4 +1,9 @@
-"""Deterministic provider routing for media inspection."""
+"""Deterministic routing for media inspection.
+
+A site with a deployment session record always uses the session Runner; there
+is no anonymous fallback for it. Every other site keeps its public or guest
+route.
+"""
 
 from __future__ import annotations
 
@@ -17,10 +22,7 @@ from app.services.provider_access import (
     provider_access_policies,
 )
 from app.services.provider_types import ProviderAccessMode
-from app.workers.runner.provider_registry import (
-    provider_profile,
-    provider_profile_for_key,
-)
+from app.workers.runner.provider_registry import provider_profile
 
 
 class MediaInspectionClient(Protocol):
@@ -29,52 +31,64 @@ class MediaInspectionClient(Protocol):
     async def inspect(self, url: str) -> RunnerInspection: ...
 
 
+class SessionPolicyReader(Protocol):
+    async def policy_for(self, url: str) -> ProviderAccessPolicy | None: ...
+
+
 class MediaInspectionPipeline:
-    """Route each provider to exactly one access mode for the whole operation."""
+    """Route each URL to exactly one access mode for the whole operation."""
 
     def __init__(
         self,
         anonymous: MediaInspectionClient,
-        operators: Mapping[str, MediaInspectionClient] | None = None,
+        session: MediaInspectionClient | None = None,
         *,
         guests: Mapping[str, MediaInspectionClient] | None = None,
-        default_policies: Mapping[str, ProviderAccessPolicy] | None = None,
+        session_routes: SessionPolicyReader | None = None,
     ) -> None:
         self._anonymous = anonymous
+        self._session = session
         self._guests = dict(guests or {})
-        self._operators = dict(operators or {})
-        self._defaults = dict(default_policies or {})
-        for key, policy in self._defaults.items():
-            profile = provider_profile_for_key(key)
-            if policy not in provider_access_policies(key, profile.access_modes):
-                raise ValueError("default provider access policy is not admitted")
+        self._session_routes = session_routes
 
-    def resolve_access_policy(
+    async def resolve_access_policy(
         self, url: str, requested: ProviderAccessPolicy | None = None
     ) -> ProviderAccessPolicy:
         profile = provider_profile(url)
-        selected = (
-            requested
-            or self._defaults.get(profile.key)
-            or default_access_policy(
-                profile.key,
-                profile.access_modes,
-                guest_configured=profile.key in self._guests,
-            )
+        forced = (
+            None
+            if self._session_routes is None
+            else await self._session_routes.policy_for(url)
+        )
+        if forced is not None:
+            if requested not in {None, forced}:
+                raise MediaInspectionPolicyNotAllowed
+            if self._session is None:
+                raise MediaInspectionConfigurationMissing
+            return forced
+        selected = requested or default_access_policy(
+            profile.key,
+            profile.access_modes,
+            guest_configured=profile.key in self._guests,
         )
         if selected not in provider_access_policies(profile.key, profile.access_modes):
             raise MediaInspectionPolicyNotAllowed
         if self._client_for(profile.key, selected.access_mode) is None:
+            # Includes an account policy for a site without an imported session.
             raise MediaInspectionConfigurationMissing
         return selected
 
     async def inspect(
         self, url: str, *, access_policy: ProviderAccessPolicy | None = None
     ) -> RunnerInspection:
-        selected = self.resolve_access_policy(url, access_policy)
+        selected = await self.resolve_access_policy(url, access_policy)
         profile = provider_profile(url)
         access_mode = selected.access_mode
-        client = self._client_for(profile.key, access_mode)
+        client = (
+            self._session
+            if access_mode is ProviderAccessMode.OPERATOR_MANAGED
+            else self._client_for(profile.key, access_mode)
+        )
         if client is None:
             raise MediaInspectionConfigurationMissing
         try:
@@ -96,4 +110,5 @@ class MediaInspectionPipeline:
             return self._anonymous
         if access_mode is ProviderAccessMode.GUEST:
             return self._guests.get(provider_key)
-        return self._operators.get(provider_key)
+        # The account mode is reachable only through a session record.
+        return None

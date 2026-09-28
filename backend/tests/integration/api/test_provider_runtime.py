@@ -28,11 +28,12 @@ def test_admin_runtime_is_allowlisted_and_does_not_expose_context(tmp_path):
     )
     baseline = next(
         view
-        for view in configured_provider_statuses(
-            frozenset({"youtube"}),
-            default_policies={"youtube": ProviderAccessPolicy.OPERATOR_PUBLIC},
-        )
+        for view in configured_provider_statuses(frozenset({"youtube"}))
         if view.key == "youtube"
+    )
+    # A site session record selects the account policy at request time.
+    baseline = replace(
+        baseline, default_access_policy_id=ProviderAccessPolicy.OPERATOR_PUBLIC
     )
     runtime = replace(
         context(ProviderAccessMode.OPERATOR_MANAGED),

@@ -118,10 +118,8 @@ test -f .env || cp .env.example .env
 psql -X -v ON_ERROR_STOP=1 -W -h 127.0.0.1 -U video -d video \
   -f backend/sql/schema.sql
 
-# Resolve configured provider routes, then start Web, API, workers, runners
-# and the controlled egress proxy without dropping temporary source outages.
-uv run --project backend python -m app.workers.runner.provider_startup start \
-  --env-file .env --compose-file docker-compose.yml
+# Start Web, API, workers, runners, site session services and the egress proxy
+docker compose --env-file .env -f docker-compose.yml up -d --build --wait
 ```
 
 For an empty user table, create the first administrator on the deployment host. The command prompts for a password, writes its Argon2 hash, and refuses to run once any user exists; it does not expose a remote bootstrap endpoint:
@@ -131,6 +129,15 @@ uv run --project backend python -m app.workers.bootstrap_admin \
   --env-file .env --username your-admin --email you@example.com
 ```
 
+Sites that need a login (YouTube, Douyin accounts, Reddit, WeChat Channels, Youku, Tencent Video or any other site) use one mechanism: import the logged-in state from your local Chrome **once**, and the container session browser keeps it alive afterwards. A site with an imported session never falls back to anonymous access. From `backend/` in a local terminal (macOS asks for Keychain access once):
+
+```bash
+uv run python -m app.workers.session.seed import --site youtube.com
+uv run python -m app.workers.session.seed status
+```
+
+See the [site session runbook](docs/operations/011-站点会话运行手册.md).
+
 Log in to the Web app with that account, then paste a public link. The default registration flow needs SMTP for email verification, so set up SMTP before inviting users to self-register. Do not reuse the example development secrets in a public deployment.
 
 PowerShell:
@@ -139,7 +146,7 @@ PowerShell:
 if (-not (Test-Path .env)) { Copy-Item .env.example .env }
 # Initialize an empty project database with your DDL account first.
 psql -X -v ON_ERROR_STOP=1 -W -h 127.0.0.1 -U video -d video -f backend/sql/schema.sql
-uv run --project backend python -m app.workers.runner.provider_startup start --env-file .env --compose-file docker-compose.yml
+docker compose --env-file .env -f docker-compose.yml up -d --build --wait
 uv run --project backend python -m app.workers.bootstrap_admin --env-file .env --username your-admin --email you@example.com
 ```
 

@@ -14,6 +14,7 @@ from app.workers.runner.process import ProcessResult
 from app.workers.runner.provider_errors import ProviderFailureContext
 from app.workers.runner.yt_dlp_commands import YtDlpCommandBuilder
 from helpers import settings
+from test_provider_sessions import session_settings
 
 
 class FailingSupervisor:
@@ -204,7 +205,7 @@ async def test_douyin_fresh_cookie_hint_distinguishes_session_contexts(
     expected_status: int,
 ) -> None:
     commands = MediaCommands(
-        settings(tmp_path),
+        session_settings(tmp_path) if authenticated else settings(tmp_path),
         FailingSupervisor(
             b"ERROR: Fresh cookies (not necessarily logged in) are needed"
         ),
@@ -385,7 +386,7 @@ async def test_authenticated_youtube_bot_confirmation_is_expired_session(
     tmp_path: Path,
 ) -> None:
     commands = MediaCommands(
-        settings(tmp_path),
+        session_settings(tmp_path),
         FailingSupervisor(
             b"ERROR: Sign in to confirm you're not a bot. "
             b"Use --cookies for authentication"
@@ -408,7 +409,7 @@ async def test_authenticated_cookie_rotation_failure_is_expired_session(
     tmp_path: Path,
 ) -> None:
     commands = MediaCommands(
-        settings(tmp_path),
+        session_settings(tmp_path),
         FailingSupervisor(b"ERROR: Fresh cookies are needed"),
     )
 
@@ -1060,6 +1061,19 @@ async def test_non_allowlisted_provider_cannot_receive_cookie_jar(
         )
 
     assert caught.value.code == "provider_session_not_allowed"
+
+
+@pytest.mark.asyncio
+async def test_session_runner_passes_jar_for_unlisted_sites(tmp_path: Path) -> None:
+    # The broker admits any site with a deployment session, catalog or not.
+    supervisor = RecordingSupervisor()
+    commands = MediaCommands(session_settings(tmp_path), supervisor)
+    jar = tmp_path / "operation.cookies.txt"
+
+    await commands.inspect("https://media.example.co.uk/v/1", tmp_path, cookie_jar=jar)
+
+    index = supervisor.argv.index("--cookies")
+    assert supervisor.argv[index + 1] == str(jar)
 
 
 @pytest.mark.asyncio

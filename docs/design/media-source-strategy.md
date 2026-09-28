@@ -53,22 +53,14 @@ flowchart LR
 
 ## 3. Provider Session 生命周期
 
-个人生产的文件来源、容器重建和换机操作见 [031](031-Linux无人值守运行设计.md) 与[运行手册](../operations/008-个人部署重启与换机手册.md)。以下加密队列描述适用于浏览器来源；文件来源不经过宿主队列。
+需要登录态的平台统一使用站点会话，设计见 [046](046-容器自持平台会话设计.md)，运维见 [011 手册](../operations/011-站点会话运行手册.md)：
 
-C 端业务进程不直接读取 Chrome Profile 或 Keychain。macOS 部署通过显式安装的
-统一宿主代理按操作读取已授权会话，容器只能领取发给本次操作的加密租约：
+1. 部署者一次性从本机 Chrome 导入站点 Cookie，加密保存在 PostgreSQL；业务进程不读取 Chrome Profile 或 Keychain。
+2. 容器内会话浏览器保持登录并采集轮换后的 Cookie；只有 `session-broker` 持有解密密钥。
+3. Runner 每次操作领取绑定任务与站点的一次性封装租约，只在独占 tmpfs 中创建 `0600` jar；Cookie 原文不进入 API、RabbitMQ、日志、业务响应或 AI Worker。
+4. 撤销时站点回到公开路线，浏览器 Profile 被删除；平台侧会话由部署者在第一方撤销。
 
-1. 部署方在第一方站点完成账号授权；宿主代理只在操作触发时，按中央白名单导出
-   对应 Provider 域和必需 Cookie。
-2. 每次请求携带强类型 Provider/来源和一次性公钥；响应使用认证加密，不能被其他
-   操作、其他 Runner 或队列观察者解开。
-3. Runner 只在独占 tmpfs 中创建 `0600` 操作 jar；Cookie 原文不进入 API、数据库、
-   RabbitMQ、日志、业务响应或 AI Worker。
-4. 操作结束时销毁私钥、jar 和密文；撤销时从路由移除对应 Provider，并在第一方平台
-   撤销会话；浏览器模式不存在应用会话文件。
-
-微信视频号使用独立的元宝 Chrome 状态目录，只允许 `yuanbao.tencent.com` 会话和已登记
-的动态请求头。它不读取默认 Chrome Profile，也不作为其他 Provider 的备用路径。
+视频号的会话来自腾讯元宝（`yuanbao.tencent.com`），动态请求头由会话浏览器按任务生成并直接封装给 Runner。
 
 ## 4. 环境策略
 
@@ -76,7 +68,7 @@ C 端业务进程不直接读取 Chrome Profile 或 Keychain。macOS 部署通�
 | --- | --- | --- | --- |
 | 本地开发 | 伪造的一次性租约 | 单次操作 | 单元测试和隔离 Runner 契约 |
 | CI | 伪造的一次性租约 | 单次操作 | 单元测试和授权 canary |
-| 个人生产 | 八个平台使用持久只读文件，视频号可选浏览器来源 | 来源持久；可写 jar 单次操作 | 按 profile 启用的独立 Operator Runner |
+| 个人生产 | 一次性导入的站点会话，容器内保活 | 会话持久；可写 jar 单次操作 | 单一 `session-runner` |
 
 若未来平台提供官方 OAuth 或资产导出 API，应新增官方 Connector，以用户授权范围和
 资产级导出权替代 Cookie。不得把本地授权工具、消费端私有接口或浏览器自动化扩展为
@@ -84,10 +76,10 @@ C 端业务进程不直接读取 Chrome Profile 或 Keychain。macOS 部署通�
 
 ## 5. 验收条件
 
-- 需要会话的 YouTube 链接在 inspect 开始时直接选择 YouTube Operator。
+- 已导入会话的 YouTube 链接在 inspect 开始时直接选择站点会话路线。
 - 带 Cookie 的 bot challenge 分类为 `credential_expired`，页面给出可操作错误。
-- 平台级最小会话通过一次性加密租约交给对应 Operator Runner，业务容器不读宿主浏览器。
-- 视频号只使用正常 Chrome 当前元宝授权的临时克隆解析官方返回，不进入匿名或第三方回退。
+- 站点会话通过一次性加密租约交给 `session-runner`，业务容器不读宿主浏览器。
+- 视频号只使用导入的元宝会话解析官方返回，不进入匿名或第三方回退。
 - 解析成功后下载仍使用 inspection 冻结的 Operator access context。
 - 限流等稳定错误在当前 Runner 内终止，不触发跨路由重试。
 - 目标链接完成解析、选格式、下载、制品校验和 AI 分析入口验证。

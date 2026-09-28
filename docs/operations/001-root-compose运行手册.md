@@ -65,22 +65,13 @@ macOS 若启用了系统 HTTP/HTTPS/SOCKS 代理，活动网络服务的代理�
 # 已有 .env 直接复用；仅首次缺少文件时创建并填写已有服务的连接信息
 test -f .env || cp .env.example .env
 docker compose --env-file .env -f docker-compose.yml config --quiet
-uv run --project backend python -m app.workers.runner.provider_startup start \
-  --env-file .env --compose-file docker-compose.yml
+docker compose --env-file .env -f docker-compose.yml up -d --build --wait
 ~~~
 
-最后一条命令是本机完整项目的启动与重建入口。它保留声明的平台路线，从所选环境文件
-在内存中计算 Provider 计划，再构建镜像并启动业务服务。文件来源由独立来源进程从现有
-PostgreSQL 加密记录恢复，不因启动时来源缺失删除 Operator。首次部署需按
-[008 手册](008-个人部署重启与换机手册.md)配置稳定来源密钥并登记已有批准来源。
-可选 Runner 的进程就绪与平台授权就绪分别检查，不把核心健康冒充为平台可下载。
-生产五个文件来源平台使用按 Provider 隔离的短期只读副本，配置见[个人部署手册](008-个人部署重启与换机手册.md)。本机开发及可选视频号的 macOS 浏览器来源显式安装统一按需助手后，
-Operator 操作才会读取 Chrome Default 的目标域最小集合；SQL 查询本身按中央 Provider
-allowlist 选择，不把其他域行返回后再过滤。Runner 每次生成一次性公钥，宿主返回绑定该
-请求的认证加密密文；明文只在对应 Runner 的 `/run/provider-session` tmpfs 中存在到操作
-结束。单次读取有 15 秒硬超时，超时或取消会回收整个进程组；请求排空后 helper 退出，
-不会留下 Chrome 后台进程、Cookie 文件或项目专用浏览器 Profile。该 helper 只是按需的
-本机凭据适配器，不是平行应用启动方式；项目仍只通过上述统一启动命令运行。
+最后一条命令是本机完整项目的启动与重建入口，不需要任何宿主进程。需要登录态的站点由
+部署者一次性导入站点会话，之后由 `session-broker`、`session-browser`、`session-runner`
+在容器内维护；步骤见 [011 站点会话运行手册](011-站点会话运行手册.md)。服务健康与平台
+接受会话分别检查，不把核心健康冒充为平台可下载。
 不要使用不会应用代码、镜像或配置变化的
 `docker compose restart`。
 
@@ -181,17 +172,10 @@ AI Worker 心跳是功能级状态，不是 API 全局 readiness。Worker 短暂
 保持 `queued`，下载、上传和历史查询继续可用；不提供分析能力的部署仍应显式设置
 `ANALYSIS_ENABLED=false` 后重建 API。
 
-## Operator Profile
+## 站点会话
 
-只有浏览器来源（本机开发及生产可选视频号）需要在 macOS 安装统一宿主会话代理：
-
-~~~bash
-cd backend
-uv run python -m app.workers.runner.provider_cookie_agent install
-uv run python -m app.workers.runner.provider_cookie_agent status
-~~~
-
-生产受控 Runner 按 `COMPOSE_PROFILES` 选择，并在 `RUNNER_OPERATOR_BASE_URLS` 配置相同平台。文件准备和旧配置切换见[个人部署手册](008-个人部署重启与换机手册.md)，完成后使用：
+所有站点会话服务随默认拓扑启动，没有 Compose profile。生产部署须显式设置
+`SITE_SESSION_ENCRYPTION_KEY`、`SITE_SESSION_RPC_SECRET`、`SITE_SESSION_BROWSER_SECRET`：
 
 ~~~bash
 docker compose --env-file .env.prod -f docker-compose-prod.yml config --quiet
@@ -199,7 +183,7 @@ docker compose --env-file .env.prod -f docker-compose-prod.yml \
   up -d --build --force-recreate --remove-orphans --wait --wait-timeout 300
 ~~~
 
-启用前必须按对应 Provider 运维手册完成 Cookie、权限、固定出口和授权 canary 门禁。
+导入、撤销与换机见 [011 站点会话运行手册](011-站点会话运行手册.md)。
 
 ### Runner 代际协议升级顺序
 

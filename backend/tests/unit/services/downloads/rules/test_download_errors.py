@@ -20,6 +20,7 @@ def test_error_codes_are_stable_snake_case_values() -> None:
         "provider_media_unsupported",
         "provider_rate_limited",
         "provider_session_expired",
+        "provider_session_not_ready",
         "provider_temporarily_unavailable",
         "provider_unsupported",
         "provider_verification_failed",

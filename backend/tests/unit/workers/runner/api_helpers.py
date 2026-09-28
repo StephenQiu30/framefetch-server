@@ -33,8 +33,8 @@ class FakeService:
         self.cancelled: list[str] = []
         self.status_requests: list[str] = []
 
-    async def context_for_provider(self, provider_key: str) -> ProviderAccessContextRef:
-        self.context_requests.append(provider_key)
+    async def context(self, url: str) -> ProviderAccessContextRef:
+        self.context_requests.append(url)
         return ProviderAccessContextRef.from_document(anonymous_access_context())
 
     async def contexts_for_providers(

@@ -80,22 +80,23 @@ def test_environment_templates_do_not_override_duplicate_assignments() -> None:
 
 def test_default_install_does_not_require_provider_sessions() -> None:
     environment = ENV_EXAMPLE_PATH.read_text(encoding="utf-8")
-
-    assert "COMPOSE_PROFILES=\n" in environment
-    assert _env_value(ENV_EXAMPLE_PATH, "RUNNER_OPERATOR_BASE_URLS") == "{}"
-    assert _env_value(ENV_EXAMPLE_PATH, "RUNNER_DEFAULT_ACCESS_POLICIES") == "{}"
+    for removed in (
+        "RUNNER_OPERATOR_BASE_URLS",
+        "RUNNER_DEFAULT_ACCESS_POLICIES",
+        "PROVIDER_SOURCE_ENCRYPTION_KEY",
+        "AUTO_BROWSER_SOURCE_PROVIDERS",
+        "COMPOSE_PROFILES",
+    ):
+        assert removed not in environment
 
     for path in (COMPOSE_PATH, PROD_COMPOSE_PATH):
-        compose = yaml.safe_load(path.read_text(encoding="utf-8"))
-        services = compose["services"]
-        operator_services = {
-            name for name, config in services.items() if config.get("profiles")
-        }
-
-        assert operator_services
-        assert all(name.endswith("-operator-runner") for name in operator_services)
+        services = yaml.safe_load(path.read_text(encoding="utf-8"))["services"]
+        # `docker compose up` starts everything; there are no opt-in profiles.
+        assert not any(config.get("profiles") for config in services.values())
         for service in ("api", "frontend", "media-runner", "worker-download"):
-            assert not services[service].get("profiles")
+            assert not set(services[service].get("depends_on", {})) & set(
+                _SESSION_SERVICES
+            )
 
 
 def test_frontend_compose_receives_only_required_runtime_configuration() -> None:
@@ -384,7 +385,7 @@ def test_compose_isolates_media_dependencies_and_preserves_api_readiness() -> No
         for service in ("api", "worker-download", "provider-canary"):
             dependencies = services[service].get("depends_on", {})
             assert not (
-                {"media-runner", "egress-proxy", *_OPERATOR_RUNNERS} & set(dependencies)
+                {"media-runner", "egress-proxy", *_SESSION_SERVICES} & set(dependencies)
             )
         assert "127.0.0.1:8111/health/ready" in " ".join(
             services["api"]["healthcheck"]["test"]
@@ -399,7 +400,7 @@ def test_compose_isolates_media_dependencies_and_preserves_api_readiness() -> No
             services["media-runner"]["healthcheck"]["test"]
         )
 
-        for service in ("worker-download", "media-runner", *_OPERATOR_RUNNERS):
+        for service in ("worker-download", "media-runner", "session-runner"):
             assert services[service]["stop_grace_period"] == "90s"
 
 
@@ -407,7 +408,7 @@ def test_project_documents_container_and_complete_local_entrypoints() -> None:
     root_readme = ROOT_README_PATH.read_text(encoding="utf-8")
     frontend_readme = FRONTEND_README_PATH.read_text(encoding="utf-8")
     startup_entrypoint = (
-        "uv run --project backend python -m app.workers.runner.provider_startup start"
+        "docker compose --env-file .env -f docker-compose.yml up -d --build --wait"
     )
 
     assert not STARTUP_SCRIPT_PATH.exists()
@@ -416,7 +417,9 @@ def test_project_documents_container_and_complete_local_entrypoints() -> None:
     assert not (ROOT.parent / "scripts/analysis-worker.sh").exists()
     assert not (ROOT / "app/workers/analysis/launchd.py").exists()
     assert startup_entrypoint in root_readme
-    assert (ROOT / "app/workers/runner/provider_startup.py").is_file()
+    # Site sessions (046) need no host process at startup.
+    assert not (ROOT / "app/workers/runner/provider_startup.py").exists()
+    assert "provider_startup" not in root_readme
     assert "run-local-backend.py" not in root_readme
     assert "run-local-backend.py" not in frontend_readme
     assert "restart-project.ps1" not in root_readme
@@ -438,116 +441,75 @@ def test_runtime_dependency_install_is_cached_and_retried() -> None:
 def test_compose_pins_shared_runner_workspace_to_the_mounted_container_path() -> None:
     compose = yaml.safe_load(COMPOSE_PATH.read_text(encoding="utf-8"))
 
-    for service in ("media-runner", "worker-download", *_OPERATOR_RUNNERS):
+    for service in ("media-runner", "worker-download", "session-runner"):
         service_config = compose["services"][service]
         assert service_config["environment"]["RUNNER_WORKSPACE_ROOT"] == "/work"
         assert "runner_work:/work" in service_config["volumes"]
 
 
-_OPERATOR_PROVIDERS = {
-    "youtube-operator-runner": "youtube",
-    "douyin-operator-runner": "douyin",
-    "reddit-operator-runner": "reddit",
-    "wechat-channels-operator-runner": "wechat_channels",
-}
-_OPERATOR_RUNNERS = tuple(_OPERATOR_PROVIDERS)
-_DEPLOYMENT_FILE_PROVIDERS = ("youtube", "douyin", "reddit")
+_SESSION_SERVICES = ("session-runner", "session-broker", "session-browser")
 
 
-def test_provider_session_runners_are_physically_isolated_by_provider() -> None:
+def test_site_session_services_split_the_key_the_browser_and_execution() -> None:
     for path in (COMPOSE_PATH, PROD_COMPOSE_PATH):
         compose = yaml.safe_load(path.read_text(encoding="utf-8"))
-        for service, provider in _OPERATOR_PROVIDERS.items():
-            service_config = compose["services"][service]
-            assert "runner_work:/work" in service_config["volumes"]
-            assert "/run/provider-secrets" not in str(service_config)
-            assert any(
-                str(entry).startswith("/run/provider-session:")
-                for entry in service_config["tmpfs"]
-            )
-            assert (
-                service_config["environment"]["RUNNER_OPERATOR_SESSION_VERSIONS"]
-                == f'{{"{provider}":"browser"}}'
-            )
-            assert "127.0.0.1:19100/health/runtime" in " ".join(
-                service_config["healthcheck"]["test"]
-            )
-            assert service_config["profiles"] == [
-                f"{provider.replace('_', '-')}-operator"
-            ]
+        services = compose["services"]
+        broker = services["session-broker"]
+        browser = services["session-browser"]
+        runner = services["session-runner"]
+
+        # Only the broker can decrypt stored sessions, and it cannot reach out.
+        holders = {
+            name
+            for name, config in services.items()
+            if "SITE_SESSION_ENCRYPTION_KEY" in config.get("environment", {})
+        }
+        assert holders == {"session-broker"}
+        assert set(broker["networks"]) == {"app_net", "session_net", "runner_rpc_net"}
+        assert "DATABASE_URL" in broker["environment"]
+
+        # The browser renders third-party pages: no database, key or Runner RPC.
+        assert set(browser["networks"]) == {"session_net", "runner_egress_net"}
+        assert browser["volumes"] == ["site_session_profiles:/profiles"]
+        for secret in (
+            "DATABASE_URL",
+            "SITE_SESSION_ENCRYPTION_KEY",
+            "SITE_SESSION_RPC_SECRET",
+        ):
+            assert secret not in browser["environment"]
+
+        # The Runner only ever receives one sealed lease per operation.
+        environment = runner["environment"]
+        assert set(runner["networks"]) == {
+            "runner_rpc_net",
+            "runner_egress_net",
+            "youtube_pot_net",
+        }
+        assert runner["volumes"] == ["runner_work:/work"]
+        assert environment["RUNNER_SESSION_BROKER_URL"] == "http://session-broker:19200"
+        assert "DATABASE_URL" not in environment
+        assert "SITE_SESSION_BROWSER_SECRET" not in environment
+        assert any("/run/provider-session" in item for item in runner["tmpfs"])
+
+        for name in _SESSION_SERVICES:
+            assert "ports" not in services[name]
+            assert services[name]["read_only"] is not False
+        assert compose["networks"]["session_net"]["internal"] is True
+        for config in services.values():
+            assert "Library/Caches" not in str(config)
+            assert "provider-cookie-agent" not in str(config)
 
 
-def test_provider_session_mount_is_physically_scoped_per_provider() -> None:
-    compose_documents = (
-        COMPOSE_PATH.read_text(encoding="utf-8"),
-        PROD_COMPOSE_PATH.read_text(encoding="utf-8"),
-    )
-
-    for document in compose_documents:
-        compose = yaml.safe_load(document)
-        for provider in _DEPLOYMENT_FILE_PROVIDERS:
-            service = f"{provider}-operator-runner"
-            service_config = compose["services"][service]
-            assert (
-                service_config["environment"]["RUNNER_PROVIDER_COOKIE_FILE"]
-                == "/run/provider-source/cookies.txt"
-            )
-            source_mounts = [
-                volume
-                for volume in service_config["volumes"]
-                if isinstance(volume, dict)
-                and volume.get("target") == "/run/provider-source"
-            ]
-            assert len(source_mounts) == 1
-            assert source_mounts[0]["read_only"] is True
-            assert source_mounts[0]["type"] == "volume"
-            assert source_mounts[0]["source"] == f"provider_source_{provider}"
-            assert (
-                service_config["environment"]["RUNNER_PROVIDER_SOURCE_REQUIRE_LEASE"]
-                == "true"
-            )
-            assert (
-                "RUNNER_PROVIDER_COOKIE_SYNC_ROOT" not in service_config["environment"]
-            )
-
-        wechat = compose["services"]["wechat-channels-operator-runner"]
-        assert (
-            wechat["environment"]["RUNNER_PROVIDER_COOKIE_SYNC_ROOT"]
-            == "/run/provider-cookie-agent"
-        )
-        assert "RUNNER_PROVIDER_COOKIE_FILE" not in wechat["environment"]
-
-    assert "PROVIDER_SOURCE_ENCRYPTION_KEY=\n" in (
-        ENV_EXAMPLE_PATH.read_text(encoding="utf-8")
-    )
-    assert "PROVIDER_COOKIE_AGENT_RUNTIME_DIR=\n" in ENV_EXAMPLE_PATH.read_text(
-        encoding="utf-8"
-    )
-    assert "COOKIE_SECRET_DIR" not in PROD_COMPOSE_PATH.read_text(encoding="utf-8")
-
-
-def test_source_publisher_owns_keys_but_media_runners_only_receive_one_replica() -> (
-    None
-):
-    for path in (COMPOSE_PATH, PROD_COMPOSE_PATH):
-        services = yaml.safe_load(path.read_text())["services"]
-        publisher = services["provider-sources"]
-        assert "DATABASE_URL" in publisher["environment"]
-        assert "PROVIDER_SOURCE_ENCRYPTION_KEY" in publisher["environment"]
-        assert "ports" not in publisher
-        assert "runner_egress_net" not in publisher["networks"]
-        assert not any(
-            key.startswith(("MINIO_", "RABBITMQ_", "RUNNER_HMAC_"))
-            for key in publisher["environment"]
-        )
-        for name, service in services.items():
-            if name != "provider-sources":
-                assert "PROVIDER_SOURCE_ENCRYPTION_KEY" not in service.get(
-                    "environment", {}
-                )
-            if name.endswith("operator-runner"):
-                assert "DATABASE_URL" not in service["environment"]
-                assert "provider-sources" not in service.get("depends_on", {})
+def test_production_requires_explicit_site_session_secrets() -> None:
+    compose = yaml.safe_load(PROD_COMPOSE_PATH.read_text(encoding="utf-8"))
+    services = compose["services"]
+    for name, key in (
+        ("session-broker", "SITE_SESSION_RPC_SECRET"),
+        ("session-broker", "SITE_SESSION_BROWSER_SECRET"),
+        ("session-browser", "SITE_SESSION_BROWSER_SECRET"),
+        ("session-runner", "RUNNER_SESSION_RPC_SECRET"),
+    ):
+        assert ":?" in services[name]["environment"][key], (name, key)
 
 
 def test_provider_credential_lease_store_stays_on_the_internal_rpc_network() -> None:
@@ -559,89 +521,20 @@ def test_provider_credential_lease_store_stays_on_the_internal_rpc_network() -> 
         assert lease_store["read_only"] is True
         assert lease_store["cap_drop"] == ["ALL"]
         assert lease_store["command"] == ["--save", "", "--appendonly", "no"]
-        for service in _OPERATOR_RUNNERS:
-            runner = compose["services"][service]
-            assert runner["environment"]["RUNNER_CREDENTIAL_LEASE_REDIS_URL"] == (
-                "redis://provider-lease-redis:6379/0"
-            )
-            assert runner["depends_on"]["provider-lease-redis"]["condition"] == (
-                "service_healthy"
-            )
-
-
-def test_default_personal_production_does_not_require_desktop_sessions() -> None:
-    compose = yaml.safe_load(PROD_COMPOSE_PATH.read_text(encoding="utf-8"))
-    for service in compose["services"].values():
-        if not service.get("profiles"):
-            assert "Library/Caches" not in str(service)
-            assert "RUNNER_PROVIDER_COOKIE_SYNC_ROOT" not in service.get(
-                "environment", {}
-            )
-    assert compose["services"]["api"]["environment"]["RUNNER_OPERATOR_BASE_URLS"] == (
-        "${RUNNER_OPERATOR_BASE_URLS:-{}}"
-    )
-
-
-def test_api_mounts_only_the_non_secret_authorization_control_subtree() -> None:
-    for path in (COMPOSE_PATH, PROD_COMPOSE_PATH):
-        compose = yaml.safe_load(path.read_text(encoding="utf-8"))
-        mounts = [
-            item
-            for item in compose["services"]["api"]["volumes"]
-            if isinstance(item, dict)
-            and item.get("target") == "/run/provider-authorization/control"
-        ]
-
-        assert len(mounts) == 1
-        assert mounts[0]["source"].endswith("/control")
-        assert "authorization-sources" not in str(mounts[0])
+        runner = compose["services"]["session-runner"]
+        assert runner["environment"]["RUNNER_CREDENTIAL_LEASE_REDIS_URL"] == (
+            "redis://provider-lease-redis:6379/0"
+        )
+        assert runner["depends_on"]["provider-lease-redis"]["condition"] == (
+            "service_healthy"
+        )
 
 
 def test_production_compose_is_the_only_production_topology_file() -> None:
     assert not (ROOT.parent / "docker-compose-browser.yml").exists()
     assert not (ROOT.parent / "docker-compose-session-files.yml").exists()
     assert PROD_COMPOSE_PATH.is_file()
-    assert "--compose-file docker-compose-prod.yml" in ROOT_README_PATH.read_text(
-        encoding="utf-8"
-    )
-
-
-def test_wechat_channels_uses_the_same_isolated_browser_session_contract() -> None:
-    for path in (COMPOSE_PATH, PROD_COMPOSE_PATH):
-        compose = yaml.safe_load(path.read_text(encoding="utf-8"))
-        service = compose["services"]["wechat-channels-operator-runner"]
-
-        assert service["environment"]["RUNNER_OPERATOR_SESSION_VERSIONS"] == (
-            '{"wechat_channels":"browser"}'
-        )
-        assert "/run/provider-secrets" not in str(service)
-        assert any(
-            str(entry).startswith("/run/provider-session:")
-            for entry in service["tmpfs"]
-        )
-
-
-def test_personal_video_compose_profiles_keep_file_and_network_isolation() -> None:
-    compose = yaml.safe_load(PROD_COMPOSE_PATH.read_text())
-    for provider in ("youku", "qqvideo"):
-        service = compose["services"][f"{provider}-operator-runner"]
-        assert service["profiles"] == [f"{provider}-operator"]
-        assert "proxy_uplink_net" not in service["networks"]
-        assert service["environment"]["RUNNER_MAX_ACTIVE_TASKS"] == "1"
-        assert service["environment"]["RUNNER_PROVIDER_COOKIE_FILE"] == (
-            "/run/provider-source/cookies.txt"
-        )
-        assert "RUNNER_PROVIDER_COOKIE_SYNC_ROOT" not in service["environment"]
-        assert (
-            service["environment"]["RUNNER_OPERATOR_SESSION_VERSIONS"]
-            == f'{{"{provider}":"browser"}}'
-        )
-        sources = [item for item in service["volumes"] if isinstance(item, dict)]
-        assert len(sources) == 1
-        assert sources[0]["source"] == f"provider_source_{provider}"
-        assert sources[0]["read_only"] is True
-        assert sources[0]["type"] == "volume"
-        assert "ports" not in service
+    assert "-f docker-compose-prod.yml" in ROOT_README_PATH.read_text(encoding="utf-8")
 
 
 def test_projects_build_and_run_separate_images() -> None:

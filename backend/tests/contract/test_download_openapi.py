@@ -46,27 +46,7 @@ def test_download_openapi_exposes_required_routes_and_idempotency(
         == "inspectDownloadFile"
     )
     assert paths["/api/providers"]["get"]["operationId"] == "listProviders"
-    assert (
-        paths["/api/providers/{provider_key}/authorization"]["post"]["operationId"]
-        == "beginProviderAuthorization"
-    )
-    assert (
-        paths["/api/providers/authorization/{transaction_id}"]["get"]["operationId"]
-        == "getProviderAuthorization"
-    )
-    assert (
-        paths["/api/providers/authorization/{transaction_id}"]["delete"]["operationId"]
-        == "cancelProviderAuthorization"
-    )
-    authorization_fields = schema["components"]["schemas"][
-        "ProviderAuthorizationResponse"
-    ]["properties"]
-    assert set(authorization_fields) == {
-        "transaction_id",
-        "provider_key",
-        "status",
-        "expires_at",
-    }
+    assert not any("authorization" in path for path in paths if "providers" in path)
     download_url = paths["/api/downloads/{job_id}/download-url"]["post"]
     preview = next(
         item for item in download_url["parameters"] if item["name"] == "preview"

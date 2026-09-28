@@ -42,7 +42,7 @@ from app.api.routes.users import router as users_router
 from app.core.config import Settings, get_settings
 from app.core.lifespan import api_lifespan
 from app.core.runtime import ApiRuntime, ApiServices
-from app.integrations.media_runner_factory import operator_provider_keys
+from app.integrations.media_runner_factory import session_provider_keys
 from app.integrations.provider_status import current_provider_statuses
 
 
@@ -65,8 +65,7 @@ def create_app(
     )
     application.state.settings = effective
     application.state.provider_statuses = current_provider_statuses(
-        operator_provider_keys(effective),
-        effective.runner_default_access_policies,
+        session_provider_keys(effective),
         enabled_guest_keys=frozenset(effective.runner_guest_base_urls),
     )
     application.state.services = runtime.services if runtime else ApiServices()

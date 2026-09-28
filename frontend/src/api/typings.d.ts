@@ -445,15 +445,6 @@ declare namespace API {
     data: OperationLogPageResponse;
   };
 
-  type ApiResponseProviderAuthorizationResponse_ = {
-    /** 稳定的业务结果码。 */
-    code: ErrorCode;
-    /** Message 安全的结果说明。 */
-    message: string;
-    /** 成功时为业务数据，错误时为 null。 */
-    data: ProviderAuthorizationResponse;
-  };
-
   type ApiResponseProviderCatalogEntryResponse_ = {
     /** 稳定的业务结果码。 */
     code: ErrorCode;
@@ -576,14 +567,6 @@ declare namespace API {
 
   type AudioCodecFamily = "none" | "aac" | "opus" | "vorbis" | "other";
 
-  type beginProviderAuthorizationParams = {
-    provider_key: string;
-  };
-
-  type BeginProviderAuthorizationRequest = {
-    source?: ProviderAuthorizationSource;
-  };
-
   type cancelAnalysisParams = {
     analysis_id: string;
   };
@@ -598,10 +581,6 @@ declare namespace API {
 
   type cancelDownloadParams = {
     job_id: string;
-  };
-
-  type cancelProviderAuthorizationParams = {
-    transaction_id: string;
   };
 
   type CompatibilityProfile = "balanced" | "quality" | "smallest";
@@ -989,6 +968,7 @@ declare namespace API {
     | "provider_media_unsupported"
     | "provider_rate_limited"
     | "provider_session_expired"
+    | "provider_session_not_ready"
     | "provider_temporarily_unavailable"
     | "provider_unsupported"
     | "provider_verification_failed"
@@ -1225,7 +1205,6 @@ declare namespace API {
     | "ok"
     | "provider_access_policy_not_allowed"
     | "provider_auth_required"
-    | "provider_authorization_unavailable"
     | "provider_catalog_conflict"
     | "provider_catalog_not_found"
     | "provider_configuration_missing"
@@ -1238,6 +1217,7 @@ declare namespace API {
     | "provider_media_unsupported"
     | "provider_rate_limited"
     | "provider_session_expired"
+    | "provider_session_not_ready"
     | "provider_temporarily_unavailable"
     | "provider_unsupported"
     | "provider_verification_failed"
@@ -1357,10 +1337,6 @@ declare namespace API {
 
   type getMediaImportParams = {
     resource_id: string;
-  };
-
-  type getProviderAuthorizationParams = {
-    transaction_id: string;
   };
 
   type getSourceDiscoveryParams = {
@@ -1872,32 +1848,6 @@ declare namespace API {
     | "disabled"
     | "unsupported";
 
-  type ProviderAuthorizationAction =
-    | "none"
-    | "browser_session"
-    | "managed_session";
-
-  type ProviderAuthorizationResponse = {
-    /** Transaction Id */
-    transaction_id: string;
-    /** Provider Key */
-    provider_key: string;
-    status: ProviderAuthorizationStatus;
-    /** Expires At */
-    expires_at: string;
-  };
-
-  type ProviderAuthorizationSource = "dedicated_chrome";
-
-  type ProviderAuthorizationStatus =
-    | "pending"
-    | "source_available"
-    | "authorization_required"
-    | "permission_required"
-    | "expired"
-    | "cancelled"
-    | "failed";
-
   type ProviderCapability =
     | "single_video"
     | "short_video"
@@ -2011,7 +1961,6 @@ declare namespace API {
     host_suffixes: string[];
     /** Route Retry At */
     route_retry_at?: string | null;
-    authorization_action: ProviderAuthorizationAction;
   };
 
   type ProviderSupportStatus =

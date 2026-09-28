@@ -18,7 +18,10 @@ from typing import Protocol, TypeVar
 import httpx
 from pydantic import BaseModel, ValidationError
 
-from app.integrations.media_inspection_pipeline import MediaInspectionPipeline
+from app.integrations.media_inspection_pipeline import (
+    MediaInspectionPipeline,
+    SessionPolicyReader,
+)
 from app.integrations.media_runner_models import (
     MediaRunnerClientError,
     RunnerArtifact,
@@ -42,6 +45,7 @@ from app.services.downloads.errors import (
     MediaInspectionPolicyNotAllowed,
     MediaInspectionRateLimited,
     MediaInspectionSessionExpired,
+    MediaInspectionSessionNotReady,
     MediaInspectionTemporarilyUnavailable,
     MediaInspectionTimeout,
     MediaInspectionUnsupported,
@@ -88,10 +92,6 @@ class MediaRunnerClient(Protocol):
     async def engine_catalog(self) -> EngineCatalogResponse: ...
 
     async def context(self, url: str) -> ProviderAccessContextRef: ...
-
-    async def context_for_provider(
-        self, provider_key: str
-    ) -> ProviderAccessContextRef: ...
 
     async def contexts_for_providers(
         self, provider_keys: tuple[str, ...]
@@ -161,15 +161,11 @@ class MediaRunnerHttpClient:
         )
 
     async def context(self, url: str) -> ProviderAccessContextRef:
-        return await self.context_for_provider(provider_profile(url).key)
-
-    async def context_for_provider(self, provider_key: str) -> ProviderAccessContextRef:
+        provider_key = provider_profile(url).key
         response = await self._request(
             "POST",
             "/internal/v1/context",
-            ProviderContextRequest(provider_key=provider_key)
-            .model_dump_json()
-            .encode(),
+            ProviderContextRequest(url=url).model_dump_json().encode(),
             ProviderAccessContextContract,
             min(self._inspect_timeout, _CONTEXT_TIMEOUT_SECONDS),
             timeout_code="inspection_timeout",
@@ -246,11 +242,8 @@ class MediaRunnerHttpClient:
                 ) from exc
             if exc.code == "provider_session_not_allowed":
                 raise MediaInspectionPolicyNotAllowed from exc
-            if exc.code in {
-                "provider_session_source_missing",
-                "provider_session_permission_denied",
-            }:
-                raise MediaInspectionConfigurationMissing from exc
+            if exc.code == "provider_session_not_ready":
+                raise MediaInspectionSessionNotReady from exc
             if exc.code in {
                 "credential_expired",
                 "credential_rejected",
@@ -524,31 +517,31 @@ class MediaRunnerHttpClient:
 
 
 class MediaRunnerRouter:
-    """Route anonymous and operator contexts to physically separate runners."""
+    """Route anonymous, guest and site session contexts to separate runners."""
 
     def __init__(
         self,
         anonymous: MediaRunnerClient,
-        operators: Mapping[str, MediaRunnerClient] | None = None,
+        session: MediaRunnerClient | None = None,
         *,
         guests: Mapping[str, MediaRunnerClient] | None = None,
-        default_policies: Mapping[str, ProviderAccessPolicy] | None = None,
+        session_routes: SessionPolicyReader | None = None,
     ) -> None:
         self._anonymous = anonymous
         self._guests = dict(guests or {})
-        self._operators = dict(operators or {})
+        self._session = session
         self._inspection_pipeline = MediaInspectionPipeline(
             anonymous,
-            self._operators,
+            session,
             guests=self._guests,
-            default_policies=default_policies,
+            session_routes=session_routes,
         )
         self._active: dict[str, MediaRunnerClient] = {}
 
-    def resolve_access_policy(
+    async def resolve_access_policy(
         self, url: str, requested: ProviderAccessPolicy | None = None
     ) -> ProviderAccessPolicy:
-        return self._inspection_pipeline.resolve_access_policy(url, requested)
+        return await self._inspection_pipeline.resolve_access_policy(url, requested)
 
     async def engine_catalog(self) -> EngineCatalogResponse:
         return await self._anonymous.engine_catalog()
@@ -558,12 +551,10 @@ class MediaRunnerRouter:
     ) -> RunnerInspection:
         return await self._inspection_pipeline.inspect(url, access_policy=access_policy)
 
-    async def context_for_provider(
-        self,
-        provider_key: str,
-        access_mode: ProviderAccessMode,
+    async def context(
+        self, url: str, access_mode: ProviderAccessMode
     ) -> ProviderAccessContextRef:
-        client = self._client_for_mode(provider_key, access_mode)
+        client = self._client_for_mode(provider_profile(url).key, access_mode)
         if client is None:
             code = (
                 "guest_context_required"
@@ -572,7 +563,7 @@ class MediaRunnerRouter:
             )
             status = 503 if access_mode is ProviderAccessMode.GUEST else 422
             raise MediaRunnerClientError(code, status)
-        context = await client.context_for_provider(provider_key)
+        context = await client.context(url)
         if context.access_mode is not access_mode:
             raise MediaRunnerClientError("client_context_mismatch", 502)
         return context
@@ -601,12 +592,13 @@ class MediaRunnerRouter:
             if mode is ProviderAccessMode.GUEST
             and (client := self._guests.get(key)) is not None
         )
-        groups.extend(
-            (client, (key,))
-            for key, mode in requested.items()
-            if mode is ProviderAccessMode.OPERATOR_MANAGED
-            and (client := self._operators.get(key)) is not None
-        )
+        if self._session is not None:
+            # One key per call: a site that is not ready must not hide the rest.
+            groups.extend(
+                (self._session, (key,))
+                for key, mode in requested.items()
+                if mode is ProviderAccessMode.OPERATOR_MANAGED
+            )
 
         async def resolve(
             client: MediaRunnerClient,
@@ -666,8 +658,8 @@ class MediaRunnerRouter:
         await self._anonymous.close()
         for guest in self._guests.values():
             await guest.close()
-        for operator in self._operators.values():
-            await operator.close()
+        if self._session is not None:
+            await self._session.close()
 
     def _client_for(self, context: ProviderAccessContextRef) -> MediaRunnerClient:
         client = self._client_for_mode(context.provider_key, context.access_mode)
@@ -688,7 +680,7 @@ class MediaRunnerRouter:
             return self._anonymous
         if access_mode is ProviderAccessMode.GUEST:
             return self._guests.get(provider_key)
-        return self._operators.get(provider_key)
+        return self._session
 
 
 def _error_code(response: httpx.Response) -> str:

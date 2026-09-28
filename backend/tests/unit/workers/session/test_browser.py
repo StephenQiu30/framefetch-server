@@ -210,10 +210,10 @@ async def test_yuanbao_headers(tmp_path):
         await browser.headers("weixin.qq.com")
     (tmp_path / "weixin.qq.com").mkdir()
     context.evaluations.append(
-        {"userId": "u", "token": "t", "headers": {"X-A": "1", "Bad": "a\nb"}}
+        {"userId": "u", "token": "t", "headers": {"x-hy92": "1"}, "extra": "dropped"}
     )
     payload = json.loads(await browser.headers("weixin.qq.com"))
-    assert payload == {"hy_user": "u", "hy_token": "t", "headers": {"X-A": "1"}}
+    assert payload == {"userId": "u", "token": "t", "headers": {"x-hy92": "1"}}
     assert context.pages[0].visited == ["https://yuanbao.tencent.com/"]
     context.evaluations.append({"userId": "", "token": "t"})
     with pytest.raises(HeadersUnavailable):

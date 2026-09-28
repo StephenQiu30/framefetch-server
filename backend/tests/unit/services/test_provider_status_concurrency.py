@@ -3,7 +3,6 @@ from datetime import UTC, datetime, timedelta
 
 import pytest
 from app.integrations.provider_status import configured_provider_statuses
-from app.services.provider_access import ProviderAccessPolicy
 from app.services.provider_canaries import ProviderStatusService
 from app.services.provider_types import ProviderAccessMode, ProviderSupportStatus
 from tests.unit.integrations.test_media_runner_router import context
@@ -36,11 +35,7 @@ async def test_persisted_cooldown_overrides_old_success_without_claiming_a_probe
     access = replace(context(ProviderAccessMode.ANONYMOUS), provider_key="youtube")
     deadline = datetime.now(UTC) + timedelta(minutes=5)
     baseline = next(
-        view
-        for view in configured_provider_statuses(
-            default_policies={"youtube": ProviderAccessPolicy.PUBLIC}
-        )
-        if view.key == "youtube"
+        view for view in configured_provider_statuses() if view.key == "youtube"
     )
     access = replace(access, profile_version=baseline.profile_version)
     baseline = replace(

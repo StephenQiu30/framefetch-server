@@ -3,7 +3,6 @@
 import { CaretDownIcon } from '@phosphor-icons/react';
 import { cn } from 'cn';
 import { useId, useState } from 'react';
-import { ProviderAuthorizationDialog } from '@/components/providers/provider-authorization-dialog';
 import {
   isCurrentlyAvailable,
   ProviderAccessStateCode,
@@ -153,14 +152,6 @@ export function ProviderStatusItem({
                 <p className="font-medium text-foreground">访问与下一步</p>
                 <p className="mt-1">{accessDescription(provider)}</p>
                 {provider.user_action ? <p>{provider.user_action}</p> : null}
-                {provider.access_state ===
-                  ProviderAccessStateCode.AuthorizationRequired &&
-                provider.access_modes.includes('operator_managed') &&
-                provider.authorization_action !== 'none' ? (
-                  <div className="mt-3">
-                    <ProviderAuthorizationDialog provider={provider} />
-                  </div>
-                ) : null}
               </div>
             </div>
           </TableCell>

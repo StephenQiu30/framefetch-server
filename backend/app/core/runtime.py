@@ -67,7 +67,6 @@ from app.services.imports.service import (
     CreateUploadSession,
     GetImport,
 )
-from app.services.provider_authorization import ProviderAuthorizationService
 from app.services.provider_canaries import ProviderStatusService
 from app.services.provider_catalog import ProviderCatalogService
 from app.services.source_discoveries.use_cases import (
@@ -158,7 +157,6 @@ class ApiServices:
     operation_log_store: OperationLogStore | None = None
     operational_metrics: OperationalMetrics | None = None
     provider_status_service: ProviderStatusService | None = None
-    provider_authorization_service: ProviderAuthorizationService | None = None
     provider_catalog_service: ProviderCatalogService | None = None
     ai_provider_service: AiProviderService | None = None
     storage_file_service: StorageFileService | None = None
@@ -176,8 +174,6 @@ class ApiRuntime:
     async def start(self) -> None:
         await assert_download_execution_schema(self.engine)
         await self.realtime_consumer.start()
-        if self.services.provider_authorization_service is not None:
-            await self.services.provider_authorization_service.start()
 
     async def close(self) -> None:
         # Every owner releases its resource even if an earlier close fails.
@@ -189,8 +185,4 @@ class ApiRuntime:
                 cleanup.push_async_callback(self.services.rate_limiter.close)
             if self.services.readiness_probe is not None:
                 cleanup.push_async_callback(self.services.readiness_probe.close)
-            if self.services.provider_authorization_service is not None:
-                cleanup.push_async_callback(
-                    self.services.provider_authorization_service.close
-                )
             cleanup.push_async_callback(self.realtime_consumer.close)

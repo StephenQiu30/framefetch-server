@@ -56,7 +56,7 @@ class FakeRunner:
         self.inspection = inspection
         self.seen: list[str] = []
 
-    def resolve_access_policy(
+    async def resolve_access_policy(
         self, url: str, requested: ProviderAccessPolicy | None = None
     ) -> ProviderAccessPolicy:
         return requested or ProviderAccessPolicy.PUBLIC

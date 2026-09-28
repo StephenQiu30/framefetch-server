@@ -69,59 +69,6 @@ class ProviderProfileVersion(StrEnum):
     PEERTUBE = "peertube-approved-instance"
 
 
-class ProviderSessionVersion(StrEnum):
-    BROWSER = "browser"
-
-
-class ProviderAuthorizationSource(StrEnum):
-    """Explicit local browser source selected for a provider authorization."""
-
-    DEDICATED_CHROME = "dedicated_chrome"
-
-
-class ProviderAuthorizationAction(StrEnum):
-    """Coarse, non-secret recovery action exposed by the Provider API."""
-
-    NONE = "none"
-    BROWSER_SESSION = "browser_session"
-    MANAGED_SESSION = "managed_session"
-
-
-_DEPLOYMENT_MANAGED_PROVIDERS = frozenset(
-    {
-        ProviderKey.YOUTUBE,
-        ProviderKey.DOUYIN,
-        ProviderKey.REDDIT,
-    }
-)
-
-
-def provider_authorization_action(
-    provider: str | ProviderKey,
-    *,
-    access_modes: tuple[ProviderAccessMode, ...],
-    status: ProviderSupportStatus,
-    last_check_succeeded: bool | None,
-    browser_session_allowed: bool = False,
-) -> ProviderAuthorizationAction:
-    try:
-        key = ProviderKey(provider)
-    except ValueError:
-        return ProviderAuthorizationAction.NONE
-    supports_account = ProviderAccessMode.OPERATOR_MANAGED in access_modes
-    explicitly_requires_account = status is ProviderSupportStatus.ACCESS_REQUIRED
-    if (
-        supports_account
-        and explicitly_requires_account
-        and last_check_succeeded is False
-        and (key in _DEPLOYMENT_MANAGED_PROVIDERS or key is ProviderKey.WECHAT_CHANNELS)
-    ):
-        if browser_session_allowed and key in _DEPLOYMENT_MANAGED_PROVIDERS:
-            return ProviderAuthorizationAction.BROWSER_SESSION
-        return ProviderAuthorizationAction.MANAGED_SESSION
-    return ProviderAuthorizationAction.NONE
-
-
 class ProviderCookieDomain(StrEnum):
     YOUTUBE = "youtube.com"
     YOUTUBE_NOCOOKIE = "youtube-nocookie.com"

@@ -7,7 +7,6 @@ from typing import Any
 
 from app.services.provider_types import ProviderAccessMode, ProviderKey
 from app.workers.runner.errors import RunnerFailure
-from app.workers.runner.provider_session_policy import browser_session_policy
 
 _ALLOWED_YOUTUBE_AVAILABILITY = {"public", "unlisted"}
 _RESTRICTED_AVAILABILITY = {
@@ -84,7 +83,6 @@ def enforce_media_rights(
                 )
     if access_mode is not ProviderAccessMode.OPERATOR_MANAGED:
         return
-    browser_session_policy(provider_key)
     if provider_key == ProviderKey.YOUTUBE and not isinstance(availability, str):
         raise RunnerFailure("content_entitlement_unknown", status=422)
 

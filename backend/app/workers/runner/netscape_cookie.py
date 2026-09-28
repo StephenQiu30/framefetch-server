@@ -8,7 +8,8 @@ from dataclasses import dataclass
 from http.cookiejar import Cookie
 
 from app.workers.runner.errors import RunnerFailure
-from app.workers.runner.provider_cookie_lease import MAX_COOKIE_BYTES
+
+MAX_COOKIE_BYTES = 1024**2
 
 _NETSCAPE_HEADERS = (
     b"# Netscape HTTP Cookie File",

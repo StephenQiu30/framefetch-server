@@ -73,9 +73,7 @@ async def _inspect_until_disconnect(
 
 
 class RunnerService(Protocol):
-    async def context_for_provider(
-        self, provider_key: str
-    ) -> ProviderAccessContextRef: ...
+    async def context(self, url: str) -> ProviderAccessContextRef: ...
 
     async def contexts_for_providers(
         self, provider_keys: tuple[str, ...]
@@ -222,7 +220,7 @@ def create_app(
         payload = _parse(ProviderContextRequest, body)
         _require_pinned_engine(configured)
         return ProviderAccessContextContract.from_domain(
-            await runner.context_for_provider(payload.provider_key)
+            await runner.context(payload.url)
         )
 
     @app.post(

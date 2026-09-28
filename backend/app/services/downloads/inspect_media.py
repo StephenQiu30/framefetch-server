@@ -22,6 +22,7 @@ from app.services.downloads.errors import (
     MediaInspectionPolicyNotAllowed,
     MediaInspectionRateLimited,
     MediaInspectionSessionExpired,
+    MediaInspectionSessionNotReady,
     MediaInspectionTemporarilyUnavailable,
     MediaInspectionTimeout,
     MediaInspectionUnsupported,
@@ -142,7 +143,7 @@ class InspectMedia:
                 restricted,
             )
         try:
-            selected_policy = self._runner.resolve_access_policy(
+            selected_policy = await self._runner.resolve_access_policy(
                 validated_url, access_policy
             )
             result = await self._runner.inspect(
@@ -170,6 +171,10 @@ class InspectMedia:
         except MediaInspectionSessionExpired as exc:
             raise ApplicationError(
                 ApplicationErrorCode.PROVIDER_SESSION_EXPIRED
+            ) from exc
+        except MediaInspectionSessionNotReady as exc:
+            raise ApplicationError(
+                ApplicationErrorCode.PROVIDER_SESSION_NOT_READY
             ) from exc
         except MediaInspectionVerificationFailed as exc:
             raise ApplicationError(

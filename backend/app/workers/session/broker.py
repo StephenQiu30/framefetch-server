@@ -296,6 +296,13 @@ class SessionBroker:
 
     # Runner RPC -------------------------------------------------------------
 
+    async def ready_revision(self, site: str) -> int:
+        """The import revision a new access context must freeze."""
+        status = await self._states.get(site)
+        if status is None or status.state is not SiteSessionState.READY:
+            raise SessionNotReady(site)
+        return status.seed_revision
+
     async def lease(
         self, *, task_id: str, site: str, seed_revision: int, runner_key: bytes
     ) -> LeaseGrant:

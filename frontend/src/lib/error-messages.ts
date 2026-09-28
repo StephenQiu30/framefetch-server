@@ -76,6 +76,7 @@ const localizedErrorMessages: Record<string, string> = {
   provider_media_unsupported: '该链接不包含受支持的可下载视频，请更换链接。',
   provider_rate_limited: '平台请求过于频繁，请稍后重试。',
   provider_session_expired: '平台授权或验证状态已失效，请稍后重试。',
+  provider_session_not_ready: '该平台的部署会话暂不可用，请稍后重试。',
   provider_configuration_missing:
     '当前所选访问路线尚未配置，请联系部署管理员完成配置后重试。',
   provider_access_policy_not_allowed:

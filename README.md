@@ -103,7 +103,7 @@ Web 实例提供公开页面：`/guide/` 使用指南、`/self-hosting/` 自托�
 
 ## 快速开始
 
-本机开发使用 `docker-compose.yml`，生产使用 `docker-compose-prod.yml`。标准拓扑内置固定版本的解析引擎与抖音公开访客维护器：首次启动会在后台准备访客材料，普通用户粘贴公开链接或分享文案后无需提供浏览器 Cookie。准备状态可用 `docker compose exec -T provider-guest python -m app.workers.runner.provider_guest_manager status` 脱敏查看；只有 `published_lease_usable=true` 才代表访客租约已发布，健康检查本身不代表媒体可下载。其他平台可先走匿名或 Generic 的受限单视频尝试；提取器候选不等于已验证下载，最终以当前出口的解析和文件结果为准。YouTube、Reddit、优酷等需要账号或额外验证的内容仍受各平台访问条件约束，部署者可按 Provider 登记批准的只读来源，普通客户端不安装扩展也不提供 Cookie。来源安装与更新见[个人部署手册](docs/operations/008-个人部署重启与换机手册.md)。
+本机开发使用 `docker-compose.yml`，生产使用 `docker-compose-prod.yml`。标准拓扑内置固定版本的解析引擎与抖音公开访客维护器：首次启动会在后台准备访客材料，普通用户粘贴公开链接或分享文案后无需提供浏览器 Cookie。准备状态可用 `docker compose exec -T provider-guest python -m app.workers.runner.provider_guest_manager status` 脱敏查看；只有 `published_lease_usable=true` 才代表访客租约已发布，健康检查本身不代表媒体可下载。其他平台可先走匿名或 Generic 的受限单视频尝试；提取器候选不等于已验证下载，最终以当前出口的解析和文件结果为准。需要登录态的站点由部署者一次性导入站点会话（见下文“站点会话”），普通客户端不安装扩展也不提供 Cookie。
 
 ### 前置条件
 
@@ -126,9 +126,8 @@ test -f .env || cp .env.example .env
 psql -X -v ON_ERROR_STOP=1 -W -h 127.0.0.1 -U video -d video \
   -f backend/sql/schema.sql
 
-# 启动前校验 Provider 来源，再启动 Web、API、Worker、可用 Runner 与受控出口代理
-uv run --project backend python -m app.workers.runner.provider_startup start \
-  --env-file .env --compose-file docker-compose.yml
+# 启动 Web、API、Worker、Runner、站点会话服务与受控出口代理
+docker compose --env-file .env -f docker-compose.yml up -d --build --wait
 ```
 
 全新空库还没有登录账号时，在部署机终端执行一次首管理员初始化（需使用可连接 PostgreSQL 的 `DATABASE_URL`，密码交互输入，不进入命令行历史）：
@@ -140,22 +139,25 @@ uv run --project backend python -m app.workers.bootstrap_admin \
 
 命令只在用户表为空时创建管理员；已有任何用户时拒绝，不开放 HTTP 初始化接口。之后用该邮箱和密码登录 Web，再粘贴链接解析；公开抖音访客路线由后台准备，不要求先登记账号来源。若要让其他用户自行注册，先在 `.env` 配置真实 SMTP 并启用 `SMTP_ENABLED=true`；默认关闭时注册验证码不可发送，现有账号仍可登录。生产部署还应替换示例密钥。健康检查只证明服务可运行，不证明首账号已创建或每个平台有真实媒体证据。
 
-统一入口保留已配置的平台路由，不因来源短暂失效删除能力。文件来源由独立 `provider-sources` 进程从现有 PostgreSQL 解密恢复，按平台原子发布到 Runner 的只读命名卷；重建和换机无需复制这些本地副本。启动器读取本次 `--env-file` 指定的环境文件，在内存中计算 Provider 启动计划，再作为进程环境交给 Compose 和来源维护器；不生成第二份 `provider-startup.env`。
+### 站点会话（需要登录态的平台）
 
-部署密钥优先通过未提交的根目录 `.env` 或 Secret Manager 设置为 `PROVIDER_SOURCE_ENCRYPTION_KEY`。macOS 本机自动浏览器来源未设置该值时，首次启动会在 `backend/.local-runtime/provider-source.key` 生成权限为 `0600` 的稳定密钥；该目录不会提交 Git，换机或恢复 PostgreSQL 时须从安全备份恢复密钥文件，或继续注入原密钥。已有批准来源登记在持久库。普通用户不参与此过程。新宿主复用同一持久库和密钥后自动恢复；平台撤销、过期或新出口验证仍需按平台处理。首次配置、登记命令和验收边界见 [008 手册](docs/operations/008-个人部署重启与换机手册.md)。
+YouTube、抖音账号、Reddit、视频号、优酷、腾讯视频，以及任何需要登录的站点，都通过同一种“站点会话”运行：部署者**一次性**把本机 Chrome 中的登录态导入部署，之后由容器内的会话浏览器保持和刷新，`docker compose up`、重启、换容器都不需要人参与。已导入会话的站点永远不会退回匿名访问；会话失效时解析明确返回 `provider_session_not_ready`，状态进入“需要重新导入”。
+
+在本机 Terminal 中（需要 macOS 钥匙串授权一次）：
 
 ```bash
-uv run --project backend python -m app.workers.runner.provider_startup start \
-  --env-file .env.prod --compose-file docker-compose-prod.yml
+cd backend
+uv run python -m app.workers.session.seed import --site youtube.com
+uv run python -m app.workers.session.seed status
+uv run python -m app.workers.session.seed revoke --site youtube.com
 ```
 
-维护器只更新 `.provider-sessions/youtube/cookies.txt`，不会在解析或下载请求中读取浏览器。完整来源边界、停止与换机步骤见 [YouTube 受控会话手册](docs/operations/002-YouTube受控会话运行手册.md)和[个人部署手册](docs/operations/008-个人部署重启与换机手册.md)。
+`--site` 可以是任意站点或链接主机（如 `youtu.be`、`example.com`）；多个 Chrome Profile 都已登录时用 `--profile "Profile 2"` 指定。`SITE_SESSION_ENCRYPTION_KEY` 必须稳定并与数据库备份分开保管。建议用单独的 Chrome Profile 登录非主力账号再导入：同一登录态在两处并用时，平台轮换 Cookie 可能使其中一端被登出。细节见 [站点会话运行手册](docs/operations/011-站点会话运行手册.md) 与 [046 设计](docs/design/046-容器自持平台会话设计.md)。
 
-PowerShell 使用相同入口：
+生产部署使用同一入口：
 
-```powershell
-if (-not (Test-Path .env)) { Copy-Item .env.example .env }
-uv run --project backend python -m app.workers.runner.provider_startup start --env-file .env --compose-file docker-compose.yml
+```bash
+docker compose --env-file .env.prod -f docker-compose-prod.yml up -d --build --wait
 ```
 
 启动后访问：
@@ -230,7 +232,7 @@ flowchart LR
 
 - 只处理你拥有相应权利的内容，并遵守内容来源、所在地和部署环境适用的法律与平台规则。
 - 匿名 Provider 只接受公开、免费、非 DRM 的 HTTP(S) 内容；私网 URL、任意 yt-dlp 参数和 shell 输入始终禁止。
-- 普通业务请求不接收原始 Cookie。Provider 会话来自部署者私有的只读平台文件或已授权浏览器；每次操作的副本进入对应隔离 Runner 的 tmpfs，结束后销毁，不进入业务数据库、普通日志或其他 Worker。持久文件与迁移配置见[个人运行手册](docs/operations/008-个人部署重启与换机手册.md)。
+- 普通业务请求不接收原始 Cookie。站点会话以密文保存在 PostgreSQL，只有 `session-broker` 持有密钥；每次操作的明文副本只进入 `session-runner` 的 tmpfs，结束后销毁，不进入普通日志或其他 Worker。见[站点会话运行手册](docs/operations/011-站点会话运行手册.md)。
 - Edge Agent 只能传输用户已合法取得并明确选择的明文文件，不能读取平台会话、拦截流量、提取密钥或转换受保护媒体。
 - 外部媒体访问必须经过阻断私网的出口代理；入口 URL 校验不能替代网络隔离。
 
@@ -238,7 +240,7 @@ flowchart LR
 
 ## 当前限制
 
-- 腾讯视频与优酷已增加可选个人会话下载路径，仅尝试获取账号可访问的完整非 DRM 内容；完整 VIP 下载尚待真实样本验证，参见 [032 设计](docs/design/032-腾讯视频与优酷个人下载设计.md)与[运行手册](docs/operations/008-个人部署重启与换机手册.md)。
+- 腾讯视频与优酷已增加可选个人会话下载路径，仅尝试获取账号可访问的完整非 DRM 内容；完整 VIP 下载尚待真实样本验证，参见 [032 设计](docs/design/032-腾讯视频与优酷个人下载设计.md)与[站点会话运行手册](docs/operations/011-站点会话运行手册.md)。
 
 - 项目仍在持续演进，目前提供自托管源码和 Compose 运行方式，不承诺官方 SaaS、公共演示站或服务可用性 SLA。
 - Provider 能力受来源页面和平台变化影响；平台名称不代表对所有内容、地区或账户权益都可用。

@@ -19,6 +19,16 @@ from tests.unit.integrations.test_media_runner_router import FakeClient, context
 URL = "https://www.youtube.com/watch?v=owned"
 
 
+class Sessions:
+    """Session records by URL; a record forces the session policy."""
+
+    def __init__(self, policies: dict[str, Policy] | None = None) -> None:
+        self.policies = policies or {}
+
+    async def policy_for(self, url: str) -> Policy | None:
+        return self.policies.get(url)
+
+
 def test_public_session_is_a_guest_policy_without_account_privilege() -> None:
     assert Policy.PUBLIC.access_mode is Mode.ANONYMOUS
     assert Policy.PUBLIC_SESSION.access_mode is Mode.GUEST
@@ -32,7 +42,7 @@ async def test_explicit_public_never_touches_configured_operator() -> None:
     anonymous = FakeClient(replace(context(Mode.ANONYMOUS), provider_key="youtube"))
     operator = FakeClient(context(Mode.OPERATOR_MANAGED))
     operator.inspect_error = AssertionError("must not access session")
-    router = MediaRunnerRouter(anonymous, {"youtube": operator})  # type: ignore[arg-type]
+    router = MediaRunnerRouter(anonymous, operator, session_routes=Sessions())  # type: ignore[arg-type]
     result = await router.inspect(URL, access_policy=Policy.PUBLIC)
     assert result.access_context.access_mode is Mode.ANONYMOUS
     assert anonymous.inspected == [URL]
@@ -51,35 +61,64 @@ async def test_input_only_uses_public_without_touching_configured_sessions() -> 
     anonymous = FakeClient(replace(context(Mode.ANONYMOUS), provider_key="youtube"))
     operator = FakeClient(context(Mode.OPERATOR_MANAGED))
     operator.inspect_error = AssertionError("must not access session implicitly")
-    for operators in ({}, {"youtube": operator}):
-        router = MediaRunnerRouter(anonymous, operators)  # type: ignore[arg-type]
+    for session in (None, operator):
+        router = MediaRunnerRouter(anonymous, session, session_routes=Sessions())  # type: ignore[arg-type]
         assert (await router.inspect(URL)).access_context.access_mode is Mode.ANONYMOUS
     assert anonymous.inspected == [URL, URL]
     assert operator.inspected == []
 
 
-async def test_deployment_can_select_authorized_session_without_client_policy() -> None:
+async def test_session_record_forces_the_session_route_without_client_policy() -> None:
     anonymous = FakeClient(context(Mode.ANONYMOUS))
     operator = FakeClient(
         replace(context(Mode.OPERATOR_MANAGED), provider_key="youtube")
     )
     router = MediaRunnerRouter(
         anonymous,
-        {"youtube": operator},
-        default_policies={"youtube": Policy.OPERATOR_PUBLIC},
+        operator,
+        session_routes=Sessions({URL: Policy.OPERATOR_PUBLIC}),
     )  # type: ignore[arg-type]
     assert (
         await router.inspect(URL)
     ).access_context.access_mode is Mode.OPERATOR_MANAGED
     assert anonymous.inspected == []
     assert operator.inspected == [URL]
+    # A session record can never be bypassed with an explicit public request.
+    with pytest.raises(MediaInspectionPolicyNotAllowed):
+        await router.inspect(URL, access_policy=Policy.PUBLIC)
+    assert anonymous.inspected == []
+
+
+async def test_session_record_without_a_session_runner_is_a_configuration_gap():
+    anonymous = FakeClient(context(Mode.ANONYMOUS))
+    router = MediaRunnerRouter(
+        anonymous, None, session_routes=Sessions({URL: Policy.OPERATOR_PUBLIC})
+    )  # type: ignore[arg-type]
+    with pytest.raises(MediaInspectionConfigurationMissing):
+        await router.inspect(URL)
+    assert anonymous.inspected == []
+
+
+async def test_unlisted_sites_use_the_session_route_when_a_record_exists() -> None:
+    url = "https://media.example.co.uk/v/1"
+    anonymous = FakeClient(replace(context(Mode.ANONYMOUS), provider_key="generic"))
+    operator = FakeClient(
+        replace(context(Mode.OPERATOR_MANAGED), provider_key="generic")
+    )
+    router = MediaRunnerRouter(
+        anonymous, operator, session_routes=Sessions({url: Policy.OPERATOR_PUBLIC})
+    )  # type: ignore[arg-type]
+    assert (
+        await router.inspect(url)
+    ).access_context.access_mode is Mode.OPERATOR_MANAGED
+    assert operator.inspected == [url]
 
 
 @pytest.mark.parametrize("requested", [Policy.PUBLIC_SESSION, Policy.PERSONAL_ENTITLED])
 async def test_unadmitted_policy_never_reaches_any_runner(requested) -> None:
     anonymous = FakeClient(context(Mode.ANONYMOUS))
     operator = FakeClient(context(Mode.OPERATOR_MANAGED))
-    router = MediaRunnerRouter(anonymous, {"youtube": operator})  # type: ignore[arg-type]
+    router = MediaRunnerRouter(anonymous, operator, session_routes=Sessions())  # type: ignore[arg-type]
     with pytest.raises(MediaInspectionPolicyNotAllowed):
         await router.inspect(URL, access_policy=requested)
     assert anonymous.inspected == operator.inspected == []
@@ -103,37 +142,15 @@ async def test_public_failure_is_not_retried_with_more_privilege() -> None:
     anonymous = FakeClient(context(Mode.ANONYMOUS))
     anonymous.inspect_error = MediaInspectionFailure()
     operator = FakeClient(context(Mode.OPERATOR_MANAGED))
-    router = MediaRunnerRouter(anonymous, {"youtube": operator})  # type: ignore[arg-type]
+    router = MediaRunnerRouter(anonymous, operator, session_routes=Sessions())  # type: ignore[arg-type]
     with pytest.raises(MediaInspectionFailure):
         await router.inspect(URL, access_policy=Policy.PUBLIC)
     assert anonymous.inspected == [URL]
     assert operator.inspected == []
 
 
-async def test_explicit_deployment_default_does_not_change_when_an_operator_appears():
-    anonymous = FakeClient(replace(context(Mode.ANONYMOUS), provider_key="youtube"))
-    operator = FakeClient(context(Mode.OPERATOR_MANAGED))
-    for operators in ({}, {"youtube": operator}):
-        router = MediaRunnerRouter(
-            anonymous, operators, default_policies={"youtube": Policy.PUBLIC}
-        )  # type: ignore[arg-type]
-        assert (await router.inspect(URL)).access_context.access_mode is Mode.ANONYMOUS
-    assert anonymous.inspected == [URL, URL]
-    assert operator.inspected == []
-
-
-def test_unadmitted_deployment_default_is_rejected_before_startup():
-    anonymous = FakeClient(context(Mode.ANONYMOUS))
-    with pytest.raises(ValueError, match="not admitted"):
-        MediaRunnerRouter(
-            anonymous, default_policies={"youtube": Policy.PUBLIC_SESSION}
-        )  # type: ignore[arg-type]
-
-
-@pytest.mark.parametrize("explicit", [None, Policy.PUBLIC, Policy.OPERATOR_PUBLIC])
-async def test_guest_default_preserves_explicit_deployment_policy(
-    explicit,
-) -> None:
+@pytest.mark.parametrize("session", [False, True])
+async def test_guest_default_yields_only_to_a_session_record(session) -> None:
     url = "https://www.douyin.com/video/7674644830270473609"
     anonymous = FakeClient(replace(context(Mode.ANONYMOUS), provider_key="douyin"))
     guest = FakeClient(
@@ -148,15 +165,15 @@ async def test_guest_default_preserves_explicit_deployment_policy(
     )
     router = MediaRunnerRouter(
         anonymous,
-        {"douyin": operator},
+        operator,
         guests={"douyin": guest},
-        default_policies={"douyin": explicit} if explicit else None,
+        session_routes=Sessions({url: Policy.OPERATOR_PUBLIC} if session else {}),
     )
-    expected = (explicit or Policy.PUBLIC_SESSION).access_mode
+    expected = Mode.OPERATOR_MANAGED if session else Mode.GUEST
     assert (await router.inspect(url)).access_context.access_mode is expected
-    assert len(anonymous.inspected) == (expected is Mode.ANONYMOUS)
-    assert len(guest.inspected) == (expected is Mode.GUEST)
-    assert len(operator.inspected) == (expected is Mode.OPERATOR_MANAGED)
+    assert anonymous.inspected == []
+    assert len(guest.inspected) == (not session)
+    assert len(operator.inspected) == session
 
 
 async def test_guest_failure_does_not_escalate_to_an_account_or_retry_anonymous() -> (
@@ -176,7 +193,7 @@ async def test_guest_failure_does_not_escalate_to_an_account_or_retry_anonymous(
     )
     guest.inspect_error = MediaInspectionFailure()
     router = MediaRunnerRouter(
-        anonymous, {"douyin": operator}, guests={"douyin": guest}
+        anonymous, operator, guests={"douyin": guest}, session_routes=Sessions()
     )
     with pytest.raises(MediaInspectionFailure):
         await router.inspect(url)

@@ -136,9 +136,7 @@ class DownloadExecution:
                 # before writing. Refresh only a code-generation change here;
                 # never silently switch account, egress, engine or policy.
                 current_context = await monitor.run_fixed(
-                    lambda: self._runner.context_for_provider(
-                        access_context.provider_key, access_context.access_mode
-                    ),
+                    lambda: self._runner.context(url, access_context.access_mode),
                     stage=DownloadStage.REVALIDATING,
                     progress=0,
                     drain_on_abort=False,

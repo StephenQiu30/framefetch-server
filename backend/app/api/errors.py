@@ -126,6 +126,11 @@ _ERRORS: dict[ApplicationErrorCode, tuple[int, str, str]] = {
         "Provider session unavailable",
         "The approved provider session is no longer available. Try again later.",
     ),
+    ApplicationErrorCode.PROVIDER_SESSION_NOT_READY: (
+        503,
+        "Provider session not ready",
+        "The deployment session for this site is not ready. Try again later.",
+    ),
     ApplicationErrorCode.PROVIDER_VERIFICATION_FAILED: (
         503,
         "Provider verification failed",

@@ -127,17 +127,3 @@ def test_provider_catalog_routes_reject_non_admin(tmp_path: Path) -> None:
     assert response.status_code == 403
     assert response.json()["code"] == "forbidden"
     assert catalog.items == {}
-
-
-def test_shared_host_authorization_rejects_non_admin(tmp_path: Path) -> None:
-    app = create_app(Settings(app_env="test"))
-    app.dependency_overrides[get_current_user] = lambda: USER
-
-    with TestClient(app) as client:
-        response = client.post(
-            "/api/providers/youtube/authorization",
-            json={"source": "dedicated_chrome"},
-        )
-
-    assert response.status_code == 403
-    assert response.json()["code"] == "forbidden"

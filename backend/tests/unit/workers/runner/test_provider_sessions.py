@@ -1,19 +1,16 @@
 from __future__ import annotations
 
-import asyncio
 import os
 import stat
+from contextlib import asynccontextmanager
 from dataclasses import replace
 from pathlib import Path
 
 import pytest
-from app.services.provider_types import (
-    ProviderAccessMode,
-    ProviderKey,
-    ProviderSessionVersion,
-)
+from app.services.provider_types import ProviderAccessMode
 from app.workers.runner import provider_session_files
 from app.workers.runner.errors import RunnerFailure
+from app.workers.runner.provider_registry import provider_profile
 from app.workers.runner.provider_sessions import ProviderSessionStore
 from app.workers.runner.settings import RunnerSettings
 from pydantic import ValidationError
@@ -23,78 +20,92 @@ COOKIE = (
     b"# Netscape HTTP Cookie File\n"
     b".youtube.com\tTRUE\t/\tTRUE\t2147483647\tSID\tfixture-secret\n"
 )
+YOUTUBE = "https://www.youtube.com/watch?v=owned"
 
 
-class FakeCookieSync:
-    def __init__(self, *, ready: bool = True, payload: bytes = COOKIE) -> None:
-        self.ready = ready
-        self.payload = payload
-        self.calls = 0
-        self.ready_providers: list[ProviderKey] = []
+class FakeSiteSessions:
+    def __init__(self) -> None:
+        self.revisions: dict[str, int] = {"youtube.com": 3, "example.co.uk": 1}
+        self.leases: list[tuple[str, int]] = []
+        self.reports: list[tuple[str, int, str]] = []
+        self.closed = False
 
-    async def is_ready(
-        self, provider: ProviderKey, version: ProviderSessionVersion
-    ) -> bool:
-        assert version is ProviderSessionVersion.BROWSER
-        self.ready_providers.append(provider)
-        return self.ready
+    async def ready_revision(self, site: str) -> int:
+        if site not in self.revisions:
+            raise RunnerFailure("provider_session_not_ready", status=503)
+        return self.revisions[site]
 
-    async def sync(
-        self, provider: ProviderKey, version: ProviderSessionVersion
-    ) -> bytes:
-        assert provider is ProviderKey.YOUTUBE
-        assert version is ProviderSessionVersion.BROWSER
-        self.calls += 1
-        return self.payload
+    async def lease(self, site: str, seed_revision: int) -> bytes:
+        self.leases.append((site, seed_revision))
+        return COOKIE
+
+    async def report(self, site: str, seed_revision: int, error_code: str) -> None:
+        self.reports.append((site, seed_revision, error_code))
+
+    async def close(self) -> None:
+        self.closed = True
 
 
-def operator_settings(tmp_path: Path) -> RunnerSettings:
+class FakeCredentialLease:
+    def __init__(self) -> None:
+        self.held: list[tuple[str, str]] = []
+
+    @asynccontextmanager
+    async def hold(self, provider: str, version: str):
+        self.held.append((provider, version))
+        yield
+
+    async def ping(self) -> None:
+        pass
+
+    async def close(self) -> None:
+        pass
+
+
+def anonymous_settings(tmp_path: Path) -> RunnerSettings:
     return RunnerSettings(
+        runner_hmac_secret=SECRET,
+        runner_egress_proxy="http://egress-proxy:3128",
+        runner_workspace_root=tmp_path,
+    )
+
+
+def session_settings(tmp_path: Path, **overrides) -> RunnerSettings:
+    values = dict(
         runner_hmac_secret=SECRET,
         runner_egress_proxy="http://egress-proxy:3128",
         runner_workspace_root=tmp_path / "work",
         runner_access_mode=ProviderAccessMode.OPERATOR_MANAGED,
-        runner_operator_session_versions={"youtube": "browser"},
-        runner_operator_account_baseline_attested=True,
         runner_provider_session_temp_root=tmp_path / "session-tmp",
-        runner_provider_cookie_sync_root=tmp_path / "bridge",
-        runner_max_active_tasks=1,
+        runner_session_broker_url="http://session-broker:19200",
+        runner_session_rpc_secret="r" * 32,
+        runner_credential_lease_redis_url="redis://provider-lease-redis:6379/0",
     )
+    values.update(overrides)
+    return RunnerSettings(**values)
 
 
-def test_legacy_runner_revalidates_newer_context_on_rollback(tmp_path: Path) -> None:
+def session_store(tmp_path: Path):
+    sessions, lease = FakeSiteSessions(), FakeCredentialLease()
     store = ProviderSessionStore(
-        RunnerSettings(
-            runner_hmac_secret=SECRET,
-            runner_egress_proxy="http://egress-proxy:3128",
-            runner_workspace_root=tmp_path,
-        )
+        session_settings(tmp_path),
+        credential_lease=lease,
+        site_sessions=sessions,
+        enforce_memory_backing=False,
     )
-    current = store.context_for("https://www.youtube.com/watch?v=owned")
-    other_revision = "a" * 64 if current.runtime_revision == "legacy" else "legacy"
-    newer = replace(current, runtime_revision=other_revision)
-
-    assert (
-        store.validate_context("https://www.youtube.com/watch?v=owned", newer)
-        == current
-    )
+    return store, sessions, lease
 
 
-def test_runtime_change_between_lookup_and_download_is_retryable(
+async def test_runtime_change_between_lookup_and_download_is_retryable(
     tmp_path: Path,
 ) -> None:
-    store = ProviderSessionStore(
-        RunnerSettings(
-            runner_hmac_secret=SECRET,
-            runner_egress_proxy="http://egress-proxy:3128",
-            runner_workspace_root=tmp_path,
-        )
-    )
-    current = store.context_for("https://www.youtube.com/watch?v=owned")
+    store = ProviderSessionStore(anonymous_settings(tmp_path))
+    profile = provider_profile(YOUTUBE)
+    current = await store.context_for(profile)
     prior = replace(current, runtime_revision="0" * 64)
 
     with pytest.raises(RunnerFailure) as caught:
-        store.validate_context("https://www.youtube.com/watch?v=owned", prior)
+        await store.validate_context(profile, prior)
 
     assert caught.value.code == "runner_release_changed"
 
@@ -102,66 +113,23 @@ def test_runtime_change_between_lookup_and_download_is_retryable(
 @pytest.mark.parametrize(
     ("overrides", "message"),
     [
+        ({"runner_session_broker_url": None}, "requires the broker URL and secret"),
+        ({"runner_session_rpc_secret": "short"}, "requires the broker URL and secret"),
         (
-            {"runner_operator_session_versions": {"youtube": "browser"}},
-            "anonymous runner cannot configure provider sessions",
+            {"runner_credential_lease_redis_url": None},
+            "requires distributed execution leases",
         ),
         (
-            {
-                "runner_access_mode": ProviderAccessMode.OPERATOR_MANAGED,
-                "runner_operator_session_versions": {"youtube": "browser"},
-                "runner_max_active_tasks": 1,
-            },
-            "operator account baseline must be attested",
-        ),
-        (
-            {
-                "runner_access_mode": ProviderAccessMode.OPERATOR_MANAGED,
-                "runner_operator_session_versions": {"youtube": "browser"},
-                "runner_operator_account_baseline_attested": True,
-            },
-            "operator runner concurrency must be one",
-        ),
-        (
-            {
-                "runner_access_mode": ProviderAccessMode.OPERATOR_MANAGED,
-                "runner_operator_session_versions": {"bilibili": "browser"},
-                "runner_operator_account_baseline_attested": True,
-                "runner_max_active_tasks": 1,
-            },
-            "operator provider is not allowlisted",
+            {"runner_access_mode": ProviderAccessMode.ANONYMOUS},
+            "only the session runner may reach the session broker",
         ),
     ],
 )
-def test_settings_fail_closed_for_invalid_session_boundaries(
-    tmp_path: Path,
-    overrides: dict[str, object],
-    message: str,
+def test_session_runner_settings_fail_closed(
+    tmp_path: Path, overrides: dict, message: str
 ) -> None:
-    values: dict[str, object] = {
-        "runner_hmac_secret": SECRET,
-        "runner_egress_proxy": "http://egress-proxy:3128",
-        "runner_workspace_root": tmp_path / "work",
-        "runner_provider_session_temp_root": tmp_path / "session-tmp",
-    }
-    values.update(overrides)
-
     with pytest.raises(ValidationError, match=message):
-        RunnerSettings(**values)
-
-
-def test_operator_without_cookie_agent_fails_closed(tmp_path: Path) -> None:
-    with pytest.raises(ValidationError, match="requires provider Cookie sync"):
-        RunnerSettings(
-            runner_hmac_secret=SECRET,
-            runner_egress_proxy="http://egress-proxy:3128",
-            runner_workspace_root=tmp_path / "work",
-            runner_access_mode=ProviderAccessMode.OPERATOR_MANAGED,
-            runner_operator_session_versions={"x": "browser"},
-            runner_operator_account_baseline_attested=True,
-            runner_provider_session_temp_root=tmp_path / "session-tmp",
-            runner_max_active_tasks=1,
-        )
+        session_settings(tmp_path, **overrides)
 
 
 def test_settings_reject_session_tmpfs_inside_shared_workspace(
@@ -176,7 +144,7 @@ def test_settings_reject_session_tmpfs_inside_shared_workspace(
         )
 
 
-def test_operator_session_root_must_be_memory_backed(
+def test_session_root_must_be_memory_backed(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
@@ -202,17 +170,48 @@ def test_operator_session_root_must_be_memory_backed(
     assert caught.value.code == "provider_session_unavailable"
 
 
-async def test_operation_uses_unique_0600_tmpfs_file_and_deletes_it(
+async def test_session_context_freezes_site_and_ready_revision(tmp_path: Path) -> None:
+    store, sessions, _ = session_store(tmp_path)
+
+    context = await store.context_for(provider_profile(YOUTUBE), url=YOUTUBE)
+    by_key = await store.context_for(provider_profile(YOUTUBE))
+
+    assert context.access_mode is ProviderAccessMode.OPERATOR_MANAGED
+    assert context.credential_version_id == "youtube.com:3"
+    assert by_key == context
+    # Unlisted sites use the same route, keyed by registrable domain.
+    unlisted = "https://media.example.co.uk/v/1"
+    generic = await store.context_for(provider_profile(unlisted), url=unlisted)
+    assert generic.provider_key == "generic"
+    assert generic.credential_version_id == "example.co.uk:1"
+
+    sessions.revisions.pop("youtube.com")
+    with pytest.raises(RunnerFailure) as caught:
+        await store.context_for(provider_profile(YOUTUBE), url=YOUTUBE)
+    assert caught.value.code == "provider_session_not_ready"
+    with pytest.raises(RunnerFailure) as caught:
+        await store.context_for(provider_profile(unlisted))
+    assert caught.value.code == "provider_session_not_allowed"
+
+
+async def test_reimport_makes_a_frozen_context_stale(tmp_path: Path) -> None:
+    store, sessions, _ = session_store(tmp_path)
+    profile = provider_profile(YOUTUBE)
+    context = await store.context_for(profile, url=YOUTUBE)
+
+    sessions.revisions["youtube.com"] = 4
+    with pytest.raises(RunnerFailure) as caught:
+        await store.validate_context(profile, context, url=YOUTUBE)
+
+    assert caught.value.code == "credential_revoked"
+
+
+async def test_operation_holds_the_site_lease_and_uses_a_private_tmpfs_file(
     tmp_path: Path,
 ) -> None:
-    settings = operator_settings(tmp_path)
-    cookie_sync = FakeCookieSync()
-    store = ProviderSessionStore(
-        settings,
-        cookie_sync=cookie_sync,
-        enforce_memory_backing=False,
-    )
-    context = store.context_for("https://www.youtube.com/watch?v=owned")
+    store, sessions, lease = session_store(tmp_path)
+    settings = session_settings(tmp_path)
+    context = await store.context_for(provider_profile(YOUTUBE), url=YOUTUBE)
 
     async with store.operation(context) as jar:
         assert jar is not None
@@ -223,166 +222,38 @@ async def test_operation_uses_unique_0600_tmpfs_file_and_deletes_it(
             assert stat.S_IMODE(jar.stat().st_mode) == 0o600
             assert stat.S_IMODE(jar.parent.stat().st_mode) == 0o700
 
-    assert cookie_sync.calls == 1
+    assert sessions.leases == [("youtube.com", 3)]
+    assert lease.held == [("youtube.com", "3")]
     assert not operation_path.exists()
     assert list(settings.runner_provider_session_temp_root.iterdir()) == []
 
 
-@pytest.mark.asyncio
-async def test_disabling_credential_version_fails_closed(tmp_path: Path) -> None:
-    settings = operator_settings(tmp_path)
-    store = ProviderSessionStore(
-        settings,
-        cookie_sync=FakeCookieSync(),
-        enforce_memory_backing=False,
-    )
-    context = store.context_for("https://www.youtube.com/watch?v=owned")
-
-    store.disable_credential_version(context)
-
-    with pytest.raises(RunnerFailure, match="credential revoked") as caught:
-        store.context_for("https://www.youtube.com/watch?v=owned")
-    assert caught.value.code == "credential_revoked"
-    assert not await store.is_ready()
-
-
-async def test_failure_and_concurrent_operations_cleanup_and_isolate(
+async def test_failures_are_reported_to_the_broker_for_session_contexts_only(
     tmp_path: Path,
 ) -> None:
-    settings = operator_settings(tmp_path)
-    store = ProviderSessionStore(
-        settings,
-        cookie_sync=FakeCookieSync(),
-        enforce_memory_backing=False,
+    store, sessions, _ = session_store(tmp_path)
+    context = await store.context_for(provider_profile(YOUTUBE), url=YOUTUBE)
+
+    await store.report_failure(context, "egress_challenged")
+    await store.report_failure(
+        replace(context, credential_version_id="malformed"), "egress_challenged"
     )
-    context = store.context_for("https://youtu.be/owned")
-    seen: list[Path] = []
-
-    async def use_then_fail() -> None:
-        async with store.operation(context) as jar:
-            assert jar is not None
-            seen.append(jar)
-            await asyncio.sleep(0)
-            if len(seen) == 1:
-                raise RuntimeError("controlled failure")
-
-    results = await asyncio.gather(
-        use_then_fail(),
-        use_then_fail(),
-        return_exceptions=True,
+    anonymous = await ProviderSessionStore(anonymous_settings(tmp_path)).context_for(
+        provider_profile(YOUTUBE)
     )
+    await store.report_failure(anonymous, "egress_challenged")
 
-    assert any(isinstance(item, RuntimeError) for item in results)
-    assert len(set(seen)) == 2
-    assert list(settings.runner_provider_session_temp_root.iterdir()) == []
+    assert sessions.reports == [("youtube.com", 3, "egress_challenged")]
+    await store.close()
+    assert sessions.closed
 
 
-@pytest.mark.parametrize(
-    "payload",
-    [
-        b"not a cookie jar",
-        b"# Netscape HTTP Cookie File\n.example.com\tTRUE\t/\tTRUE\t0\tSID\tx\n",
-        b"# Netscape HTTP Cookie File\n",
-    ],
-)
-async def test_rejects_invalid_in_memory_leases(tmp_path: Path, payload: bytes) -> None:
-    settings = operator_settings(tmp_path)
-    store = ProviderSessionStore(
-        settings,
-        cookie_sync=FakeCookieSync(payload=payload),
-        enforce_memory_backing=False,
-    )
-    context = store.context_for("https://youtu.be/owned")
+async def test_malformed_session_version_is_revoked(tmp_path: Path) -> None:
+    store, _, _ = session_store(tmp_path)
+    context = await store.context_for(provider_profile(YOUTUBE), url=YOUTUBE)
 
     with pytest.raises(RunnerFailure) as caught:
-        async with store.operation(context):
+        async with store.operation(replace(context, credential_version_id="x")):
             pass
 
-    assert caught.value.code == "credential_rejected"
-    assert list(settings.runner_provider_session_temp_root.iterdir()) == []
-
-
-def test_operator_context_cannot_cross_provider(tmp_path: Path) -> None:
-    store = ProviderSessionStore(
-        operator_settings(tmp_path),
-        cookie_sync=FakeCookieSync(),
-        enforce_memory_backing=False,
-    )
-
-    with pytest.raises(RunnerFailure) as caught:
-        store.context_for("https://www.bilibili.com/video/BV1xx")
-
-    assert caught.value.code == "provider_session_not_allowed"
-
-
-def test_non_current_session_source_is_revoked(tmp_path: Path) -> None:
-    store = ProviderSessionStore(
-        operator_settings(tmp_path),
-        cookie_sync=FakeCookieSync(),
-        enforce_memory_backing=False,
-    )
-    active = store.context_for("https://youtu.be/owned")
-    previous = replace(active, credential_version_id="previous")
-
-    with pytest.raises(RunnerFailure) as caught:
-        store.validate_context("https://youtu.be/owned", previous)
-
     assert caught.value.code == "credential_revoked"
-
-
-async def test_live_agent_readiness_does_not_export_a_session(tmp_path: Path) -> None:
-    cookie_sync = FakeCookieSync()
-    store = ProviderSessionStore(
-        operator_settings(tmp_path),
-        cookie_sync=cookie_sync,
-        enforce_memory_backing=False,
-    )
-
-    assert await store.is_ready() is True
-    assert cookie_sync.calls == 0
-
-
-async def test_live_agent_readiness_fails_when_bridge_is_unavailable(
-    tmp_path: Path,
-) -> None:
-    store = ProviderSessionStore(
-        operator_settings(tmp_path),
-        cookie_sync=FakeCookieSync(ready=False),
-        enforce_memory_backing=False,
-    )
-
-    assert await store.is_ready() is False
-
-
-async def test_live_agent_readiness_checks_every_configured_provider(
-    tmp_path: Path,
-) -> None:
-    cookie_sync = FakeCookieSync()
-    store = ProviderSessionStore(
-        operator_settings(tmp_path),
-        cookie_sync=cookie_sync,
-        enforce_memory_backing=False,
-    )
-    store._versions[ProviderKey.DOUYIN] = ProviderSessionVersion.BROWSER
-
-    assert await store.is_ready() is True
-    assert cookie_sync.ready_providers == [ProviderKey.YOUTUBE, ProviderKey.DOUYIN]
-
-
-async def test_operation_without_cookie_source_returns_controlled_client_error(
-    tmp_path: Path,
-) -> None:
-    store = ProviderSessionStore(
-        operator_settings(tmp_path),
-        cookie_sync=FakeCookieSync(),
-        enforce_memory_backing=False,
-    )
-    store._cookie_sync = None
-    context = store.context_for("https://youtu.be/owned")
-
-    with pytest.raises(RunnerFailure) as caught:
-        async with store.operation(context):
-            pass
-
-    assert caught.value.code == "credential_required"
-    assert caught.value.status == 422

@@ -9,13 +9,17 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import pytest
-from app.services.provider_types import ProviderAccessMode
 from app.workers.runner.errors import RunnerFailure
 from app.workers.runner.process import ProcessResult
 from app.workers.runner.provider_sessions import ProviderSessionStore
 from app.workers.runner.service import MediaRunnerService
 from app.workers.runner.settings import RunnerSettings
 from helpers import download_request, result, settings, split_media_info
+from tests.unit.workers.runner.test_provider_sessions import (
+    FakeCredentialLease,
+    FakeSiteSessions,
+    session_settings,
+)
 from yt_dlp import YoutubeDL
 from yt_dlp.extractor import get_info_extractor
 
@@ -38,7 +42,7 @@ async def test_youtube_companion_mismatch_blocks_context_and_inspection(
         "app.workers.runner.service.require_youtube_sidecar_identity", reject
     )
     with pytest.raises(RunnerFailure) as context_error:
-        await service.context_for_provider("youtube")
+        await service.context("https://www.youtube.com/watch?v=owned")
     with pytest.raises(RunnerFailure) as inspect_error:
         await service.inspect("https://www.youtube.com/watch?v=owned")
     assert context_error.value.code == "pot_provider_release_mismatch"
@@ -64,7 +68,6 @@ async def test_generic_context_key_matches_url_before_extractor_io(tmp_path):
     url_context = await service.context("https://media.example.com/video")
 
     assert url_context.provider_key == "generic"
-    assert await service.context_for_provider("generic") == url_context
     assert await service.contexts_for_providers(("generic",)) == (url_context,)
     assert supervisor.calls == []
 
@@ -583,34 +586,14 @@ class OperatorCookieSupervisor(FixtureSupervisor):
 
 
 def operator_settings(tmp_path: Path) -> RunnerSettings:
-    return RunnerSettings(
-        runner_hmac_secret="runner-shared-secret-material-at-least-32-bytes",
-        runner_egress_proxy="http://youtube-egress:3128",
-        runner_workspace_root=tmp_path / "work",
-        runner_access_mode=ProviderAccessMode.OPERATOR_MANAGED,
-        runner_operator_session_versions={"youtube": "browser"},
-        runner_operator_account_baseline_attested=True,
-        runner_provider_session_temp_root=tmp_path / "session-tmp",
-        runner_provider_cookie_sync_root=tmp_path / "sync",
-        runner_max_active_tasks=1,
-    )
-
-
-class SuccessfulCookieSync:
-    async def is_ready(self, *_args: object) -> bool:
-        return True
-
-    async def sync(self, *_args: object) -> bytes:
-        return (
-            b"# Netscape HTTP Cookie File\n"
-            b".youtube.com\tTRUE\t/\tTRUE\t2147483647\tSID\tfixture-secret\n"
-        )
+    return session_settings(tmp_path, runner_egress_proxy="http://youtube-egress:3128")
 
 
 def operator_session_store(settings: RunnerSettings) -> ProviderSessionStore:
     return ProviderSessionStore(
         settings,
-        cookie_sync=SuccessfulCookieSync(),
+        credential_lease=FakeCredentialLease(),
+        site_sessions=FakeSiteSessions(),
         enforce_memory_backing=False,
     )
 

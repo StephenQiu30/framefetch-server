@@ -163,8 +163,8 @@ class ExecutionRepository(Protocol):
 
 
 class ExecutionRunner(Protocol):
-    async def context_for_provider(
-        self, provider_key: str, access_mode: ProviderAccessMode
+    async def context(
+        self, url: str, access_mode: ProviderAccessMode
     ) -> ProviderAccessContextRef: ...
 
     async def download(

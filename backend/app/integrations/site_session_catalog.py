@@ -3,15 +3,20 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import Protocol
 from urllib.parse import urlsplit
 
+from app.services.provider_access import ProviderAccessPolicy
 from app.services.site_sessions import (
     InvalidSessionSite,
+    SessionEntitlement,
     SiteSessionPolicy,
+    SiteSessionStatus,
     known_site_policy,
     registrable_site,
     site_policy,
 )
+from app.workers.runner.errors import RunnerFailure
 from app.workers.runner.provider_registry import (
     provider_profile,
     provider_profile_for_key,
@@ -59,3 +64,26 @@ def _target(policy: SiteSessionPolicy) -> SiteTarget:
     if not domains:
         raise InvalidSessionSite("provider has no session cookie domains")
     return SiteTarget(policy, frozenset(str(domain) for domain in domains))
+
+
+class SiteSessionStatusReader(Protocol):
+    async def get(self, site: str) -> SiteSessionStatus | None: ...
+
+
+class SiteSessionRoutes:
+    """Decide from persisted state whether a URL must use its site session."""
+
+    def __init__(self, states: SiteSessionStatusReader) -> None:
+        self._states = states
+
+    async def policy_for(self, url: str) -> ProviderAccessPolicy | None:
+        try:
+            target = site_target_for_url(url)
+        except (InvalidSessionSite, RunnerFailure):
+            return None
+        status = await self._states.get(target.site)
+        if status is None or not status.state.routes_to_session:
+            return None
+        if target.policy.entitlement is SessionEntitlement.ACCOUNT_ENTITLED_FULL_VIDEO:
+            return ProviderAccessPolicy.PERSONAL_ENTITLED
+        return ProviderAccessPolicy.OPERATOR_PUBLIC

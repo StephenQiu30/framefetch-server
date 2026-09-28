@@ -79,18 +79,3 @@ def test_operator_configuration_never_invents_guest_availability() -> None:
         for policy in douyin.access_policies
         if policy.id is ProviderAccessPolicy.PUBLIC_SESSION
     )
-
-
-def test_explicit_route_default_is_preserved_with_guest_configured() -> None:
-    statuses = {
-        item.key: item
-        for item in configured_provider_statuses(
-            frozenset({"douyin"}),
-            {"douyin": ProviderAccessPolicy.OPERATOR_PUBLIC},
-            enabled_guest_keys=frozenset({"douyin"}),
-        )
-    }
-    assert (
-        statuses["douyin"].default_access_policy_id
-        is ProviderAccessPolicy.OPERATOR_PUBLIC
-    )

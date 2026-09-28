@@ -15,16 +15,16 @@ _NON_MEDIA_MODULES = {
     "active_tasks.py",
     "engine_catalog.py",
     "main.py",
-    "provider_startup.py",
     "readiness.py",
     "release_identity.py",
     "signing.py",
 }
 _PROVIDER_MODULES = {
     "wechat_channels_policy.py": "wechat_channels",
-    "yuanbao_session.py": "wechat_channels",
+    "provider_session_headers.py": "wechat_channels",
 }
-_OPERATOR_MODULES = frozenset({"yuanbao_session.py"})
+# Only the site session Runner loads these; anonymous contexts ignore them.
+_OPERATOR_MODULES = frozenset({"site_sessions.py", "provider_session_headers.py"})
 _PROVIDER_PLUGINS = {
     "bilibili_access.py": "bilibili",
     "douyin_note.py": "douyin",

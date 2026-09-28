@@ -24,7 +24,7 @@ from app.integrations.article_discovery import WeChatArticleDiscoveryAdapter
 from app.integrations.jwt_tokens import JwtTokenService
 from app.integrations.media_runner_factory import (
     media_runner_router,
-    operator_provider_keys,
+    session_provider_keys,
 )
 from app.integrations.object_storage import MinioObjectStorage
 from app.integrations.passwords import Argon2PasswordHasher
@@ -33,6 +33,7 @@ from app.integrations.rate_limiter import RedisRateLimiter
 from app.integrations.readiness import build_runtime_readiness
 from app.integrations.realtime import RabbitMqRealtimeConsumer, RealtimeHub
 from app.integrations.registration_mail import SmtpRegistrationMailer
+from app.integrations.site_session_catalog import SiteSessionRoutes
 from app.integrations.thumbnail_storage import MinioThumbnailStorage
 from app.integrations.url_security import FernetUrlEnvelope, MediaUrlValidator
 from app.repositories.ai_provider_repository import SqlAlchemyAiProviderRepository
@@ -66,7 +67,6 @@ from app.repositories.history_records import SqlAlchemyHistoryRecordRepository
 from app.repositories.imports.repository import SqlAlchemyMediaImportRepository
 from app.repositories.operation_logs import OperationLogStore
 from app.repositories.operational_metrics import OperationalMetrics
-from app.repositories.providers.authorizations import ProviderAuthorizationRepository
 from app.repositories.providers.canary_repository import (
     SqlAlchemyProviderCanaryRepository,
 )
@@ -75,6 +75,7 @@ from app.repositories.providers.catalog_repository import (
 )
 from app.repositories.providers.guest_contexts import GuestContexts
 from app.repositories.providers.route_cooldowns import SqlAlchemyProviderRouteCooldowns
+from app.repositories.providers.site_sessions import SiteSessionStates
 from app.repositories.providers.status_evidence import (
     MergedProviderStatusEvidenceReader,
     SqlAlchemyDownloadEvidenceReader,
@@ -135,42 +136,19 @@ from app.services.imports.service import (
     GetImport,
 )
 from app.services.provider_access import ProviderAccessPolicy, default_access_policy
-from app.services.provider_authorization import ProviderAuthorizationService
 from app.services.provider_canaries import ProviderStatusService
 from app.services.provider_catalog import ProviderCatalogService
 from app.services.provider_route_admission import ProviderRouteAdmission
-from app.services.provider_types import ProviderAccessMode
 from app.services.source_discoveries.use_cases import (
     CreateSourceDiscovery,
     GetSourceDiscovery,
     InspectDiscoveredItem,
 )
 from app.services.storage_files.service import StorageFileService
-from app.workers.runner.errors import RunnerFailure
-from app.workers.runner.provider_authorization_queue import (
-    FileProviderAuthorizationQueue,
-)
 from app.workers.runner.provider_registry import (
     configure_provider_instances,
     provider_profile,
-    provider_profile_for_key,
 )
-from app.workers.runner.provider_session_policy import (
-    ProviderSessionSource,
-    browser_session_policy,
-)
-
-
-def _can_authorize_provider(provider_key: str) -> bool:
-    try:
-        profile = provider_profile_for_key(provider_key)
-        policy = browser_session_policy(provider_key)
-    except (RunnerFailure, ValueError):
-        return False
-    return (
-        ProviderAccessMode.OPERATOR_MANAGED in profile.access_modes
-        and policy.source is ProviderSessionSource.CHROME_PROFILE
-    )
 
 
 def build_api_runtime(settings: Settings) -> ApiRuntime:
@@ -221,10 +199,12 @@ def build_api_runtime(settings: Settings) -> ApiRuntime:
     provider_catalog_repository = SqlAlchemyProviderCatalogRepository(sessions)
     ai_provider_repository = SqlAlchemyAiProviderRepository(sessions)
     store = repository
+    session_routes = SiteSessionRoutes(SiteSessionStates(sessions))
     runner = media_runner_router(
         settings,
         ProviderRouteAdmission(SqlAlchemyProviderRouteCooldowns(sessions)),
         reject_guest=GuestContexts(sessions).reject,
+        session_routes=session_routes,
     )
     storage = MinioObjectStorage(settings, enable_public_signing=True)
     import_storage = MinioObjectStorage.for_imports(settings)
@@ -267,8 +247,7 @@ def build_api_runtime(settings: Settings) -> ApiRuntime:
     )
     user_service = UserService(repository=user_repository, now=clock)
     provider_baselines = configured_provider_statuses(
-        operator_provider_keys(settings),
-        settings.runner_default_access_policies,
+        session_provider_keys(settings),
         enabled_guest_keys=frozenset(settings.runner_guest_base_urls),
     )
     provider_catalog_service = ProviderCatalogService(
@@ -517,11 +496,12 @@ def build_api_runtime(settings: Settings) -> ApiRuntime:
         ),
     )
 
-    def select_intent_policy(url: str) -> ProviderAccessPolicy:
+    async def select_intent_policy(url: str) -> ProviderAccessPolicy:
+        forced = await session_routes.policy_for(url)
+        if forced is not None:
+            return forced
         profile = provider_profile(url)
-        return settings.runner_default_access_policies.get(
-            profile.key
-        ) or default_access_policy(
+        return default_access_policy(
             profile.key,
             profile.access_modes,
             guest_configured=profile.key in settings.runner_guest_base_urls,
@@ -577,14 +557,6 @@ def build_api_runtime(settings: Settings) -> ApiRuntime:
                 context_reader=runner,
                 approved_keys=settings.provider_verified_keys,
                 catalog=provider_catalog_repository,
-            ),
-            provider_authorization_service=ProviderAuthorizationService(
-                FileProviderAuthorizationQueue(
-                    settings.provider_authorization_queue_root
-                ),
-                ProviderAuthorizationRepository(sessions),
-                now=clock,
-                can_authorize_provider=_can_authorize_provider,
             ),
             provider_catalog_service=provider_catalog_service,
             ai_provider_service=ai_provider_service,

@@ -5,11 +5,7 @@ from hashlib import sha256
 from pathlib import Path
 from urllib.parse import urlsplit
 
-from app.services.provider_types import (
-    ProviderAccessMode,
-    ProviderKey,
-    ProviderSessionVersion,
-)
+from app.services.provider_types import ProviderAccessMode, ProviderKey
 from app.workers.runner.provider_instances import validated_instance_hosts
 from app.workers.runner.version import (
     YOUTUBE_POT_PROVIDER_ATTESTATION,
@@ -65,16 +61,12 @@ class RunnerSettings(ProviderEgressSettings):
     runner_hmac_secret: SecretStr
     runner_workspace_root: Path = Path("/var/lib/video-runner")
     runner_access_mode: ProviderAccessMode = ProviderAccessMode.ANONYMOUS
-    runner_operator_session_versions: dict[ProviderKey, ProviderSessionVersion] = Field(
-        default_factory=dict
-    )
-    runner_operator_account_baseline_attested: bool = False
     runner_provider_session_temp_root: Path = Path("/run/provider-session")
-    runner_provider_cookie_sync_root: Path | None = None
-    runner_provider_cookie_file: Path | None = None
     runner_guest_provider: ProviderKey | None = None
     runner_guest_cookie_file: Path | None = None
-    runner_provider_source_require_lease: bool = False
+    # Site session runner (046): per-task leases come from the session broker.
+    runner_session_broker_url: str | None = None
+    runner_session_rpc_secret: SecretStr | None = None
     runner_credential_lease_redis_url: str | None = None
     runner_credential_lease_ttl_seconds: int = Field(default=120, ge=5, le=3600)
     runner_credential_lease_heartbeat_seconds: int = Field(default=30, ge=1, le=120)
@@ -147,14 +139,7 @@ class RunnerSettings(ProviderEgressSettings):
     def resolve_workspace(cls, value: Path) -> Path:
         return value.expanduser().resolve()
 
-    @field_validator("runner_provider_cookie_sync_root")
-    @classmethod
-    def normalize_cookie_sync_root(cls, value: Path | None) -> Path | None:
-        if value is None:
-            return None
-        return value.expanduser().resolve()
-
-    @field_validator("runner_provider_cookie_file", "runner_guest_cookie_file")
+    @field_validator("runner_guest_cookie_file")
     @classmethod
     def normalize_cookie_file(cls, value: Path | None) -> Path | None:
         # Preserve the final component so O_NOFOLLOW can reject symlink sources.
@@ -167,7 +152,7 @@ class RunnerSettings(ProviderEgressSettings):
             raise ValueError("runner version reference is invalid")
         return value
 
-    @field_validator("runner_youtube_pot_base_url")
+    @field_validator("runner_youtube_pot_base_url", "runner_session_broker_url")
     @classmethod
     def validate_pot_url(cls, value: str | None) -> str | None:
         if value is None or not value.strip():
@@ -207,82 +192,23 @@ class RunnerSettings(ProviderEgressSettings):
             or self.runner_guest_cookie_file is not None
         ):
             raise ValueError("only a guest runner may read guest material")
-        cookie_file = self.runner_provider_cookie_file
-        if cookie_file is not None:
-            if not operator:
-                raise ValueError(
-                    "provider Cookie file is restricted to an operator runner"
-                )
-            if cookie_file.resolve().is_relative_to(self.runner_workspace_root):
-                raise ValueError("cookie file cannot be in the workspace")
-            if self.runner_provider_cookie_sync_root is not None:
-                raise ValueError("configure exactly one provider Cookie source")
-        if self.runner_provider_cookie_sync_root is not None:
-            if not operator:
-                raise ValueError(
-                    "provider Cookie sync is restricted to an operator runner"
-                )
-            if self.runner_provider_cookie_sync_root.is_relative_to(
-                self.runner_workspace_root
-            ):
-                raise ValueError("cookie sync root cannot be in the workspace")
         if operator:
-            providers = set(self.runner_operator_session_versions)
-            if len(providers) != 1:
-                raise ValueError(
-                    "operator runner requires exactly one provider session"
-                )
-            provider = next(iter(providers))
-            from app.workers.runner.provider_registry import default_provider_registry
-            from app.workers.runner.provider_session_policy import (
-                browser_session_policy,
-            )
-
-            profile = next(
-                (
-                    item
-                    for item in default_provider_registry().profiles
-                    if item.key == provider
-                ),
-                None,
-            )
+            secret = self.runner_session_rpc_secret
             if (
-                profile is None
-                or ProviderAccessMode.OPERATOR_MANAGED not in profile.access_modes
+                self.runner_session_broker_url is None
+                or secret is None
+                or len(secret.get_secret_value().encode()) < 32
             ):
-                raise ValueError("operator provider is not allowlisted")
-            try:
-                policy = browser_session_policy(provider)
-            except Exception as exc:
-                raise ValueError("operator provider is not allowlisted") from exc
-            if self.runner_operator_session_versions[provider] is not policy.version:
-                raise ValueError("operator session version does not match policy")
-            if not self.runner_operator_account_baseline_attested:
-                raise ValueError("operator account baseline must be attested")
-            if self.runner_max_active_tasks != 1:
-                raise ValueError("operator runner concurrency must be one")
-            if self.runner_provider_cookie_sync_root is None and cookie_file is None:
-                raise ValueError(
-                    "operator runner requires provider Cookie sync or file"
-                )
-            from app.workers.runner.provider_session_policy import ProviderSessionSource
-
-            if cookie_file is not None:
-                if policy.source is ProviderSessionSource.MANAGED_YUANBAO:
-                    raise ValueError("provider requires dynamic browser session state")
-            elif policy.source is ProviderSessionSource.COOKIE_FILE:
-                raise ValueError("provider requires a persistent Cookie file")
-        elif self.runner_operator_session_versions:
-            raise ValueError("anonymous runner cannot configure provider sessions")
-        if self.runner_youtube_pot_base_url is not None:
-            youtube_operator = operator and set(
-                self.runner_operator_session_versions
-            ) == {ProviderKey.YOUTUBE}
-            if (
-                not youtube_operator
-                and self.runner_access_mode is not ProviderAccessMode.ANONYMOUS
-            ):
-                raise ValueError("POT provider is restricted to the YouTube operator")
+                raise ValueError("session runner requires the broker URL and secret")
+            if not self.runner_credential_lease_redis_url:
+                raise ValueError("session runner requires distributed execution leases")
+        elif self.runner_session_broker_url or self.runner_session_rpc_secret:
+            raise ValueError("only the session runner may reach the session broker")
+        if (
+            self.runner_youtube_pot_base_url is not None
+            and self.runner_access_mode is ProviderAccessMode.GUEST
+        ):
+            raise ValueError("POT provider is not used by guest runners")
         return self
 
     @field_validator(

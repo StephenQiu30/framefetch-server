@@ -24,7 +24,6 @@ from pydantic import (
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from app.services.identifiers import RightsStatementVersion, UrlEncryptionKeyId
-from app.services.provider_access import ProviderAccessPolicy, provider_access_policies
 from app.services.provider_types import ProviderAccessMode, ProviderKey
 from app.services.quotas import QuotaPolicy
 from app.workers.runner.provider_instances import validated_instance_hosts
@@ -277,13 +276,11 @@ class Settings(BaseSettings):
     )
 
     runner_base_url: str = "http://localhost:19100"
-    runner_operator_base_urls: dict[ProviderKey, str] = Field(default_factory=dict)
+    # One Runner serves every site with a deployment session (046). A site with a
+    # session record never falls back to the anonymous Runner.
+    session_runner_base_url: str | None = None
     runner_guest_base_urls: dict[ProviderKey, str] = Field(default_factory=dict)
-    runner_default_access_policies: dict[str, ProviderAccessPolicy] = Field(
-        default_factory=dict
-    )
     runner_workspace_root: Path = Path("/work")
-    provider_authorization_queue_root: Path = Path("/run/provider-authorization")
     runner_hmac_secret: SecretStr = SecretStr("development-runner-secret-change-me")
     provider_canary_targets: SecretStr = SecretStr("[]")
     provider_verified_keys: frozenset[str] = frozenset()
@@ -527,81 +524,43 @@ class Settings(BaseSettings):
             "MINIO_LOCAL_BROWSER_ENDPOINT must use localhost or a loopback IP"
         )
 
-    @field_validator("runner_default_access_policies")
+    @field_validator("session_runner_base_url")
     @classmethod
-    def validate_default_policy_keys(
-        cls, value: dict[str, ProviderAccessPolicy]
-    ) -> dict[str, ProviderAccessPolicy]:
-        for key in value:
-            ProviderKey(key)
-        return value
+    def validate_session_runner_url(cls, value: str | None) -> str | None:
+        if value is None or not value.strip():
+            return None
+        return _internal_http_url(value)
 
-    @field_validator("runner_operator_base_urls", "runner_guest_base_urls")
+    @field_validator("runner_guest_base_urls")
     @classmethod
-    def validate_runner_operator_urls(
+    def validate_runner_guest_urls(
         cls, value: dict[ProviderKey, str]
     ) -> dict[ProviderKey, str]:
-        validated: dict[ProviderKey, str] = {}
-        for provider, endpoint in value.items():
-            try:
-                parsed = urlsplit(endpoint)
-                _ = parsed.port
-            except ValueError as exc:
-                raise ValueError("runner operator URL is invalid") from exc
-            if (
-                parsed.scheme != "http"
-                or parsed.hostname is None
-                or parsed.username is not None
-                or parsed.password is not None
-                or parsed.path not in {"", "/"}
-                or parsed.query
-                or parsed.fragment
-            ):
-                raise ValueError("runner operator URL must be an internal HTTP URL")
-            validated[provider] = endpoint.rstrip("/")
+        validated = {
+            provider: _internal_http_url(endpoint)
+            for provider, endpoint in value.items()
+        }
         if len(set(validated.values())) != len(validated):
-            raise ValueError("runner operator URLs must be provider-isolated")
+            raise ValueError("guest runner URLs must be provider-isolated")
         return validated
 
     @model_validator(mode="after")
     def validate_runner_route_declarations(self) -> Settings:
         from app.workers.runner.provider_registry import provider_profile_for_key
 
-        missing_operator_endpoints: list[str] = []
-        if set(self.runner_guest_base_urls.values()) & (
-            {self.runner_base_url} | set(self.runner_operator_base_urls.values())
-        ):
+        isolated = {self.runner_base_url, self.session_runner_base_url}
+        if set(self.runner_guest_base_urls.values()) & isolated:
             raise ValueError(
-                "guest runners must be isolated from anonymous and account runners"
+                "guest runners must be isolated from anonymous and session runners"
             )
+        if self.session_runner_base_url == self.runner_base_url:
+            raise ValueError("the session runner must be isolated from anonymous")
         for guest_key in self.runner_guest_base_urls:
             if (
                 ProviderAccessMode.GUEST
                 not in provider_profile_for_key(guest_key).access_modes
             ):
                 raise ValueError("provider does not allow guest access")
-        for key, policy in self.runner_default_access_policies.items():
-            profile = provider_profile_for_key(key)
-            if policy not in provider_access_policies(key, profile.access_modes):
-                raise ValueError("default provider access policy is not admitted")
-            if (
-                policy is ProviderAccessPolicy.PUBLIC_SESSION
-                and ProviderKey(key) not in self.runner_guest_base_urls
-            ):
-                raise ValueError(
-                    "guest default policy requires a matching runner endpoint"
-                )
-            if (
-                policy.access_mode is ProviderAccessMode.OPERATOR_MANAGED
-                and ProviderKey(key) not in self.runner_operator_base_urls
-            ):
-                missing_operator_endpoints.append(key)
-        if missing_operator_endpoints:
-            providers = ",".join(sorted(missing_operator_endpoints))
-            raise ValueError(
-                "operator default policy requires a matching runner endpoint: "
-                f"{providers}"
-            )
         return self
 
     @field_validator("article_discovery_proxy_url", mode="before")
@@ -808,3 +767,22 @@ def get_settings_for_role(
     ],
 ) -> Settings:
     return Settings(service_role=role)
+
+
+def _internal_http_url(endpoint: str) -> str:
+    try:
+        parsed = urlsplit(endpoint)
+        _ = parsed.port
+    except ValueError as exc:
+        raise ValueError("runner URL is invalid") from exc
+    if (
+        parsed.scheme != "http"
+        or parsed.hostname is None
+        or parsed.username is not None
+        or parsed.password is not None
+        or parsed.path not in {"", "/"}
+        or parsed.query
+        or parsed.fragment
+    ):
+        raise ValueError("runner URL must be an internal HTTP URL")
+    return endpoint.rstrip("/")

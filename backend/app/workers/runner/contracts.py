@@ -172,7 +172,8 @@ class InspectRequest(ContractModel):
 
 
 class ProviderContextRequest(ContractModel):
-    provider_key: str = Field(pattern=r"^[a-z][a-z0-9_-]{0,31}$")
+    # The URL, not the provider key: a site session is keyed by the URL's site.
+    url: str = Field(min_length=1, max_length=4096)
 
 
 class ProviderContextsRequest(ContractModel):

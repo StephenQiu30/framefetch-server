@@ -27,7 +27,6 @@ from app.services.auth.user_service import UserService
 from app.services.auth.web_sessions import WebSessionGrant, WebSessionService
 from app.services.downloads.ports import DownloadArtifactStorage
 from app.services.history_records import HistoryRecordService
-from app.services.provider_authorization import ProviderAuthorizationService
 from app.services.provider_catalog import ProviderCatalogService
 from app.services.providers import ProviderStatusView
 from app.services.storage_files.service import StorageFileService
@@ -94,15 +93,6 @@ def get_ai_provider_service(request: Request) -> AiProviderService:
 
 def get_storage_file_service(request: Request) -> StorageFileService:
     return require_service(get_services(request).storage_file_service, "storage file")
-
-
-def get_provider_authorization_service(
-    request: Request,
-) -> ProviderAuthorizationService:
-    return require_service(
-        get_services(request).provider_authorization_service,
-        "provider authorization",
-    )
 
 
 async def get_provider_statuses(request: Request) -> tuple[ProviderStatusView, ...]:

@@ -30,12 +30,10 @@ from app.models.media_import import MediaImportAttemptRow, MediaImportRow
 from app.models.operation_log import OperationLogRow
 from app.models.operational_metric import OperationalCounterRow
 from app.models.outbox import OutboxEventRow
-from app.models.provider_authorization import ProviderAuthorizationRow
 from app.models.provider_canary import ProviderCanaryResultRow
 from app.models.provider_catalog import ProviderCatalogEntryRow
 from app.models.provider_guest_context import ProviderGuestContextRow
 from app.models.provider_route_cooldown import ProviderRouteCooldownRow
-from app.models.provider_session_source import ProviderSessionSourceRow
 from app.models.quota import ResourceAdmissionRow
 from app.models.site_session import SiteSessionRow
 from app.models.source_discovery import SourceDiscoveryItemRow, SourceDiscoveryRow
@@ -74,11 +72,9 @@ __all__ = [
     "OutboxEventRow",
     "OperationalCounterRow",
     "ProviderCanaryResultRow",
-    "ProviderAuthorizationRow",
     "ProviderCatalogEntryRow",
     "ProviderGuestContextRow",
     "ProviderRouteCooldownRow",
-    "ProviderSessionSourceRow",
     "SiteSessionRow",
     "SourceDiscoveryItemRow",
     "SourceDiscoveryRow",

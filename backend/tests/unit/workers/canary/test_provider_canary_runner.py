@@ -70,7 +70,7 @@ async def test_anonymous_failure_and_operator_success_remain_separate() -> None:
     anonymous = FakeClient(ProviderAccessMode.ANONYMOUS)
     anonymous.error = MediaInspectionAuthRequired()
     operator = FakeClient(ProviderAccessMode.OPERATOR_MANAGED)
-    runner = ProviderCanaryRunner(anonymous, {"youtube": operator})  # type: ignore[arg-type]
+    runner = ProviderCanaryRunner(anonymous, operator)  # type: ignore[arg-type]
 
     with pytest.raises(MediaInspectionAuthRequired) as captured:
         await runner.inspect(URL, access_mode=ProviderAccessMode.ANONYMOUS)
@@ -124,9 +124,7 @@ async def test_guest_context_inspection_and_media_never_use_account_or_anonymous
     anonymous = FakeClient(ProviderAccessMode.ANONYMOUS)
     operator = FakeClient(ProviderAccessMode.OPERATOR_MANAGED, "douyin")
     guest = FakeClient(ProviderAccessMode.GUEST, "douyin")
-    runner = ProviderCanaryRunner(
-        anonymous, {"douyin": operator}, guests={"douyin": guest}
-    )  # type: ignore[arg-type]
+    runner = ProviderCanaryRunner(anonymous, operator, guests={"douyin": guest})  # type: ignore[arg-type]
     url = "https://www.douyin.com/video/7674644830270473609"
     assert (
         await runner.context(url, access_mode=ProviderAccessMode.GUEST)
@@ -154,7 +152,7 @@ async def test_guest_context_inspection_and_media_never_use_account_or_anonymous
 async def test_missing_guest_does_not_fall_back_to_a_configured_account() -> None:
     anonymous = FakeClient(ProviderAccessMode.ANONYMOUS)
     operator = FakeClient(ProviderAccessMode.OPERATOR_MANAGED, "douyin")
-    runner = ProviderCanaryRunner(anonymous, {"douyin": operator})  # type: ignore[arg-type]
+    runner = ProviderCanaryRunner(anonymous, operator)  # type: ignore[arg-type]
     url = "https://www.douyin.com/video/7674644830270473609"
     for operation in (runner.context, runner.inspect):
         with pytest.raises(MediaInspectionGuestContextRequired) as captured:

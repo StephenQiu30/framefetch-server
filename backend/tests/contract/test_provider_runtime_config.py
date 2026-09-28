@@ -62,7 +62,7 @@ def test_youtube_sidecar_and_runners_can_only_egress_through_a_gateway() -> None
             "--check-identity",
         ]
         assert (
-            services["youtube-operator-runner"]["depends_on"]["youtube-pot-provider"][
+            services["session-runner"]["depends_on"]["youtube-pot-provider"][
                 "condition"
             ]
             == "service_healthy"

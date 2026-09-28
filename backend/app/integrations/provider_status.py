@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Mapping, Set
+from collections.abc import Set
 
 from app.services.provider_access import (
     ProviderAccessPolicy,
@@ -27,14 +27,11 @@ from app.workers.runner.provider_registry import (
 
 def configured_provider_statuses(
     enabled_operator_keys: Set[str] = frozenset(),
-    default_policies: Mapping[str, ProviderAccessPolicy] | None = None,
     *,
     enabled_guest_keys: Set[str] = frozenset(),
 ) -> tuple[ProviderStatusView, ...]:
     configured = tuple(
-        _configured_status(
-            profile, enabled_operator_keys, enabled_guest_keys, default_policies or {}
-        )
+        _configured_status(profile, enabled_operator_keys, enabled_guest_keys)
         for profile in current_provider_registry().profiles
     )
     non_runner = (
@@ -65,7 +62,6 @@ def _configured_status(
     profile: ProviderProfile,
     enabled_operator_keys: Set[str],
     enabled_guest_keys: Set[str],
-    defaults: Mapping[str, ProviderAccessPolicy],
 ) -> ProviderStatusView:
     access_modes = (
         ()
@@ -90,13 +86,10 @@ def _configured_status(
         )
     )
     default_policy = (
-        (
-            defaults.get(profile.key)
-            or default_access_policy(
-                profile.key,
-                profile.access_modes,
-                guest_configured=ProviderAccessMode.GUEST in access_modes,
-            )
+        default_access_policy(
+            profile.key,
+            profile.access_modes,
+            guest_configured=ProviderAccessMode.GUEST in access_modes,
         )
         if policies
         else None

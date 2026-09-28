@@ -18,6 +18,7 @@ from app.services.downloads.errors import (
     MediaInspectionGuestContextRequired,
     MediaInspectionLinkUnavailable,
     MediaInspectionMediaUnsupported,
+    MediaInspectionSessionNotReady,
     MediaInspectionTemporarilyUnavailable,
     MediaInspectionTimeout,
     MediaInspectionUnsupported,
@@ -45,7 +46,7 @@ async def test_context_reads_the_runner_runtime_generation() -> None:
 
     async def respond(request: httpx.Request) -> httpx.Response:
         assert request.url.path == "/internal/v1/context"
-        assert json.loads(request.content) == {"provider_key": "generic"}
+        assert json.loads(request.content) == {"url": "https://media.example/video"}
         return httpx.Response(200, json=expected.to_document())
 
     http = httpx.AsyncClient(
@@ -88,7 +89,7 @@ async def test_new_client_fails_closed_against_pre_revision_runner() -> None:
     )
 
     with pytest.raises(MediaRunnerClientError) as caught:
-        await client.context_for_provider("generic")
+        await client.context("https://media.example/video")
 
     assert caught.value.code == "runner_release_mismatch"
     await http.aclose()
@@ -297,13 +298,9 @@ async def test_guest_wait_only_applies_before_media_request(
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize(
-    "code",
-    ("provider_session_source_missing", "provider_session_permission_denied"),
-)
-async def test_inspect_exposes_unreadable_provider_source_as_configuration_missing(
-    code: str,
-) -> None:
+async def test_inspect_exposes_a_site_session_that_is_not_ready() -> None:
+    code = "provider_session_not_ready"
+
     async def respond(_request: httpx.Request) -> httpx.Response:
         return httpx.Response(503, json={"error": {"code": code, "message": code}})
 
@@ -320,7 +317,7 @@ async def test_inspect_exposes_unreadable_provider_source_as_configuration_missi
         client=http,
     )
 
-    with pytest.raises(MediaInspectionConfigurationMissing):
+    with pytest.raises(MediaInspectionSessionNotReady):
         await client.inspect("https://www.douyin.com/video/123")
 
     await http.aclose()

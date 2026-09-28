@@ -12,7 +12,8 @@ from app.core.db import create_engine, create_session_factory
 from app.integrations.media_runner_factory import (
     anonymous_media_runner,
     guest_media_runners,
-    operator_media_runners,
+    session_media_runner,
+    session_provider_keys,
 )
 from app.repositories.providers.canary_repository import (
     SqlAlchemyProviderCanaryRepository,
@@ -51,7 +52,7 @@ def build_runtime(settings: Settings) -> ProviderCanaryRuntime:
     targets = parse_canary_targets(settings.provider_canary_targets)
     validate_canary_target_routes(
         targets,
-        frozenset(provider.value for provider in settings.runner_operator_base_urls),
+        session_provider_keys(settings),
         guest_provider_keys=frozenset(
             provider.value for provider in settings.runner_guest_base_urls
         ),
@@ -61,10 +62,9 @@ def build_runtime(settings: Settings) -> ProviderCanaryRuntime:
     repository = SqlAlchemyProviderCanaryRepository(sessions)
     admission = ProviderRouteAdmission(SqlAlchemyProviderRouteCooldowns(sessions))
     anonymous = anonymous_media_runner(settings, admission)
-    operators = operator_media_runners(settings, admission)
     runner = ProviderCanaryRunner(
         anonymous,
-        operators,
+        session_media_runner(settings, admission),
         guests=guest_media_runners(settings, admission, GuestContexts(sessions).reject),
     )
     service = ProviderCanaryService(

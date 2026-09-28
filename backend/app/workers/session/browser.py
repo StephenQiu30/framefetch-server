@@ -68,7 +68,6 @@ async () => {
   return {userId: auth.userId, token: auth.token, headers};
 }
 """
-_MAX_HEADERS = 32
 
 
 class HeadersUnavailable(Exception):
@@ -289,24 +288,18 @@ def _cookie(raw: Any) -> Cookie:
 
 
 def _yuanbao_payload(auth: object) -> bytes | None:
+    """Pass the page's identity through; the Runner applies its header allowlist."""
     if not isinstance(auth, dict):
         return None
-    user, token, headers = auth.get("userId"), auth.get("token"), auth.get("headers")
+    user, token = auth.get("userId"), auth.get("token")
     if not (isinstance(user, str) and user and isinstance(token, str) and token):
         return None
-    clean = (
-        {
-            name: value
-            for name, value in headers.items()
-            if isinstance(name, str)
-            and isinstance(value, str)
-            and name.isascii()
-            and "\n" not in value
-            and "\r" not in value
-        }
-        if isinstance(headers, dict) and len(headers) <= _MAX_HEADERS
-        else {}
-    )
+    headers = auth.get("headers")
     return json.dumps(
-        {"hy_user": user, "hy_token": token, "headers": clean}, separators=(",", ":")
+        {
+            "userId": user,
+            "token": token,
+            "headers": headers if isinstance(headers, dict) else {},
+        },
+        separators=(",", ":"),
     ).encode()
