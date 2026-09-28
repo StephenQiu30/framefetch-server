@@ -31,7 +31,6 @@ ALLOWED = {
         "RUNNER_HMAC_SECRET",
     },
     "outbox": set(),
-    "provider-guest": {"URL_ENCRYPTION_KEY"},
     "worker-download": STORAGE
     | {"URL_ENCRYPTION_KEY", "RUNNER_HMAC_SECRET", "REQUEST_FINGERPRINT_SECRET"},
     "worker-import": STORAGE,

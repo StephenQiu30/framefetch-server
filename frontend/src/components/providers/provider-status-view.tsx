@@ -66,7 +66,7 @@ export function ProviderStatusView() {
             {state.refreshing ? '刷新中…' : '刷新'}
           </Button>
         }
-        description="这里展示已登记平台的当前状态。其他公开媒体链接也可在首页粘贴尝试，是否可下载以实际文件结果为准。"
+        description="这里展示已登记平台的当前状态。解析需要部署者配置有效登录状态，是否可下载以实际文件结果为准。"
         title="平台状态"
         titleId="provider-status-title"
       />

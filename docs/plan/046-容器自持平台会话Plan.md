@@ -1,10 +1,10 @@
 # 046 容器自持平台会话 Plan
 
-日期：2026-09-28。状态：已评审（2026-09-28），S1–S5、S8 代码完成待验收；S7 完成删除部分，状态页未开始；S6、S9 未开始。需求见 [PRD](../prd/046-容器自持平台会话PRD.md)，技术方案见 [Design](../design/046-容器自持平台会话设计.md)。**任务状态、证据只在本文维护。**
+日期：2026-09-28。状态：强制会话、冷启动复验、自动维护和管理员状态页已实现，正在进行真实浏览器与媒体验收；7 天观察未完成。需求见 [PRD](../prd/046-容器自持平台会话PRD.md)，技术方案见 [Design](../design/046-容器自持平台会话设计.md)。**任务状态、证据只在本文维护。**
 
 工作方式沿用 [044 Plan §1](044-开源部署无感解析Plan.md#1-sdd-工作方式)：先写能判定的测试，再实现最小闭环；代码完成不等于平台实测完成；只有“已验收”才勾选。
 
-## 1. 基线（2026-09-28 已核实）
+## 1. 原始审查基线（历史，非当前运行状态）
 
 - 容器匿名出口为 GCP 东京机房 IP，YouTube 间歇性要求 bot 验证；PO Token（bgutil 1.3.2）与 node JS 解密均正常。
 - 宿主维护进程在 2026-09-25 后已退出；`youtube-operator-runner`、`douyin-operator-runner` 中不存在 `cookies.txt`。
@@ -95,16 +95,16 @@ M3 是破坏性替换：S5–S8 同一发布，发布前部署者需按新手册
 
 ### S6 出口一致
 
-- [ ] **S6**；状态：未开始；依赖：S4、S5。
+- [ ] **S6**；状态：配置实现完成，三方实际出口待验收；依赖：S4、S5。
   - 需求：FR-07。
-  - 步骤：`SITE_EGRESS_ROUTES` 替代 `RUNNER_PROVIDER_EGRESS_PROXIES`；导入时写入 `egress_route`；浏览器、Runner、bgutil 按记录选择；路由改变要求重新导入。
+  - 步骤：复用唯一 `RUNNER_PROVIDER_EGRESS_PROXIES` 映射；浏览器、Runner、bgutil 使用相同平台代理，路由改变时配套重建。
   - 验收：PRD AC-10，三方出口 IP 一致的日志证据。
 
 <a id="s7"></a>
 
 ### S7 管理员状态页与删除授权事务
 
-- [ ] **S7**；状态：删除授权事务已完成（随 S8），站点会话状态接口与页面未开始；依赖：S5。
+- [ ] **S7**；状态：删除授权事务已完成（随 S8），站点会话状态接口与页面已实现，真实浏览器验收见下方；依赖：S5。
   - 需求：FR-05、FR-09。
   - 步骤：删除 `/api/providers/{key}/authorization*`、`ProviderAuthorizationService`、前端授权对话框和 `lib/provider-authorization.ts`；状态接口与页面改为展示 Design §7 字段和导入命令；按 `design.md` 实现，桌面与 390px 真实浏览器验证。
   - 验收：PRD AC-06（展示部分）、AC-12（API／前端部分）；前端 `format:check`、`lint`、`test`、`build`。
@@ -206,3 +206,44 @@ M3 是破坏性替换：S5–S8 同一发布，发布前部署者需按新手册
 - 先后评估 Chrome 扩展同步与管理页面远程登录（提交 `fdfcbbc9`、`d57bf68d`、`73543525`、`c779d0a0`），用户决定不采用，并已为本机授予完全磁盘访问权限；上述提交整体回退，保留宿主 Chrome 一次性导入（S2）。
 - 回退时保留与方案无关的修正：抖音 `ttwid`、Reddit `loid` 为访客 Cookie，已从登录判定移除；没有访客路线的平台遇到 “Fresh cookies are needed” 返回 `provider_session_not_ready`（视频号不再误报“访客环境准备中”）；删除未使用的 `PROVIDER_SOURCE_*` 配置。
 - 门禁：`ruff`、`mypy`（585 文件）通过；`pytest` 2055 passed、3 skipped。
+
+### 强制会话与冷启动修复（2026-09-28～29，本机验收）
+
+本节是当前执行状态；前述 S1–S9 记录保留原执行时间与证据，不代表当前拓扑。
+
+- S5／S8：在线匿名／访客路线及对应 Compose 服务已移除；路由、Canary 与可用性展示只使用会话，旧策略值不作为执行兼容入口。
+- S3／S4：新增持久 `next_check_at`；broker／browser 重启后复验；正常维护 30～35 分钟，临时故障持久退避；403／429 不增加认证失败次数。维护与媒体共用站点锁；新导入清除旧 Profile 身份；Runner 轮换 Cookie 经封装回传、登录探针与修订条件写入后发布。
+- S6：复用 `RUNNER_PROVIDER_EGRESS_PROXIES` 统一三方映射，变更时配套重建。三方实际出口 IP 证据仍需独立验收，不另建 SITE_EGRESS_ROUTES。
+- S7：后台平台目录展示会话状态、最近验证、下次检查和恢复动作；OpenAPI 自动生成客户端已更新。
+- S9：YouTube 21 个 Cookie、抖音 94 个 Cookie 成功导入，均修订 1；只记录计数，不记录秘密。真实媒体验收与 7 天观察分开。
+- 当前 schema.sql 在既有数据库连续执行两次成功。生产拓扑以明确的测试占位密钥通过静态解析；本机 `.env.prod` 缺少两个会话 RPC Secret，未修改该文件，不能宣布生产已可部署。
+- 同期媒体结果双栏布局改动由其他任务独立提交（`0ed9eba6`、`08b4c9be`）；本次不覆盖或重复纳入。
+- 本次静态、单元／集成与真实浏览器验收结果如下；不将短时测试视为 7 天稳定性验收。
+
+
+#### 本轮最终门禁与真实证据
+
+- 后端：`ruff check app tests`、`ruff format --check app tests`、`mypy app`（585 文件）通过；最终 `pytest` **2056 passed，3 skipped**。跳过项分别缺少 download-role URL、TEST_RABBITMQ_URL、隔离 MinIO endpoint，不把业务任务成功等同于这些测试已运行。
+- 前端：`pnpm format:check`、`pnpm lint`（含 typecheck）、`pnpm test` **507 passed**、`pnpm build` 通过。测试日志有一次未导致失败的 `ECONNRESET`，不描述成零告警。OpenAPI 客户端从 schema 生成。
+- 部署：新后端、浏览器镜像构建成功；已有库幂等 SQL 连续两次成功；现有基础设施未重建，环境文件未修改。统一重建 API、下载 Worker、Canary、session-runner、broker、browser；在线匿名／guest 容器已停用并删除。
+- 使用 `agent-browser` 通过真实 Web 登录、粘贴地址、选择格式、创建下载、保存文件和播放。前三个样本保存文件的 SHA-256／大小与 PostgreSQL artifact 一致，ffprobe 检出 H.264＋AAC。实际使用已有 RabbitMQ／Worker／MinIO 链路。
+
+| 样本 | 下载任务 | 文件字节 | 时长 | SHA-256 |
+| --- | --- | ---: | ---: | --- |
+| YouTube `jNQXAC9IVRw` | `6c22ab78-8b50-4578-9435-2236620b6e52` | 632006 | 18.948 s | `1c335af874a305f810d2b0d6634c8e36a0b538578010bc5b49e50fc91d95ab2a` |
+| 抖音 `7674644830270473609` | `e704c43f-3967-4f10-8a2f-417b41cdca1a` | 2991195 | 14.070 s | `b495811a95bddf1332cf3327198016f6f485b691539819c7fb7256870a1d00fc` |
+| 用户原 YouTube `BWst4tIkNdc`（720P） | `b560bb83-790b-4962-a8ce-a648b3b07b18` | 39859405 | 169.437 s | `2f3c0ae0ed9fc53a1396e746681d396c2911521acd954a7d235ed594b9fdf641` |
+
+- 真实测试修复了两处遗漏：①抖音提取成功后会新增 `aweme.snssdk.com` 的响应 Cookie，轮换回写现在丢弃域外项，严格拒绝损坏、空或非白名单输入；不再把合法提取结果误判成登录失效。②context RPC 尚未接单时的会话未就绪异常现在保留 `before_media_io`，准备等待不会消耗媒体尝试次数。两项均有回归测试。
+- 冷启动：整组服务重建后，持久登录态恢复，无需再导入。另停止 session-browser 约 40 秒后重启，原解析意图 `351490d6-ea72-4bc8-840d-0bd29ffee75d` 在等待阶段 `attempt=0`，恢复到 `ready` 后 `attempt=1`；`fence=5` 表明经历多轮领取。仍为同一意图，111.38 秒内交接到任务 `7d40cc9f-ba5f-4ed7-95f2-19fa6ef82693`，包含人工点击耗时，不能当成纯启动耗时。
+- 冷启动后文件验证：任务 `7d40cc9f-ba5f-4ed7-95f2-19fa6ef82693` 成功，632006 字节、18.948 秒，SHA-256 与首次 YouTube 样本一致；浏览器播放成功。共 4 次真实下载、3 个不同视频。隔离 QA 账号已停用、认证会话已撤销、临时密码文件已删除。
+- 缺失会话：Instagram `DbKfjdhTMAY` 返回 `provider_configuration_missing`，页面明确要求管理员导入；无匿名请求回退。
+- 状态页：1440px 与 390px、浅／深色真实浏览器检查通过；390px 页面 `scrollWidth=innerWidth=390`，宽表在容器内滚动。浏览器未记录未捕获脚本异常。
+- 本机证据目录 `/tmp/framefetch-session-qa/`：媒体哈希清单、冷启动前后状态、页面截图。首次文件下载被测试浏览器取消，配置 `--download-path` 后同一业务按钮保存成功，未修改文件交付业务代码。录制缩放时测试浏览器出现截图异常，重启隔离测试浏览器后重拍；不将损坏录像用作验收依据。
+
+#### 仍未关闭的验收
+
+1. 真实覆盖为 YouTube 两个不同视频、抖音一个视频及重复冷启动样本；尚不满足两平台各三个不同样本的完整矩阵。
+2. 未完成 7 天无人值守观察、三方实际出口 IP 的独立比对、视频号与其他平台真实登录／媒体矩阵。只有 Cookie 保留而没有真实登录探针的平台不会标为 ready；需要逐平台补充探针与样本。
+3. 本机生产环境文件缺少会话 RPC Secret，生产发布未执行。静态占位密钥校验不等同于生产配置完成。
+4. 平台强制退出、验证码或账号验证仍需部署者处理；自动保活与轮换不能保证账号永久有效。

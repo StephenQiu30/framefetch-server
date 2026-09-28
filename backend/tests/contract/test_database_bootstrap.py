@@ -78,7 +78,7 @@ def test_environment_templates_do_not_override_duplicate_assignments() -> None:
     assert _env_value(ENV_EXAMPLE_PATH, "REQUEST_TIMEOUT_SECONDS") == "180"
 
 
-def test_default_install_does_not_require_provider_sessions() -> None:
+def test_core_api_boot_does_not_wait_for_session_readiness() -> None:
     environment = ENV_EXAMPLE_PATH.read_text(encoding="utf-8")
     for removed in (
         "RUNNER_OPERATOR_BASE_URLS",
@@ -93,7 +93,7 @@ def test_default_install_does_not_require_provider_sessions() -> None:
         services = yaml.safe_load(path.read_text(encoding="utf-8"))["services"]
         # `docker compose up` starts everything; there are no opt-in profiles.
         assert not any(config.get("profiles") for config in services.values())
-        for service in ("api", "frontend", "media-runner", "worker-download"):
+        for service in ("api", "frontend", "worker-download"):
             assert not set(services[service].get("depends_on", {})) & set(
                 _SESSION_SERVICES
             )
@@ -396,11 +396,11 @@ def test_compose_isolates_media_dependencies_and_preserves_api_readiness() -> No
         assert "127.0.0.1:8101/" in " ".join(
             services["frontend"]["healthcheck"]["test"]
         )
-        assert "127.0.0.1:19100/health/ready" in " ".join(
-            services["media-runner"]["healthcheck"]["test"]
+        assert "127.0.0.1:19100/health/runtime" in " ".join(
+            services["session-runner"]["healthcheck"]["test"]
         )
 
-        for service in ("worker-download", "media-runner", "session-runner"):
+        for service in ("worker-download", "session-runner"):
             assert services[service]["stop_grace_period"] == "90s"
 
 
@@ -441,7 +441,7 @@ def test_runtime_dependency_install_is_cached_and_retried() -> None:
 def test_compose_pins_shared_runner_workspace_to_the_mounted_container_path() -> None:
     compose = yaml.safe_load(COMPOSE_PATH.read_text(encoding="utf-8"))
 
-    for service in ("media-runner", "worker-download", "session-runner"):
+    for service in ("worker-download", "session-runner"):
         service_config = compose["services"][service]
         assert service_config["environment"]["RUNNER_WORKSPACE_ROOT"] == "/work"
         assert "runner_work:/work" in service_config["volumes"]
@@ -578,3 +578,17 @@ def test_runtime_base_images_are_pinned_without_host_architecture_override() -> 
             ), reference
             earlier.add(name)
         assert "FROM --platform=" not in path.read_text()
+
+
+def test_anonymous_and_guest_execution_services_are_removed():
+    for path in (COMPOSE_PATH, PROD_COMPOSE_PATH):
+        services = yaml.safe_load(path.read_text())["services"]
+        assert (
+            not {
+                "media-runner",
+                "provider-guest",
+                "provider-guest-init",
+                "douyin-guest-runner",
+            }
+            & services.keys()
+        )

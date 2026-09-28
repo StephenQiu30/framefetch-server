@@ -9,6 +9,7 @@ from __future__ import annotations
 import asyncio
 import json
 import shutil
+from collections.abc import Mapping
 from dataclasses import dataclass
 from http.cookiejar import Cookie
 from pathlib import Path
@@ -36,7 +37,22 @@ from playwright.async_api import (
 
 OPERATION_TIMEOUT_SECONDS = 60
 _CHALLENGE_STATUSES = frozenset({403, 429})
-_YOUTUBE_LOGGED_IN = "() => Boolean(window.ytcfg?.get?.('LOGGED_IN'))"
+_YOUTUBE_LOGGED_IN = "() => window.ytcfg?.get?.('LOGGED_IN') ?? null"
+_DOUYIN_PROFILE = """
+async () => {
+  try {
+    const path = '/aweme/v1/web/user/profile/self/';
+    const response = await fetch(path + '?device_platform=webapp&aid=6383', {
+      credentials: 'include', signal: AbortSignal.timeout(15000)
+    });
+    if (!response.ok) return null;
+    const data = await response.json();
+    if (data.status_code === 0 && data.user?.uid && data.user.uid !== '0') return true;
+    if (data.status_code === 8) return false;
+    return null;
+  } catch (_) { return null; }
+}
+"""
 # Ported from the host Yuanbao session: identity lives in localStorage and the
 # page's own API produces the per-request headers WeChat Channels parsing needs.
 _YUANBAO_AUTH = """
@@ -83,11 +99,17 @@ class VisitResult:
 
 class SiteBrowser:
     def __init__(
-        self, playwright: Playwright, root: Path, *, proxy: str | None
+        self,
+        playwright: Playwright,
+        root: Path,
+        *,
+        proxy: str | None,
+        provider_proxies: Mapping[str, str] | None = None,
     ) -> None:
         self._playwright = playwright
         self._root = root
         self._proxy = proxy
+        self._provider_proxies = dict(provider_proxies or {})
         self._locks: dict[str, asyncio.Lock] = {}
 
     async def bootstrap(self, site: str, jar: bytes) -> VisitResult:
@@ -140,10 +162,12 @@ class SiteBrowser:
         profile = self._profile(site)
         if create:
             profile.mkdir(mode=0o700, parents=True, exist_ok=True)
+        policy = site_target(site).policy
+        proxy = self._provider_proxies.get(str(policy.provider_key), self._proxy)
         context = await self._playwright.chromium.launch_persistent_context(
             profile,
             headless=True,
-            proxy=None if self._proxy is None else {"server": self._proxy},
+            proxy=None if proxy is None else {"server": proxy},
             locale="zh-CN",
         )
         context.set_default_timeout(OPERATION_TIMEOUT_SECONDS * 1000)
@@ -155,30 +179,43 @@ class SiteBrowser:
             page = await self._page(context, target)
             response = await page.goto(policy.keepalive_url, wait_until="load")
             if response is not None and response.status in _CHALLENGE_STATUSES:
-                return VisitResult(BrowserOutcome.AUTH_FAILURE, "egress_challenged")
+                return VisitResult(
+                    BrowserOutcome.TEMPORARY_FAILURE,
+                    "provider_rate_limited"
+                    if response.status == 429
+                    else "egress_challenged",
+                )
             logged_in = await self._logged_in(page, context, target)
             jar = await _export(context, target)
         except PlaywrightError:
             return VisitResult(BrowserOutcome.UNAVAILABLE)
+        if logged_in is None:
+            return VisitResult(
+                BrowserOutcome.TEMPORARY_FAILURE, "login_probe_inconclusive"
+            )
         if not logged_in:
             return VisitResult(BrowserOutcome.LOGGED_OUT, "session_logged_out")
         return VisitResult(BrowserOutcome.VERIFIED, jar=jar)
 
     async def _logged_in(
         self, page: Page, context: BrowserContext, target: SiteTarget
-    ) -> bool:
+    ) -> bool | None:
         policy = target.policy
         if policy.header_plugin is HeaderPlugin.YUANBAO:
             return _yuanbao_payload(await page.evaluate(_YUANBAO_AUTH)) is not None
-        if policy.login_probe is LoginProbe.YOUTUBE_LOGGED_IN:
-            return bool(await page.evaluate(_YOUTUBE_LOGGED_IN))
-        names = frozenset(
-            cookie["name"]
-            for cookie in await context.cookies()
-            if cookie.get("expires", -1) > 0
-            and is_allowed_domain(cookie["domain"], target.cookie_domains)
-        )
-        return policy.accepts(names)
+        if policy.login_probe in {
+            LoginProbe.YOUTUBE_LOGGED_IN,
+            LoginProbe.DOUYIN_PROFILE,
+        }:
+            probe = (
+                _YOUTUBE_LOGGED_IN
+                if policy.login_probe is LoginProbe.YOUTUBE_LOGGED_IN
+                else _DOUYIN_PROFILE
+            )
+            result = await page.evaluate(probe)
+            return result if isinstance(result, bool) else None
+        # Cookie presence is not proof of a logged-in identity.
+        return None
 
     async def _page(self, context: BrowserContext, target: SiteTarget) -> Page:
         page = context.pages[0] if context.pages else await context.new_page()

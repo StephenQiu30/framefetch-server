@@ -31,7 +31,15 @@ class StubBroker:
     async def lease(self, *, task_id, site, seed_revision, runner_key):
         if site == "busy.com":
             raise SessionNotReady(site)
-        return LeaseGrant(site, seed_revision, 3, 1_900_000_000, b"sealed", None)
+        return LeaseGrant(
+            site,
+            seed_revision,
+            3,
+            1_900_000_000,
+            b"sealed",
+            None,
+            public_key(X25519PrivateKey.generate()),
+        )
 
     async def report_failure(self, **kwargs) -> None:
         self.failures.append(kwargs)

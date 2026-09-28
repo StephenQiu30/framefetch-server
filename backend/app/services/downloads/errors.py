@@ -120,6 +120,10 @@ class MediaInspectionSessionExpired(MediaInspectionFailure):
 class MediaInspectionSessionNotReady(MediaInspectionFailure):
     """The site has a deployment session, but it is not ready; never anonymous."""
 
+    def __init__(self, *, before_media_io: bool = False) -> None:
+        self.before_media_io = before_media_io
+        super().__init__()
+
 
 class MediaInspectionVerificationFailed(MediaInspectionFailure):
     """Provider request proof, script challenge, or egress verification failed."""

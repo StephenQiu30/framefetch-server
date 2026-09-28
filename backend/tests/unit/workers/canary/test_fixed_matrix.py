@@ -11,7 +11,7 @@ async def test_unknown_provider_cannot_be_silently_omitted(monkeypatch, capsys):
 
     monkeypatch.setattr(fixed_matrix, "build_runtime", unexpected)
     assert (
-        await fixed_matrix._run(frozenset({"bilibili", "misspelled"}), "metadata") == 2
+        await fixed_matrix._run(frozenset({"youtube", "misspelled"}), "metadata") == 2
     )
     report = json.loads(capsys.readouterr().out)
     assert report["matrix_complete"] is False
@@ -45,9 +45,9 @@ async def test_selected_targets_execute_once_close_and_report_without_url(
 
     monkeypatch.setattr(fixed_matrix, "build_runtime", lambda _: Runtime())
     monkeypatch.setattr(fixed_matrix, "get_settings_for_role", lambda _: None)
-    assert await fixed_matrix._run(frozenset({"bilibili"}), "metadata") == 0
+    assert await fixed_matrix._run(frozenset({"youtube"}), "metadata") == 0
     output = capsys.readouterr().out
     assert "https://" not in output and "url" not in output
     assert json.loads(output)["target_count"] == 1
-    assert calls == [("bilibili", "metadata")]
+    assert calls == [("youtube", "metadata")]
     assert closed == [True]

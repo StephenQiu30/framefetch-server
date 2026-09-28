@@ -28,6 +28,8 @@ class NetscapeCookieLine:
 def parse_cookie_payload(
     payload: bytes,
     allowlist: frozenset[str],
+    *,
+    discard_unrelated: bool = False,
 ) -> tuple[NetscapeCookieLine, ...]:
     if not 0 < len(payload) <= MAX_COOKIE_BYTES:
         raise RunnerFailure("credential_rejected", status=422)
@@ -52,15 +54,15 @@ def parse_cookie_payload(
         normalized_domain = domain.lstrip(".").casefold()
         if (
             not domain
-            or normalized_domain not in normalized_allowlist
-            and not any(
-                normalized_domain.endswith(f".{item}") for item in normalized_allowlist
-            )
             or fields[1] not in (b"TRUE", b"FALSE")
             or fields[3] not in (b"TRUE", b"FALSE")
             or not fields[2].startswith(b"/")
             or expires < 0
         ):
+            raise RunnerFailure("credential_rejected", status=422)
+        if not is_allowed_domain(normalized_domain, normalized_allowlist):
+            if discard_unrelated:
+                continue
             raise RunnerFailure("credential_rejected", status=422)
         cookies.append(NetscapeCookieLine(line, expires, name))
 

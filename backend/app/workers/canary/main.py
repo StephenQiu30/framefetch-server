@@ -10,15 +10,12 @@ from datetime import UTC, datetime, timedelta
 from app.core.config import Settings, get_settings_for_role
 from app.core.db import create_engine, create_session_factory
 from app.integrations.media_runner_factory import (
-    anonymous_media_runner,
-    guest_media_runners,
     session_media_runner,
     session_provider_keys,
 )
 from app.repositories.providers.canary_repository import (
     SqlAlchemyProviderCanaryRepository,
 )
-from app.repositories.providers.guest_contexts import GuestContexts
 from app.repositories.providers.route_cooldowns import SqlAlchemyProviderRouteCooldowns
 from app.services.provider_route_admission import ProviderRouteAdmission
 from app.workers.canary.runner import ProviderCanaryRunner
@@ -53,20 +50,15 @@ def build_runtime(settings: Settings) -> ProviderCanaryRuntime:
     validate_canary_target_routes(
         targets,
         session_provider_keys(settings),
-        guest_provider_keys=frozenset(
-            provider.value for provider in settings.runner_guest_base_urls
-        ),
     )
     engine = create_engine(settings.database_url)
     sessions = create_session_factory(engine)
     repository = SqlAlchemyProviderCanaryRepository(sessions)
     admission = ProviderRouteAdmission(SqlAlchemyProviderRouteCooldowns(sessions))
-    anonymous = anonymous_media_runner(settings, admission)
-    runner = ProviderCanaryRunner(
-        anonymous,
-        session_media_runner(settings, admission),
-        guests=guest_media_runners(settings, admission, GuestContexts(sessions).reject),
-    )
+    session_runner = session_media_runner(settings, admission)
+    if session_runner is None:
+        raise ValueError("SESSION_RUNNER_BASE_URL is required")
+    runner = ProviderCanaryRunner(session_runner)
     service = ProviderCanaryService(
         repository,
         runner,

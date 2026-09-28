@@ -298,15 +298,18 @@ async def test_guest_wait_only_applies_before_media_request(
 
 
 @pytest.mark.asyncio
-async def test_inspect_exposes_a_site_session_that_is_not_ready() -> None:
-    code = "provider_session_not_ready"
-
+@pytest.mark.parametrize("context_ready", (False, True))
+@pytest.mark.parametrize(
+    "code", ("provider_session_not_ready", "provider_session_unavailable")
+)
+async def test_inspect_exposes_a_site_session_that_is_not_ready(
+    monkeypatch: pytest.MonkeyPatch, context_ready: bool, code: str
+) -> None:
     async def respond(_request: httpx.Request) -> httpx.Response:
         return httpx.Response(503, json={"error": {"code": code, "message": code}})
 
     http = httpx.AsyncClient(
-        base_url="http://runner",
-        transport=httpx.MockTransport(respond),
+        base_url="http://runner", transport=httpx.MockTransport(respond)
     )
     client = MediaRunnerHttpClient(
         base_url="http://runner",
@@ -315,11 +318,18 @@ async def test_inspect_exposes_a_site_session_that_is_not_ready() -> None:
         inspect_timeout_seconds=1,
         download_timeout_seconds=1,
         client=http,
+        expected_access_mode=ProviderAccessMode.OPERATOR_MANAGED,
     )
 
-    with pytest.raises(MediaInspectionSessionNotReady):
-        await client.inspect("https://www.douyin.com/video/123")
+    async def context(_url: str) -> ProviderAccessContextRef:
+        if not context_ready:
+            raise MediaRunnerClientError(code, 503)
+        return _access_context()
 
+    monkeypatch.setattr(client, "context", context)
+    with pytest.raises(MediaInspectionSessionNotReady) as captured:
+        await client.inspect("https://www.douyin.com/video/123")
+    assert captured.value.before_media_io is not context_ready
     await http.aclose()
 
 

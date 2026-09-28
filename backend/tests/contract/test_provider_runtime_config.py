@@ -72,13 +72,13 @@ def test_youtube_sidecar_and_runners_can_only_egress_through_a_gateway() -> None
         assert networks["youtube_pot_net"]["internal"] is True
         assert networks["runner_egress_net"]["internal"] is True
         assert not (networks["proxy_uplink_net"] or {}).get("internal", False)
-        assert "youtube_pot_net" in services["media-runner"]["networks"]
+        assert "youtube_pot_net" in services["session-runner"]["networks"]
         assert "youtube_pot_net" in services["egress-proxy"]["networks"]
         assert "runner_egress_net" in services["egress-proxy"]["networks"]
         assert "proxy_uplink_net" in services["egress-proxy"]["networks"]
         assert "youtube_pot_net" not in services["api"]["networks"]
         assert "proxy_uplink_net" not in services["api"]["networks"]
-        assert "proxy_uplink_net" not in services["media-runner"]["networks"]
+        assert "proxy_uplink_net" not in services["session-runner"]["networks"]
         assert "runner_egress_net" not in sidecar["networks"]
         assert "proxy_uplink_net" not in sidecar["networks"]
         assert {
@@ -90,12 +90,12 @@ def test_youtube_sidecar_and_runners_can_only_egress_through_a_gateway() -> None
         assert sidecar["tmpfs"] == ["/tmp:rw,noexec,nosuid,size=16m"]
         assert (
             sidecar["environment"]["RUNNER_EGRESS_PROXY"]
-            == (services["media-runner"]["environment"]["RUNNER_EGRESS_PROXY"])
+            == (services["session-runner"]["environment"]["RUNNER_EGRESS_PROXY"])
         )
         assert (
             sidecar["environment"]["RUNNER_PROVIDER_EGRESS_PROXIES"]
             == (
-                services["media-runner"]["environment"][
+                services["session-runner"]["environment"][
                     "RUNNER_PROVIDER_EGRESS_PROXIES"
                 ]
             )

@@ -43,8 +43,6 @@ def parse_canary_targets(value: SecretStr) -> tuple[ProviderCanaryTarget, ...]:
 def validate_canary_target_routes(
     targets: tuple[ProviderCanaryTarget, ...],
     operator_provider_keys: frozenset[str],
-    *,
-    guest_provider_keys: frozenset[str] = frozenset(),
 ) -> None:
     missing = sorted(
         {
@@ -58,20 +56,6 @@ def validate_canary_target_routes(
         raise ValueError(
             "provider canary operator targets require matching runner endpoints: "
             + ",".join(missing)
-        )
-
-    missing_guests = sorted(
-        {
-            target.provider_key
-            for target in targets
-            if target.access_mode is ProviderAccessMode.GUEST
-            and target.provider_key not in guest_provider_keys
-        }
-    )
-    if missing_guests:
-        raise ValueError(
-            "provider canary guest targets require matching runner endpoints: "
-            + ",".join(missing_guests)
         )
 
 
@@ -95,6 +79,7 @@ def _validate_targets(targets: tuple[ProviderCanaryTarget, ...]) -> None:
             or parsed.username is not None
             or parsed.password is not None
             or resolved.profile.key != target.provider_key
+            or target.access_mode is not ProviderAccessMode.OPERATOR_MANAGED
             or target.access_mode not in resolved.profile.access_modes
         ):
             raise ValueError

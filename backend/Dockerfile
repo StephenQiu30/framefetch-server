@@ -35,7 +35,7 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PATH="/app/backend/.venv/bin:${PATH}"
 WORKDIR /app/backend
 
-COPY --link --from=session-browser-builder /app/backend /app/backend
+COPY --link --from=session-browser-builder /app/backend/.venv /app/backend/.venv
 # The pinned playwright package fixes the Chromium build it installs.
 RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     --mount=type=cache,target=/var/lib/apt/lists,sharing=locked \
@@ -44,6 +44,8 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     && useradd --create-home --uid 10001 appuser \
     && install -d -o 10001 -g 10001 -m 0700 /profiles \
     && chown -R appuser:appuser /app
+
+COPY --link --from=session-browser-builder --chown=10001:10001 /app/backend/app /app/backend/app
 
 USER appuser
 EXPOSE 19300

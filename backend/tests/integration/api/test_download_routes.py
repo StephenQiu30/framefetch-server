@@ -361,43 +361,13 @@ def test_provider_status_distinguishes_registered_verified_and_unsupported(
     assert response.status_code == 200
     items = {item["key"]: item for item in response.json()["data"]["items"]}
     assert len(items) == 24
-    assert items["hongguo_web"]["status"] == "verified"
-    assert (
-        items["hongguo_web"]["user_action"]
-        == "已接入红果官方分享链接当前单集；不支持 App 受保护媒体、全集抓取或批量下载。"
-    )
-    assert items["youtube"]["registered"] is True
-    assert items["youtube"]["status"] == "access_required"
-    assert items["youtube"]["access_modes"] == ["anonymous"]
-    assert items["bilibili"]["status"] == "verified"
-    assert items["tiktok"]["status"] == "verified"
-    assert items["tiktok"]["access_modes"] == ["anonymous"]
-    assert all(
-        "operator_managed" not in item["access_modes"] for item in items.values()
-    )
-    assert items["xiaohongshu"]["status"] == "degraded"
-    assert items["reddit"]["status"] == "access_required"
-    assert {
-        items[key]["status"] for key in ("facebook", "twitch", "pinterest", "weibo")
-    } == {"verified"}
-    assert items["qqvideo"]["status"] == "unknown"
-    assert items["qqvideo"]["access_modes"] == ["anonymous"]
-    assert items["qqvideo"]["download_supported"] is True
-    assert "持久会话" in items["qqvideo"]["user_action"]
-    assert "待样本验证" in items["youku"]["user_action"]
-    assert items["youku"]["status"] == "unknown"
-    assert {
-        items[key]["status"]
-        for key in ("snapchat", "linkedin", "telegram", "kick", "tumblr")
-    } == {"verified"}
-    assert items["wechat_channels"]["status"] == "access_required"
-    assert items["wechat_channels"]["registered"] is True
-    assert items["wechat_channels"]["extractor_exists"] is True
-    assert items["wechat_official_account_article"]["registered"] is True
+    for key, item in items.items():
+        assert item["registered"] is True
+        assert item["access_modes"] == []
+        assert not item["download_available"]
+        if key != "wechat_official_account_article":
+            assert item["status"] == "access_required"
     assert items["wechat_official_account_article"]["status"] == "unknown"
-    assert items["kuaishou"]["registered"] is True
-    assert items["kuaishou"]["extractor_exists"] is True
-    assert items["kuaishou"]["status"] == "verified"
     assert not {"acfun", "rutube", "vk", "dailymotion", "niconico"} & items.keys()
     assert "peertube" not in items
     assert all(

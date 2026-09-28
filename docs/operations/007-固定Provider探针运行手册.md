@@ -1,5 +1,8 @@
 # 固定 Provider 探针运行手册
 
+> 当前固定矩阵仅使用会话路线；匿名和访客路线已移除。登录探针或会话未就绪的站点不可执行，真实文件通过才算媒体证据。访问规则以 [046](../design/046-容器自持平台会话设计.md) 为准。
+
+
 本手册用于当前固定引擎、Runner 拓扑和网络出口的回归诊断。公开诊断样本只定位
 Extractor、访问和下载链路问题；生产发布仍必须使用项目自有或明确授权、由 Secret
 配置的 canary，并完成完整视频分析证据。
@@ -30,14 +33,7 @@ Runner，不存在 anonymous→operator 回退。未配置对应 Operator Runner
 
 ## 2. 固定矩阵
 
-样本位于 `backend/app/workers/canary/fixed_public_cases.json`。每个 Registry key
-必须恰好有同一 target 的 metadata 与 media 两条记录；URL 不会出现在命令
-输出或数据库 canary 行中。路线必须以同一样本的真实结果明确选择，不能因为
-平台具备 Cookie 能力就推断公开样本需要会话：匿名 metadata/media 均通过的
-公开样本固定使用 `anonymous`；需要自动访客材料且已有对应媒体证据的平台使用 `guest`，
-当前抖音固定样本走独立访客 Runner；只有需要账号且已有批准会话证据的平台
-才使用 `operator_managed`。三类探针的组件分别配置，缺失时报告本路线失败，
-不能回退到另一种权限。`RUNNER_GUEST_BASE_URLS` 不能由账号端点替代。
+样本位于 `backend/app/workers/canary/fixed_public_cases.json`。矩阵覆盖已登记会话机制的平台，每个 target 包含 metadata 与 media 两条记录；URL 不会出现在命令输出或数据库 canary 行中。所有探针固定使用 `operator_managed`，会话缺失或登录探针未验证时明确失败，不自动准备访客或回退匿名。矩阵登记仅代表测试目标，不等于该站点已经通过真实文件验收。
 
 media 阶段必须下载解析结果中的第一项格式，与 Web 界面默认选项保持一致；不得改成
 最低清晰度来缩短探针时间，否则会漏掉真实用户默认格式的签名或客户端兼容问题。
@@ -71,7 +67,6 @@ docker exec video-provider-canary \
 
 | 稳定错误 | 判定 |
 | --- | --- |
-| `guest_context_required` | 访客组件缺失或暂未准备好；检查独立 guest Runner 与自动维护进程，不提示用户导出 Cookie，也不改走账号路线 |
 | `provider_auth_required` / `provider_session_expired` | 会话缺失或失效；重新执行一次对应 Provider 授权并重建 Operator，不轮换账号放大请求 |
 | `provider_verification_failed` | 平台人机验证/挑战未通过；保留最后有效登录态并降级平台，不自动规避 CAPTCHA |
 | `format_unavailable` | 相邻 rendition 漂移或原规格消失；探针有界重检三次，用户重试自动选择当前兼容规格 |

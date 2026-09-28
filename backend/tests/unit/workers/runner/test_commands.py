@@ -382,7 +382,7 @@ async def test_successful_youtube_process_keeps_usable_media_despite_warning(
 
 
 @pytest.mark.asyncio
-async def test_authenticated_youtube_bot_confirmation_is_expired_session(
+async def test_authenticated_youtube_bot_confirmation_is_egress_challenge(
     tmp_path: Path,
 ) -> None:
     commands = MediaCommands(
@@ -400,7 +400,7 @@ async def test_authenticated_youtube_bot_confirmation_is_expired_session(
             cookie_jar=tmp_path / "cookies.txt",
         )
 
-    assert caught.value.code == "credential_expired"
+    assert caught.value.code == "egress_challenged"
     assert caught.value.status == 422
 
 

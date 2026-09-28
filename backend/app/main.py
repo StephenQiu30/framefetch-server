@@ -66,7 +66,6 @@ def create_app(
     application.state.settings = effective
     application.state.provider_statuses = current_provider_statuses(
         session_provider_keys(effective),
-        enabled_guest_keys=frozenset(effective.runner_guest_base_urls),
     )
     application.state.services = runtime.services if runtime else ApiServices()
     application.include_router(health_router)

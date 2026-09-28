@@ -174,7 +174,8 @@ class InspectMedia:
             ) from exc
         except MediaInspectionSessionNotReady as exc:
             raise ApplicationError(
-                ApplicationErrorCode.PROVIDER_SESSION_NOT_READY
+                ApplicationErrorCode.PROVIDER_SESSION_NOT_READY,
+                preparation_wait=exc.before_media_io,
             ) from exc
         except MediaInspectionVerificationFailed as exc:
             raise ApplicationError(

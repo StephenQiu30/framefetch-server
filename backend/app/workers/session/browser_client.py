@@ -44,6 +44,8 @@ class BrowserReport:
 
 
 class SessionBrowser(Protocol):
+    async def identity(self) -> str: ...
+
     async def bootstrap(
         self, site: str, seed_revision: int, jar: bytes
     ) -> BrowserReport: ...
@@ -70,6 +72,12 @@ class BrowserUnavailable(Exception):
 class HttpSessionBrowser:
     def __init__(self, client: SignedClient) -> None:
         self._client = client
+
+    async def identity(self) -> str:
+        identity = await self._call(
+            BROWSER_IDENTITY_PATH, IdentityRequest(), BrowserIdentity
+        )
+        return identity.public_key
 
     async def bootstrap(
         self, site: str, seed_revision: int, jar: bytes

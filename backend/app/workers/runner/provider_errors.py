@@ -249,16 +249,9 @@ PROVIDER_FAILURE_RULES: tuple[FailureRule, ...] = (
         ),
     ),
     FailureRule(
-        "credential_expired",
-        422,
-        all_stderr=(b"sign in to confirm", b"not a bot"),
-        authenticated=True,
-    ),
-    FailureRule(
         "egress_challenged",
         422,
         all_stderr=(b"sign in to confirm", b"not a bot"),
-        authenticated=False,
     ),
     FailureRule(
         "provider_geo_restricted",

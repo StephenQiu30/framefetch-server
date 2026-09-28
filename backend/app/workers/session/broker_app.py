@@ -20,20 +20,25 @@ from app.repositories.providers.site_sessions import (
     SiteSessionSecrets,
     SiteSessionStates,
 )
+from app.workers.runner.provider_credential_lease import (
+    ProviderCredentialLeaseCoordinator,
+)
 from app.workers.session.broker import SessionBroker, SessionNotReady
 from app.workers.session.browser_client import HttpSessionBrowser
 from app.workers.session.contracts import (
     FAILURE_PATH,
     LEASE_PATH,
+    ROTATION_PATH,
     STATUS_PATH,
     FailureReport,
     LeaseRequest,
     LeaseResponse,
+    RotationReport,
     StatusRequest,
     StatusResponse,
 )
 from app.workers.session.rpc import SignedClient, authenticator, verified_model
-from app.workers.session.sealing import SealError, decode_public_key, encode
+from app.workers.session.sealing import SealError, decode, decode_public_key, encode
 from fastapi import FastAPI, HTTPException, Request, Response
 
 BROKER_PORT = 19200
@@ -53,9 +58,11 @@ def create_app(
     async def scan_forever(broker: SessionBroker) -> None:
         while True:
             try:
-                await broker.scan()
+                health["scanned_at"] = time.monotonic()
+                await asyncio.wait_for(broker.scan(), timeout=180)
                 health["scanned_at"] = time.monotonic()
             except Exception:
+                health["scanned_at"] = 0.0
                 _logger.exception("site session scan failed")
             await asyncio.sleep(scan_seconds)
 
@@ -110,8 +117,24 @@ def create_app(
             jar_version=grant.jar_version,
             expires_at=grant.expires_at,
             jar=encode(grant.jar),
+            rotation_key=encode(grant.rotation_key),
             headers=None if grant.headers is None else encode(grant.headers),
         )
+
+    @app.post(ROTATION_PATH, status_code=204)
+    async def rotation(request: Request) -> Response:
+        body = await verified_model(request, verifier, RotationReport)
+        broker: SessionBroker = request.app.state.broker
+        try:
+            await broker.absorb_rotation(
+                task_id=body.task_id,
+                site=body.site,
+                seed_revision=body.seed_revision,
+                sealed_jar=decode(body.jar),
+            )
+        except (SessionNotReady, SealError):
+            raise HTTPException(409, "provider_session_not_ready") from None
+        return Response(status_code=204)
 
     @app.post(FAILURE_PATH, status_code=204)
     async def failure(request: Request) -> Response:
@@ -128,7 +151,7 @@ def create_app(
 
     @app.get("/health/ready")
     async def ready() -> Response:
-        fresh = time.monotonic() - health["scanned_at"] <= scan_seconds * 3
+        fresh = time.monotonic() - health["scanned_at"] <= 180 + scan_seconds * 3
         return Response(status_code=200 if health["scanned_at"] and fresh else 503)
 
     return app
@@ -147,6 +170,9 @@ def settings_factory(settings: Settings) -> BrokerFactory:
     async def factory() -> AsyncIterator[SessionBroker]:
         engine = create_engine(settings.database_url)
         sessions = create_session_factory(engine)
+        coordinator = ProviderCredentialLeaseCoordinator(
+            settings.site_session_coordination_url
+        )
         async with httpx.AsyncClient(
             base_url=settings.site_session_browser_url,
             timeout=_BROWSER_TIMEOUT_SECONDS,
@@ -154,6 +180,7 @@ def settings_factory(settings: Settings) -> BrokerFactory:
             try:
                 yield SessionBroker(
                     states=SiteSessionStates(sessions),
+                    coordinator=coordinator,
                     secrets=SiteSessionSecrets(sessions),
                     cipher=SiteSessionCipher(key.get_secret_value()),
                     browser=HttpSessionBrowser(
@@ -164,6 +191,7 @@ def settings_factory(settings: Settings) -> BrokerFactory:
                     keepalive_jitter_seconds=settings.site_session_keepalive_jitter_seconds,
                 )
             finally:
+                await coordinator.close()
                 await engine.dispose()
 
     return factory

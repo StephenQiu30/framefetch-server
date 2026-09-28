@@ -28,10 +28,10 @@
 
 ## 安全与运行约束
 
-- 按用户在 046 的明确批准，需要登录态的站点（含视频号元宝）使用站点会话：部署者在宿主一次性导入所选站点的 Chrome Cookie，之后只在容器内运行。`session-broker` 是唯一持有 `SITE_SESSION_ENCRYPTION_KEY` 的进程且不访问外网；`session-browser` 保存每站点 Profile，不得获得数据库、密钥或 Runner RPC；站点存在会话记录时不得回退匿名路线。未验证真实文件不得宣称某平台修复完成。
+- 按用户在 046 的明确批准，需要登录态的站点（含视频号元宝）使用站点会话：部署者在宿主一次性导入所选站点的 Chrome Cookie，之后只在容器内运行。`session-broker` 是唯一持有 `SITE_SESSION_ENCRYPTION_KEY` 的进程且不访问外网；`session-browser` 保存每站点 Profile，不得获得数据库、密钥或 Runner RPC；所有在线解析必须使用验证过的站点会话，未配置或撤销不得回退匿名／访客路线。未验证真实文件不得宣称某平台修复完成。
 
-- 仅处理用户有权下载和分析的内容。匿名 Provider 默认只处理能够正向证明为公开、免费、非 DRM 的 HTTP(S) 内容；按用户确认的 032 个人范围，腾讯视频和优酷可在单平台持久会话线路中尝试处理账号可访问的完整非 DRM 单视频，必须保留原始完整时长并通过最终文件校验；不能把账号可见性标成官方导出授权。其他受限平台内容仍需官方授权 Provider/Connector 按资产明确返回下载或导出授权，且输出未加密时才可生成 Artifact。Edge Agent 只能传输用户已经合法取得并显式选择的 clear 文件与脱敏声明，不得访问平台会话、网络流量、缓存或保护材料，也不得生成客户端签名、取得内容密钥或转换受保护媒体。不得借技术路径扩张会员/购买、private、follow-only 或地域权益；私网 URL、任意 yt-dlp 参数和 shell 输入始终禁止。普通业务 JSON 禁止上传原始 Cookie；受控 Provider 会话只能按 005 的 allowlist、独立 Runner、只读 Secret、权益防火墙和验收门禁启用。
-- 匿名媒体流量只能由无 Provider 凭据的 Runner 发起；会话 Runner 只能按任务领取绑定任务与站点的一次性封装租约，不持有常驻凭据，不得获得数据库、队列、对象存储或 AI 凭据。两类 Runner 均须经过阻断私网的 egress proxy；入口 URL 校验不能替代网络隔离。
+- 仅处理用户有权下载和分析的内容。公开内容路线只处理能够正向证明为公开、免费、非 DRM 的 HTTP(S) 内容；按用户确认的 032 个人范围，腾讯视频和优酷可在单平台持久会话线路中尝试处理账号可访问的完整非 DRM 单视频，必须保留原始完整时长并通过最终文件校验；不能把账号可见性标成官方导出授权。其他受限平台内容仍需官方授权 Provider/Connector 按资产明确返回下载或导出授权，且输出未加密时才可生成 Artifact。Edge Agent 只能传输用户已经合法取得并显式选择的 clear 文件与脱敏声明，不得访问平台会话、网络流量、缓存或保护材料，也不得生成客户端签名、取得内容密钥或转换受保护媒体。不得借技术路径扩张会员/购买、private、follow-only 或地域权益；私网 URL、任意 yt-dlp 参数和 shell 输入始终禁止。普通业务 JSON 禁止上传原始 Cookie；受控 Provider 会话只能按 005 的 allowlist、独立 Runner、只读 Secret、权益防火墙和验收门禁启用。
+- 在线媒体入口只使用会话 Runner；会话 Runner 只能按任务领取绑定任务与站点的一次性封装租约，不持有常驻凭据，不得获得数据库、队列、对象存储或 AI 凭据。Runner 均须经过阻断私网的 egress proxy；入口 URL 校验不能替代网络隔离。
 - Worker 开工前重新解析语义下载计划；Provider format id 不能作为唯一恢复依据。
 - AI 任务独立于下载任务；AI 失败不得改变下载成功状态。模型输出必须通过严格 schema、连续分镜时间轴和 shot evidence 校验，普通日志不得记录完整 Prompt、抽帧或原始模型响应。
 - 基础设施 Secret 只来自类型化配置和环境变量；管理员在 Web 中维护的 AI Provider Key 只允许进入记录绑定的加密数据库字段，并仅在 Analysis Worker 内存中解密。任何 Secret 都不得进入前端、API 响应、异常、快照、测试夹具或普通日志。外部操作必须设置大小、时长、并发和超时上限，取消时终止整个子进程组。
@@ -95,6 +95,6 @@ pnpm build
 
 API 使用 `runtime.py` 定义类型化的 `ApiServices`，在 `app.state.services` 中只挂载一次，通过 FastAPI 依赖函数读取；`lifespan.py` 管理资源所有权和释放，不逐项复制服务到动态 State。外部注入的运行时由调用方管理。
 
-API readiness 检查业务核心依赖，不把匿名或受控 Runner 的健康作为全局可用条件。API、下载 Worker 和 Canary 的启动不得等待所有 Provider 健康；Worker/Canary 仍等待共享工作目录初始化。站点会话服务的健康不代表平台接受会话，会话可用性以 broker 状态和真实任务为准（046）。下载 Worker 与 Runner 的容器停止宽限必须覆盖 Worker 有限排空预算。对应设计和目标环境验收见 030 四件套。
+API readiness 检查业务核心依赖，不把单个平台 Runner 的健康作为全局可用条件。API、下载 Worker 和 Canary 的启动不得等待所有 Provider 健康；Worker/Canary 仍等待共享工作目录初始化。站点会话服务的健康不代表平台接受会话，会话可用性以 broker 状态和真实任务为准（046）。下载 Worker 与 Runner 的容器停止宽限必须覆盖 Worker 有限排空预算。对应设计和目标环境验收见 030 四件套。
 
 前端目录职责以 PROJECT.md“前端目录与文件规则”为准。接口类型直接使用生成的 API.*，不新增 services、utils、types 聚合目录或纯转发文件。

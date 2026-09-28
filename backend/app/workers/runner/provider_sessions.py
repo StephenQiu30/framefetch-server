@@ -194,12 +194,15 @@ class ProviderSessionStore:
         site, revision = parse_context_version(context.credential_version_id)
         assert self._site_sessions is not None
         # One operation per site identity across every Runner replica.
-        async with self._credential_lease.hold(site, str(revision)):
-            payload = await self._site_sessions.lease(site, revision)
+        async with self._credential_lease.hold(site, "session"):
+            operation = await self._site_sessions.lease(site, revision)
             with operation_cookie(
-                payload, self._temp_root, context.provider_key
+                operation.payload, self._temp_root, context.provider_key
             ) as jar:
                 yield jar
+                if jar.stat().st_size > 2_000_000:
+                    raise RunnerFailure("provider_session_unavailable", status=503)
+                await self._site_sessions.rotate(operation, jar.read_bytes())
 
     async def report_failure(
         self, context: ProviderAccessContextRef, error_code: str

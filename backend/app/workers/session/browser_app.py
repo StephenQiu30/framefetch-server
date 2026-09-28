@@ -54,7 +54,7 @@ from cryptography.hazmat.primitives.asymmetric.x25519 import X25519PrivateKey
 from fastapi import FastAPI, HTTPException, Request, Response
 from playwright.async_api import Error as PlaywrightError
 from playwright.async_api import async_playwright
-from pydantic import SecretStr
+from pydantic import Field, SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 BROWSER_PORT = 19300
@@ -67,6 +67,7 @@ class BrowserSettings(BaseSettings):
 
     site_session_browser_secret: SecretStr
     site_session_egress_proxy: str | None = None
+    runner_provider_egress_proxies: dict[str, str] = Field(default_factory=dict)
     site_session_profile_root: Path = Path("/profiles")
 
 
@@ -206,6 +207,7 @@ def main() -> None:
                 playwright,
                 settings.site_session_profile_root,
                 proxy=settings.site_session_egress_proxy,
+                provider_proxies=settings.runner_provider_egress_proxies,
             )
 
     app = create_app(

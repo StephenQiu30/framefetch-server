@@ -7,7 +7,6 @@ import pytest
 from app.integrations.media_runner import MediaRunnerRouter
 from app.integrations.media_runner_models import MediaRunnerClientError, RunnerArtifact
 from app.services.downloads.errors import (
-    MediaInspectionAuthRequired,
     MediaInspectionTemporarilyUnavailable,
 )
 from app.services.downloads.inspection_models import RunnerInspection
@@ -74,274 +73,75 @@ class FakeClient:
 
 
 class AlwaysSession:
-    """Every URL has a site session record."""
-
-    async def policy_for(self, url: str) -> ProviderAccessPolicy:
+    async def policy_for(self, url):
         return ProviderAccessPolicy.OPERATOR_PUBLIC
 
-
-async def test_session_record_routes_youtube_directly_to_session_runner() -> None:
-    anonymous = FakeClient(context(ProviderAccessMode.ANONYMOUS))
-    operator = FakeClient(context(ProviderAccessMode.OPERATOR_MANAGED))
-    router = MediaRunnerRouter(
-        anonymous,
-        operator,
-        session_routes=AlwaysSession(),
-    )  # type: ignore[arg-type]
-
-    result = await router.inspect("https://www.youtube.com/watch?v=owned")
-
-    assert result.access_context.access_mode is ProviderAccessMode.OPERATOR_MANAGED
-    assert anonymous.inspected == []
-    assert operator.inspected == ["https://www.youtube.com/watch?v=owned"]
+    async def ensure_ready(self, url):
+        return None
 
 
-async def test_operator_diagnosis_is_authoritative_without_anonymous_attempt() -> None:
-    anonymous = FakeClient(context(ProviderAccessMode.ANONYMOUS))
-    operator = FakeClient(context(ProviderAccessMode.OPERATOR_MANAGED))
-    operator.inspect_error = MediaInspectionTemporarilyUnavailable()
-    router = MediaRunnerRouter(
-        anonymous,
-        operator,
-        session_routes=AlwaysSession(),
-    )  # type: ignore[arg-type]
-
-    with pytest.raises(MediaInspectionTemporarilyUnavailable) as captured:
-        await router.inspect("https://www.youtube.com/watch?v=owned")
-
-    assert captured.value.access_mode is ProviderAccessMode.OPERATOR_MANAGED
-    assert anonymous.inspected == []
-
-
-async def test_session_record_routes_xiaohongshu_directly_to_session_runner() -> None:
-    anonymous = FakeClient(context(ProviderAccessMode.ANONYMOUS))
-    operator = FakeClient(context(ProviderAccessMode.OPERATOR_MANAGED, "xiaohongshu"))
-    router = MediaRunnerRouter(  # type: ignore[arg-type]
-        anonymous,
-        operator,
-        session_routes=AlwaysSession(),
-    )
-
-    result = await router.inspect(
-        "https://www.xiaohongshu.com/explore/6411cf99000000001300b6d9"
-    )
-
-    assert result.access_context.provider_key == "xiaohongshu"
-    assert anonymous.inspected == []
-
-
-async def test_unconfigured_provider_uses_its_declared_anonymous_mode() -> None:
-    anonymous = FakeClient(context(ProviderAccessMode.ANONYMOUS))
-    anonymous.inspect_error = MediaInspectionAuthRequired()
-    operator = FakeClient(context(ProviderAccessMode.OPERATOR_MANAGED))
-    router = MediaRunnerRouter(anonymous, operator)  # type: ignore[arg-type]
-
-    with pytest.raises(MediaInspectionAuthRequired) as captured:
-        await router.inspect("https://www.bilibili.com/video/BV1xx")
-
-    assert captured.value.access_mode is ProviderAccessMode.ANONYMOUS
-    assert operator.inspected == []
-
-
-async def test_tiktok_access_failure_never_uses_configured_operator() -> None:
-    anonymous = FakeClient(context(ProviderAccessMode.ANONYMOUS))
-    anonymous.inspect_error = MediaInspectionTemporarilyUnavailable()
-    operator = FakeClient(context(ProviderAccessMode.OPERATOR_MANAGED, "tiktok"))
-    router = MediaRunnerRouter(anonymous, operator)  # type: ignore[arg-type]
-
-    with pytest.raises(MediaInspectionTemporarilyUnavailable):
-        await router.inspect("https://www.tiktok.com/@creator/video/123")
-
-    assert operator.inspected == []
-
-
-async def test_session_record_routes_instagram_directly_to_session_runner() -> None:
-    anonymous = FakeClient(context(ProviderAccessMode.ANONYMOUS))
-    operator = FakeClient(context(ProviderAccessMode.OPERATOR_MANAGED, "instagram"))
-    router = MediaRunnerRouter(
-        anonymous,
-        operator,
-        session_routes=AlwaysSession(),
-    )  # type: ignore[arg-type]
-
-    result = await router.inspect("https://www.instagram.com/reel/owned/")
-
-    assert result.access_context.provider_key == "instagram"
-    assert anonymous.inspected == []
-    assert operator.inspected == ["https://www.instagram.com/reel/owned/"]
-
-
-async def test_download_routes_frozen_context_to_matching_pool() -> None:
-    anonymous = FakeClient(context(ProviderAccessMode.ANONYMOUS))
-    operator = FakeClient(context(ProviderAccessMode.OPERATOR_MANAGED))
-    router = MediaRunnerRouter(anonymous, operator)  # type: ignore[arg-type]
-
+async def test_inspect_and_download_use_only_session():
+    client = FakeClient(context(ProviderAccessMode.OPERATOR_MANAGED))
+    router = MediaRunnerRouter(client, session_routes=AlwaysSession())
+    result = await router.inspect("https://youtube.com/watch?v=owned")
+    assert result.access_context == client.frozen
     await router.download(
-        "task-1",
-        "https://www.youtube.com/watch?v=owned",
-        object(),  # type: ignore[arg-type]
+        "task",
+        "https://youtube.com/watch?v=owned",
+        None,
         expected_provider_media_id="owned",
         expected_extractor_key="Youtube",
-        access_context=operator.frozen,
+        access_context=client.frozen,
     )
-
-    assert anonymous.downloaded == []
-    assert operator.downloaded == ["task-1"]
-
-
-async def test_download_routes_guest_context_without_touching_account_pool() -> None:
-    anonymous = FakeClient(context(ProviderAccessMode.ANONYMOUS))
-    guest = FakeClient(context(ProviderAccessMode.GUEST))
-    operator = FakeClient(context(ProviderAccessMode.OPERATOR_MANAGED))
-    router = MediaRunnerRouter(
-        anonymous,
-        operator,
-        guests={"youtube": guest},
-    )  # type: ignore[arg-type]
-
-    await router.download(
-        "task-guest",
-        "https://www.youtube.com/watch?v=owned",
-        object(),  # type: ignore[arg-type]
-        expected_provider_media_id="owned",
-        expected_extractor_key="Youtube",
-        access_context=guest.frozen,
-    )
-
-    assert guest.downloaded == ["task-guest"]
-    assert anonymous.downloaded == operator.downloaded == []
+    assert client.inspected == ["https://youtube.com/watch?v=owned"]
+    assert client.downloaded == ["task"]
 
 
-async def test_missing_guest_context_never_falls_back_to_account() -> None:
-    anonymous = FakeClient(context(ProviderAccessMode.ANONYMOUS))
-    operator = FakeClient(context(ProviderAccessMode.OPERATOR_MANAGED))
-    router = MediaRunnerRouter(anonymous, operator)  # type: ignore[arg-type]
-
-    with pytest.raises(MediaRunnerClientError) as captured:
-        await router.context(
-            "https://www.youtube.com/watch?v=owned", ProviderAccessMode.GUEST
-        )
-
-    assert captured.value.code == "guest_context_required"
-    assert captured.value.status == 503
-    assert anonymous.context_requests == operator.context_requests == []
-
-
-async def test_download_never_changes_the_frozen_access_context() -> None:
-    anonymous = FakeClient(context(ProviderAccessMode.ANONYMOUS))
-    anonymous.download_error = MediaRunnerClientError("credential_required", 422)
-    operator = FakeClient(context(ProviderAccessMode.OPERATOR_MANAGED))
-    router = MediaRunnerRouter(anonymous, operator)  # type: ignore[arg-type]
-
-    with pytest.raises(MediaRunnerClientError) as captured:
+@pytest.mark.parametrize(
+    "mode", [ProviderAccessMode.ANONYMOUS, ProviderAccessMode.GUEST]
+)
+async def test_retired_contexts_are_rejected_without_execution(mode):
+    client = FakeClient(context(ProviderAccessMode.OPERATOR_MANAGED))
+    router = MediaRunnerRouter(client, session_routes=AlwaysSession())
+    with pytest.raises(MediaRunnerClientError):
         await router.download(
-            "task-1",
-            "https://www.youtube.com/watch?v=owned",
-            object(),  # type: ignore[arg-type]
+            "task",
+            "https://youtube.com/watch?v=owned",
+            None,
             expected_provider_media_id="owned",
             expected_extractor_key="Youtube",
-            access_context=anonymous.frozen,
+            access_context=context(mode),
         )
-
-    assert captured.value.code == "credential_required"
-    assert anonymous.downloaded == ["task-1"]
-    assert operator.context_requests == []
-    assert operator.downloaded == []
+    assert client.downloaded == []
 
 
-async def test_download_keeps_anonymous_error_when_operator_is_not_configured() -> None:
-    anonymous = FakeClient(context(ProviderAccessMode.ANONYMOUS))
-    anonymous.download_error = MediaRunnerClientError("credential_required", 422)
-    router = MediaRunnerRouter(anonymous)
-
-    with pytest.raises(MediaRunnerClientError) as captured:
-        await router.download(
-            "task-1",
-            "https://www.youtube.com/watch?v=owned",
-            object(),  # type: ignore[arg-type]
-            expected_provider_media_id="owned",
-            expected_extractor_key="Youtube",
-            access_context=anonymous.frozen,
-        )
-
-    assert captured.value.code == "credential_required"
+async def test_session_failure_is_authoritative_and_not_retried():
+    client = FakeClient(context(ProviderAccessMode.OPERATOR_MANAGED))
+    client.inspect_error = MediaInspectionTemporarilyUnavailable()
+    router = MediaRunnerRouter(client, session_routes=AlwaysSession())
+    with pytest.raises(MediaInspectionTemporarilyUnavailable) as failure:
+        await router.inspect("https://youtube.com/watch?v=owned")
+    assert failure.value.access_mode is ProviderAccessMode.OPERATOR_MANAGED
+    assert len(client.inspected) == 1
 
 
-async def test_context_batch_resolves_public_guest_and_account_routes_once() -> None:
-    anonymous = FakeClient(context(ProviderAccessMode.ANONYMOUS))
-    guest = FakeClient(context(ProviderAccessMode.GUEST, "douyin"))
-    operator = FakeClient(context(ProviderAccessMode.OPERATOR_MANAGED))
-    router = MediaRunnerRouter(
-        anonymous,
-        operator,
-        guests={"douyin": guest},
-    )  # type: ignore[arg-type]
+async def test_context_batch_isolates_failed_sites():
+    class Client(FakeClient):
+        async def contexts_for_providers(self, keys):
+            if "youtube" in keys:
+                raise MediaRunnerClientError("provider_session_not_ready", 503)
+            return tuple(replace(self.frozen, provider_key=key) for key in keys)
 
+    client = Client(context(ProviderAccessMode.OPERATOR_MANAGED))
+    router = MediaRunnerRouter(client, session_routes=AlwaysSession())
     resolved = await router.contexts_for_providers(
         {
-            "generic": ProviderAccessMode.ANONYMOUS,
-            "douyin": ProviderAccessMode.GUEST,
             "youtube": ProviderAccessMode.OPERATOR_MANAGED,
-        }
-    )
-
-    assert resolved == {
-        "generic": anonymous.frozen,
-        "douyin": guest.frozen,
-        "youtube": operator.frozen,
-    }
-    assert anonymous.context_requests == [("generic",)]
-    assert guest.context_requests == [("douyin",)]
-    assert operator.context_requests == [("youtube",)]
-
-
-async def test_context_batch_isolates_one_unavailable_operator_runner() -> None:
-    class UnavailableClient(FakeClient):
-        async def contexts_for_providers(
-            self, provider_keys: tuple[str, ...]
-        ) -> tuple[ProviderAccessContextRef, ...]:
-            self.context_requests.append(provider_keys)
-            raise MediaRunnerClientError("runner_unavailable", 503)
-
-    anonymous = FakeClient(context(ProviderAccessMode.ANONYMOUS))
-    operator = UnavailableClient(context(ProviderAccessMode.OPERATOR_MANAGED))
-    router = MediaRunnerRouter(anonymous, operator)  # type: ignore[arg-type]
-
-    resolved = await router.contexts_for_providers(
-        {
+            "douyin": ProviderAccessMode.OPERATOR_MANAGED,
             "generic": ProviderAccessMode.ANONYMOUS,
-            "youtube": ProviderAccessMode.OPERATOR_MANAGED,
         }
     )
-
-    assert resolved == {"generic": anonymous.frozen}
-
-
-async def test_context_batch_isolates_youtube_sidecar_from_other_public_routes() -> (
-    None
-):
-    class SidecarUnavailableClient(FakeClient):
-        async def contexts_for_providers(
-            self, provider_keys: tuple[str, ...]
-        ) -> tuple[ProviderAccessContextRef, ...]:
-            self.context_requests.append(provider_keys)
-            if "youtube" in provider_keys:
-                raise MediaRunnerClientError("pot_provider_release_mismatch", 503)
-            return tuple(
-                replace(self.frozen, provider_key=key) for key in provider_keys
-            )
-
-    anonymous = SidecarUnavailableClient(context(ProviderAccessMode.ANONYMOUS))
-    router = MediaRunnerRouter(anonymous, None)  # type: ignore[arg-type]
-    resolved = await router.contexts_for_providers(
-        {
-            "generic": ProviderAccessMode.ANONYMOUS,
-            "youtube": ProviderAccessMode.ANONYMOUS,
-            "douyin": ProviderAccessMode.ANONYMOUS,
-        }
-    )
-    assert set(resolved) == {"generic", "douyin"}
-    assert anonymous.context_requests == [("generic", "douyin"), ("youtube",)]
+    assert set(resolved) == {"douyin"}
 
 
 def context(

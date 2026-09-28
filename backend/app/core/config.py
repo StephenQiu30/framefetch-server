@@ -142,6 +142,7 @@ class Settings(BaseSettings):
     site_session_scan_seconds: int = Field(default=15, ge=5, le=60)
     site_session_keepalive_seconds: int = Field(default=1800, ge=600, le=6 * 3600)
     site_session_keepalive_jitter_seconds: int = Field(default=300, ge=0, le=1800)
+    site_session_coordination_url: str = "redis://provider-lease-redis:6379/0"
     site_session_lease_seconds: int = Field(default=600, ge=60, le=3600)
     provider_source_root: Path = Path("/run/provider-sources")
 

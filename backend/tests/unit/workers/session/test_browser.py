@@ -132,20 +132,23 @@ async def test_outcomes(tmp_path):
 
     context.status = 429
     result = await browser.keepalive("youtube.com")
-    assert (result.outcome, result.error_code) == (O.AUTH_FAILURE, "egress_challenged")
+    assert (result.outcome, result.error_code) == (
+        O.TEMPORARY_FAILURE,
+        "provider_rate_limited",
+    )
 
     context.status, context.fail = 200, True
     assert (await browser.keepalive("youtube.com")).outcome is O.UNAVAILABLE
     assert (await browser.keepalive("reddit.com")).outcome is O.PROFILE_MISSING
 
 
-async def test_cookie_probe_uses_registry_rules_for_other_sites(tmp_path):
+async def test_cookie_presence_does_not_prove_login(tmp_path):
     browser, context, _ = make(tmp_path)
     jar = (
         b"# Netscape HTTP Cookie File\n"
         b".reddit.com\tTRUE\t/\tTRUE\t4102444800\treddit_session\tx\n"
     )
-    assert (await browser.bootstrap("reddit.com", jar)).outcome is O.VERIFIED
+    assert (await browser.bootstrap("reddit.com", jar)).outcome is O.TEMPORARY_FAILURE
     context.cookie_store = [
         {
             "name": "reddit_session",
@@ -155,8 +158,8 @@ async def test_cookie_probe_uses_registry_rules_for_other_sites(tmp_path):
             "expires": -1,
         }
     ]
-    # Only a session cookie is left: the persistent login is gone.
-    assert (await browser.keepalive("reddit.com")).outcome is O.LOGGED_OUT
+    # Unknown login probes must never claim success or logout from cookies alone.
+    assert (await browser.keepalive("reddit.com")).outcome is O.TEMPORARY_FAILURE
 
 
 async def test_jars_for_other_domains_are_rejected(tmp_path):
@@ -249,3 +252,19 @@ def test_export_filters_foreign_and_empty_cookies():
     ]
     jar = asyncio.run(module._export(context, site_target("youtube.com")))
     assert jar.splitlines()[1:] == [b".youtube.com\tTRUE\t/\tFALSE\t5\ta\t1"]
+
+
+@pytest.mark.parametrize(
+    "probe, expected",
+    [(True, O.VERIFIED), (False, O.LOGGED_OUT), (None, O.TEMPORARY_FAILURE)],
+)
+async def test_douyin_requires_authenticated_profile_response(
+    tmp_path, probe, expected
+):
+    browser, context, _ = make(tmp_path)
+    context.evaluations.append(probe)
+    jar = (
+        b"# Netscape HTTP Cookie File\n"
+        b".douyin.com\tTRUE\t/\tTRUE\t4102444800\tsessionid\tfixture\n"
+    )
+    assert (await browser.bootstrap("douyin.com", jar)).outcome is expected

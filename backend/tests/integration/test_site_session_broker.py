@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+from contextlib import asynccontextmanager
 from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 
@@ -16,7 +17,7 @@ from app.workers.session.broker import SessionBroker, SessionNotReady
 from app.workers.session.browser_client import BrowserReport, BrowserUnavailable
 from app.workers.session.contracts import BrowserOutcome as O
 from app.workers.session.contracts import lease_associated_data
-from app.workers.session.sealing import SealError, open_sealed, public_key
+from app.workers.session.sealing import SealError, open_sealed, public_key, seal
 from cryptography.fernet import Fernet
 from cryptography.hazmat.primitives.asymmetric.x25519 import X25519PrivateKey
 from sqlalchemy import text
@@ -33,6 +34,13 @@ class Clock:
         return self.now
 
 
+class FakeCoordinator:
+    @asynccontextmanager
+    async def hold(self, site, version):
+        assert version == "session"
+        yield
+
+
 class FakeBrowser:
     def __init__(self) -> None:
         self.bootstrap_reports: list[BrowserReport | Exception] = []
@@ -41,6 +49,10 @@ class FakeBrowser:
         self.keepalives: list[tuple[str, int]] = []
         self.forgotten: list[str] = []
         self.header_calls: list[dict] = []
+        self.epoch = "browser-1"
+
+    async def identity(self):
+        return self.epoch
 
     async def bootstrap(self, site, seed_revision, jar):
         self.bootstrapped.append((site, seed_revision, jar))
@@ -77,6 +89,7 @@ def world(postgres_engine):
         secrets=secrets,
         cipher=cipher,
         browser=browser,
+        coordinator=FakeCoordinator(),
         clock=clock,
         jitter=lambda low, high: 0,
     )
@@ -128,21 +141,21 @@ async def test_import_is_bootstrapped_verified_and_rotation_stored(world):
     assert w.browser.keepalives == []
 
 
-async def test_unreachable_browser_leaves_the_import_for_the_next_scan(world):
+async def test_unreachable_browser_backs_off_without_auth_failure(world):
     w = world
     await w.seed()
-    w.browser.bootstrap_reports += [
-        BrowserUnavailable("down"),
-        BrowserReport(O.UNAVAILABLE),
-        BrowserReport(O.VERIFIED, jar=b"seed-jar"),
-    ]
-    await w.broker.scan()
-    assert (await w.states.get(SITE)).state is S.VERIFYING
-    await w.broker.scan()
-    assert (await w.states.get(SITE)).state is S.VERIFYING
+    w.browser.bootstrap_reports.append(BrowserUnavailable("down"))
     await w.broker.scan()
     status = await w.states.get(SITE)
-    # An unchanged jar is not rewritten.
+    assert status.state is S.DEGRADED and status.consecutive_failures == 0
+    assert status.next_check_at == w.clock.now + timedelta(seconds=60)
+    await w.broker.scan()
+    assert not w.browser.keepalives
+    w.clock.now += timedelta(seconds=61)
+    w.browser.keepalive_reports.append(BrowserReport(O.PROFILE_MISSING))
+    w.browser.bootstrap_reports.append(BrowserReport(O.VERIFIED, jar=b"seed-jar"))
+    await w.broker.scan()
+    status = await w.states.get(SITE)
     assert status.state is S.READY and status.jar_version == 0
 
 
@@ -197,7 +210,8 @@ async def test_auth_failures_degrade_reverify_and_escalate(world):
         site=SITE, seed_revision=1, error_code="egress_challenged"
     )
     assert (await w.states.get(SITE)).state is S.DEGRADED
-    # Degraded sites are re-verified on the very next scan.
+    # Degraded sites re-verify only after the persisted backoff.
+    w.clock.now += timedelta(seconds=61)
     w.browser.keepalive_reports.append(BrowserReport(O.VERIFIED))
     await w.broker.scan()
     status = await w.states.get(SITE)
@@ -208,8 +222,10 @@ async def test_auth_failures_degrade_reverify_and_escalate(world):
             site=SITE, seed_revision=1, error_code="credential_expired"
         )
     w.browser.keepalive_reports.append(
-        BrowserReport(O.AUTH_FAILURE, "egress_challenged")
+        BrowserReport(O.AUTH_FAILURE, "credential_expired")
     )
+    await w.broker.scan()
+    w.clock.now = (await w.states.get(SITE)).next_check_at
     await w.broker.scan()
     status = await w.states.get(SITE)
     assert status.state is S.RESEED_REQUIRED and status.consecutive_failures == 3
@@ -319,7 +335,7 @@ async def test_reimport_invalidates_late_rotation_and_revocation_forgets_once(wo
     await w.secrets.revoke(SITE, expected_seed_revision=2)
     await w.broker.scan()
     await w.broker.scan()
-    assert w.browser.forgotten == [SITE]
+    assert w.browser.forgotten == [SITE, SITE]
 
 
 async def test_undecryptable_import_requires_reimport(world):
@@ -338,3 +354,117 @@ async def test_undecryptable_import_requires_reimport(world):
     assert status.state is S.RESEED_REQUIRED
     assert status.last_error_code == "session_undecryptable"
     assert w.browser.bootstrapped == []
+
+
+async def test_broker_restart_blocks_persisted_ready_until_live_verification(world):
+    w = world
+    await w.seed()
+    w.browser.bootstrap_reports.append(BrowserReport(O.VERIFIED, jar=b"rotated"))
+    await w.broker.scan()
+    restarted = SessionBroker(
+        states=w.states,
+        secrets=w.secrets,
+        cipher=w.cipher,
+        browser=w.browser,
+        coordinator=FakeCoordinator(),
+        clock=w.clock,
+    )
+    with pytest.raises(SessionNotReady):
+        await restarted.ready_revision(SITE)
+    w.browser.keepalive_reports.append(BrowserReport(O.VERIFIED, jar=b"rotated"))
+    await restarted.scan()
+    assert await restarted.ready_revision(SITE) == 1
+    assert len(w.browser.bootstrapped) == 1
+
+
+async def test_browser_restart_invalidates_admission_before_next_scan(world):
+    w = world
+    await w.seed()
+    w.browser.bootstrap_reports.append(BrowserReport(O.VERIFIED))
+    await w.broker.scan()
+    w.browser.epoch = "browser-2"
+    with pytest.raises(SessionNotReady):
+        await w.broker.ready_revision(SITE)
+    w.browser.keepalive_reports.append(BrowserReport(O.VERIFIED))
+    await w.broker.scan()
+    assert await w.broker.ready_revision(SITE) == 1
+
+
+async def test_transient_backoff_survives_broker_restart(world):
+    w = world
+    await w.seed()
+    w.browser.bootstrap_reports.append(
+        BrowserReport(O.TEMPORARY_FAILURE, "provider_rate_limited")
+    )
+    await w.broker.scan()
+    restarted = SessionBroker(
+        states=w.states,
+        secrets=w.secrets,
+        cipher=w.cipher,
+        browser=w.browser,
+        coordinator=FakeCoordinator(),
+        clock=w.clock,
+    )
+    await restarted.scan()
+    assert w.browser.keepalives == []
+    assert (await w.states.get(SITE)).consecutive_failures == 0
+
+
+async def test_rotated_runner_cookies_require_a_current_lease_and_login_probe(world):
+    w = world
+    initial = (
+        b"# Netscape HTTP Cookie File\n"
+        b".youtube.com\tTRUE\t/\tTRUE\t4102444800\tSID\tinitial\n"
+    )
+    rotated = initial.replace(b"initial", b"rotated")
+    await w.seed(jar=initial)
+    w.browser.bootstrap_reports.append(BrowserReport(O.VERIFIED, jar=initial))
+    await w.broker.scan()
+    grant = await w.broker.lease(
+        task_id="task-rotation",
+        site=SITE,
+        seed_revision=1,
+        runner_key=public_key(X25519PrivateKey.generate()),
+    )
+    sealed = seal(
+        rotated,
+        grant.rotation_key,
+        associated_data=lease_associated_data(
+            "rotation", "task-rotation", SITE, 1, grant.expires_at
+        ),
+    )
+    w.browser.bootstrap_reports.append(BrowserReport(O.VERIFIED, jar=rotated))
+    await w.broker.absorb_rotation(
+        task_id="task-rotation", site=SITE, seed_revision=1, sealed_jar=sealed
+    )
+    assert await stored_jar(w) == rotated
+    with pytest.raises(SessionNotReady):
+        await w.broker.absorb_rotation(
+            task_id="task-rotation", site=SITE, seed_revision=1, sealed_jar=sealed
+        )
+
+
+async def test_rotation_cannot_publish_after_reimport(world):
+    w = world
+    await w.seed()
+    w.browser.bootstrap_reports.append(BrowserReport(O.VERIFIED))
+    await w.broker.scan()
+    grant = await w.broker.lease(
+        task_id="late",
+        site=SITE,
+        seed_revision=1,
+        runner_key=public_key(X25519PrivateKey.generate()),
+    )
+    await w.seed(expected=1, jar=b"new-import")
+    sealed = seal(
+        b"late",
+        grant.rotation_key,
+        associated_data=lease_associated_data(
+            "rotation", "late", SITE, 1, grant.expires_at
+        ),
+    )
+    with pytest.raises(SessionNotReady):
+        await w.broker.absorb_rotation(
+            task_id="late", site=SITE, seed_revision=1, sealed_jar=sealed
+        )
+    assert await stored_jar(w) == b"new-import"

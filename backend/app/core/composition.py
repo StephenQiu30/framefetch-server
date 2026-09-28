@@ -73,7 +73,6 @@ from app.repositories.providers.canary_repository import (
 from app.repositories.providers.catalog_repository import (
     SqlAlchemyProviderCatalogRepository,
 )
-from app.repositories.providers.guest_contexts import GuestContexts
 from app.repositories.providers.route_cooldowns import SqlAlchemyProviderRouteCooldowns
 from app.repositories.providers.site_sessions import SiteSessionStates
 from app.repositories.providers.status_evidence import (
@@ -109,6 +108,11 @@ from app.services.documents.service import DeleteDocument, GetDocument, ListDocu
 from app.services.downloads.analytics import GetDownloadAnalytics
 from app.services.downloads.create_download import CreateDownload
 from app.services.downloads.delete_download import DeleteDownload
+from app.services.downloads.errors import (
+    ApplicationError,
+    ApplicationErrorCode,
+    MediaInspectionPolicyNotAllowed,
+)
 from app.services.downloads.fingerprints import HmacRequestFingerprinter
 from app.services.downloads.history import GetDownloadHistory
 from app.services.downloads.inspect_media import InspectMedia
@@ -135,7 +139,7 @@ from app.services.imports.service import (
     CreateUploadSession,
     GetImport,
 )
-from app.services.provider_access import ProviderAccessPolicy, default_access_policy
+from app.services.provider_access import ProviderAccessPolicy
 from app.services.provider_canaries import ProviderStatusService
 from app.services.provider_catalog import ProviderCatalogService
 from app.services.provider_route_admission import ProviderRouteAdmission
@@ -147,7 +151,6 @@ from app.services.source_discoveries.use_cases import (
 from app.services.storage_files.service import StorageFileService
 from app.workers.runner.provider_registry import (
     configure_provider_instances,
-    provider_profile,
 )
 
 
@@ -203,7 +206,6 @@ def build_api_runtime(settings: Settings) -> ApiRuntime:
     runner = media_runner_router(
         settings,
         ProviderRouteAdmission(SqlAlchemyProviderRouteCooldowns(sessions)),
-        reject_guest=GuestContexts(sessions).reject,
         session_routes=session_routes,
     )
     storage = MinioObjectStorage(settings, enable_public_signing=True)
@@ -248,7 +250,6 @@ def build_api_runtime(settings: Settings) -> ApiRuntime:
     user_service = UserService(repository=user_repository, now=clock)
     provider_baselines = configured_provider_statuses(
         session_provider_keys(settings),
-        enabled_guest_keys=frozenset(settings.runner_guest_base_urls),
     )
     provider_catalog_service = ProviderCatalogService(
         provider_catalog_repository,
@@ -497,19 +498,17 @@ def build_api_runtime(settings: Settings) -> ApiRuntime:
     )
 
     async def select_intent_policy(url: str) -> ProviderAccessPolicy:
-        forced = await session_routes.policy_for(url)
-        if forced is not None:
-            return forced
-        profile = provider_profile(url)
-        return default_access_policy(
-            profile.key,
-            profile.access_modes,
-            guest_configured=profile.key in settings.runner_guest_base_urls,
-        )
+        try:
+            return await session_routes.policy_for(url)
+        except MediaInspectionPolicyNotAllowed as exc:
+            raise ApplicationError(
+                ApplicationErrorCode.PROVIDER_ACCESS_POLICY_NOT_ALLOWED
+            ) from exc
 
     return ApiRuntime(
         services=ApiServices(
             engine_catalog_reader=runner.engine_catalog,
+            site_session_reader=SiteSessionStates(sessions).list,
             intent_service=IntentService(
                 IntentRepository(sessions, quota_policy=quota_policy),
                 MediaUrlValidator(),

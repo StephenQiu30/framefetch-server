@@ -75,12 +75,14 @@ const localizedErrorMessages: Record<string, string> = {
   provider_link_unavailable: '未找到可下载的公开视频，请复制新的公开分享链接。',
   provider_media_unsupported: '该链接不包含受支持的可下载视频，请更换链接。',
   provider_rate_limited: '平台请求过于频繁，请稍后重试。',
-  provider_session_expired: '平台授权或验证状态已失效，请稍后重试。',
-  provider_session_not_ready: '该平台的部署会话暂不可用，请稍后重试。',
+  provider_session_expired:
+    '平台登录状态已失效，请联系部署管理员重新登录并导入。',
+  provider_session_not_ready:
+    '平台会话正在验证或恢复，本次任务会在等待期限内自动继续。',
   provider_configuration_missing:
-    '当前所选访问路线尚未配置，请联系部署管理员完成配置后重试。',
+    '该平台尚无可用登录状态，请联系部署管理员登录并导入后重新解析。',
   provider_access_policy_not_allowed:
-    '此来源不允许所选访问策略，请更换策略后重新解析。',
+    '该来源尚未接入可验证的平台会话，当前无法解析。',
   provider_temporarily_unavailable: '平台服务暂时不可用，请稍后重试。',
   provider_unsupported: '当前暂不支持该视频平台。',
   provider_verification_failed:

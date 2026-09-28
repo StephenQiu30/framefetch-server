@@ -53,6 +53,7 @@ class SessionEntitlement(StrEnum):
 
 class LoginProbe(StrEnum):
     YOUTUBE_LOGGED_IN = "youtube_logged_in"
+    DOUYIN_PROFILE = "douyin_profile"
     COOKIES_RETAINED = "cookies_retained"
 
     @property
@@ -116,6 +117,7 @@ class SiteSessionStatus:
     last_error_code: str | None
     consecutive_failures: int
     state_changed_at: datetime
+    next_check_at: datetime | None = None
 
 
 _KNOWN_POLICIES = {
@@ -142,6 +144,7 @@ _KNOWN_POLICIES = {
             "douyin.com",
             ProviderKey.DOUYIN,
             "https://www.douyin.com/",
+            login_probe=LoginProbe.DOUYIN_PROFILE,
             # ``ttwid`` is issued to every visitor, so it proves nothing.
             required_cookie_names=frozenset({"sessionid", "sessionid_ss", "sid_tt"}),
         ),

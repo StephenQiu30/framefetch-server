@@ -6,11 +6,17 @@ from dataclasses import dataclass
 from typing import Protocol
 from urllib.parse import urlsplit
 
+from app.services.downloads.errors import (
+    MediaInspectionConfigurationMissing,
+    MediaInspectionPolicyNotAllowed,
+    MediaInspectionSessionNotReady,
+)
 from app.services.provider_access import ProviderAccessPolicy
 from app.services.site_sessions import (
     InvalidSessionSite,
     SessionEntitlement,
     SiteSessionPolicy,
+    SiteSessionState,
     SiteSessionStatus,
     known_site_policy,
     registrable_site,
@@ -76,14 +82,24 @@ class SiteSessionRoutes:
     def __init__(self, states: SiteSessionStatusReader) -> None:
         self._states = states
 
-    async def policy_for(self, url: str) -> ProviderAccessPolicy | None:
+    async def policy_for(self, url: str) -> ProviderAccessPolicy:
         try:
             target = site_target_for_url(url)
-        except (InvalidSessionSite, RunnerFailure):
-            return None
-        status = await self._states.get(target.site)
-        if status is None or not status.state.routes_to_session:
-            return None
+        except (InvalidSessionSite, RunnerFailure) as exc:
+            raise MediaInspectionPolicyNotAllowed from exc
+        if target.policy.provider_key is None:
+            raise MediaInspectionPolicyNotAllowed
         if target.policy.entitlement is SessionEntitlement.ACCOUNT_ENTITLED_FULL_VIDEO:
             return ProviderAccessPolicy.PERSONAL_ENTITLED
         return ProviderAccessPolicy.OPERATOR_PUBLIC
+
+    async def ensure_ready(self, url: str) -> None:
+        target = site_target_for_url(url)
+        status = await self._states.get(target.site)
+        if status is None or status.state in {
+            SiteSessionState.REVOKED,
+            SiteSessionState.RESEED_REQUIRED,
+        }:
+            raise MediaInspectionConfigurationMissing
+        if status.state is not SiteSessionState.READY:
+            raise MediaInspectionSessionNotReady(before_media_io=True)

@@ -35,7 +35,6 @@ async def pending_provider_statuses() -> tuple[dict[str, str], ...]:
         SqlAlchemyProviderCanaryRepository(sessions),
         configured_provider_statuses(
             session_provider_keys(settings),
-            enabled_guest_keys=frozenset(settings.runner_guest_base_urls),
         ),
         now=lambda: datetime.now(UTC),
         context_reader=runner,

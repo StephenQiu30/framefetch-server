@@ -10,6 +10,7 @@ from __future__ import annotations
 
 from collections.abc import Set
 from dataclasses import dataclass
+from datetime import datetime
 from typing import Any
 
 from sqlalchemy import case, func, select, text, update
@@ -32,6 +33,7 @@ _STATUS_COLUMNS = (
     Row.last_error_code,
     Row.consecutive_failures,
     Row.state_changed_at,
+    Row.next_check_at,
 )
 
 
@@ -105,6 +107,7 @@ class SiteSessionSecrets:
             seeded_at=now,
             refreshed_at=None,
             verified_at=None,
+            next_check_at=None,
             last_error_code=None,
             consecutive_failures=0,
             state_changed_at=now,
@@ -163,6 +166,8 @@ class SiteSessionSecrets:
         error_code: str | None = None,
         verified: bool = False,
         consecutive_failures: int = 0,
+        next_check_at: datetime | None = None,
+        reset_state_age: bool = False,
     ) -> None:
         """Conditionally move one import; staying in a state keeps its start time.
 
@@ -176,11 +181,12 @@ class SiteSessionSecrets:
         now = func.clock_timestamp()
         values: dict[str, Any] = dict(
             state=to.value,
+            next_check_at=next_check_at,
             last_error_code=error_code,
             consecutive_failures=consecutive_failures,
-            state_changed_at=case(
-                (Row.state == to.value, Row.state_changed_at), else_=now
-            ),
+            state_changed_at=now
+            if reset_state_age
+            else case((Row.state == to.value, Row.state_changed_at), else_=now),
         )
         if verified:
             values["verified_at"] = now
@@ -241,4 +247,5 @@ def _status(row: Any) -> SiteSessionStatus:
         last_error_code=row["last_error_code"],
         consecutive_failures=row["consecutive_failures"],
         state_changed_at=row["state_changed_at"],
+        next_check_at=row["next_check_at"],
     )

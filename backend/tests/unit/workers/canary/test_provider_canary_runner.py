@@ -3,10 +3,9 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
-from app.integrations.media_runner_models import MediaRunnerClientError, RunnerArtifact
+from app.integrations.media_runner_models import RunnerArtifact
 from app.services.downloads.errors import (
     MediaInspectionAuthRequired,
-    MediaInspectionGuestContextRequired,
 )
 from app.services.downloads.inspection_models import RunnerInspection
 from app.services.provider_types import ProviderAccessContextRef, ProviderAccessMode
@@ -65,39 +64,31 @@ class FakeClient:
         self.closed = True
 
 
-@pytest.mark.asyncio
-async def test_anonymous_failure_and_operator_success_remain_separate() -> None:
-    anonymous = FakeClient(ProviderAccessMode.ANONYMOUS)
-    anonymous.error = MediaInspectionAuthRequired()
-    operator = FakeClient(ProviderAccessMode.OPERATOR_MANAGED)
-    runner = ProviderCanaryRunner(anonymous, operator)  # type: ignore[arg-type]
-
-    with pytest.raises(MediaInspectionAuthRequired) as captured:
-        await runner.inspect(URL, access_mode=ProviderAccessMode.ANONYMOUS)
-    operator_result = await runner.inspect(
-        URL,
-        access_mode=ProviderAccessMode.OPERATOR_MANAGED,
-    )
-
-    assert captured.value.access_mode is ProviderAccessMode.ANONYMOUS
-    assert anonymous.inspected == [URL]
-    assert operator.inspected == [URL]
-    assert (
-        operator_result.access_context.access_mode
-        is ProviderAccessMode.OPERATOR_MANAGED
-    )
+@pytest.mark.parametrize(
+    "mode", [ProviderAccessMode.ANONYMOUS, ProviderAccessMode.GUEST]
+)
+async def test_retired_modes_never_reach_canary_client(mode):
+    client = FakeClient(ProviderAccessMode.OPERATOR_MANAGED)
+    runner = ProviderCanaryRunner(client)
+    for operation in (runner.context, runner.inspect):
+        with pytest.raises(MediaInspectionAuthRequired):
+            await operation(URL, access_mode=mode)
+    assert not client.inspected
 
 
-@pytest.mark.asyncio
-async def test_missing_operator_is_attributed_to_operator_route() -> None:
-    anonymous = FakeClient(ProviderAccessMode.ANONYMOUS)
-    runner = ProviderCanaryRunner(anonymous)  # type: ignore[arg-type]
-
+async def test_canary_session_error_and_success_are_authoritative():
+    client = FakeClient(ProviderAccessMode.OPERATOR_MANAGED)
+    runner = ProviderCanaryRunner(client)
+    client.error = MediaInspectionAuthRequired()
     with pytest.raises(MediaInspectionAuthRequired) as captured:
         await runner.inspect(URL, access_mode=ProviderAccessMode.OPERATOR_MANAGED)
-
     assert captured.value.access_mode is ProviderAccessMode.OPERATOR_MANAGED
-    assert anonymous.inspected == []
+    client.error = None
+    assert (
+        await runner.inspect(URL, access_mode=ProviderAccessMode.OPERATOR_MANAGED)
+    ).access_context == client.access_context
+    await runner.close()
+    assert client.closed
 
 
 def context(
@@ -115,58 +106,3 @@ def context(
         engine_commit="5d6b8c8",
         runtime_revision="a" * 64,
     )
-
-
-@pytest.mark.asyncio
-async def test_guest_context_inspection_and_media_never_use_account_or_anonymous() -> (
-    None
-):
-    anonymous = FakeClient(ProviderAccessMode.ANONYMOUS)
-    operator = FakeClient(ProviderAccessMode.OPERATOR_MANAGED, "douyin")
-    guest = FakeClient(ProviderAccessMode.GUEST, "douyin")
-    runner = ProviderCanaryRunner(anonymous, operator, guests={"douyin": guest})  # type: ignore[arg-type]
-    url = "https://www.douyin.com/video/7674644830270473609"
-    assert (
-        await runner.context(url, access_mode=ProviderAccessMode.GUEST)
-        == guest.access_context
-    )
-    result = await runner.inspect(url, access_mode=ProviderAccessMode.GUEST)
-    assert result.access_context == guest.access_context
-    await runner.download(
-        "guest_probe",
-        url,
-        None,
-        expected_provider_media_id="owned",
-        expected_extractor_key="Douyin",
-        access_context=result.access_context,
-    )
-    assert guest.inspected == [url]
-    assert guest.downloaded == ["guest_probe"]
-    assert not operator.inspected and not operator.downloaded
-    assert not anonymous.inspected and not anonymous.downloaded
-    await runner.close()
-    assert guest.closed and operator.closed and anonymous.closed
-
-
-@pytest.mark.asyncio
-async def test_missing_guest_does_not_fall_back_to_a_configured_account() -> None:
-    anonymous = FakeClient(ProviderAccessMode.ANONYMOUS)
-    operator = FakeClient(ProviderAccessMode.OPERATOR_MANAGED, "douyin")
-    runner = ProviderCanaryRunner(anonymous, operator)  # type: ignore[arg-type]
-    url = "https://www.douyin.com/video/7674644830270473609"
-    for operation in (runner.context, runner.inspect):
-        with pytest.raises(MediaInspectionGuestContextRequired) as captured:
-            await operation(url, access_mode=ProviderAccessMode.GUEST)
-        assert captured.value.access_mode is ProviderAccessMode.GUEST
-    with pytest.raises(MediaRunnerClientError) as captured_download:
-        await runner.download(
-            "guest_probe",
-            url,
-            None,
-            expected_provider_media_id="owned",
-            expected_extractor_key="Douyin",
-            access_context=context(ProviderAccessMode.GUEST, "douyin"),
-        )
-    assert captured_download.value.code == "guest_context_required"
-    assert not operator.inspected and not operator.downloaded
-    assert not anonymous.inspected and not anonymous.downloaded

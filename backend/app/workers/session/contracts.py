@@ -13,6 +13,7 @@ from pydantic import BaseModel, ConfigDict, Field, StringConstraints
 
 STATUS_PATH: Final = "/internal/v1/site-sessions/status"
 LEASE_PATH: Final = "/internal/v1/site-sessions/lease"
+ROTATION_PATH: Final = "/internal/v1/site-sessions/rotation"
 FAILURE_PATH: Final = "/internal/v1/site-sessions/failures"
 BROWSER_IDENTITY_PATH: Final = "/v1/identity"
 BROWSER_BOOTSTRAP_PATH: Final = "/v1/sites/bootstrap"
@@ -57,7 +58,15 @@ class LeaseResponse(_Strict):
     jar_version: int = Field(ge=0)
     expires_at: int
     jar: Encoded
+    rotation_key: Encoded
     headers: Encoded | None = None
+
+
+class RotationReport(_Strict):
+    task_id: TaskId
+    site: Site
+    seed_revision: int = Field(ge=1)
+    jar: Encoded
 
 
 class FailureReport(_Strict):
@@ -80,6 +89,7 @@ class BrowserOutcome(StrEnum):
     VERIFIED = "verified"
     LOGGED_OUT = "logged_out"
     AUTH_FAILURE = "auth_failure"
+    TEMPORARY_FAILURE = "temporary_failure"
     PROFILE_MISSING = "profile_missing"
     UNAVAILABLE = "unavailable"
 

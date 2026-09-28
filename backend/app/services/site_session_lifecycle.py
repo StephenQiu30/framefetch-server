@@ -26,7 +26,6 @@ _AUTH_FAILURE_CODES = frozenset(
     {
         "credential_expired",
         "credential_rejected",
-        "egress_challenged",
     }
 )
 
@@ -35,6 +34,7 @@ class SessionEvent(StrEnum):
     VERIFIED = "verified"
     LOGGED_OUT = "logged_out"
     AUTH_FAILURE = "auth_failure"
+    TEMPORARY_FAILURE = "temporary_failure"
 
 
 @dataclass(frozen=True, slots=True)
@@ -56,6 +56,12 @@ def execution_event(error_code: str) -> SessionEvent | None:
         return SessionEvent.LOGGED_OUT
     if error_code in _AUTH_FAILURE_CODES:
         return SessionEvent.AUTH_FAILURE
+    if error_code in {
+        "egress_challenged",
+        "provider_rate_limited",
+        "browser_unavailable",
+    }:
+        return SessionEvent.TEMPORARY_FAILURE
     return None
 
 
@@ -79,6 +85,13 @@ def decide(
             status.consecutive_failures,
             error_code or "session_logged_out",
         )
+    if event is SessionEvent.TEMPORARY_FAILURE:
+        return SessionTransition(
+            current,
+            SiteSessionState.DEGRADED,
+            status.consecutive_failures,
+            error_code or "browser_unavailable",
+        )
     failures = status.consecutive_failures + 1
     code = error_code or "session_auth_failure"
     if failures >= MAX_CONSECUTIVE_FAILURES:
@@ -95,6 +108,7 @@ def expire(status: SiteSessionStatus, *, now: datetime) -> SessionTransition | N
     """Stop retrying a session that has been degraded for too long."""
     if (
         status.state is SiteSessionState.DEGRADED
+        and status.last_error_code in _AUTH_FAILURE_CODES
         and now - status.state_changed_at >= DEGRADED_DEADLINE
     ):
         return SessionTransition(

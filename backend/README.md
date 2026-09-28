@@ -58,7 +58,7 @@ Media Runner 通过 `app/workers/runner/plugins/yt_dlp_plugins/` 加载随项目
 
 ## 资源准入
 
-公开访客访问由 `provider-guest` 自动维护，当前启用抖音第一方访客初始化；`douyin-guest-runner` 只读短期材料，与匿名／账号 Runner 分离。标准 Compose 为持久解析意图配置此路线，无需导入账号 Cookie；保留稳定 `URL_ENCRYPTION_KEY` 和 PostgreSQL 数据即可恢复，丢失访客副本也可自动重建。部署前须应用当前 `sql/schema.sql`。运行预算与验收边界见 [044 设计](../docs/design/044-开源部署无感解析需求与系统设计.md) 和 [044 Plan](../docs/plan/044-开源部署无感解析Plan.md)；其他平台及 Web／App 的整体切换仍按 Plan 验收，不能以访客进程健康代替媒体成功。
+在线解析统一使用容器自持站点会话，未配置或撤销时明确拒绝，不回退匿名／访客路线。导入、自动维护、重启恢复和人工重新登录边界见 [站点会话运行手册](../docs/operations/011-站点会话运行手册.md)。
 
 持久解析入口为 `POST /api/download-intents`，接单提交后返回 202；查询和取消使用同一资源 ID。API 不等待上游解析。下载 Worker 的独立解析消费槽通过 `download.intent.requested` 事件执行，失联租约和重试由同一恢复循环收敛；解析总预算 180 秒、最多三次执行。用户取消后 Worker 停止 HTTP 操作，Runner 断连处理终止实际子进程。新入口和双客户端切换状态见 [044 Plan](../docs/plan/044-开源部署无感解析Plan.md#p9-02)。解析按每日任务计量、零下载字节，同幂等键重放不重复计量。Worker 与 API 使用相同 `REQUEST_FINGERPRINT_SECRET`，生产环境禁止开发默认值。
 
@@ -105,7 +105,7 @@ docker compose --env-file .env -f docker-compose.yml \
   --profile reddit-operator --profile wechat-channels-operator up -d --build
 ```
 
-API readiness 与媒体 Runner 健康隔离。所有已导入的站点会话共用一个 `session-runner`，未导入会话的平台继续走匿名或访客 Runner。API、
+API readiness 与媒体 Runner 健康隔离。在线解析只使用 `session-runner`，未导入会话的平台明确拒绝执行。API、
 下载 Worker 与 Canary 不等待平台健康；Worker/Canary 仅等待共享工作目录初始化。
 站点会话的可用性由 broker 状态、探针和真实任务证明，容器健康不代表平台接受会话。
 开发环境只需启用 `.env` 实际声明的平台 Profile。腾讯与优酷的实验个人线路仅在生产 Compose 提供，接入范围和未完成验证见 [032 设计](../docs/design/032-腾讯视频与优酷个人下载设计.md)。

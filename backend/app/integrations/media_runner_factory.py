@@ -1,4 +1,4 @@
-"""Validated construction of anonymous, guest and site session runner clients."""
+"""Validated construction of deployment session Runner clients."""
 
 from __future__ import annotations
 
@@ -10,14 +10,6 @@ from app.integrations.media_runner import MediaRunnerHttpClient, MediaRunnerRout
 from app.services.provider_route_admission import ProviderRouteAdmission
 from app.services.provider_types import ProviderAccessContextRef, ProviderAccessMode
 from app.services.site_sessions import known_session_provider_keys
-
-
-def anonymous_media_runner(
-    settings: Settings, admission: ProviderRouteAdmission | None = None
-) -> MediaRunnerHttpClient:
-    return _media_runner(
-        settings, settings.runner_base_url, admission, ProviderAccessMode.ANONYMOUS
-    )
 
 
 def session_media_runner(
@@ -33,32 +25,16 @@ def session_media_runner(
     )
 
 
-def guest_media_runners(
-    settings: Settings,
-    admission: ProviderRouteAdmission | None = None,
-    reject_guest: Callable[[ProviderAccessContextRef], Awaitable[None]] | None = None,
-) -> dict[str, MediaRunnerHttpClient]:
-    return {
-        provider.value: _media_runner(
-            settings, url, admission, ProviderAccessMode.GUEST, reject_guest
-        )
-        for provider, url in settings.runner_guest_base_urls.items()
-    }
-
-
 def media_runner_router(
     settings: Settings,
     admission: ProviderRouteAdmission | None = None,
-    reject_guest: Callable[[ProviderAccessContextRef], Awaitable[None]] | None = None,
     *,
-    session_routes: SessionPolicyReader | None = None,
+    session_routes: SessionPolicyReader,
 ) -> MediaRunnerRouter:
-    return MediaRunnerRouter(
-        anonymous_media_runner(settings, admission),
-        session_media_runner(settings, admission),
-        guests=guest_media_runners(settings, admission, reject_guest),
-        session_routes=session_routes,
-    )
+    session = session_media_runner(settings, admission)
+    if session is None:
+        raise ValueError("SESSION_RUNNER_BASE_URL is required")
+    return MediaRunnerRouter(session, session_routes=session_routes)
 
 
 def session_provider_keys(settings: Settings) -> frozenset[str]:

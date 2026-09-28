@@ -41,6 +41,7 @@ class SiteSessionRow(Base):
     seeded_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     refreshed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     verified_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    next_check_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     last_error_code: Mapped[str | None] = mapped_column(String(64))
     consecutive_failures: Mapped[int] = mapped_column(
         Integer, nullable=False, default=0

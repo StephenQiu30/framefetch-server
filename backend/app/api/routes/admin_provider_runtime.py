@@ -28,7 +28,7 @@ router = APIRouter(
     "/engine-catalog",
     operation_id="getAdminEngineCatalog",
     response_model=EngineCatalogResponse,
-    summary="读取匿名 Runner 实际安装的引擎候选清单",
+    summary="读取会话 Runner 实际安装的引擎候选清单",
 )
 async def get_admin_engine_catalog(
     _admin: Annotated[CurrentUser, Depends(get_current_admin)],
@@ -59,8 +59,18 @@ async def get_admin_engine_catalog(
 async def get_admin_provider_runtime(
     _admin: Annotated[CurrentUser, Depends(get_current_admin)],
     statuses: Annotated[tuple[ProviderStatusView, ...], Depends(get_provider_statuses)],
+    request: Request,
+    response: Response,
 ) -> ProviderRuntimeListResponse:
     """仅元数据快照，不登录、不导出会话、不解析或下载媒体。"""
+    response.headers["Cache-Control"] = "no-store"
+    reader = get_services(request).site_session_reader
+    sessions = (
+        {} if reader is None else {item.provider_key: item for item in await reader()}
+    )
     return ProviderRuntimeListResponse(
-        items=tuple(ProviderRuntimeResponse.from_view(item) for item in statuses)
+        items=tuple(
+            ProviderRuntimeResponse.from_view(item, sessions.get(item.key))
+            for item in statuses
+        )
     )

@@ -10,19 +10,19 @@ from pydantic import SecretStr
 def test_parses_authorized_https_targets_without_exposing_urls() -> None:
     targets = parse_canary_targets(
         SecretStr(
-            '[{"target_id":"vimeo-owned-1","provider_key":"vimeo",'
-            '"stage":"metadata","access_mode":"anonymous",'
-            '"url":"https://vimeo.com/76979871"},'
-            '{"target_id":"vimeo-owned-1","provider_key":"vimeo",'
-            '"stage":"media","access_mode":"anonymous",'
-            '"url":"https://vimeo.com/76979871"}]'
+            '[{"target_id":"youtube-owned-1","provider_key":"youtube",'
+            '"stage":"metadata","access_mode":"operator_managed",'
+            '"url":"https://youtube.com/watch?v=owned"},'
+            '{"target_id":"youtube-owned-1","provider_key":"youtube",'
+            '"stage":"media","access_mode":"operator_managed",'
+            '"url":"https://youtube.com/watch?v=owned"}]'
         )
     )
 
     assert len(targets) == 2
     assert targets[1].stage is ProviderCanaryStage.MEDIA
-    assert targets[1].access_mode is ProviderAccessMode.ANONYMOUS
-    assert "vimeo.com" not in repr(targets[0])
+    assert targets[1].access_mode is ProviderAccessMode.OPERATOR_MANAGED
+    assert "youtube.com" not in repr(targets[0])
 
 
 def test_rejects_insecure_mismatched_and_duplicate_targets() -> None:
@@ -93,18 +93,18 @@ def test_operator_canary_target_requires_a_matching_runner_endpoint() -> None:
     validate_canary_target_routes(targets, frozenset({"youtube"}))
 
 
-def test_guest_canary_requires_its_own_endpoint_even_with_an_account_route() -> None:
-    targets = parse_canary_targets(
-        SecretStr(
-            '[{"target_id":"douyin-public","provider_key":"douyin",'
-            '"stage":"metadata","access_mode":"guest",'
-            '"url":"https://www.douyin.com/video/7674644830270473609"}]'
-        )
-    )
-    with pytest.raises(
-        ValueError, match="guest targets require matching runner endpoints: douyin"
-    ):
-        validate_canary_target_routes(targets, frozenset({"douyin"}))
-    validate_canary_target_routes(
-        targets, frozenset(), guest_provider_keys=frozenset({"douyin"})
-    )
+@pytest.mark.parametrize("mode", ["anonymous", "guest"])
+def test_retired_canary_modes_are_rejected(mode):
+    import json
+
+    payload = [
+        {
+            "target_id": "public",
+            "provider_key": "douyin",
+            "stage": "metadata",
+            "access_mode": mode,
+            "url": "https://www.douyin.com/video/7674644830270473609",
+        }
+    ]
+    with pytest.raises(ValueError, match="targets are invalid"):
+        parse_canary_targets(SecretStr(json.dumps(payload)))

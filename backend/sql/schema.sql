@@ -1550,6 +1550,7 @@ CREATE TABLE IF NOT EXISTS site_sessions (
     seeded_at TIMESTAMPTZ NOT NULL,
     refreshed_at TIMESTAMPTZ,
     verified_at TIMESTAMPTZ,
+    next_check_at timestamptz,
     last_error_code VARCHAR(64),
     consecutive_failures INTEGER NOT NULL DEFAULT 0,
     state_changed_at TIMESTAMPTZ NOT NULL,
@@ -1560,6 +1561,7 @@ CREATE TABLE IF NOT EXISTS site_sessions (
     CONSTRAINT ck_site_sessions_jar_version CHECK (jar_version >= 0),
     CONSTRAINT ck_site_sessions_revoked CHECK ((state = 'revoked') = (ciphertext IS NULL))
 );
+ALTER TABLE site_sessions ADD COLUMN IF NOT EXISTS next_check_at timestamptz;
 ALTER TABLE site_sessions
     ADD COLUMN IF NOT EXISTS consecutive_failures INTEGER NOT NULL DEFAULT 0;
 

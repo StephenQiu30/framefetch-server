@@ -446,3 +446,34 @@ async def test_sql_bootstrap_and_repeat_preserve_intent_and_outbox() -> None:
             )
         assert columns == set(DownloadIntentRow.__table__.columns.keys())
         assert "url" not in columns
+
+
+@pytest.mark.parametrize(
+    "policy",
+    [ProviderAccessPolicy.OPERATOR_PUBLIC, ProviderAccessPolicy.PERSONAL_ENTITLED],
+)
+async def test_cold_session_wait_keeps_one_intent_and_does_not_spend_parse_attempts(
+    postgres_engine, policy
+):
+    repo = repository(postgres_engine)
+    accepted = await repo.accept(replace(command(), access_policy=policy), now=NOW)
+    for index in range(5):
+        now = NOW + timedelta(seconds=index * 15)
+        lease = await repo.claim(accepted.id, "worker", now=now, lease_for=LEASE)
+        assert lease is not None and lease.intent.attempt == 1
+        waiting = await repo.fail(
+            lease.intent,
+            now=now,
+            reason_code="provider_session_not_ready",
+            retry_at=now + timedelta(seconds=15),
+            preparation_wait=True,
+        )
+        assert waiting.attempt == 0 and waiting.status == "retry_wait"
+        assert waiting.deadline == accepted.deadline and waiting.id == accepted.id
+        assert await repo.recover(now=now + timedelta(seconds=15)) == 1
+    now = NOW + timedelta(seconds=75)
+    lease = await repo.claim(accepted.id, "worker", now=now, lease_for=LEASE)
+    assert lease is not None
+    ready = await repo.complete(lease.intent, inspection(lease.intent), now=now)
+    assert ready.status == "ready" and ready.attempt == 1
+    assert await count(postgres_engine, DownloadIntentRow) == 1

@@ -71,7 +71,10 @@ def test_terminal_states_only_change_by_operator_action(state):
 
 
 def test_degraded_sessions_expire_after_a_day_from_entering_the_state():
-    fresh = status(S.DEGRADED, 1, since=NOW - timedelta(hours=23))
+    fresh = replace(
+        status(S.DEGRADED, 1, since=NOW - timedelta(hours=23)),
+        last_error_code="credential_expired",
+    )
     stale = replace(fresh, state_changed_at=NOW - timedelta(hours=24))
     assert expire(fresh, now=NOW) is None
     transition = expire(stale, now=NOW)
@@ -81,7 +84,18 @@ def test_degraded_sessions_expire_after_a_day_from_entering_the_state():
 
 def test_only_identity_failures_count_against_a_session():
     assert execution_event("credential_revoked") is SessionEvent.LOGGED_OUT
-    for code in ("credential_expired", "credential_rejected", "egress_challenged"):
+    for code in ("credential_expired", "credential_rejected"):
         assert execution_event(code) is SessionEvent.AUTH_FAILURE
-    for code in ("pot_rejected", "provider_rate_limited", "extractor_regression"):
+    for code in ("pot_rejected", "extractor_regression"):
         assert execution_event(code) is None
+
+
+def test_egress_and_rate_limit_never_consume_auth_failure_budget():
+    for code in ("egress_challenged", "provider_rate_limited", "browser_unavailable"):
+        assert execution_event(code) is SessionEvent.TEMPORARY_FAILURE
+        current = replace(
+            status(S.DEGRADED, 0, since=NOW - timedelta(days=2)), last_error_code=code
+        )
+        assert expire(current, now=NOW) is None
+        transition = decide(current, SessionEvent.TEMPORARY_FAILURE, error_code=code)
+        assert transition.to is S.DEGRADED and transition.consecutive_failures == 0

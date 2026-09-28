@@ -32,10 +32,14 @@ class Contexts:
 async def test_persisted_cooldown_overrides_old_success_without_claiming_a_probe():
     from dataclasses import replace
 
-    access = replace(context(ProviderAccessMode.ANONYMOUS), provider_key="youtube")
+    access = replace(
+        context(ProviderAccessMode.OPERATOR_MANAGED), provider_key="youtube"
+    )
     deadline = datetime.now(UTC) + timedelta(minutes=5)
     baseline = next(
-        view for view in configured_provider_statuses() if view.key == "youtube"
+        view
+        for view in configured_provider_statuses(frozenset({"youtube"}))
+        if view.key == "youtube"
     )
     access = replace(access, profile_version=baseline.profile_version)
     baseline = replace(

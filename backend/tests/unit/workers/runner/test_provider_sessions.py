@@ -13,6 +13,7 @@ from app.workers.runner.errors import RunnerFailure
 from app.workers.runner.provider_registry import provider_profile
 from app.workers.runner.provider_sessions import ProviderSessionStore
 from app.workers.runner.settings import RunnerSettings
+from app.workers.runner.site_sessions import OperationSession
 from pydantic import ValidationError
 
 SECRET = "runner-shared-secret-material-at-least-32-bytes"
@@ -29,15 +30,21 @@ class FakeSiteSessions:
         self.leases: list[tuple[str, int]] = []
         self.reports: list[tuple[str, int, str]] = []
         self.closed = False
+        self.rotations = []
 
     async def ready_revision(self, site: str) -> int:
         if site not in self.revisions:
             raise RunnerFailure("provider_session_not_ready", status=503)
         return self.revisions[site]
 
-    async def lease(self, site: str, seed_revision: int) -> bytes:
+    async def lease(self, site: str, seed_revision: int) -> OperationSession:
         self.leases.append((site, seed_revision))
-        return COOKIE
+        return OperationSession(
+            "operation", site, seed_revision, 2147483647, "unused", COOKIE
+        )
+
+    async def rotate(self, operation, payload):
+        self.rotations.append((operation, payload))
 
     async def report(self, site: str, seed_revision: int, error_code: str) -> None:
         self.reports.append((site, seed_revision, error_code))
@@ -223,7 +230,7 @@ async def test_operation_holds_the_site_lease_and_uses_a_private_tmpfs_file(
             assert stat.S_IMODE(jar.parent.stat().st_mode) == 0o700
 
     assert sessions.leases == [("youtube.com", 3)]
-    assert lease.held == [("youtube.com", "3")]
+    assert lease.held == [("youtube.com", "session")]
     assert not operation_path.exists()
     assert list(settings.runner_provider_session_temp_root.iterdir()) == []
 

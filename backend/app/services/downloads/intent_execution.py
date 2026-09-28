@@ -22,6 +22,7 @@ _RETRYABLE = {
     ApplicationErrorCode.PROVIDER_TEMPORARILY_UNAVAILABLE,
     ApplicationErrorCode.PROVIDER_RATE_LIMITED,
     ApplicationErrorCode.PROVIDER_GUEST_CONTEXT_REQUIRED,
+    ApplicationErrorCode.PROVIDER_SESSION_NOT_READY,
 }
 
 
@@ -120,7 +121,11 @@ class IntentExecution:
             if code in _RETRYABLE:
                 delay = (
                     15
-                    if code is ApplicationErrorCode.PROVIDER_GUEST_CONTEXT_REQUIRED
+                    if code
+                    in {
+                        ApplicationErrorCode.PROVIDER_GUEST_CONTEXT_REQUIRED,
+                        ApplicationErrorCode.PROVIDER_SESSION_NOT_READY,
+                    }
                     else min(30, 2**lease.attempt)
                 )
                 retry_at = now + timedelta(seconds=delay)
@@ -135,6 +140,10 @@ class IntentExecution:
                     preparation_wait=(
                         isinstance(exc, ApplicationError)
                         and exc.preparation_wait
-                        and code is ApplicationErrorCode.PROVIDER_GUEST_CONTEXT_REQUIRED
+                        and code
+                        in {
+                            ApplicationErrorCode.PROVIDER_GUEST_CONTEXT_REQUIRED,
+                            ApplicationErrorCode.PROVIDER_SESSION_NOT_READY,
+                        }
                     ),
                 )

@@ -200,7 +200,7 @@ export async function getAdminProviderRuntime(options?: RequestOptions) {
   );
 }
 
-/** 读取匿名 Runner 实际安装的引擎候选清单 GET /api/admin/provider-runtime/engine-catalog */
+/** 读取会话 Runner 实际安装的引擎候选清单 GET /api/admin/provider-runtime/engine-catalog */
 export async function getAdminEngineCatalog(options?: RequestOptions) {
   return request<API.ApiResponseEngineCatalogResponse_>(
     "/api/admin/provider-runtime/engine-catalog",

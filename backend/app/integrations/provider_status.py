@@ -6,7 +6,6 @@ from collections.abc import Set
 
 from app.services.provider_access import (
     ProviderAccessPolicy,
-    default_access_policy,
     provider_access_policies,
 )
 from app.services.provider_types import (
@@ -27,11 +26,9 @@ from app.workers.runner.provider_registry import (
 
 def configured_provider_statuses(
     enabled_operator_keys: Set[str] = frozenset(),
-    *,
-    enabled_guest_keys: Set[str] = frozenset(),
 ) -> tuple[ProviderStatusView, ...]:
     configured = tuple(
-        _configured_status(profile, enabled_operator_keys, enabled_guest_keys)
+        _configured_status(profile, enabled_operator_keys)
         for profile in current_provider_registry().profiles
     )
     non_runner = (
@@ -61,13 +58,12 @@ current_provider_statuses = configured_provider_statuses
 def _configured_status(
     profile: ProviderProfile,
     enabled_operator_keys: Set[str],
-    enabled_guest_keys: Set[str],
 ) -> ProviderStatusView:
     access_modes = (
         ()
         if profile.support_status is ProviderSupportStatus.DISABLED
         else _effective_access_modes(
-            profile.key, profile.access_modes, enabled_operator_keys, enabled_guest_keys
+            profile.key, profile.access_modes, enabled_operator_keys
         )
     )
     status = (
@@ -82,14 +78,17 @@ def _configured_status(
             ProviderAccessPolicyView(
                 id=policy, configured=policy.access_mode in access_modes
             )
-            for policy in provider_access_policies(profile.key, profile.access_modes)
+            for policy in provider_access_policies(
+                profile.key, (ProviderAccessMode.OPERATOR_MANAGED,)
+            )
+            if policy.access_mode is ProviderAccessMode.OPERATOR_MANAGED
         )
     )
     default_policy = (
-        default_access_policy(
-            profile.key,
-            profile.access_modes,
-            guest_configured=ProviderAccessMode.GUEST in access_modes,
+        (
+            ProviderAccessPolicy.PERSONAL_ENTITLED
+            if profile.key in {"qqvideo", "youku"}
+            else ProviderAccessPolicy.OPERATOR_PUBLIC
         )
         if policies
         else None
@@ -120,7 +119,7 @@ def _configured_status(
         last_media_verified_at=None,
         last_verified_at=None,
         user_action=(
-            "默认受控线路尚未配置；请部署者配置持久会话，或显式选择公开线路重新解析。"
+            "平台会话尚未配置；请部署者导入登录状态。"
             + (provider_user_action(status, profile.key) or "")
             if missing_default
             else provider_user_action(status, profile.key)
@@ -136,15 +135,9 @@ def _effective_access_modes(
     provider_key: str,
     declared: tuple[ProviderAccessMode, ...],
     enabled_operator_keys: Set[str],
-    enabled_guest_keys: Set[str],
 ) -> tuple[ProviderAccessMode, ...]:
-    return tuple(
-        mode
-        for mode in declared
-        if mode is ProviderAccessMode.ANONYMOUS
-        or (
-            mode is ProviderAccessMode.OPERATOR_MANAGED
-            and provider_key in enabled_operator_keys
-        )
-        or (mode is ProviderAccessMode.GUEST and provider_key in enabled_guest_keys)
+    return (
+        (ProviderAccessMode.OPERATOR_MANAGED,)
+        if provider_key in enabled_operator_keys
+        else ()
     )

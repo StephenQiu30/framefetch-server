@@ -242,8 +242,13 @@ class MediaRunnerHttpClient:
                 ) from exc
             if exc.code == "provider_session_not_allowed":
                 raise MediaInspectionPolicyNotAllowed from exc
-            if exc.code == "provider_session_not_ready":
-                raise MediaInspectionSessionNotReady from exc
+            if exc.code in {
+                "provider_session_not_ready",
+                "provider_session_unavailable",
+            }:
+                raise MediaInspectionSessionNotReady(
+                    before_media_io=not context_ready
+                ) from exc
             if exc.code in {
                 "credential_expired",
                 "credential_rejected",
@@ -517,24 +522,14 @@ class MediaRunnerHttpClient:
 
 
 class MediaRunnerRouter:
-    """Route anonymous, guest and site session contexts to separate runners."""
+    """Route online media exclusively through the deployment session Runner."""
 
     def __init__(
-        self,
-        anonymous: MediaRunnerClient,
-        session: MediaRunnerClient | None = None,
-        *,
-        guests: Mapping[str, MediaRunnerClient] | None = None,
-        session_routes: SessionPolicyReader | None = None,
+        self, session: MediaRunnerClient, *, session_routes: SessionPolicyReader
     ) -> None:
-        self._anonymous = anonymous
-        self._guests = dict(guests or {})
         self._session = session
         self._inspection_pipeline = MediaInspectionPipeline(
-            anonymous,
-            session,
-            guests=self._guests,
-            session_routes=session_routes,
+            session, session_routes=session_routes
         )
         self._active: dict[str, MediaRunnerClient] = {}
 
@@ -544,7 +539,7 @@ class MediaRunnerRouter:
         return await self._inspection_pipeline.resolve_access_policy(url, requested)
 
     async def engine_catalog(self) -> EngineCatalogResponse:
-        return await self._anonymous.engine_catalog()
+        return await self._session.engine_catalog()
 
     async def inspect(
         self, url: str, *, access_policy: ProviderAccessPolicy | None = None
@@ -572,33 +567,11 @@ class MediaRunnerRouter:
         self,
         requested: Mapping[str, ProviderAccessMode],
     ) -> Mapping[str, ProviderAccessContextRef]:
-        anonymous_keys = tuple(
-            key
+        groups = [
+            (self._session, (key,))
             for key, mode in requested.items()
-            if mode is ProviderAccessMode.ANONYMOUS
-        )
-        groups: list[tuple[MediaRunnerClient, tuple[str, ...]]] = []
-        if anonymous_keys:
-            shared_keys = tuple(key for key in anonymous_keys if key != "youtube")
-            if shared_keys:
-                groups.append((self._anonymous, shared_keys))
-            if "youtube" in anonymous_keys:
-                # The POT sidecar can fail independently of every other
-                # anonymous Provider. Keep its status lookup isolated.
-                groups.append((self._anonymous, ("youtube",)))
-        groups.extend(
-            (client, (key,))
-            for key, mode in requested.items()
-            if mode is ProviderAccessMode.GUEST
-            and (client := self._guests.get(key)) is not None
-        )
-        if self._session is not None:
-            # One key per call: a site that is not ready must not hide the rest.
-            groups.extend(
-                (self._session, (key,))
-                for key, mode in requested.items()
-                if mode is ProviderAccessMode.OPERATOR_MANAGED
-            )
+            if mode is ProviderAccessMode.OPERATOR_MANAGED
+        ]
 
         async def resolve(
             client: MediaRunnerClient,
@@ -649,17 +622,13 @@ class MediaRunnerRouter:
             self._active.pop(task_id, None)
 
     async def status(self, task_id: str) -> RunnerProgress:
-        return await self._active.get(task_id, self._anonymous).status(task_id)
+        return await self._active.get(task_id, self._session).status(task_id)
 
     async def cancel(self, task_id: str) -> None:
-        await self._active.get(task_id, self._anonymous).cancel(task_id)
+        await self._active.get(task_id, self._session).cancel(task_id)
 
     async def close(self) -> None:
-        await self._anonymous.close()
-        for guest in self._guests.values():
-            await guest.close()
-        if self._session is not None:
-            await self._session.close()
+        await self._session.close()
 
     def _client_for(self, context: ProviderAccessContextRef) -> MediaRunnerClient:
         client = self._client_for_mode(context.provider_key, context.access_mode)
@@ -676,11 +645,11 @@ class MediaRunnerRouter:
     def _client_for_mode(
         self, provider_key: str, access_mode: ProviderAccessMode
     ) -> MediaRunnerClient | None:
-        if access_mode is ProviderAccessMode.ANONYMOUS:
-            return self._anonymous
-        if access_mode is ProviderAccessMode.GUEST:
-            return self._guests.get(provider_key)
-        return self._session
+        return (
+            self._session
+            if access_mode is ProviderAccessMode.OPERATOR_MANAGED
+            else None
+        )
 
 
 def _error_code(response: httpx.Response) -> str:
