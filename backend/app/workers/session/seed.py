@@ -95,7 +95,7 @@ def select_seed(
             ExitCode.ACTION_REQUIRED, "本机没有找到 Chrome 数据目录。"
         ) from None
     except OSError as exc:
-        raise _permission_error() from exc
+        raise _folder_denied() from exc
     if profile is not None:
         available = tuple(item for item in available if item.directory == profile)
         if not available:
@@ -129,7 +129,7 @@ def select_seed(
             "请用 --profile 指定要导入的账号。",
         )
     if denied:
-        raise _permission_error()
+        raise _keychain_denied()
     if not candidates:
         scope = f"Profile「{profile}」" if profile else "任何 Chrome Profile"
         raise SeedError(
@@ -284,11 +284,21 @@ def _live_cookies(jar: CookieJar, target: SiteTarget, now: float) -> tuple[Cooki
     return cookies if persistent and target.policy.accepts(names) else ()
 
 
-def _permission_error() -> SeedError:
+def _folder_denied() -> SeedError:
+    # macOS privacy protection: only Chrome and apps granted Full Disk Access
+    # may open Chrome's data folder.
     return SeedError(
         ExitCode.PERMISSION_DENIED,
-        "macOS 拒绝读取 Chrome 的 Cookie。请在本机 Terminal 中运行本命令，"
-        "并在“Chrome Safe Storage”钥匙串弹窗中选择“始终允许”。",
+        "macOS 拒绝访问 Chrome 数据目录。请在“系统设置 → 隐私与安全性 → "
+        "完全磁盘访问权限”中允许运行本命令的应用（终端或 Claude），然后重试。",
+    )
+
+
+def _keychain_denied() -> SeedError:
+    return SeedError(
+        ExitCode.PERMISSION_DENIED,
+        "macOS 拒绝读取“Chrome Safe Storage”钥匙串。请在钥匙串弹窗中选择"
+        "“始终允许”，然后重试。",
     )
 
 
