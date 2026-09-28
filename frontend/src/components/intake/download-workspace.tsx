@@ -33,7 +33,6 @@ import { useMediaImport } from '@/components/intake/use-media-import';
 import { FeedbackNotice } from '@/components/layout/feedback-notice';
 import { markNavigationPush } from '@/components/layout/navigation-history';
 import { ScreenplayUploadForm } from '@/components/screenplay/screenplay-upload-form';
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { localizedErrorMessage } from '@/lib/error-messages';
 import { privateQueryKey } from '@/lib/query-keys';
@@ -400,52 +399,53 @@ export default function DownloadWorkspace() {
         }
       />
       {showIntentAction ? (
-        <Alert
-          className="mt-6"
-          data-slot="parse-intent-status"
-          role={intentStatusError ? 'alert' : 'status'}
-          variant={intentStatusError ? 'destructive' : 'default'}
-        >
-          <AlertTitle>{intentStatusTitle}</AlertTitle>
-          <AlertDescription>{intentStatusDescription}</AlertDescription>
-          {((intent.resultExpired && !intent.pending) ||
+        <FeedbackNotice
+          action={
+            (intent.resultExpired && !intent.pending) ||
             intent.error ||
             (snapshot &&
               (intent.pending ||
-                snapshot.status === IntentStatusCode.ActionRequired))) && (
-            <div className="mt-3 flex flex-wrap gap-2">
-              {intent.resultExpired && !intent.pending ? (
-                <Button
-                  onClick={() => void intent.refresh()}
-                  size="sm"
-                  variant="outline"
-                >
-                  更新结果
-                </Button>
-              ) : intent.error ? (
-                <Button
-                  onClick={() => void intent.retry()}
-                  size="sm"
-                  variant="outline"
-                >
-                  恢复任务
-                </Button>
-              ) : null}
-              {snapshot &&
-              (intent.pending ||
-                snapshot.status === IntentStatusCode.ActionRequired) ? (
-                <Button
-                  disabled={intent.cancelling}
-                  onClick={() => void intent.cancel()}
-                  size="sm"
-                  variant="outline"
-                >
-                  {intent.cancelling ? '正在取消…' : '取消解析'}
-                </Button>
-              ) : null}
-            </div>
-          )}
-        </Alert>
+                snapshot.status === IntentStatusCode.ActionRequired)) ? (
+              <>
+                {intent.resultExpired && !intent.pending ? (
+                  <Button
+                    onClick={() => void intent.refresh()}
+                    size="sm"
+                    variant="outline"
+                  >
+                    更新结果
+                  </Button>
+                ) : intent.error ? (
+                  <Button
+                    onClick={() => void intent.retry()}
+                    size="sm"
+                    variant="outline"
+                  >
+                    恢复任务
+                  </Button>
+                ) : null}
+                {snapshot &&
+                (intent.pending ||
+                  snapshot.status === IntentStatusCode.ActionRequired) ? (
+                  <Button
+                    disabled={intent.cancelling}
+                    onClick={() => void intent.cancel()}
+                    size="sm"
+                    variant="outline"
+                  >
+                    {intent.cancelling ? '正在取消…' : '取消解析'}
+                  </Button>
+                ) : null}
+              </>
+            ) : undefined
+          }
+          className="mt-6"
+          description={intentStatusDescription}
+          id="parse-intent-status"
+          role={intentStatusError ? 'alert' : 'status'}
+          title={intentStatusTitle}
+          tone={intentStatusError ? 'error' : 'info'}
+        />
       ) : null}
       {(
         mode === 'link'

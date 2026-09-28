@@ -69,7 +69,7 @@ it('dismisses the loading notice once the parsed result has opened', async () =>
   expect(sessionStorage.getItem('framefetch-active-intent')).toBeNull();
   await waitFor(() =>
     expect(
-      document.querySelector('[data-slot="parse-intent-status"]'),
+      document.getElementById('parse-intent-status'),
     ).not.toBeInTheDocument(),
   );
 });
@@ -87,7 +87,7 @@ it('shows active parsing and its cancel action in Sonner', async () => {
     ).toHaveTextContent('正在读取媒体信息'),
   );
   expect(
-    document.querySelector('[data-slot="parse-intent-status"]'),
+    document.getElementById('parse-intent-status'),
   ).not.toBeInTheDocument();
   expect(screen.getByRole('button', { name: '取消解析' })).toBeEnabled();
   fireEvent.click(screen.getByRole('button', { name: '取消解析' }));
@@ -128,11 +128,37 @@ it('keeps an expired inspection on home with a refresh action', async () => {
   renderEntry();
   enter('https://youtu.be/owned');
   expect(await screen.findByRole('button', { name: '更新结果' })).toBeEnabled();
-  expect(
-    document.querySelector('[data-slot="parse-intent-status"]'),
-  ).toHaveTextContent('解析结果已过期');
+  expect(document.getElementById('parse-intent-status')).toHaveTextContent(
+    '解析结果已过期',
+  );
   expect(push).not.toHaveBeenCalled();
   expect(document.querySelector('[data-slot="media-result"]')).toBeNull();
+});
+
+it('shows a shared recovery notice when a restored task status cannot refresh', async () => {
+  const task = intentFixture({ status: 'resolving', inspection_id: null });
+  sessionStorage.setItem(
+    'framefetch-active-intent',
+    JSON.stringify({ owner: 'intent-test-owner', id: task.id }),
+  );
+  mockHttpError(new Error('service unavailable'));
+  mockHttpResponses(task);
+  try {
+    renderEntry();
+    const retry = await screen.findByRole('button', { name: '恢复任务' });
+    const notice = document.getElementById('parse-intent-status');
+    expect(notice).toHaveAttribute('data-slot', 'empty');
+    expect(notice).toHaveAttribute('role', 'alert');
+    expect(notice).toHaveTextContent('任务状态暂时无法更新');
+    fireEvent.click(retry);
+    await waitFor(() => expect(notice).not.toBeInTheDocument());
+    expect(httpRequests().map((request) => request.method)).toEqual([
+      'GET',
+      'GET',
+    ]);
+  } finally {
+    sessionStorage.removeItem('framefetch-active-intent');
+  }
 });
 
 it('does not restore a completed download into the homepage', async () => {
@@ -173,7 +199,7 @@ it('shows parse failures once in Sonner without an inline status panel', async (
   );
   expect(document.querySelectorAll('[data-sonner-toast]')).toHaveLength(1);
   expect(
-    document.querySelector('[data-slot="parse-intent-status"]'),
+    document.getElementById('parse-intent-status'),
   ).not.toBeInTheDocument();
   expect(screen.queryByRole('button', { name: '取消解析' })).toBeNull();
   expect(screen.getByRole('button', { name: '解析媒体' })).toBeEnabled();

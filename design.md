@@ -44,6 +44,7 @@
 - Tabs 使用官方 `Tabs`、`TabsList`、`TabsTrigger`、`TabsContent` 与内置 variant。保持 Radix 的键盘导航、焦点和选中态。
 - Table 使用官方 `Table` 组合及上述共享无边框布局。列头与单元格保持相同列宽和文字对齐；数值列可右对齐，长文本可按列需求换行或截断。不要为各表复制一套不同的单元格 padding。
 - Toast 使用 shadcn 的 Sonner 包装和 `sonner` 的 `toast()`；全站普通操作成功、失败及批量操作结果统一使用 Sonner toast，沿用根 Toaster 的位置与样式；同一解析任务从等待到失败更新同一条通知，不额外显示整行错误面板。字段校验、授权与需要持续操作的恢复状态放在对应页面内容中，危险确认使用 AlertDialog。
+- 需要持续展示且提供恢复操作的错误统一使用 `FeedbackNotice`，沿用 shadcn `Empty` 的居中图标、标题、说明和操作结构；无恢复操作的行内提示继续使用 `Alert` 语义。
 - 表单优先使用 Field、Input、InputGroup、Select 等现有组合，保留标签、错误说明、禁用状态和键盘焦点。
 - 对话框、菜单、导航与提示使用 Radix/shadcn 原生语义和焦点管理。所有图标按钮须有可读名称。
 

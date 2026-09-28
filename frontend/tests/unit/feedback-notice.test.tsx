@@ -55,4 +55,12 @@ it('keeps persistent recovery actions and field descriptions inline', () => {
   expect(screen.getByRole('alert')).toHaveTextContent('上次结果仍可查看');
   expect(screen.getByRole('button', { name: '恢复同步' })).toBeVisible();
   expect(document.getElementById('recovery-description')).toBeInTheDocument();
+  expect(screen.getByRole('alert')).toHaveAttribute('data-slot', 'empty');
+});
+
+it('keeps brief errors in the compact alert treatment', () => {
+  render(
+    <FeedbackNotice title="操作未完成" description="请检查输入" tone="error" />,
+  );
+  expect(screen.getByRole('alert')).toHaveAttribute('data-slot', 'alert');
 });
