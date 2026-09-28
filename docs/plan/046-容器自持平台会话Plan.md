@@ -1,6 +1,6 @@
 # 046 容器自持平台会话 Plan
 
-日期：2026-09-28。状态：已评审（2026-09-28），S1–S5、S8 代码完成待验收；S7 完成删除部分，状态页未开始；S6、S9 未开始。需求见 [PRD](../prd/046-容器自持平台会话PRD.md)，技术方案见 [Design](../design/046-容器自持平台会话设计.md)。**任务状态、证据只在本文维护。**
+日期：2026-09-28。状态：已评审（2026-09-28），S1–S5、S8 代码完成待验收；2026-09-28 修订：登录态来源改为 Chrome 扩展（E0–E5，S2 的导入子命令由 E4 删除）；S7 状态页并入 E3；S6、S9 未开始。需求见 [PRD](../prd/046-容器自持平台会话PRD.md)，技术方案见 [Design](../design/046-容器自持平台会话设计.md)。**任务状态、证据只在本文维护。**
 
 工作方式沿用 [044 Plan §1](044-开源部署无感解析Plan.md#1-sdd-工作方式)：先写能判定的测试，再实现最小闭环；代码完成不等于平台实测完成；只有“已验收”才勾选。
 
@@ -42,7 +42,7 @@ M3 是破坏性替换：S5–S8 同一发布，发布前部署者需按新手册
 
 ### S2 一次性导入命令
 
-- [ ] **S2**；状态：代码完成待验收；依赖：S1。
+- [ ] **S2**；状态：`status`／`revoke` 与写入逻辑保留；`import` 子命令与 Chrome 读取器被 macOS 隐私保护阻断，已由 E0–E5 取代，E4 删除；依赖：S1。
   - 需求：FR-01、FR-10；NFR-03、NFR-05。
   - 步骤：
     1. 把 `chrome_provider_cookies.py` 迁为 `app/workers/session/chrome_reader.py`（原位置删除，旧宿主链路改为从新位置导入，直到 S8 删除）；增加 Profile 列表与钥匙串拒绝识别。
@@ -104,7 +104,7 @@ M3 是破坏性替换：S5–S8 同一发布，发布前部署者需按新手册
 
 ### S7 管理员状态页与删除授权事务
 
-- [ ] **S7**；状态：删除授权事务已完成（随 S8），站点会话状态接口与页面未开始；依赖：S5。
+- [ ] **S7**；状态：删除授权事务已完成（随 S8），站点会话状态接口与页面并入 E3；依赖：S5。
   - 需求：FR-05、FR-09。
   - 步骤：删除 `/api/providers/{key}/authorization*`、`ProviderAuthorizationService`、前端授权对话框和 `lib/provider-authorization.ts`；状态接口与页面改为展示 Design §7 字段和导入命令；按 `design.md` 实现，桌面与 390px 真实浏览器验证。
   - 验收：PRD AC-06（展示部分）、AC-12（API／前端部分）；前端 `format:check`、`lint`、`test`、`build`。
@@ -121,6 +121,62 @@ M3 是破坏性替换：S5–S8 同一发布，发布前部署者需按新手册
     3. 改写 AGENTS.md“安全与运行约束”中的宿主元宝浏览器条款和“凭据 Runner 单 Provider 只读 Secret”条款；README 部署章节改为“一次导入 + compose up”。
     4. BACKLOG 增加 046 导航。
   - 验收：PRD AC-12；`rg` 检查 Design §8 列出的标识符在代码、Compose、文档中不再出现；后端全量检查；两份 Compose `config --quiet` 通过。
+
+<a id="e0"></a>
+
+### E0 扩展来源可行性实测
+
+- [ ] **E0**；状态：未开始；依赖：S4、S5。先于 E1–E5 执行，结果决定 E2 是否需要读取页面身份字段。
+  - 需求：FR-01、FR-08；PRD §9 未决项。
+  - 步骤：最小扩展（只含 `cookies` 权限与导出按钮）在部署者 Chrome 专用 Profile 中导出 `youtube.com`、`yuanbao.tencent.com` 的 Cookie，经 broker 现有写入路径登记；观察 broker 与浏览器能否推进到 `ready`，视频号能否生成动态头并完成一次解析；记录 YouTube 会话在容器中的存活时间（DBSC 风险）。
+  - 验收：两平台结论与证据写入执行记录；不满足时先修订 Design 再继续。
+
+<a id="e1"></a>
+
+### E1 设备授权与同步接口
+
+- [ ] **E1**；状态：未开始；依赖：E0。
+  - 需求：FR-01、FR-11；NFR-03。
+  - 步骤：
+    1. `schema.sql` 新增 `site_session_devices`、`site_session_device_authorizations`（Design §6.1）与仓储；设备授权、令牌、计划、提交四个接口与管理员批准、列出、吊销接口，写入 OpenAPI；设备路径使用 Bearer 并豁免浏览器来源校验，请求体不进入操作日志。
+    2. broker 新增签名接口 `POST /internal/v1/site-sessions/seed` 与密钥 `SITE_SESSION_SEED_SECRET`（API → broker，经 `runner_rpc_net`）；把 Cookie 过滤与必需规则从 `seed.py` 移为 broker 与测试共用的函数；两份 Compose 与 `.env.example` 同步。
+  - 验收：PRD AC-01、AC-07；授权未批准／过期／一次性、吊销、`wanted` 规则、`unchanged`／`revoked`／`not_logged_in`／`seeded` 四种结果、其他域 Cookie 拒绝的单元与集成测试；日志扫描无 Cookie 值。
+
+<a id="e2"></a>
+
+### E2 帧取 Chrome 扩展
+
+- [ ] **E2**；状态：未开始；依赖：E1。
+  - 需求：FR-01、FR-11；NFR-05。
+  - 步骤：`extension/`（Design §6.1 文件表）：连接与授权轮询、5 min 同步、指纹去重、为当前站点启用（可选主机权限）、撤销后重新启用；契约测试断言 `host_permissions` 覆盖全部已知 Cookie 域；`sync.js` 用 `node --test` 单测。
+  - 验收：在真实 Chrome 加载已解压扩展，完成连接与一次同步；PRD AC-06（自动补种部分）。
+
+<a id="e3"></a>
+
+### E3 平台状态页：会话与设备
+
+- [ ] **E3**；状态：未开始；依赖：E1。取代 S7 的页面部分。
+  - 需求：FR-05、FR-09。
+  - 步骤：`/api/providers/status` 增加站点会话字段（Design §7）；前端平台状态页展示站点会话、已连接设备（吊销）与扩展安装说明；设备确认页（核对 `user_code` 后批准）；按 `design.md` 实现。
+  - 验收：前端 `format:check`、`lint`、`test`、`build`；桌面与 390px 真实浏览器验证。
+
+<a id="e4"></a>
+
+### E4 删除导入命令与修正错误语义
+
+- [ ] **E4**；状态：未开始；依赖：E1。
+  - 需求：FR-09。
+  - 步骤：删除 `chrome_reader.py`、`seed import` 及测试；没有访客模式的平台（如视频号）在无会话时，把 “Fresh cookies are needed” 归为 `provider_session_not_ready`，不再归为 `guest_context_required`；运行手册 011 改为“加载扩展 + 批准连接”。
+  - 验收：`rg chrome_reader` 无结果；视频号无会话时前端显示“需要部署会话”类文案；后端全量检查。
+
+<a id="e5"></a>
+
+### E5 自动补种端到端
+
+- [ ] **E5**；状态：未开始；依赖：E2、E3、E4。并入 S9 的真实平台验收。
+  - 需求：FR-11；NFR-01。
+  - 步骤：冷启动后解析 YouTube 与视频号；撤销容器侧会话使其进入 `reseed_required`，确认扩展在 10 min 内自动补种回到 `ready`；Chrome 退出登录后停留在 `reseed_required` 并提示。
+  - 验收：PRD AC-03、AC-06、AC-11 的记录。
 
 <a id="s9"></a>
 
@@ -141,7 +197,7 @@ M3 是破坏性替换：S5–S8 同一发布，发布前部署者需按新手册
 
 | 需求 | 任务 |
 | --- | --- |
-| FR-01 | S2 |
+| FR-01 | E0、E1、E2 |
 | FR-02 | S1 |
 | FR-03 | S3、S4 |
 | FR-04 | S1、S5 |
@@ -150,7 +206,8 @@ M3 是破坏性替换：S5–S8 同一发布，发布前部署者需按新手册
 | FR-07 | S4、S6 |
 | FR-08 | S4 |
 | FR-09 | S7、S8 |
-| FR-10 | S2 |
+| FR-10 | S2（`revoke`） |
+| FR-11 | E1、E2、E5 |
 | NFR-01～NFR-06 | S3、S4、S5、S9 |
 
 ## 6. 执行记录
