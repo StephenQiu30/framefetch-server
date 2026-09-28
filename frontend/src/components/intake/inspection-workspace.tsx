@@ -90,15 +90,32 @@ export default function InspectionWorkspace({
             ) : null}
           </ItemGroup>
         }
+        panel={{
+          title: downloadable
+            ? gallery || collection
+              ? '下载内容'
+              : '画质预设'
+            : decisionTitle(inspection),
+          footer:
+            inspection.access_decision === 'export_required' ? (
+              <Button className="w-full" size="lg" onClick={onUseUpload}>
+                <UploadSimple data-icon="inline-start" />
+                上传自有 MP4
+              </Button>
+            ) : downloadable ? (
+              <Button
+                className="w-full"
+                size="lg"
+                disabled={!selectedId || busy}
+                onClick={onCreate}
+              >
+                <DownloadSimple data-icon="inline-start" />
+                {busy ? '正在创建任务…' : '创建下载任务'}
+              </Button>
+            ) : undefined,
+        }}
         actions={
           <>
-            <h2 className="text-base font-medium">
-              {downloadable
-                ? gallery || collection
-                  ? '下载内容'
-                  : '画质预设'
-                : decisionTitle(inspection)}
-            </h2>
             {downloadable ? (
               <FormatPicker
                 formats={inspection.formats}
@@ -152,22 +169,6 @@ export default function InspectionWorkspace({
                   value={collection ? '视频打包' : '原图打包'}
                 />
               </ItemGroup>
-            ) : null}
-            {inspection.access_decision === 'export_required' ? (
-              <Button className="mt-7 w-full" size="lg" onClick={onUseUpload}>
-                <UploadSimple data-icon="inline-start" />
-                上传自有 MP4
-              </Button>
-            ) : downloadable ? (
-              <Button
-                className="mt-7 w-full"
-                size="lg"
-                disabled={!selectedId || busy}
-                onClick={onCreate}
-              >
-                <DownloadSimple data-icon="inline-start" />
-                {busy ? '正在创建任务…' : '创建下载任务'}
-              </Button>
             ) : null}
           </>
         }

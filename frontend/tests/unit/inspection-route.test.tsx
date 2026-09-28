@@ -50,6 +50,18 @@ describe('inspection result route', () => {
     expect(
       document.querySelector('[data-slot="media-result-frame"]'),
     ).toBeInTheDocument();
+    const cards = document.querySelectorAll(
+      '[data-slot="media-result"] > [data-slot="card"]',
+    );
+    expect(cards).toHaveLength(2);
+    expect(
+      cards[0].querySelector('[data-slot="card-header"]'),
+    ).toContainElement(
+      screen.getByRole('heading', { name: inspection.title, level: 2 }),
+    );
+    expect(
+      cards[1].querySelector('[data-slot="card-footer"]'),
+    ).toContainElement(screen.getByRole('button', { name: '创建下载任务' }));
     expect(screen.getByRole('button', { name: '创建下载任务' })).toBeEnabled();
     fireEvent.click(screen.getByRole('button', { name: '创建下载任务' }));
     await waitFor(() =>
