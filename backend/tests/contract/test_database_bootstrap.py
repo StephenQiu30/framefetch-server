@@ -508,14 +508,8 @@ def test_production_requires_explicit_site_session_secrets() -> None:
         ("session-broker", "SITE_SESSION_BROWSER_SECRET"),
         ("session-browser", "SITE_SESSION_BROWSER_SECRET"),
         ("session-runner", "RUNNER_SESSION_RPC_SECRET"),
-        ("session-broker", "SITE_SESSION_ADMIN_SECRET"),
-        ("api", "SITE_SESSION_ADMIN_SECRET"),
     ):
         assert ":?" in services[name]["environment"][key], (name, key)
-    # Only the API drives remote logins; Runners never hold the admin secret.
-    for name, service in services.items():
-        if name not in {"api", "session-broker"}:
-            assert "SITE_SESSION_ADMIN_SECRET" not in service.get("environment", {})
 
 
 def test_provider_credential_lease_store_stays_on_the_internal_rpc_network() -> None:

@@ -20,34 +20,15 @@ from app.repositories.providers.site_sessions import (
     SiteSessionSecrets,
     SiteSessionStates,
 )
-from app.workers.session.broker import (
-    LoginNotAccepted,
-    SessionBroker,
-    SessionNotReady,
-)
-from app.workers.session.browser_client import (
-    BrowserUnavailable,
-    HttpSessionBrowser,
-    LoginRejected,
-)
+from app.workers.session.broker import SessionBroker, SessionNotReady
+from app.workers.session.browser_client import HttpSessionBrowser
 from app.workers.session.contracts import (
-    ADMIN_LOGIN_CANCEL_PATH,
-    ADMIN_LOGIN_FINISH_PATH,
-    ADMIN_LOGIN_FRAME_PATH,
-    ADMIN_LOGIN_INPUT_PATH,
-    ADMIN_LOGIN_START_PATH,
     FAILURE_PATH,
     LEASE_PATH,
     STATUS_PATH,
     FailureReport,
     LeaseRequest,
     LeaseResponse,
-    LoginFrame,
-    LoginInputRequest,
-    LoginRef,
-    LoginSaved,
-    LoginStarted,
-    LoginStartRequest,
     StatusRequest,
     StatusResponse,
 )
@@ -64,16 +45,9 @@ type BrokerFactory = Callable[[], AbstractAsyncContextManager[SessionBroker]]
 
 
 def create_app(
-    *,
-    broker_factory: BrokerFactory,
-    rpc_secret: bytes,
-    admin_secret: bytes,
-    scan_seconds: float,
+    *, broker_factory: BrokerFactory, rpc_secret: bytes, scan_seconds: float
 ) -> FastAPI:
-    if rpc_secret == admin_secret:
-        raise ValueError("the Runner and admin channels need distinct secrets")
     verifier = authenticator(rpc_secret)
-    admin = authenticator(admin_secret)
     health = {"scanned_at": 0.0}
 
     async def scan_forever(broker: SessionBroker) -> None:
@@ -148,53 +122,6 @@ def create_app(
         )
         return Response(status_code=204)
 
-    def broker_of(request: Request) -> SessionBroker:
-        return request.app.state.broker  # type: ignore[no-any-return]
-
-    @asynccontextmanager
-    async def login_errors() -> AsyncIterator[None]:
-        try:
-            yield
-        except LoginRejected as exc:
-            raise HTTPException(exc.status, exc.code) from None
-        except LoginNotAccepted:
-            raise HTTPException(409, "login_not_accepted") from None
-        except BrowserUnavailable:
-            raise HTTPException(503, "browser_unavailable") from None
-
-    @app.post(ADMIN_LOGIN_START_PATH, response_model=LoginStarted)
-    async def login_start(request: Request) -> LoginStarted:
-        body = await verified_model(request, admin, LoginStartRequest)
-        async with login_errors():
-            return await broker_of(request).login_start(body.site, body.url)
-
-    @app.post(ADMIN_LOGIN_FRAME_PATH, response_model=LoginFrame)
-    async def login_frame(request: Request) -> LoginFrame:
-        body = await verified_model(request, admin, LoginRef)
-        async with login_errors():
-            return await broker_of(request).login_frame(body.login_id)
-
-    @app.post(ADMIN_LOGIN_INPUT_PATH, status_code=204)
-    async def login_input(request: Request) -> Response:
-        body = await verified_model(request, admin, LoginInputRequest)
-        async with login_errors():
-            await broker_of(request).login_input(body.login_id, body.actions)
-        return Response(status_code=204)
-
-    @app.post(ADMIN_LOGIN_FINISH_PATH, response_model=LoginSaved)
-    async def login_finish(request: Request) -> LoginSaved:
-        body = await verified_model(request, admin, LoginRef)
-        async with login_errors():
-            site, revision = await broker_of(request).login_finish(body.login_id)
-        return LoginSaved(site=site, seed_revision=revision)
-
-    @app.post(ADMIN_LOGIN_CANCEL_PATH, status_code=204)
-    async def login_cancel(request: Request) -> Response:
-        body = await verified_model(request, admin, LoginRef)
-        async with login_errors():
-            await broker_of(request).login_cancel(body.login_id)
-        return Response(status_code=204)
-
     @app.get("/health/live")
     async def live() -> dict[str, str]:
         return {"status": "ok"}
@@ -245,16 +172,11 @@ def settings_factory(settings: Settings) -> BrokerFactory:
 def main() -> None:
     settings = Settings(service_role="session-broker")
     rpc_secret = settings.site_session_rpc_secret
-    admin_secret = settings.site_session_admin_secret
-    if rpc_secret is None or admin_secret is None:
-        raise SystemExit(
-            "session broker requires SITE_SESSION_RPC_SECRET and "
-            "SITE_SESSION_ADMIN_SECRET"
-        )
+    if rpc_secret is None:
+        raise SystemExit("session broker requires SITE_SESSION_RPC_SECRET")
     app = create_app(
         broker_factory=settings_factory(settings),
         rpc_secret=rpc_secret.get_secret_value().encode(),
-        admin_secret=admin_secret.get_secret_value().encode(),
         scan_seconds=settings.site_session_scan_seconds,
     )
     uvicorn.run(app, host="0.0.0.0", port=BROKER_PORT, access_log=False)

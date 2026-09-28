@@ -220,10 +220,6 @@ def known_site_policy(provider_key: str) -> SiteSessionPolicy | None:
         return None
 
 
-def known_site_policies() -> tuple[SiteSessionPolicy, ...]:
-    return tuple(sorted(_KNOWN_SITES.values(), key=lambda policy: policy.site))
-
-
 def known_session_provider_keys() -> frozenset[str]:
     return frozenset(str(key) for key in _KNOWN_POLICIES)
 

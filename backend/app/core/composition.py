@@ -33,7 +33,6 @@ from app.integrations.rate_limiter import RedisRateLimiter
 from app.integrations.readiness import build_runtime_readiness
 from app.integrations.realtime import RabbitMqRealtimeConsumer, RealtimeHub
 from app.integrations.registration_mail import SmtpRegistrationMailer
-from app.integrations.site_session_admin import SiteSessionAdmin
 from app.integrations.site_session_catalog import SiteSessionRoutes
 from app.integrations.thumbnail_storage import MinioThumbnailStorage
 from app.integrations.url_security import FernetUrlEnvelope, MediaUrlValidator
@@ -76,10 +75,7 @@ from app.repositories.providers.catalog_repository import (
 )
 from app.repositories.providers.guest_contexts import GuestContexts
 from app.repositories.providers.route_cooldowns import SqlAlchemyProviderRouteCooldowns
-from app.repositories.providers.site_sessions import (
-    SiteSessionSecrets,
-    SiteSessionStates,
-)
+from app.repositories.providers.site_sessions import SiteSessionStates
 from app.repositories.providers.status_evidence import (
     MergedProviderStatusEvidenceReader,
     SqlAlchemyDownloadEvidenceReader,
@@ -566,18 +562,6 @@ def build_api_runtime(settings: Settings) -> ApiRuntime:
             ai_provider_service=ai_provider_service,
             storage_file_service=storage_file_service,
             download_storage=storage,
-            site_session_admin=(
-                None
-                if settings.site_session_admin_secret is None
-                else SiteSessionAdmin(
-                    states=SiteSessionStates(sessions),
-                    secrets=SiteSessionSecrets(sessions),
-                    broker_url=settings.site_session_broker_url,
-                    admin_secret=(
-                        settings.site_session_admin_secret.get_secret_value().encode()
-                    ),
-                )
-            ),
         ),
         engine=engine,
         runner=runner,

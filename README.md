@@ -103,7 +103,7 @@ Web 实例提供公开页面：`/guide/` 使用指南、`/self-hosting/` 自托�
 
 ## 快速开始
 
-本机开发使用 `docker-compose.yml`，生产使用 `docker-compose-prod.yml`。标准拓扑内置固定版本的解析引擎与抖音公开访客维护器：首次启动会在后台准备访客材料，普通用户粘贴公开链接或分享文案后无需提供浏览器 Cookie。准备状态可用 `docker compose exec -T provider-guest python -m app.workers.runner.provider_guest_manager status` 脱敏查看；只有 `published_lease_usable=true` 才代表访客租约已发布，健康检查本身不代表媒体可下载。其他平台可先走匿名或 Generic 的受限单视频尝试；提取器候选不等于已验证下载，最终以当前出口的解析和文件结果为准。需要登录态的站点由管理员在管理页面登录一次（见下文“站点会话”），普通客户端不安装扩展也不提供 Cookie。
+本机开发使用 `docker-compose.yml`，生产使用 `docker-compose-prod.yml`。标准拓扑内置固定版本的解析引擎与抖音公开访客维护器：首次启动会在后台准备访客材料，普通用户粘贴公开链接或分享文案后无需提供浏览器 Cookie。准备状态可用 `docker compose exec -T provider-guest python -m app.workers.runner.provider_guest_manager status` 脱敏查看；只有 `published_lease_usable=true` 才代表访客租约已发布，健康检查本身不代表媒体可下载。其他平台可先走匿名或 Generic 的受限单视频尝试；提取器候选不等于已验证下载，最终以当前出口的解析和文件结果为准。需要登录态的站点由部署者一次性导入站点会话（见下文“站点会话”），普通客户端不安装扩展也不提供 Cookie。
 
 ### 前置条件
 
@@ -141,9 +141,18 @@ uv run --project backend python -m app.workers.bootstrap_admin \
 
 ### 站点会话（需要登录态的平台）
 
-YouTube、抖音账号、Reddit、视频号、优酷、腾讯视频，以及任何需要登录的站点，都通过同一种“站点会话”运行：管理员在 Web「平台状态」页的“站点会话”中点击“登录”，页面显示容器内会话浏览器的实时画面，管理员在画面中扫码、拖动滑块或输入账号密码；检测到登录后保存，之后由会话浏览器保持和刷新，`docker compose up`、重启、换容器都不需要人参与。未适配的站点可以粘贴任意 https 链接登录。已登录的站点永远不会退回匿名访问；会话失效时解析明确返回 `provider_session_not_ready`，状态页提示“重新登录”。
+YouTube、抖音账号、Reddit、视频号、优酷、腾讯视频，以及任何需要登录的站点，都通过同一种“站点会话”运行：部署者**一次性**把本机 Chrome 中的登录态导入部署，之后由容器内的会话浏览器保持和刷新，`docker compose up`、重启、换容器都不需要人参与。已导入会话的站点永远不会退回匿名访问；会话失效时解析明确返回 `provider_session_not_ready`，状态进入“需要重新导入”。
 
-`SITE_SESSION_ENCRYPTION_KEY` 必须稳定并与数据库备份分开保管。建议使用非主力账号。细节见 [站点会话运行手册](docs/operations/011-站点会话运行手册.md) 与 [046 设计](docs/design/046-容器自持平台会话设计.md)。
+在本机 Terminal 中（需要 macOS 钥匙串授权一次）：
+
+```bash
+cd backend
+uv run python -m app.workers.session.seed import --site youtube.com
+uv run python -m app.workers.session.seed status
+uv run python -m app.workers.session.seed revoke --site youtube.com
+```
+
+`--site` 可以是任意站点或链接主机（如 `youtu.be`、`example.com`）；多个 Chrome Profile 都已登录时用 `--profile "Profile 2"` 指定。`SITE_SESSION_ENCRYPTION_KEY` 必须稳定并与数据库备份分开保管。建议用单独的 Chrome Profile 登录非主力账号再导入：同一登录态在两处并用时，平台轮换 Cookie 可能使其中一端被登出。细节见 [站点会话运行手册](docs/operations/011-站点会话运行手册.md) 与 [046 设计](docs/design/046-容器自持平台会话设计.md)。
 
 生产部署使用同一入口：
 

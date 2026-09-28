@@ -6,13 +6,13 @@ FastAPI API、下载/分析领域逻辑、异步 Worker、当前态数据库 SQL
 
 ## 站点会话（046）
 
-需要登录态的平台统一为“站点会话”：管理员在 Web 平台状态页对容器内的会话浏览器远程登录一次（`/api/admin/site-sessions/logins`，画面与输入经 API → broker → 浏览器转发），broker 以 `SITE_SESSION_ENCRYPTION_KEY` 加密写入 PostgreSQL `site_sessions`。之后全部在容器内运行：
+需要登录态的平台统一为“站点会话”：部署者在本机执行一次 `uv run python -m app.workers.session.seed import --site <站点>`，从 Chrome 读取该站点 Cookie、以 `SITE_SESSION_ENCRYPTION_KEY` 加密写入 PostgreSQL `site_sessions`。之后全部在容器内运行：
 
 - `session-broker`（`app/workers/session/broker_app.py`）唯一持有密钥，维护状态机、调度保活，并为每个 Runner 任务签发绑定任务与站点的一次性加密租约。
-- `session-browser`（`app/workers/session/browser_app.py`，Dockerfile `session-browser` 目标）为每个站点保存持久 Chromium Profile，承载远程登录（`login.py`，临时 Profile 成功后才替换），验证登录、保活并采集平台轮换后的 Cookie；没有数据库与密钥。
+- `session-browser`（`app/workers/session/browser_app.py`，Dockerfile `session-browser` 目标）为每个站点保存持久 Chromium Profile，验证登录、保活并采集平台轮换后的 Cookie；没有数据库与密钥。
 - `session-runner`（`RUNNER_ACCESS_MODE=operator_managed`）只在 tmpfs 中为单次操作写入 `0600` Cookie jar，操作结束即删除。
 
-已登录的站点一律走会话路线，不回退匿名。密钥必须稳定并与数据库备份分开保管；丢失后需要重新登录。运维步骤见 [站点会话运行手册](../docs/operations/011-站点会话运行手册.md)。
+已导入会话的站点一律走会话路线，不回退匿名。密钥必须稳定并与数据库备份分开保管；丢失后需要重新导入。运维步骤见 [站点会话运行手册](../docs/operations/011-站点会话运行手册.md)。
 
 ## 目录约定
 

@@ -15,7 +15,6 @@ from app.integrations.readiness import (
     assert_download_execution_schema,
 )
 from app.integrations.realtime import RabbitMqRealtimeConsumer, RealtimeHub
-from app.integrations.site_session_admin import SiteSessionAdmin
 from app.repositories.auth.redis_auth_repository import RedisAuthSessionStore
 from app.repositories.operation_logs import OperationLogStore
 from app.repositories.operational_metrics import OperationalMetrics
@@ -162,7 +161,6 @@ class ApiServices:
     ai_provider_service: AiProviderService | None = None
     storage_file_service: StorageFileService | None = None
     download_storage: DownloadArtifactStorage | None = None
-    site_session_admin: SiteSessionAdmin | None = None
 
 
 @dataclass(slots=True)
@@ -188,5 +186,3 @@ class ApiRuntime:
             if self.services.readiness_probe is not None:
                 cleanup.push_async_callback(self.services.readiness_probe.close)
             cleanup.push_async_callback(self.realtime_consumer.close)
-            if self.services.site_session_admin is not None:
-                cleanup.push_async_callback(self.services.site_session_admin.close)

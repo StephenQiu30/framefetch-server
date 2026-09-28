@@ -113,6 +113,7 @@ class Settings(BaseSettings):
         "analysis-worker",
         "report-worker",
         "provider-canary",
+        "provider-sources",
         "provider-guest",
         "session-broker",
     ] = "api"
@@ -137,8 +138,6 @@ class Settings(BaseSettings):
     # Runner -> broker and broker -> browser use independent HMAC secrets.
     site_session_rpc_secret: SecretStr | None = None
     site_session_browser_secret: SecretStr | None = None
-    site_session_admin_secret: SecretStr | None = None
-    site_session_broker_url: str = "http://session-broker:19200"
     site_session_browser_url: str = "http://session-browser:19300"
     site_session_scan_seconds: int = Field(default=15, ge=5, le=60)
     site_session_keepalive_seconds: int = Field(default=1800, ge=600, le=6 * 3600)
@@ -605,7 +604,6 @@ class Settings(BaseSettings):
         "runner_hmac_secret",
         "site_session_rpc_secret",
         "site_session_browser_secret",
-        "site_session_admin_secret",
     )
     @classmethod
     def validate_signing_secret(cls, value: SecretStr | None) -> SecretStr | None:
@@ -692,6 +690,7 @@ class Settings(BaseSettings):
             rabbitmq_url = self.analysis_rabbitmq_url
         elif self.service_role not in {
             "provider-canary",
+            "provider-sources",
             "provider-guest",
             "session-broker",
         }:

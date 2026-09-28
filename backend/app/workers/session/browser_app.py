@@ -8,9 +8,8 @@ leave sealed to the key the broker (or a Runner) supplies with each call.
 from __future__ import annotations
 
 import asyncio
-from collections.abc import AsyncIterator, Callable, Sequence
-from contextlib import AbstractAsyncContextManager, asynccontextmanager, suppress
-from dataclasses import dataclass
+from collections.abc import AsyncIterator, Callable
+from contextlib import AbstractAsyncContextManager, asynccontextmanager
 from pathlib import Path
 from typing import Protocol
 
@@ -28,11 +27,6 @@ from app.workers.session.contracts import (
     BROWSER_HEADERS_PATH,
     BROWSER_IDENTITY_PATH,
     BROWSER_KEEPALIVE_PATH,
-    BROWSER_LOGIN_CANCEL_PATH,
-    BROWSER_LOGIN_FINISH_PATH,
-    BROWSER_LOGIN_FRAME_PATH,
-    BROWSER_LOGIN_INPUT_PATH,
-    BROWSER_LOGIN_START_PATH,
     BootstrapRequest,
     BrowserIdentity,
     BrowserOutcome,
@@ -42,20 +36,10 @@ from app.workers.session.contracts import (
     HeadersResponse,
     IdentityRequest,
     KeepaliveRequest,
-    LoginAction,
-    LoginFinished,
-    LoginFinishRequest,
-    LoginFrame,
-    LoginInputRequest,
-    LoginRef,
-    LoginStarted,
-    LoginStartRequest,
     bootstrap_associated_data,
     export_associated_data,
     lease_associated_data,
-    login_associated_data,
 )
-from app.workers.session.login import Frame, LoginError, RemoteLogins
 from app.workers.session.rpc import authenticator, verified_model
 from app.workers.session.sealing import (
     SealError,
@@ -96,38 +80,7 @@ class Browser(Protocol):
     async def forget(self, site: str) -> None: ...
 
 
-class Logins(Protocol):
-    async def start(self, site: str, url: str | None) -> str: ...
-
-    async def frame(self, login_id: str) -> Frame: ...
-
-    async def act(self, login_id: str, actions: Sequence[LoginAction]) -> None: ...
-
-    async def finish(self, login_id: str) -> tuple[str, bytes]: ...
-
-    async def cancel(self, login_id: str) -> None: ...
-
-    async def sweep(self) -> None: ...
-
-    async def close(self) -> None: ...
-
-
-@dataclass(frozen=True, slots=True)
-class Services:
-    browser: Browser
-    logins: Logins
-
-
-type BrowserFactory = Callable[[], AbstractAsyncContextManager[Services]]
-
-_LOGIN_STATUS = {
-    "login_not_found": 404,
-    "login_busy": 409,
-    "login_incomplete": 409,
-    "login_not_accepted": 409,
-    "login_url_invalid": 422,
-}
-_SWEEP_SECONDS = 30
+type BrowserFactory = Callable[[], AbstractAsyncContextManager[Browser]]
 
 
 def create_app(*, browser_factory: BrowserFactory, secret: bytes) -> FastAPI:
@@ -137,23 +90,9 @@ def create_app(*, browser_factory: BrowserFactory, secret: bytes) -> FastAPI:
 
     @asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:
-        async with browser_factory() as services:
-            app.state.browser = services.browser
-            app.state.logins = services.logins
-
-            async def sweep() -> None:
-                while True:
-                    await asyncio.sleep(_SWEEP_SECONDS)
-                    await services.logins.sweep()
-
-            sweeper = asyncio.create_task(sweep())
-            try:
-                yield
-            finally:
-                sweeper.cancel()
-                with suppress(asyncio.CancelledError):
-                    await sweeper
-                await services.logins.close()
+        async with browser_factory() as browser:
+            app.state.browser = browser
+            yield
 
     app = FastAPI(
         title="Site Session Browser",
@@ -235,62 +174,6 @@ def create_app(*, browser_factory: BrowserFactory, secret: bytes) -> FastAPI:
             raise HTTPException(422, "invalid_request") from None
         return Response(status_code=204)
 
-    def logins_of(request: Request) -> Logins:
-        return request.app.state.logins  # type: ignore[no-any-return]
-
-    @asynccontextmanager
-    async def login_errors() -> AsyncIterator[None]:
-        try:
-            async with asyncio.timeout(OPERATION_TIMEOUT_SECONDS):
-                yield
-        except LoginError as exc:
-            raise HTTPException(_LOGIN_STATUS.get(exc.code, 409), exc.code) from None
-        except (SealError, ValueError, InvalidSessionSite):
-            raise HTTPException(422, "invalid_request") from None
-        except (TimeoutError, PlaywrightError, OSError):
-            raise HTTPException(503, "browser_unavailable") from None
-
-    @app.post(BROWSER_LOGIN_START_PATH, response_model=LoginStarted)
-    async def login_start(request: Request) -> LoginStarted:
-        body = await verified_model(request, verifier, LoginStartRequest)
-        async with login_errors():
-            login_id = await logins_of(request).start(body.site, body.url)
-        return LoginStarted(login_id=login_id, site=body.site)
-
-    @app.post(BROWSER_LOGIN_FRAME_PATH, response_model=LoginFrame)
-    async def login_frame(request: Request) -> LoginFrame:
-        body = await verified_model(request, verifier, LoginRef)
-        async with login_errors():
-            frame = await logins_of(request).frame(body.login_id)
-        return LoginFrame(
-            image=encode(frame.image), host=frame.host, logged_in=frame.logged_in
-        )
-
-    @app.post(BROWSER_LOGIN_INPUT_PATH, status_code=204)
-    async def login_input(request: Request) -> Response:
-        body = await verified_model(request, verifier, LoginInputRequest)
-        async with login_errors():
-            await logins_of(request).act(body.login_id, body.actions)
-        return Response(status_code=204)
-
-    @app.post(BROWSER_LOGIN_FINISH_PATH, response_model=LoginFinished)
-    async def login_finish(request: Request) -> LoginFinished:
-        body = await verified_model(request, verifier, LoginFinishRequest)
-        async with login_errors():
-            reply = decode_public_key(body.reply_key)
-            site, jar = await logins_of(request).finish(body.login_id)
-        sealed = seal(
-            jar, reply, associated_data=login_associated_data(site, body.login_id)
-        )
-        return LoginFinished(site=site, jar=encode(sealed))
-
-    @app.post(BROWSER_LOGIN_CANCEL_PATH, status_code=204)
-    async def login_cancel(request: Request) -> Response:
-        body = await verified_model(request, verifier, LoginRef)
-        async with login_errors():
-            await logins_of(request).cancel(body.login_id)
-        return Response(status_code=204)
-
     @app.get("/health/live")
     async def live() -> dict[str, str]:
         return {"status": "ok"}
@@ -317,15 +200,13 @@ def main() -> None:
     settings = BrowserSettings()
 
     @asynccontextmanager
-    async def browser_factory() -> AsyncIterator[Services]:
-        root = settings.site_session_profile_root
+    async def browser_factory() -> AsyncIterator[Browser]:
         async with async_playwright() as playwright:
-            browser = SiteBrowser(
-                playwright, root, proxy=settings.site_session_egress_proxy
+            yield SiteBrowser(
+                playwright,
+                settings.site_session_profile_root,
+                proxy=settings.site_session_egress_proxy,
             )
-            logins = RemoteLogins(browser, root)
-            logins.discard_leftovers()
-            yield Services(browser, logins)
 
     app = create_app(
         browser_factory=browser_factory,

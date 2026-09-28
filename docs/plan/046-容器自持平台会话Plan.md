@@ -1,6 +1,6 @@
 # 046 容器自持平台会话 Plan
 
-日期：2026-09-28。状态：已评审（2026-09-28），S1–S5、S8 代码完成待验收；2026-09-28 修订：登录改为管理页面远程登录（L0–L4，S2 的导入子命令由 L2 删除）；S7 状态页并入 L3；S6、S9 未开始。需求见 [PRD](../prd/046-容器自持平台会话PRD.md)，技术方案见 [Design](../design/046-容器自持平台会话设计.md)。**任务状态、证据只在本文维护。**
+日期：2026-09-28。状态：已评审（2026-09-28），S1–S5、S8 代码完成待验收；S7 完成删除部分，状态页未开始；S6、S9 未开始。需求见 [PRD](../prd/046-容器自持平台会话PRD.md)，技术方案见 [Design](../design/046-容器自持平台会话设计.md)。**任务状态、证据只在本文维护。**
 
 工作方式沿用 [044 Plan §1](044-开源部署无感解析Plan.md#1-sdd-工作方式)：先写能判定的测试，再实现最小闭环；代码完成不等于平台实测完成；只有“已验收”才勾选。
 
@@ -42,7 +42,7 @@ M3 是破坏性替换：S5–S8 同一发布，发布前部署者需按新手册
 
 ### S2 一次性导入命令
 
-- [ ] **S2**；状态：`status`／`revoke` 与写入逻辑保留；`import` 子命令与 Chrome 读取器被 macOS 隐私保护阻断，已由 L0–L4 取代，L2 删除；依赖：S1。
+- [ ] **S2**；状态：代码完成待验收；依赖：S1。
   - 需求：FR-01、FR-10；NFR-03、NFR-05。
   - 步骤：
     1. 把 `chrome_provider_cookies.py` 迁为 `app/workers/session/chrome_reader.py`（原位置删除，旧宿主链路改为从新位置导入，直到 S8 删除）；增加 Profile 列表与钥匙串拒绝识别。
@@ -104,7 +104,7 @@ M3 是破坏性替换：S5–S8 同一发布，发布前部署者需按新手册
 
 ### S7 管理员状态页与删除授权事务
 
-- [ ] **S7**；状态：删除授权事务已完成（随 S8），站点会话状态接口与页面并入 L3；依赖：S5。
+- [ ] **S7**；状态：删除授权事务已完成（随 S8），站点会话状态接口与页面未开始；依赖：S5。
   - 需求：FR-05、FR-09。
   - 步骤：删除 `/api/providers/{key}/authorization*`、`ProviderAuthorizationService`、前端授权对话框和 `lib/provider-authorization.ts`；状态接口与页面改为展示 Design §7 字段和导入命令；按 `design.md` 实现，桌面与 390px 真实浏览器验证。
   - 验收：PRD AC-06（展示部分）、AC-12（API／前端部分）；前端 `format:check`、`lint`、`test`、`build`。
@@ -121,48 +121,6 @@ M3 是破坏性替换：S5–S8 同一发布，发布前部署者需按新手册
     3. 改写 AGENTS.md“安全与运行约束”中的宿主元宝浏览器条款和“凭据 Runner 单 Provider 只读 Secret”条款；README 部署章节改为“一次导入 + compose up”。
     4. BACKLOG 增加 046 导航。
   - 验收：PRD AC-12；`rg` 检查 Design §8 列出的标识符在代码、Compose、文档中不再出现；后端全量检查；两份 Compose `config --quiet` 通过。
-
-<a id="l0"></a>
-
-### L0 远程登录可行性
-
-- [x] **L0**；状态：已完成（2026-09-28）；依赖：S4。
-  - 证据：在 `session-browser` 容器内经 egress-proxy 打开 `https://yuanbao.tencent.com/`，页面直接弹出微信扫码登录（二维码位于 `open.weixin.qq.com` 子框架）；打开 `https://www.douyin.com/` 先出现滑块验证。结论：提供可交互画面，验证码由管理员完成；不做只截取二维码的专用实现。
-
-<a id="l1"></a>
-
-### L1 会话浏览器登录接口
-
-- [x] **L1**；状态：已完成（2026-09-28），见执行记录；依赖：L0。
-  - 需求：FR-01；NFR-02、NFR-03。
-  - 步骤：Design §6.1 会话浏览器五个接口；临时 Profile 与成功后原子替换；空闲 5 min 取消；每站点一个、全局两个登录；登录期间顶层导航只限 `https`。
-  - 验收：用假浏览器与本地测试页覆盖开始、画面、输入、登录判定、保存、取消、超时、并发拒绝、失败时旧 Profile 不变。
-
-<a id="l2"></a>
-
-### L2 broker 转发与管理员接口
-
-- [x] **L2**；状态：已完成（2026-09-28），见执行记录；依赖：L1。
-  - 需求：FR-01、FR-10、FR-11。
-  - 步骤：broker 签名通道 `SITE_SESSION_ADMIN_SECRET` 与登录转发、保存时过滤加密写入；API 管理员接口（Design §6.1 表）写入 OpenAPI，请求体不进入操作日志；撤销由 API 条件写入墓碑；两份 Compose 与 `.env.example` 同步；删除 `seed.py`（含 `status`／`revoke`，由管理页面取代）、`chrome_reader.py` 及测试；没有访客模式的平台在无会话时把 “Fresh cookies are needed” 归为 `provider_session_not_ready`；运行手册 011 改为管理页面登录。
-  - 验收：PRD AC-01、AC-07；接口与 broker 单元、集成测试；`rg chrome_reader` 无结果；后端全量检查。
-
-<a id="l3"></a>
-
-### L3 平台状态页：站点会话与远程登录
-
-- [ ] **L3**；状态：未开始；依赖：L2。取代 S7 的页面部分。
-  - 需求：FR-01、FR-05、FR-11。
-  - 步骤：重新生成 `src/api`；平台状态页“站点会话”区块与登录弹窗（画面、指针与键盘转发、保存、放弃）；按 `design.md` 实现。
-  - 验收：前端 `format:check`、`lint`、`test`、`build`；桌面与 390px 真实浏览器验证。
-
-<a id="l4"></a>
-
-### L4 真实登录端到端
-
-- [ ] **L4**；状态：未开始；依赖：L3。并入 S9。
-  - 步骤：管理员在页面中扫码登录元宝 → 视频号样本解析与完整文件；`docker compose down && up` 后会话自动恢复；撤销与重新登录。
-  - 验收：PRD AC-01、AC-03、AC-07、AC-11 的记录。
 
 <a id="s9"></a>
 
@@ -183,7 +141,7 @@ M3 是破坏性替换：S5–S8 同一发布，发布前部署者需按新手册
 
 | 需求 | 任务 |
 | --- | --- |
-| FR-01 | L1、L2、L3 |
+| FR-01 | S2 |
 | FR-02 | S1 |
 | FR-03 | S3、S4 |
 | FR-04 | S1、S5 |
@@ -192,8 +150,7 @@ M3 是破坏性替换：S5–S8 同一发布，发布前部署者需按新手册
 | FR-07 | S4、S6 |
 | FR-08 | S4 |
 | FR-09 | S7、S8 |
-| FR-10 | S2（`revoke`） |
-| FR-11 | L2、L3 |
+| FR-10 | S2 |
 | NFR-01～NFR-06 | S3、S4、S5、S9 |
 
 ## 6. 执行记录
@@ -244,20 +201,8 @@ M3 是破坏性替换：S5–S8 同一发布，发布前部署者需按新手册
 - 本机实测：`docker compose up -d --build --wait` 起全部服务，健康检查全部通过，旧容器已移除，只剩 `site_sessions` 一张会话表。用 `import_session` 为 `example.com` 写入测试会话，broker 与真实浏览器 15 s 内推进到 `ready`；在 `video-api` 容器内解析 `https://example.com/` 被强制路由为 `operator_public`，请求到达 `session-runner` 并以会话 Cookie 运行 yt-dlp（该页无视频，yt-dlp 返回不支持，属预期）；无会话的 YouTube 走匿名路线解析成功。测试会话已撤销。
 - 未验收边界：真实登录态导入与冷启动（AC-01、AC-03、AC-11）待部署者在本机终端 App 执行 `seed import`（S9）；出口一致（AC-10）待 S6；状态页（AC-06 展示部分）待 S7。
 
-### L1（2026-09-28）
+### 登录态来源决策（2026-09-28）
 
-- 实现：`app/workers/session/login.py`（`RemoteLogins`：临时 Profile、每站点一个与全局两个登录、空闲 5 min 取消、仅 `https` 顶层导航、登录判定后导出并原子替换站点 Profile、启动时清理遗留临时 Profile）；`browser.py` 公开 `launch_profile`、`logged_in`、`export_jar` 并新增 `adopt_profile`；`contracts.py` 登录契约（`LoginAction` 按种类严格校验字段与视口坐标）；`browser_app.py` 五个登录接口与定时清理；`browser_client.py` 登录方法与 `LoginRejected`。
-- 测试：`tests/unit/workers/session/test_login.py`（临时 Profile 与替换、未登录不能保存且旧 Profile 不变、操作顺序、并发限制、起始链接校验、空闲取消、启动失败清理、导航拦截、遗留清理、动作字段校验）；`test_browser_app.py` 增加登录契约（jar 封装给 broker、409／404 映射）。
-- 门禁：`ruff`、`mypy`（586 文件）通过；`pytest` 2064 passed、3 skipped。
-- 本机实测：重建 `session-browser` 后在容器内启动元宝登录 0.9 s，画面为微信扫码登录弹窗（JPEG 30 KB），转发滚轮后取消，临时 Profile 已删除。
-
-### L2（2026-09-28）
-
-- broker：`save_login`（与浏览器共用 `app/workers/session/seeding.py` 的接受规则：站点 Cookie 域、未过期、至少一个持久 Cookie、满足注册表）与五个登录转发；管理员通道使用独立密钥 `SITE_SESSION_ADMIN_SECRET`，与 Runner 通道密钥相同时拒绝启动。浏览器在替换 Profile 前执行同一规则，页面看似已登录但没有持久登录 Cookie 时返回 `login_not_accepted`，旧 Profile 不变。
-- API：`app/integrations/site_session_admin.py` 与 `app/api/routes/admin_site_sessions.py`（列表、开始、画面、输入、保存、放弃、撤销，全部仅管理员、`no-store`、不记录请求体）；新增 7 个 `site_session_*` 错误码；站点可为已知键、域名或任意 https 链接。
-- 修正：注册表中抖音的 `ttwid` 与 Reddit 的 `loid` 是未登录访客也有的 Cookie，已从登录判定中移除；没有访客路线的平台遇到 “Fresh cookies are needed” 时返回 `provider_session_not_ready`，不再误报“访客环境准备中”（视频号截图问题）。
-- 删除：`seed.py`、`chrome_reader.py` 及其测试；`provider-sources` 服务角色、`provider_source_encryption_key`、`provider_source_poll_seconds`／`lease_seconds`。
-- 部署：两份 Compose 为 broker 与 API 注入 `SITE_SESSION_ADMIN_SECRET`（生产必填），API 增加 `SITE_SESSION_BROKER_URL`；契约测试断言只有 API 与 broker 持有该密钥。运行手册 011、README、AGENTS 与相关设计改为管理页面登录。
-- 门禁：`ruff`、`mypy`（588 文件）通过；`pytest` 2041 passed、3 skipped（删除导入命令测试后数量下降）。
-- 本机实测：重建全部服务后，在 `video-api` 容器内经真实 broker 与浏览器：列表返回全部已知平台；开始视频号登录 1.2 s；画面主机 `yuanbao.tencent.com`；未登录时保存返回 `site_session_login_incomplete`；`10.0.0.1` 返回 `site_session_invalid`。
-
+- 先后评估 Chrome 扩展同步与管理页面远程登录（提交 `fdfcbbc9`、`d57bf68d`、`73543525`、`c779d0a0`），用户决定不采用，并已为本机授予完全磁盘访问权限；上述提交整体回退，保留宿主 Chrome 一次性导入（S2）。
+- 回退时保留与方案无关的修正：抖音 `ttwid`、Reddit `loid` 为访客 Cookie，已从登录判定移除；没有访客路线的平台遇到 “Fresh cookies are needed” 返回 `provider_session_not_ready`（视频号不再误报“访客环境准备中”）；删除未使用的 `PROVIDER_SOURCE_*` 配置。
+- 门禁：`ruff`、`mypy`（585 文件）通过；`pytest` 2055 passed、3 skipped。
