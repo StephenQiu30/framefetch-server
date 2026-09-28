@@ -133,7 +133,7 @@ M3 是破坏性替换：S5–S8 同一发布，发布前部署者需按新手册
 
 ### L1 会话浏览器登录接口
 
-- [ ] **L1**；状态：未开始；依赖：L0。
+- [x] **L1**；状态：已完成（2026-09-28），见执行记录；依赖：L0。
   - 需求：FR-01；NFR-02、NFR-03。
   - 步骤：Design §6.1 会话浏览器五个接口；临时 Profile 与成功后原子替换；空闲 5 min 取消；每站点一个、全局两个登录；登录期间顶层导航只限 `https`。
   - 验收：用假浏览器与本地测试页覆盖开始、画面、输入、登录判定、保存、取消、超时、并发拒绝、失败时旧 Profile 不变。
@@ -243,4 +243,11 @@ M3 是破坏性替换：S5–S8 同一发布，发布前部署者需按新手册
 - 门禁：后端 `ruff check`、`ruff format --check`、`mypy`（585 文件）通过，`pytest` 2054 passed、3 skipped；前端 `format:check`、`lint`、`test`（505）、`build` 通过；两份 Compose `config --quiet` 通过。
 - 本机实测：`docker compose up -d --build --wait` 起全部服务，健康检查全部通过，旧容器已移除，只剩 `site_sessions` 一张会话表。用 `import_session` 为 `example.com` 写入测试会话，broker 与真实浏览器 15 s 内推进到 `ready`；在 `video-api` 容器内解析 `https://example.com/` 被强制路由为 `operator_public`，请求到达 `session-runner` 并以会话 Cookie 运行 yt-dlp（该页无视频，yt-dlp 返回不支持，属预期）；无会话的 YouTube 走匿名路线解析成功。测试会话已撤销。
 - 未验收边界：真实登录态导入与冷启动（AC-01、AC-03、AC-11）待部署者在本机终端 App 执行 `seed import`（S9）；出口一致（AC-10）待 S6；状态页（AC-06 展示部分）待 S7。
+
+### L1（2026-09-28）
+
+- 实现：`app/workers/session/login.py`（`RemoteLogins`：临时 Profile、每站点一个与全局两个登录、空闲 5 min 取消、仅 `https` 顶层导航、登录判定后导出并原子替换站点 Profile、启动时清理遗留临时 Profile）；`browser.py` 公开 `launch_profile`、`logged_in`、`export_jar` 并新增 `adopt_profile`；`contracts.py` 登录契约（`LoginAction` 按种类严格校验字段与视口坐标）；`browser_app.py` 五个登录接口与定时清理；`browser_client.py` 登录方法与 `LoginRejected`。
+- 测试：`tests/unit/workers/session/test_login.py`（临时 Profile 与替换、未登录不能保存且旧 Profile 不变、操作顺序、并发限制、起始链接校验、空闲取消、启动失败清理、导航拦截、遗留清理、动作字段校验）；`test_browser_app.py` 增加登录契约（jar 封装给 broker、409／404 映射）。
+- 门禁：`ruff`、`mypy`（586 文件）通过；`pytest` 2064 passed、3 skipped。
+- 本机实测：重建 `session-browser` 后在容器内启动元宝登录 0.9 s，画面为微信扫码登录弹窗（JPEG 30 KB），转发滚轮后取消，临时 Profile 已删除。
 

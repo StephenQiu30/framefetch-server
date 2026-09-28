@@ -120,6 +120,17 @@ class SiteBrowser:
             raise HeadersUnavailable(site)
         return payload
 
+    async def adopt_profile(self, site: str, profile: Path) -> None:
+        """Make a finished login's profile the site's profile."""
+        site_target(site)
+        async with self._lock(site):
+
+            def swap() -> None:
+                shutil.rmtree(self._profile(site), ignore_errors=True)
+                profile.rename(self._profile(site))
+
+            await asyncio.to_thread(swap)
+
     async def forget(self, site: str) -> None:
         site_target(site)  # reject anything that is not a valid session key
         async with self._lock(site):
@@ -140,11 +151,20 @@ class SiteBrowser:
         profile = self._profile(site)
         if create:
             profile.mkdir(mode=0o700, parents=True, exist_ok=True)
+        return await self.launch_profile(profile)
+
+    async def launch_profile(
+        self, profile: Path, *, viewport: dict[str, int] | None = None
+    ) -> BrowserContext:
+        options: dict[str, Any] = {}
+        if viewport is not None:
+            options["viewport"] = viewport
         context = await self._playwright.chromium.launch_persistent_context(
             profile,
             headless=True,
             proxy=None if self._proxy is None else {"server": self._proxy},
             locale="zh-CN",
+            **options,
         )
         context.set_default_timeout(OPERATION_TIMEOUT_SECONDS * 1000)
         return context
@@ -156,15 +176,15 @@ class SiteBrowser:
             response = await page.goto(policy.keepalive_url, wait_until="load")
             if response is not None and response.status in _CHALLENGE_STATUSES:
                 return VisitResult(BrowserOutcome.AUTH_FAILURE, "egress_challenged")
-            logged_in = await self._logged_in(page, context, target)
-            jar = await _export(context, target)
+            logged_in = await self.logged_in(page, context, target)
+            jar = await export_jar(context, target)
         except PlaywrightError:
             return VisitResult(BrowserOutcome.UNAVAILABLE)
         if not logged_in:
             return VisitResult(BrowserOutcome.LOGGED_OUT, "session_logged_out")
         return VisitResult(BrowserOutcome.VERIFIED, jar=jar)
 
-    async def _logged_in(
+    async def logged_in(
         self, page: Page, context: BrowserContext, target: SiteTarget
     ) -> bool:
         policy = target.policy
@@ -252,7 +272,7 @@ def _to_playwright(jar: bytes, target: SiteTarget) -> list[Any]:
     return cookies
 
 
-async def _export(context: BrowserContext, target: SiteTarget) -> bytes:
+async def export_jar(context: BrowserContext, target: SiteTarget) -> bytes:
     cookies = [
         cookie
         for cookie in await context.cookies()

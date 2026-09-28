@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import Protocol
 
@@ -11,6 +12,11 @@ from app.workers.session.contracts import (
     BROWSER_HEADERS_PATH,
     BROWSER_IDENTITY_PATH,
     BROWSER_KEEPALIVE_PATH,
+    BROWSER_LOGIN_CANCEL_PATH,
+    BROWSER_LOGIN_FINISH_PATH,
+    BROWSER_LOGIN_FRAME_PATH,
+    BROWSER_LOGIN_INPUT_PATH,
+    BROWSER_LOGIN_START_PATH,
     BootstrapRequest,
     BrowserIdentity,
     BrowserOutcome,
@@ -20,8 +26,17 @@ from app.workers.session.contracts import (
     HeadersResponse,
     IdentityRequest,
     KeepaliveRequest,
+    LoginAction,
+    LoginFinished,
+    LoginFinishRequest,
+    LoginFrame,
+    LoginInputRequest,
+    LoginRef,
+    LoginStarted,
+    LoginStartRequest,
     bootstrap_associated_data,
     export_associated_data,
+    login_associated_data,
 )
 from app.workers.session.rpc import RpcError, SignedClient
 from app.workers.session.sealing import (
@@ -34,6 +49,7 @@ from app.workers.session.sealing import (
     seal,
 )
 from cryptography.hazmat.primitives.asymmetric.x25519 import X25519PrivateKey
+from pydantic import BaseModel
 
 
 @dataclass(frozen=True, slots=True)
@@ -62,9 +78,30 @@ class SessionBrowser(Protocol):
 
     async def forget(self, site: str) -> None: ...
 
+    async def login_start(self, site: str, url: str | None) -> LoginStarted: ...
+
+    async def login_frame(self, login_id: str) -> LoginFrame: ...
+
+    async def login_input(
+        self, login_id: str, actions: Sequence[LoginAction]
+    ) -> None: ...
+
+    async def login_finish(self, login_id: str) -> tuple[str, bytes]: ...
+
+    async def login_cancel(self, login_id: str) -> None: ...
+
 
 class BrowserUnavailable(Exception):
     """The browser could not be reached or answered outside the contract."""
+
+
+class LoginRejected(Exception):
+    """The browser refused a login request; ``code`` is safe to show."""
+
+    def __init__(self, code: str, status: int) -> None:
+        super().__init__(code)
+        self.code = code
+        self.status = status
 
 
 class HttpSessionBrowser:
@@ -139,6 +176,60 @@ class HttpSessionBrowser:
         try:
             await self._client.post_empty(BROWSER_FORGET_PATH, ForgetRequest(site=site))
         except RpcError as exc:
+            raise BrowserUnavailable(exc.code) from exc
+
+    async def login_start(self, site: str, url: str | None) -> LoginStarted:
+        return await self._login(
+            BROWSER_LOGIN_START_PATH,
+            LoginStartRequest(site=site, url=url),
+            LoginStarted,
+        )
+
+    async def login_frame(self, login_id: str) -> LoginFrame:
+        return await self._login(
+            BROWSER_LOGIN_FRAME_PATH, LoginRef(login_id=login_id), LoginFrame
+        )
+
+    async def login_input(self, login_id: str, actions: Sequence[LoginAction]) -> None:
+        await self._login(
+            BROWSER_LOGIN_INPUT_PATH,
+            LoginInputRequest(login_id=login_id, actions=tuple(actions)),
+            None,
+        )
+
+    async def login_finish(self, login_id: str) -> tuple[str, bytes]:
+        reply = X25519PrivateKey.generate()
+        finished = await self._login(
+            BROWSER_LOGIN_FINISH_PATH,
+            LoginFinishRequest(login_id=login_id, reply_key=encode(public_key(reply))),
+            LoginFinished,
+        )
+        try:
+            jar = open_sealed(
+                decode(finished.jar),
+                reply,
+                associated_data=login_associated_data(finished.site, login_id),
+            )
+        except SealError as exc:
+            raise BrowserUnavailable("browser returned an unreadable jar") from exc
+        return finished.site, jar
+
+    async def login_cancel(self, login_id: str) -> None:
+        await self._login(BROWSER_LOGIN_CANCEL_PATH, LoginRef(login_id=login_id), None)
+
+    async def _login[T: BaseModel](
+        self, path: str, body: BaseModel, response: type[T] | None
+    ) -> T:
+        try:
+            if response is None:
+                await self._client.post_empty(path, body)
+                return None  # type: ignore[return-value]
+            return await self._client.post(path, body, response)
+        except RpcError as exc:
+            if 400 <= exc.status < 500 and (
+                exc.code.startswith("login_") or exc.code == "invalid_request"
+            ):
+                raise LoginRejected(exc.code, exc.status) from exc
             raise BrowserUnavailable(exc.code) from exc
 
     async def _call[T: BrowserIdentity | BrowserResult | HeadersResponse](

@@ -247,5 +247,5 @@ def test_export_filters_foreign_and_empty_cookies():
         {"name": "b", "value": "", "domain": ".youtube.com", "path": "/"},
         {"name": "c", "value": "1", "domain": ".google.com", "path": "/"},
     ]
-    jar = asyncio.run(module._export(context, site_target("youtube.com")))
+    jar = asyncio.run(module.export_jar(context, site_target("youtube.com")))
     assert jar.splitlines()[1:] == [b".youtube.com\tTRUE\t/\tFALSE\t5\ta\t1"]

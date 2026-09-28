@@ -7,9 +7,9 @@ set is a sealed box (``sealing.py``) addressed to the receiver's key.
 from __future__ import annotations
 
 from enum import StrEnum
-from typing import Annotated, Final
+from typing import Annotated, Final, Literal, Self
 
-from pydantic import BaseModel, ConfigDict, Field, StringConstraints
+from pydantic import BaseModel, ConfigDict, Field, StringConstraints, model_validator
 
 STATUS_PATH: Final = "/internal/v1/site-sessions/status"
 LEASE_PATH: Final = "/internal/v1/site-sessions/lease"
@@ -19,6 +19,11 @@ BROWSER_BOOTSTRAP_PATH: Final = "/v1/sites/bootstrap"
 BROWSER_KEEPALIVE_PATH: Final = "/v1/sites/keepalive"
 BROWSER_HEADERS_PATH: Final = "/v1/sites/headers"
 BROWSER_FORGET_PATH: Final = "/v1/sites/forget"
+BROWSER_LOGIN_START_PATH: Final = "/v1/logins/start"
+BROWSER_LOGIN_FRAME_PATH: Final = "/v1/logins/frame"
+BROWSER_LOGIN_INPUT_PATH: Final = "/v1/logins/input"
+BROWSER_LOGIN_FINISH_PATH: Final = "/v1/logins/finish"
+BROWSER_LOGIN_CANCEL_PATH: Final = "/v1/logins/cancel"
 
 Site = Annotated[str, StringConstraints(pattern=r"^[a-z0-9.-]{3,253}$")]
 TaskId = Annotated[str, StringConstraints(pattern=r"^[A-Za-z0-9_-]{1,128}$")]
@@ -133,3 +138,94 @@ def bootstrap_associated_data(site: str, seed_revision: int) -> bytes:
 
 def export_associated_data(site: str, seed_revision: int) -> bytes:
     return f"site-session-export:v1:{site}:{seed_revision}".encode()
+
+
+def login_associated_data(site: str, login_id: str) -> bytes:
+    return f"site-session-login:v1:{site}:{login_id}".encode()
+
+
+# Remote login (admin → broker → browser) -------------------------------------
+
+LOGIN_WIDTH: Final = 1280
+LOGIN_HEIGHT: Final = 800
+LoginId = TaskId
+Key = Literal[
+    "Enter",
+    "Backspace",
+    "Tab",
+    "Escape",
+    "ArrowUp",
+    "ArrowDown",
+    "ArrowLeft",
+    "ArrowRight",
+]
+_X = Field(default=None, ge=0, lt=LOGIN_WIDTH)
+_Y = Field(default=None, ge=0, lt=LOGIN_HEIGHT)
+
+
+class LoginAction(_Strict):
+    """One pointer or keyboard step a human took in the remote login view."""
+
+    kind: Literal["click", "drag", "wheel", "type", "key"]
+    x: int | None = _X
+    y: int | None = _Y
+    x2: int | None = _X
+    y2: int | None = _Y
+    dy: int | None = Field(default=None, ge=-5000, le=5000)
+    text: str | None = Field(default=None, min_length=1, max_length=256)
+    key: Key | None = None
+
+    @model_validator(mode="after")
+    def _fields_match_kind(self) -> Self:
+        required = {
+            "click": ("x", "y"),
+            "drag": ("x", "y", "x2", "y2"),
+            "wheel": ("dy",),
+            "type": ("text",),
+            "key": ("key",),
+        }[self.kind]
+        present = {
+            name
+            for name in ("x", "y", "x2", "y2", "dy", "text", "key")
+            if getattr(self, name) is not None
+        }
+        if present != set(required):
+            raise ValueError(f"{self.kind} takes exactly {', '.join(required)}")
+        return self
+
+
+class LoginStartRequest(_Strict):
+    site: Site
+    url: Annotated[str, StringConstraints(max_length=2048)] | None = None
+
+
+class LoginStarted(_Strict):
+    login_id: LoginId
+    site: Site
+    width: int = LOGIN_WIDTH
+    height: int = LOGIN_HEIGHT
+
+
+class LoginRef(_Strict):
+    login_id: LoginId
+
+
+class LoginFrame(_Strict):
+    image: Encoded
+    host: Annotated[str, StringConstraints(max_length=253)]
+    logged_in: bool
+
+
+class LoginInputRequest(_Strict):
+    login_id: LoginId
+    actions: tuple[LoginAction, ...] = Field(min_length=1, max_length=20)
+
+
+class LoginFinishRequest(_Strict):
+    login_id: LoginId
+    reply_key: Encoded
+
+
+class LoginFinished(_Strict):
+    site: Site
+    jar: Encoded

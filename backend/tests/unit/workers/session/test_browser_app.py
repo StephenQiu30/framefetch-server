@@ -3,10 +3,15 @@ from contextlib import asynccontextmanager
 import httpx
 import pytest
 from app.workers.session.browser import HeadersUnavailable, VisitResult
-from app.workers.session.browser_app import create_app
-from app.workers.session.browser_client import BrowserUnavailable, HttpSessionBrowser
+from app.workers.session.browser_app import Services, create_app
+from app.workers.session.browser_client import (
+    BrowserUnavailable,
+    HttpSessionBrowser,
+    LoginRejected,
+)
 from app.workers.session.contracts import BrowserOutcome as O
-from app.workers.session.contracts import lease_associated_data
+from app.workers.session.contracts import LoginAction, lease_associated_data
+from app.workers.session.login import Frame, LoginError
 from app.workers.session.rpc import SignedClient
 from app.workers.session.sealing import open_sealed, public_key
 from cryptography.hazmat.primitives.asymmetric.x25519 import X25519PrivateKey
@@ -37,11 +42,48 @@ class FakeSiteBrowser:
         self.forgotten.append(site)
 
 
+class FakeLogins:
+    def __init__(self) -> None:
+        self.actions: list = []
+        self.cancelled: list[str] = []
+        self.done = False
+        self.closed = False
+
+    async def start(self, site, url):
+        if site == "busy.com":
+            raise LoginError("login_busy")
+        return "login_1"
+
+    async def frame(self, login_id):
+        if login_id != "login_1":
+            raise LoginError("login_not_found")
+        return Frame(b"jpeg", "yuanbao.tencent.com", self.done)
+
+    async def act(self, login_id, actions):
+        self.actions += actions
+
+    async def finish(self, login_id):
+        if not self.done:
+            raise LoginError("login_incomplete")
+        return "weixin.qq.com", b"jar"
+
+    async def cancel(self, login_id):
+        self.cancelled.append(login_id)
+
+    async def sweep(self):
+        pass
+
+    async def close(self):
+        self.closed = True
+
+
 @asynccontextmanager
-async def client(fake: FakeSiteBrowser, secret: bytes = SECRET):
+async def client(
+    fake: FakeSiteBrowser, secret: bytes = SECRET, logins: FakeLogins | None = None
+):
     @asynccontextmanager
     async def factory():
-        yield fake
+        yield Services(fake, logins or FakeLogins())
 
     app = create_app(browser_factory=factory, secret=SECRET)
     async with app.router.lifespan_context(app):
@@ -106,3 +148,37 @@ async def test_slow_or_broken_browser_operations_are_unavailable(monkeypatch):
     async with client(Broken()) as (browser, _):
         assert (await browser.keepalive("youtube.com", 1)).outcome is O.UNAVAILABLE
     assert browser_app.OPERATION_TIMEOUT_SECONDS == 60
+
+
+async def test_remote_login_contract_seals_the_jar_to_the_broker():
+    logins = FakeLogins()
+    async with client(FakeSiteBrowser(), logins=logins) as (browser, _):
+        started = await browser.login_start("weixin.qq.com", None)
+        assert (started.login_id, started.width, started.height) == (
+            "login_1",
+            1280,
+            800,
+        )
+        frame = await browser.login_frame("login_1")
+        assert (frame.host, frame.logged_in) == ("yuanbao.tencent.com", False)
+        await browser.login_input("login_1", [LoginAction(kind="key", key="Tab")])
+        assert logins.actions == [LoginAction(kind="key", key="Tab")]
+
+        with pytest.raises(LoginRejected) as rejected:
+            await browser.login_finish("login_1")
+        assert (rejected.value.code, rejected.value.status) == (
+            "login_incomplete",
+            409,
+        )
+        logins.done = True
+        assert await browser.login_finish("login_1") == ("weixin.qq.com", b"jar")
+
+        with pytest.raises(LoginRejected) as rejected:
+            await browser.login_frame("missing")
+        assert rejected.value.status == 404
+        with pytest.raises(LoginRejected) as rejected:
+            await browser.login_start("busy.com", None)
+        assert rejected.value.code == "login_busy"
+        await browser.login_cancel("login_1")
+        assert logins.cancelled == ["login_1"]
+    assert logins.closed
