@@ -2,16 +2,14 @@
 
 ## 运行模型
 
-业务拓扑只有一个运行入口：根目录 `docker-compose.yml`。本机直接复用已经运行的
-PostgreSQL、RabbitMQ、Redis 和 MinIO，但前端、API、Worker、Runner 与
-Operator 必须处于同一 Compose 网络；不提供宿主机业务进程与容器 Operator 混合运行入口：
+macOS 本机统一执行根目录 `./start`：自动准备平台连接后启动 `docker-compose.yml`。本手册说明底层容器操作；自动接入的权限、配置和诊断以 [011 站点会话运行手册](011-站点会话运行手册.md) 为准。本机直接复用已运行的 PostgreSQL、RabbitMQ、Redis 和 MinIO；业务服务与 Runner 处于受控 Compose 网络。
 
 | 文件 | 用途 | 是否启动 PostgreSQL、RabbitMQ、Redis、MinIO |
 | --- | --- | --- |
 | docker-compose.yml | 本机/共享环境运行，只启动业务容器 | 否，复用宿主机已有服务 |
 | docker-compose-prod.yml | 独立的生产业务容器运行配置，与默认拓扑保持一致 | 否，复用生产宿主机服务 |
 
-默认业务拓扑包含独立 Next.js 前端、API、Outbox、下载 Worker、导入 Worker、报告 Worker、Provider Canary、Media Runner 和受控出口代理。前端监听 8101，API 监听 8111。YouTube Operator 与其他 Provider Operator 只通过对应 profile 显式启用。
+默认业务拓扑包含独立 Next.js 前端、API、Outbox、下载／导入／报告 Worker、Provider Canary、session-runner、session-broker、session-browser 和受控出口代理。前端监听 8101，API 监听 8111；在线解析统一要求已验证的站点会话。
 
 构建参数和受控 Runner 可共用 YAML Anchor；业务进程分别声明自己的角色、连接地址、密钥、挂载、网络和启动命令。`.env` / `.env.prod` 仅供 Compose 插值，业务服务不再使用整份 `env_file` 注入。
 
@@ -57,7 +55,7 @@ macOS 若启用了系统 HTTP/HTTPS/SOCKS 代理，活动网络服务的代理�
 
 ## 新机器部署边界
 
-新机器须先提供项目专用的 PostgreSQL、RabbitMQ、Redis、MinIO 及稳定密钥，再按下文的业务拓扑启动；将实际连接信息写入不入库的 `.env`。当前仓库尚未通过全新宿主机的空状态、备份恢复与容量验收，不能把 CI 的 `docker-compose-env.yml` 当作生产基础设施安装入口，也不能沿用 `.env.example` 的开发凭据宣称一条命令完成部署。P9.09 在这些验收完成前保持开放；平台访客自动准备只在核心依赖已可用后运行。
+新机器须先提供项目专用的 PostgreSQL、RabbitMQ、Redis、MinIO 及稳定密钥，再按下文的业务拓扑启动；将实际连接信息写入不入库的 `.env`。当前仓库尚未通过全新宿主机的空状态、备份恢复与容量验收，不能把 CI 的 `docker-compose-env.yml` 当作生产基础设施安装入口，也不能沿用 `.env.example` 的开发凭据宣称一条命令完成部署。P9.09 在这些验收完成前保持开放；平台会话自动接入只在核心依赖已可用后运行。
 
 ## 本机业务拓扑
 

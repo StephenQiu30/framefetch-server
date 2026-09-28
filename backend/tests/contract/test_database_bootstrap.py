@@ -407,9 +407,7 @@ def test_compose_isolates_media_dependencies_and_preserves_api_readiness() -> No
 def test_project_documents_container_and_complete_local_entrypoints() -> None:
     root_readme = ROOT_README_PATH.read_text(encoding="utf-8")
     frontend_readme = FRONTEND_README_PATH.read_text(encoding="utf-8")
-    startup_entrypoint = (
-        "docker compose --env-file .env -f docker-compose.yml up -d --build --wait"
-    )
+    startup_entrypoint = "./start"
 
     assert not STARTUP_SCRIPT_PATH.exists()
     assert not (ROOT.parent / "scripts/run-local-backend.py").exists()
@@ -417,7 +415,9 @@ def test_project_documents_container_and_complete_local_entrypoints() -> None:
     assert not (ROOT.parent / "scripts/analysis-worker.sh").exists()
     assert not (ROOT / "app/workers/analysis/launchd.py").exists()
     assert startup_entrypoint in root_readme
-    # Site sessions (046) need no host process at startup.
+    assert (ROOT.parent / "start").is_file()
+    assert "app.workers.session.startup up" in (ROOT.parent / "start").read_text()
+    # Host acquisition is supervised; normal maintenance stays in containers.
     assert not (ROOT / "app/workers/runner/provider_startup.py").exists()
     assert "provider_startup" not in root_readme
     assert "run-local-backend.py" not in root_readme

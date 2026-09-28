@@ -75,7 +75,7 @@ docker compose --env-file .env -f docker-compose.yml up -d --build --wait
 docker compose --env-file .env -f docker-compose.yml ps --all
 ```
 
-这是完整项目唯一的运行入口，不需要宿主进程。站点会话暂不可用只影响对应站点，不阻断核心 API。
+本机 macOS 统一从仓库根目录执行 `./start`，自动接入平台并启动下述 Compose 服务；纯容器入口只能恢复已保存会话。站点会话暂不可用只影响对应站点，不阻断核心 API。
 更新代码时先独立执行 `git pull --ff-only`，再重复该命令；不要使用不会应用镜像或配置变化的
 `docker compose restart`。固定 Provider 探针仍是独立验收步骤。
 

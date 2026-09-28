@@ -1,11 +1,24 @@
 """Bind encrypted site session jars to their site, import and rotation version."""
 
+import base64
+import hashlib
+import hmac
+
 from cryptography.fernet import Fernet, InvalidToken
 
 
 class SiteSessionCipher:
     def __init__(self, key: str) -> None:
         self._cipher = Fernet(key.encode("ascii"))
+        self._fingerprint_key = base64.urlsafe_b64decode(key)
+
+    def source_fingerprint(self, site: str, payload: bytes) -> str:
+        """Private, keyed identity marker; never expose it in public status."""
+        return hmac.new(
+            self._fingerprint_key,
+            b"site-source:v1\0" + site.encode() + b"\0" + payload,
+            hashlib.sha256,
+        ).hexdigest()
 
     def encrypt(
         self, site: str, seed_revision: int, jar_version: int, payload: bytes

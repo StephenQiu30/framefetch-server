@@ -1,6 +1,6 @@
-"""One-time host import of logged-in site sessions from local Chrome.
+"""Host import of logged-in site sessions from local Chrome.
 
-This is the only step of the site session lifecycle that touches the host: it
+This is the source boundary of the site session lifecycle: it
 reads one site's Cookies from a Chrome profile, encrypts them and records a new
 import in PostgreSQL. The container session browser takes over from there.
 
@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import json
 import os
 import sys
 import time
@@ -52,7 +53,6 @@ from dotenv import dotenv_values
 from sqlalchemy.exc import SQLAlchemyError
 
 PROJECT_ROOT = Path(__file__).resolve().parents[4]
-# S6 replaces this with the per-site route chosen at import time.
 DEFAULT_EGRESS_ROUTE = "default"
 
 
@@ -147,9 +147,13 @@ async def import_session(
     secrets: SiteSessionSecrets,
     cipher: SiteSessionCipher,
     egress_route: str = DEFAULT_EGRESS_ROUTE,
+    automatic: bool = False,
+    expected_seed_revision: int | None = None,
 ) -> int:
     current = await states.get(target.site)
     expected = 0 if current is None else current.seed_revision
+    if expected_seed_revision is not None and expected != expected_seed_revision:
+        raise SiteSessionConflict("site session changed")
     payload = serialize_cookies(choice.cookies)
     ciphertext = cipher.encrypt(target.site, expected + 1, 0, payload)
     return await secrets.seed(
@@ -162,7 +166,23 @@ async def import_session(
         expected_seed_revision=expected,
         ciphertext=ciphertext,
         egress_route=egress_route,
+        source_profile=choice.profile.directory,
+        source_fingerprint=source_fingerprint(target, choice, cipher),
+        automatic=automatic,
     )
+
+
+def source_fingerprint(
+    target: SiteTarget, choice: SeedChoice, cipher: SiteSessionCipher
+) -> str:
+    # Ignore tracking values and expiry extension; only new authentication
+    # material justifies trying a rejected source again.
+    auth = sorted(
+        (c.domain, c.path, c.name, c.value)
+        for c in choice.cookies
+        if c.name in target.policy.required_cookie_names
+    )
+    return cipher.source_fingerprint(target.site, json.dumps(auth).encode())
 
 
 async def revoke_session(
@@ -181,14 +201,21 @@ def load_settings(env_file: Path) -> Settings:
         for key, value in dotenv_values(env_file).items()
         if value is not None
     }
-    for key in ("DATABASE_URL", "SITE_SESSION_ENCRYPTION_KEY"):
+    fields = (
+        "database_url",
+        "site_session_encryption_key",
+        "site_session_source_sites",
+        "site_session_source_profiles",
+        "site_session_source_interval_seconds",
+    )
+    for field in fields:
+        key = field.upper()
         if key in os.environ:
             values[key.lower()] = os.environ[key]
-    required = {
-        key: values[key]
-        for key in ("database_url", "site_session_encryption_key")
-        if values.get(key)
-    }
+    required = {key: values[key] for key in fields if values.get(key)}
+    for field in ("site_session_source_sites", "site_session_source_profiles"):
+        if field in required:
+            required[field] = json.loads(required[field])
     return Settings(
         _env_file=None,
         service_role="provider-sources",

@@ -45,6 +45,8 @@ class SiteSessionConflict(Exception):
 class SiteSessionSecret:
     status: SiteSessionStatus
     ciphertext: bytes
+    source_profile: str | None = None
+    source_fingerprint: str | None = None
 
 
 class SiteSessionStates:
@@ -77,12 +79,22 @@ class SiteSessionSecrets:
             await _bounded(session)
             row = (
                 await session.execute(
-                    select(*_STATUS_COLUMNS, Row.ciphertext).where(Row.site == site)
+                    select(
+                        *_STATUS_COLUMNS,
+                        Row.ciphertext,
+                        Row.source_profile,
+                        Row.source_fingerprint,
+                    ).where(Row.site == site)
                 )
             ).one_or_none()
         if row is None or row.ciphertext is None:
             return None
-        return SiteSessionSecret(_status(row._mapping), row.ciphertext)
+        return SiteSessionSecret(
+            _status(row._mapping),
+            row.ciphertext,
+            row.source_profile,
+            row.source_fingerprint,
+        )
 
     async def seed(
         self,
@@ -92,6 +104,9 @@ class SiteSessionSecrets:
         expected_seed_revision: int,
         ciphertext: bytes,
         egress_route: str,
+        source_profile: str | None = None,
+        source_fingerprint: str | None = None,
+        automatic: bool = False,
     ) -> int:
         """Import a new identity; a revoked tombstone may be seeded again."""
         if expected_seed_revision < 0 or not ciphertext or not egress_route:
@@ -103,6 +118,8 @@ class SiteSessionSecrets:
             seed_revision=expected_seed_revision + 1,
             jar_version=0,
             ciphertext=ciphertext,
+            source_profile=source_profile,
+            source_fingerprint=source_fingerprint,
             egress_route=egress_route,
             seeded_at=now,
             refreshed_at=None,
@@ -126,6 +143,11 @@ class SiteSessionSecrets:
                 .values(**values)
                 .returning(Row.seed_revision)
             )
+            if automatic:
+                statement = statement.where(
+                    Row.state == SiteSessionState.RESEED_REQUIRED.value,
+                    Row.source_fingerprint.is_distinct_from(source_fingerprint),
+                )
         return await self._write(statement)
 
     async def publish_jar(

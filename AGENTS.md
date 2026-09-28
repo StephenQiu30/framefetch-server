@@ -28,14 +28,14 @@
 
 ## 安全与运行约束
 
-- 按用户在 046 的明确批准，需要登录态的站点（含视频号元宝）使用站点会话：部署者在宿主一次性导入所选站点的 Chrome Cookie，之后只在容器内运行。`session-broker` 是唯一持有 `SITE_SESSION_ENCRYPTION_KEY` 的进程且不访问外网；`session-browser` 保存每站点 Profile，不得获得数据库、密钥或 Runner RPC；所有在线解析必须使用验证过的站点会话，未配置或撤销不得回退匿名／访客路线。未验证真实文件不得宣称某平台修复完成。
+- 按用户在 046 的明确批准，需要登录态的站点（含视频号元宝）使用站点会话：本机启动入口自动接入所选站点的 Chrome Cookie，正常维护在容器内完成；macOS LaunchAgent 只负责缺失或失效后的重新获取，不决定在线会话有效期。`session-broker` 是容器中唯一持有 `SITE_SESSION_ENCRYPTION_KEY` 的进程且不访问外网；`session-browser` 保存每站点 Profile，不得获得数据库、密钥或 Runner RPC；所有在线解析必须使用验证过的站点会话，未配置或撤销不得回退匿名／访客路线。未验证真实文件不得宣称某平台修复完成。
 
 - 仅处理用户有权下载和分析的内容。公开内容路线只处理能够正向证明为公开、免费、非 DRM 的 HTTP(S) 内容；按用户确认的 032 个人范围，腾讯视频和优酷可在单平台持久会话线路中尝试处理账号可访问的完整非 DRM 单视频，必须保留原始完整时长并通过最终文件校验；不能把账号可见性标成官方导出授权。其他受限平台内容仍需官方授权 Provider/Connector 按资产明确返回下载或导出授权，且输出未加密时才可生成 Artifact。Edge Agent 只能传输用户已经合法取得并显式选择的 clear 文件与脱敏声明，不得访问平台会话、网络流量、缓存或保护材料，也不得生成客户端签名、取得内容密钥或转换受保护媒体。不得借技术路径扩张会员/购买、private、follow-only 或地域权益；私网 URL、任意 yt-dlp 参数和 shell 输入始终禁止。普通业务 JSON 禁止上传原始 Cookie；受控 Provider 会话只能按 005 的 allowlist、独立 Runner、只读 Secret、权益防火墙和验收门禁启用。
 - 在线媒体入口只使用会话 Runner；会话 Runner 只能按任务领取绑定任务与站点的一次性封装租约，不持有常驻凭据，不得获得数据库、队列、对象存储或 AI 凭据。Runner 均须经过阻断私网的 egress proxy；入口 URL 校验不能替代网络隔离。
 - Worker 开工前重新解析语义下载计划；Provider format id 不能作为唯一恢复依据。
 - AI 任务独立于下载任务；AI 失败不得改变下载成功状态。模型输出必须通过严格 schema、连续分镜时间轴和 shot evidence 校验，普通日志不得记录完整 Prompt、抽帧或原始模型响应。
 - 基础设施 Secret 只来自类型化配置和环境变量；管理员在 Web 中维护的 AI Provider Key 只允许进入记录绑定的加密数据库字段，并仅在 Analysis Worker 内存中解密。任何 Secret 都不得进入前端、API 响应、异常、快照、测试夹具或普通日志。外部操作必须设置大小、时长、并发和超时上限，取消时终止整个子进程组。
-- 复用本机 OAuth 的 AI Worker 是 Compose 完整拓扑的唯一例外：必须由已登录 Codex 或 Claude CLI 的宿主机用户启动，容器不得挂载或复制 CLI 认证目录。
+- 复用本机 OAuth 的 AI Worker 是 Compose 拓扑之外的宿主组件：必须由已登录 Codex 或 Claude CLI 的宿主机用户启动，容器不得挂载或复制 CLI 认证目录。
 - Compose 只管理业务服务：`docker-compose.yml` 用于本机业务、Worker、Runner 和出口代理，`docker-compose-prod.yml` 用于生产业务。本机启动和验证直接复用当前 `.env` / `.env.prod` 与已运行的 PostgreSQL、RabbitMQ、Redis、MinIO，不另建基础环境、不覆盖已有环境文件。容器通过 `POSTGRES_HOST/PORT`、`RABBITMQ_HOST/PORT`、`REDIS_HOST/PORT`、`MINIO_HOST/PORT` 连接宿主机服务，默认主机为 `host.docker.internal`，端口和凭据以现有配置为准。`docker-compose-env.yml` 仅保留给没有宿主服务的 GitHub CI，不属于本机启动入口。MinIO 全部业务进程共用一组 `MINIO_ACCESS_KEY` 与 `MINIO_SECRET_KEY`；所有业务服务显式设置稳定的 `container_name`。只有配置文件不存在时才从示例创建。不要提交 `.env`、制品、缓存、日志、临时目录、虚拟环境或 `node_modules/`。
 
 ## 实现与验证

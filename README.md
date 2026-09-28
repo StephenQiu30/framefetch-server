@@ -108,10 +108,11 @@ Web 实例提供公开页面：`/guide/` 使用指南、`/self-hosting/` 自托�
 ### 前置条件
 
 - Docker Engine 与 Docker Compose
+- macOS 自动接入入口需要 uv、本机 Chrome 中已有的平台登录态及一次系统读取授权
 - 本机已运行 PostgreSQL、RabbitMQ、Redis 和 MinIO，已有配置直接复用
 - 用于生产部署时，需要自行提供强随机密钥和公开访问地址
 
-### Docker Compose 启动
+### 本机自动启动（macOS）
 
 ```bash
 git clone https://github.com/StephenQiu30/video-server.git
@@ -126,8 +127,8 @@ test -f .env || cp .env.example .env
 psql -X -v ON_ERROR_STOP=1 -W -h 127.0.0.1 -U video -d video \
   -f backend/sql/schema.sql
 
-# 启动 Web、API、Worker、Runner、站点会话服务与受控出口代理
-docker compose --env-file .env -f docker-compose.yml up -d --build --wait
+# 自动准备平台连接、安装后台接入服务、构建并启动业务容器
+./start
 ```
 
 全新空库还没有登录账号时，在部署机终端执行一次首管理员初始化（需使用可连接 PostgreSQL 的 `DATABASE_URL`，密码交互输入，不进入命令行历史）：
@@ -137,24 +138,15 @@ uv run --project backend python -m app.workers.bootstrap_admin \
   --env-file .env --username your-admin --email you@example.com
 ```
 
-命令只在用户表为空时创建管理员；已有任何用户时拒绝，不开放 HTTP 初始化接口。之后登录 Web，并由部署者完成需要使用的平台会话导入。若要让其他用户自行注册，先在 `.env` 配置真实 SMTP 并启用 `SMTP_ENABLED=true`；默认关闭时注册验证码不可发送，现有账号仍可登录。生产部署还应替换示例密钥。健康检查只证明服务可运行，不证明首账号已创建或每个平台有真实媒体证据。
+命令只在用户表为空时创建管理员；已有任何用户时拒绝，不开放 HTTP 初始化接口。之后登录 Web；本机启动入口自动准备已在 Chrome 登录的 YouTube、抖音会话。若要让其他用户自行注册，先在 `.env` 配置真实 SMTP 并启用 `SMTP_ENABLED=true`；默认关闭时注册验证码不可发送，现有账号仍可登录。生产部署还应替换示例密钥。健康检查只证明服务可运行，不证明首账号已创建或每个平台有真实媒体证据。
 
 ### 站点会话（需要登录态的平台）
 
-部署者一次性导入所选站点的 Chrome 登录态，之后由容器保持和刷新。重启恢复必须重新验证，原解析任务在期限内等待。平台明确登出、吊销或要求交互登录时仍需人工处理，不能承诺永久免登录。首批真实验证重点为 YouTube、抖音；其他站点须补齐登录探针并通过媒体文件验收，不能仅凭导入 Cookie 宣布可用。详细状态和恢复步骤见[站点会话运行手册](docs/operations/011-站点会话运行手册.md)。
+`./start` 自动应用当前数据库结构、发现已启用平台的 Chrome 登录态、加密登记并等待容器实际验证，同时安装当前用户的 macOS LaunchAgent。默认启用 YouTube、抖音；后台每 60 秒检查缺失或确认失效的会话。健康会话不反复导入，重启直接恢复数据库与持久 Profile。首次系统授权、平台扫码或验证码仍由部署者完成；在 Chrome 重新登录后，系统自动接入，无需再执行导入命令。
 
-在本机 Terminal 中（需要 macOS 钥匙串授权一次）：
+多个 Profile 均已登录时，在 `.env` 的 `SITE_SESSION_SOURCE_PROFILES` 一次性指定来源；首次选定后绑定该 Profile，避免自动切换账号。撤销的会话不会被后台恢复。支持范围、状态检查和退出后台服务见[站点会话运行手册](docs/operations/011-站点会话运行手册.md)。其他平台须具备登录探针并通过真实文件验收，不能仅凭 Cookie 宣布可用。
 
-```bash
-cd backend
-uv run python -m app.workers.session.seed import --site youtube.com
-uv run python -m app.workers.session.seed status
-uv run python -m app.workers.session.seed revoke --site youtube.com
-```
-
-`--site` 可以是任意站点或链接主机（如 `youtu.be`、`example.com`）；多个 Chrome Profile 都已登录时用 `--profile "Profile 2"` 指定。`SITE_SESSION_ENCRYPTION_KEY` 必须稳定并与数据库备份分开保管。建议用单独的 Chrome Profile 登录非主力账号再导入：同一登录态在两处并用时，平台轮换 Cookie 可能使其中一端被登出。细节见 [站点会话运行手册](docs/operations/011-站点会话运行手册.md) 与 [046 设计](docs/design/046-容器自持平台会话设计.md)。
-
-生产部署使用同一入口：
+纯容器生产部署使用以下入口（恢复已有加密会话；不会自动读取远端 Mac 的浏览器）：
 
 ```bash
 docker compose --env-file .env.prod -f docker-compose-prod.yml up -d --build --wait

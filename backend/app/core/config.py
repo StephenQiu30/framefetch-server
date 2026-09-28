@@ -133,7 +133,7 @@ class Settings(BaseSettings):
     )
 
     database_url: str = "postgresql+asyncpg://video:video@localhost:5432/video"
-    # Only the session broker and the one-time host import receive this key.
+    # Only the session broker and the host source receive this key.
     site_session_encryption_key: SecretStr | None = None
     # Runner -> broker and broker -> browser use independent HMAC secrets.
     site_session_rpc_secret: SecretStr | None = None
@@ -144,6 +144,25 @@ class Settings(BaseSettings):
     site_session_keepalive_jitter_seconds: int = Field(default=300, ge=0, le=1800)
     site_session_coordination_url: str = "redis://provider-lease-redis:6379/0"
     site_session_lease_seconds: int = Field(default=600, ge=60, le=3600)
+    site_session_source_sites: tuple[Literal["youtube.com", "douyin.com"], ...] = (
+        "youtube.com",
+        "douyin.com",
+    )
+    site_session_source_profiles: dict[Literal["youtube.com", "douyin.com"], str] = (
+        Field(default_factory=dict)
+    )
+    site_session_source_interval_seconds: int = Field(default=60, ge=30, le=3600)
+
+    @field_validator("site_session_source_profiles")
+    @classmethod
+    def validate_source_profiles(cls, value: dict[str, str]) -> dict[str, str]:
+        if any(
+            re.fullmatch(r"(?:Default|Profile [1-9][0-9]*)", v) is None
+            for v in value.values()
+        ):
+            raise ValueError("source profiles must name a Chrome profile directory")
+        return value
+
     provider_source_root: Path = Path("/run/provider-sources")
 
     @field_validator("site_session_encryption_key", mode="before")

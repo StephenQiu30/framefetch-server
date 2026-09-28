@@ -49,7 +49,8 @@ export function SiteSessionStatus() {
         </Button>
       </div>
       <p>
-        解析使用部署者配置的登录状态。系统自动检查与维护会话；平台要求重新登录时，需要部署者完成登录并重新导入。
+        系统自动检查与维护会话。已启用自动接入的平台，在部署主机的 Chrome
+        完成登录后会自动同步；平台验证码仍需部署者处理。
       </p>
       {query.isPending ? <p role="status">正在读取会话状态…</p> : null}
       {query.isError ? (
@@ -86,13 +87,15 @@ export function SiteSessionStatus() {
                   <TableCell>{time(item.session_verified_at)}</TableCell>
                   <TableCell>{time(item.session_next_check_at)}</TableCell>
                   <TableCell>
-                    {['not_configured', 'reseed_required', 'revoked'].includes(
-                      item.session_state,
-                    )
-                      ? '在部署主机登录该站点，然后运行站点会话导入命令。'
-                      : item.session_state === 'degraded'
-                        ? '系统将自动重试；持续失败时检查平台验证要求与网络出口。'
-                        : '自动维护中'}
+                    {item.session_state === 'revoked'
+                      ? '已主动撤销，不会自动恢复；恢复使用需显式导入。'
+                      : ['not_configured', 'reseed_required'].includes(
+                            item.session_state,
+                          )
+                        ? '已启用自动接入时，在部署主机 Chrome 登录后等待同步；否则请检查站点接入配置。'
+                        : item.session_state === 'degraded'
+                          ? '系统将自动重试；持续失败时检查平台验证要求与网络出口。'
+                          : '自动维护中'}
                   </TableCell>
                 </TableRow>
               ))}

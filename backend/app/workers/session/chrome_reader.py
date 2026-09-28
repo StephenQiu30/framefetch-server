@@ -1,6 +1,6 @@
 """Read a site-scoped Cookie jar from local macOS Chrome.
 
-Only the one-time host import runs this; containers never read a host browser.
+Only the host source runs this; containers never read a host browser.
 """
 
 from __future__ import annotations

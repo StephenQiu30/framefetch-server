@@ -1546,6 +1546,8 @@ CREATE TABLE IF NOT EXISTS site_sessions (
     seed_revision BIGINT NOT NULL,
     jar_version BIGINT NOT NULL DEFAULT 0,
     ciphertext BYTEA,
+    source_profile VARCHAR(64),
+    source_fingerprint VARCHAR(64),
     egress_route VARCHAR(64) NOT NULL,
     seeded_at TIMESTAMPTZ NOT NULL,
     refreshed_at TIMESTAMPTZ,
@@ -1562,6 +1564,8 @@ CREATE TABLE IF NOT EXISTS site_sessions (
     CONSTRAINT ck_site_sessions_revoked CHECK ((state = 'revoked') = (ciphertext IS NULL))
 );
 ALTER TABLE site_sessions ADD COLUMN IF NOT EXISTS next_check_at timestamptz;
+ALTER TABLE site_sessions ADD COLUMN IF NOT EXISTS source_profile VARCHAR(64);
+ALTER TABLE site_sessions ADD COLUMN IF NOT EXISTS source_fingerprint VARCHAR(64);
 ALTER TABLE site_sessions
     ADD COLUMN IF NOT EXISTS consecutive_failures INTEGER NOT NULL DEFAULT 0;
 
