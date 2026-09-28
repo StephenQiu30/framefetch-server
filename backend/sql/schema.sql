@@ -1598,6 +1598,7 @@ CREATE TABLE IF NOT EXISTS site_sessions (
     refreshed_at TIMESTAMPTZ,
     verified_at TIMESTAMPTZ,
     last_error_code VARCHAR(64),
+    consecutive_failures INTEGER NOT NULL DEFAULT 0,
     state_changed_at TIMESTAMPTZ NOT NULL,
     CONSTRAINT ck_site_sessions_state CHECK (
         state IN ('seeded', 'verifying', 'ready', 'degraded', 'reseed_required', 'revoked')
@@ -1606,6 +1607,8 @@ CREATE TABLE IF NOT EXISTS site_sessions (
     CONSTRAINT ck_site_sessions_jar_version CHECK (jar_version >= 0),
     CONSTRAINT ck_site_sessions_revoked CHECK ((state = 'revoked') = (ciphertext IS NULL))
 );
+ALTER TABLE site_sessions
+    ADD COLUMN IF NOT EXISTS consecutive_failures INTEGER NOT NULL DEFAULT 0;
 
 -- Guest contexts are deployment-owned public state, separate from account sources.
 CREATE TABLE IF NOT EXISTS provider_guest_contexts (

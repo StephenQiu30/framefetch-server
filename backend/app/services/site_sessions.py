@@ -114,6 +114,7 @@ class SiteSessionStatus:
     refreshed_at: datetime | None
     verified_at: datetime | None
     last_error_code: str | None
+    consecutive_failures: int
     state_changed_at: datetime
 
 

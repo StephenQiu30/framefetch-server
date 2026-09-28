@@ -1,6 +1,6 @@
 # 046 容器自持平台会话 Plan
 
-日期：2026-09-28。状态：已评审（2026-09-28），S1、S2 代码完成待验收，其余未开始。需求见 [PRD](../prd/046-容器自持平台会话PRD.md)，技术方案见 [Design](../design/046-容器自持平台会话设计.md)。**任务状态、证据只在本文维护。**
+日期：2026-09-28。状态：已评审（2026-09-28），S1–S3 代码完成待验收，其余未开始。需求见 [PRD](../prd/046-容器自持平台会话PRD.md)，技术方案见 [Design](../design/046-容器自持平台会话设计.md)。**任务状态、证据只在本文维护。**
 
 工作方式沿用 [044 Plan §1](044-开源部署无感解析Plan.md#1-sdd-工作方式)：先写能判定的测试，再实现最小闭环；代码完成不等于平台实测完成；只有“已验收”才勾选。
 
@@ -54,13 +54,14 @@ M3 是破坏性替换：S5–S8 同一发布，发布前部署者需按新手册
 
 ### S3 session-broker
 
-- [ ] **S3**；状态：未开始；依赖：S1。
+- [ ] **S3**；状态：代码完成待验收；依赖：S1。
   - 需求：FR-03、FR-05、FR-06；NFR-02、NFR-06。
   - 步骤：
-    1. 把 `provider-sources` 服务改造为 `app/workers/session/broker.py`：15 s 扫描、状态机（Design §5）、条件写入。
-    2. 浏览器 RPC（`session_net`）：`bootstrap`、`report`、`publish_jar`，jar 用 X25519 临时密钥封装。
-    3. Runner RPC（`runner_rpc_net`，HMAC）：`lease`、`report_failure`；租约算法从 `provider_cookie_lease.py` 迁入 `lease.py`，AAD 绑定任务与站点。
-    4. `reseed_required` 转换时经管理员通知通道发出一次告警。
+    1. 新增 `app/workers/session/broker.py`（调度、每站点锁、并发 2、保活计划、条件写入）与纯函数状态机 `app/services/site_session_lifecycle.py`（Design §5）；`site_sessions` 增加 `consecutive_failures`，同状态刷新不改 `state_changed_at`。
+    2. broker 作为唯一调度者经 `session_net` 调用浏览器 `identity`／`bootstrap`／`keepalive`／`headers`／`forget`（`browser_client.py`），jar 双向封装（`sealing.py`）。
+    3. Runner RPC（HMAC，`rpc.py`）：`POST /internal/v1/site-sessions/lease`、`POST /internal/v1/site-sessions/failures`；`broker_app.py` 提供健康检查与扫描循环，端口 19200。
+    4. 告警：进入 `reseed_required` 的唯一胜出写入输出一条 WARNING 日志；项目无独立通知通道（Design §5）。
+    5. Compose 服务定义随 S4 与浏览器一起加入；`provider-sources` 的旧文件分发在 S8 删除。
   - 验收：PRD AC-05（broker 停止部分）、AC-06、AC-09；状态机和租约的单元测试；并发导入与迟到保活的竞争测试。
 
 <a id="s4"></a>
@@ -70,7 +71,7 @@ M3 是破坏性替换：S5–S8 同一发布，发布前部署者需按新手册
 - [ ] **S4**；状态：未开始；依赖：S3。
   - 需求：FR-03、FR-07、FR-08；NFR-02、NFR-04、NFR-06。
   - 步骤：
-    1. 新增镜像：固定 digest 的 Chromium，非 root、只读根、`cap_drop: ALL`、Profile 卷 `site_session_profiles`。
+    1. 新增镜像：固定 digest 的 Chromium，非 root、只读根、`cap_drop: ALL`、Profile 卷 `site_session_profiles`；开发与生产 Compose 增加 `session-broker`（S3 的 `broker_app`）与 `session-browser`、`session_net` 网络，以及 `SITE_SESSION_RPC_SECRET`、`SITE_SESSION_BROWSER_SECRET`。
     2. `app/workers/session/browser.py`：每站点 Profile、按站点代理、`Network.setCookies`／`getCookies`、`login_probe`、`Fetch` 顶层导航拦截、30 min ± 5 min 保活、2 个并发站点任务、60 s 超时。
     3. 注册表中各平台的 `login_probe`（YouTube `ytcfg.LOGGED_IN`，其他平台以真实页面确定后写入注册表）。
     4. 视频号 `yuanbao` 头插件：把 `yuanbao_session.py` 的读取逻辑迁入浏览器，删除宿主版本。
@@ -172,4 +173,13 @@ M3 是破坏性替换：S5–S8 同一发布，发布前部署者需按新手册
 - 门禁：`ruff check`、`ruff format --check`、`mypy app`（599 文件）通过；`pytest` 2205 passed、4 skipped（原因同 S1）。
 - 本机实测：`status` 读取本机数据库，输出“尚未登记任何站点会话”；从非交互进程执行 `import --site youtu.be`，正确返回退出码 3 与钥匙串提示（读取器此前会把钥匙串拒绝静默处理成“没有 Cookie”，现已明确区分）；`revoke` 无会话返回 2；`co.uk` 被拒绝。
 - 未验收边界：PRD AC-01 的“成功登记”分支需要部署者在自己的 Terminal 中执行一次 `import` 并允许钥匙串访问，尚未执行；该步骤完成后记录 Cookie 数量与修订（不记录值）即可关闭 AC-01 的实测部分。
+
+### S3（2026-09-28）
+
+- 实现：`broker.py`、`broker_app.py`、`browser_client.py`、`contracts.py`、`rpc.py`、`sealing.py`（`app/workers/session/`）；`app/services/site_session_lifecycle.py`；`Settings` 增加 `session-broker` 角色、两个 HMAC 密钥（≥32 字节校验）、浏览器地址、扫描／保活／租约时长；`site_sessions.consecutive_failures`。
+- 设计修正（已同步 Design §5、§6.2–6.4）：broker 是唯一调度者、浏览器为被动 RPC（浏览器不需要访问 broker）；jar 双向封装、浏览器按进程生成身份密钥；项目不存在“管理员通知通道”，告警改为唯一胜出写入的 WARNING 日志加状态页；新导入遇到认证类挑战时停留在 `verifying` 计数，而不是立即要求重新导入；进入 `degraded` 后立即复验。
+- 测试：状态机全部转换；封装（错误用途、错误密钥、篡改、畸形、大小）；签名 RPC（往返、错误密钥、重放、篡改、不可达）；broker 与真实 Postgres（导入→验证→轮换写入、浏览器不可达重试、登出只告警一次、保活到期与 Profile 重建、降级→复验→升级到重新导入、24 h 截止从进入状态算起、租约封装绑定任务与修订、视频号头转发、迟到轮换不覆盖新导入、撤销只清理一次、密文不可解密）；broker HTTP 应用（签名租约、409、422、失败上报、未签名 401、扫描循环与就绪、缺少密钥拒绝启动）。
+- 门禁：`ruff check`、`ruff format --check`、`mypy app`（606 文件）通过；`pytest` 2238 passed、4 skipped（原因同 S1）。
+- 本机实测：`schema.sql` 在既有 `video` 库重复执行成功并新增 `consecutive_failures`；以真实进程启动 `python -m app.workers.session.broker_app`：`/health/live` 200、扫描本机数据库后 `/health/ready` 200、未签名租约 401、签名租约 409 `provider_session_not_ready`（尚无会话）。
+- 未验收边界：没有真实浏览器，AC-05／AC-06／AC-09 的端到端部分待 S4、S5。
 

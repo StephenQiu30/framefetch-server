@@ -12,7 +12,7 @@ from collections.abc import Set
 from dataclasses import dataclass
 from typing import Any
 
-from sqlalchemy import func, select, text, update
+from sqlalchemy import case, func, select, text, update
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
@@ -30,6 +30,7 @@ _STATUS_COLUMNS = (
     Row.refreshed_at,
     Row.verified_at,
     Row.last_error_code,
+    Row.consecutive_failures,
     Row.state_changed_at,
 )
 
@@ -105,6 +106,7 @@ class SiteSessionSecrets:
             refreshed_at=None,
             verified_at=None,
             last_error_code=None,
+            consecutive_failures=0,
             state_changed_at=now,
         )
         if expected_seed_revision == 0:
@@ -160,16 +162,28 @@ class SiteSessionSecrets:
         to: SiteSessionState,
         error_code: str | None = None,
         verified: bool = False,
+        consecutive_failures: int = 0,
     ) -> None:
+        """Conditionally move one import; staying in a state keeps its start time.
+
+        ``state_changed_at`` marks entry into the current state so the degraded
+        deadline counts from the first failure, not the latest one.
+        """
         if to is SiteSessionState.REVOKED or SiteSessionState.REVOKED in allowed_from:
             raise ValueError("revocation has its own tombstone write")
+        if consecutive_failures < 0:
+            raise ValueError("failure count cannot be negative")
+        now = func.clock_timestamp()
         values: dict[str, Any] = dict(
             state=to.value,
             last_error_code=error_code,
-            state_changed_at=func.clock_timestamp(),
+            consecutive_failures=consecutive_failures,
+            state_changed_at=case(
+                (Row.state == to.value, Row.state_changed_at), else_=now
+            ),
         )
         if verified:
-            values["verified_at"] = func.clock_timestamp()
+            values["verified_at"] = now
         statement = (
             update(Row)
             .where(
@@ -225,5 +239,6 @@ def _status(row: Any) -> SiteSessionStatus:
         refreshed_at=row["refreshed_at"],
         verified_at=row["verified_at"],
         last_error_code=row["last_error_code"],
+        consecutive_failures=row["consecutive_failures"],
         state_changed_at=row["state_changed_at"],
     )
