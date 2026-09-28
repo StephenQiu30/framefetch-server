@@ -72,6 +72,16 @@ describe('DownloadJobView', () => {
       '[data-slot="media-result-frame"]',
     );
     expect(mediaFrame).not.toBeNull();
+    const cards = document.querySelectorAll(
+      '[data-slot="media-result"] > [data-slot="card"]',
+    );
+    expect(cards).toHaveLength(2);
+    expect(cards[0].querySelector('[data-slot="media-result-frame"]')).toBe(
+      mediaFrame,
+    );
+    expect(cards[1]).toContainElement(
+      document.getElementById('download-status-title'),
+    );
     emitTaskUpdate('download', job('running').id, 2);
     expect((await screen.findAllByText('服务端已完成')).length).toBeGreaterThan(
       0,

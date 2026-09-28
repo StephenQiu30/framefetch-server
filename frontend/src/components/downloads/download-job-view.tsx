@@ -18,16 +18,12 @@ import { markNavigationPush } from '@/components/layout/navigation-history';
 import { PageEmptyNotice } from '@/components/layout/page-empty-notice';
 import { PageErrorNotice } from '@/components/layout/page-error-notice';
 import { PageNavigation } from '@/components/layout/page-navigation';
-import MediaCover, {
-  mediaFrameAspectRatio,
-} from '@/components/media/media-cover';
+import MediaCover from '@/components/media/media-cover';
 import {
   MediaResult,
-  mediaResultGridClassName,
+  MediaResultSkeleton,
 } from '@/components/media/media-result';
-import { AspectRatio } from '@/components/ui/aspect-ratio';
 import { Button } from '@/components/ui/button';
-import { Skeleton } from '@/components/ui/skeleton';
 import { formatDuration } from '@/lib/format';
 import { audioCodecLabel } from '@/lib/media-format';
 import { TaskSocketStatusCode } from '@/lib/task-socket';
@@ -180,7 +176,7 @@ export default function DownloadJobView({
               )
             }
             actions={
-              <div className="space-y-6">
+              <div className="flex flex-1 flex-col gap-6">
                 {state.retryTarget && state.retryTarget !== jobId ? (
                   <FeedbackNotice
                     title="已创建新的下载任务"
@@ -281,22 +277,7 @@ function DownloadJobSkeleton() {
   return (
     <div className="inner-page">
       <PageNavigation fallbackHref="/history" />
-      <div className={mediaResultGridClassName}>
-        <div>
-          <AspectRatio ratio={mediaFrameAspectRatio}>
-            <Skeleton className="size-full" />
-          </AspectRatio>
-          <Skeleton className="mt-5 h-8 w-3/4" />
-          <Skeleton className="mt-2 h-4 w-1/2" />
-        </div>
-        <div className="lg:pt-1">
-          <Skeleton className="h-5 w-20" />
-          <Skeleton className="mt-5 h-9 w-4/5" />
-          <Skeleton className="mt-4 h-5 w-full" />
-          <Skeleton className="mt-8 h-11 w-full" />
-          <Skeleton className="mt-7 h-11 w-3/4" />
-        </div>
-      </div>
+      <MediaResultSkeleton label="正在读取下载任务" />
     </div>
   );
 }

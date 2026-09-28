@@ -58,7 +58,7 @@ export default function DownloadState({
   const showProgress = active;
 
   return (
-    <div className="self-start">
+    <div className="flex flex-1 flex-col">
       <Badge variant={statusVariant(job.status)}>
         {statusLabels[job.status]}
       </Badge>
@@ -110,7 +110,7 @@ export default function DownloadState({
         </Alert>
       ) : null}
 
-      <div className="mt-7 grid gap-3">
+      <div className="mt-auto grid gap-3 pt-7">
         {complete && job.file_available ? (
           <Button
             className="w-full"

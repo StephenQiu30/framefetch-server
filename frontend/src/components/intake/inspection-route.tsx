@@ -16,16 +16,7 @@ import { FeedbackNotice } from '@/components/layout/feedback-notice';
 import { markNavigationPush } from '@/components/layout/navigation-history';
 import { PageErrorNotice } from '@/components/layout/page-error-notice';
 import { PageNavigation } from '@/components/layout/page-navigation';
-import { mediaFrameAspectRatio } from '@/components/media/media-cover';
-import { mediaResultGridClassName } from '@/components/media/media-result';
-import { AspectRatio } from '@/components/ui/aspect-ratio';
-import {
-  Card,
-  CardContent,
-  CardFooter,
-  CardHeader,
-} from '@/components/ui/card';
-import { Skeleton } from '@/components/ui/skeleton';
+import { MediaResultSkeleton } from '@/components/media/media-result';
 import { privateQueryKey } from '@/lib/query-keys';
 import { ApiError, displayError } from '@/lib/request-error';
 import { createUuid } from '@/lib/uuid';
@@ -264,38 +255,5 @@ export default function InspectionRoute() {
 }
 
 export function InspectionSkeleton() {
-  return (
-    <div
-      className={`${mediaResultGridClassName} lg:items-stretch`}
-      aria-label="正在读取解析结果"
-      role="status"
-    >
-      <Card className="min-w-0">
-        <CardContent className="-mx-(--card-spacing) -mt-(--card-spacing)">
-          <AspectRatio ratio={mediaFrameAspectRatio}>
-            <Skeleton className="size-full rounded-none" />
-          </AspectRatio>
-        </CardContent>
-        <CardHeader>
-          <Skeleton className="h-8 w-3/4" />
-          <Skeleton className="h-4 w-1/2" />
-        </CardHeader>
-      </Card>
-      <Card className="min-w-0">
-        <CardHeader>
-          <Skeleton className="h-5 w-20" />
-        </CardHeader>
-        <CardContent className="flex-1 space-y-4">
-          <Skeleton className="h-16 w-full" />
-          <Skeleton className="h-16 w-full" />
-          <Skeleton className="h-16 w-full" />
-          <Skeleton className="h-16 w-full" />
-          <Skeleton className="h-20 w-full" />
-        </CardContent>
-        <CardFooter>
-          <Skeleton className="h-11 w-full" />
-        </CardFooter>
-      </Card>
-    </div>
-  );
+  return <MediaResultSkeleton label="正在读取解析结果" selectionPanel />;
 }
