@@ -30,6 +30,7 @@ dependencies = [
   "botocore>=1.40,<2",
   "redis>=6.4,<7",
   "pillow>=12,<13",
+  "tldextract>=5.3,<6",
 ]
 
 [dependency-groups]

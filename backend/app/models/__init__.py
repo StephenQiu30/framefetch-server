@@ -37,6 +37,7 @@ from app.models.provider_guest_context import ProviderGuestContextRow
 from app.models.provider_route_cooldown import ProviderRouteCooldownRow
 from app.models.provider_session_source import ProviderSessionSourceRow
 from app.models.quota import ResourceAdmissionRow
+from app.models.site_session import SiteSessionRow
 from app.models.source_discovery import SourceDiscoveryItemRow, SourceDiscoveryRow
 from app.models.task_event import TaskEventRow
 from app.models.web_session import WebSessionRow
@@ -78,6 +79,7 @@ __all__ = [
     "ProviderGuestContextRow",
     "ProviderRouteCooldownRow",
     "ProviderSessionSourceRow",
+    "SiteSessionRow",
     "SourceDiscoveryItemRow",
     "SourceDiscoveryRow",
     "TaskEventRow",

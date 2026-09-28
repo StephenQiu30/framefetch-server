@@ -1,6 +1,6 @@
 # 046 容器自持平台会话 Plan
 
-日期：2026-09-28。状态：待评审，全部任务未开始。需求见 [PRD](../prd/046-容器自持平台会话PRD.md)，技术方案见 [Design](../design/046-容器自持平台会话设计.md)。**任务状态、证据只在本文维护。**
+日期：2026-09-28。状态：已评审（2026-09-28），S1 代码完成待验收，其余未开始。需求见 [PRD](../prd/046-容器自持平台会话PRD.md)，技术方案见 [Design](../design/046-容器自持平台会话设计.md)。**任务状态、证据只在本文维护。**
 
 工作方式沿用 [044 Plan §1](044-开源部署无感解析Plan.md#1-sdd-工作方式)：先写能判定的测试，再实现最小闭环；代码完成不等于平台实测完成；只有“已验收”才勾选。
 
@@ -29,12 +29,12 @@ M3 是破坏性替换：S5–S8 同一发布，发布前部署者需按新手册
 
 ### S1 站点模型、注册表与数据表
 
-- [ ] **S1**；状态：未开始；依赖：无。
+- [ ] **S1**；状态：代码完成待验收；依赖：无。
   - 需求：FR-02、FR-04（非秘密读取）；NFR-03。
   - 步骤：
-    1. 引入固定版本的 PSL 库（优先 `tldextract` 离线快照，或 `publicsuffix2`），实现 `SiteResolver`，拒绝 IP、私网、`localhost` 和公共后缀。
-    2. 在 `app/workers/session/registry.py` 以数据声明首期 6 个平台条目（Design §3.2）和未知站点默认条目。
-    3. `schema.sql` 新增 `site_sessions`，删除 `provider_session_sources`、`provider_authorizations`；新增 ORM 模型；仓储分为只读非秘密列的 `SiteSessionStates`（API 用）和读写密文的 `SiteSessionSecrets`（仅 broker、导入命令使用）。
+    1. 引入锁定版本的 `tldextract`（离线快照、含私有后缀、不写缓存），实现 `registrable_site`，拒绝 IP、单标签名、未收录后缀和公共后缀。
+    2. 在 `app/services/site_sessions.py` 以数据声明现有全部 11 个账号会话平台条目和未知站点默认条目（Design §3.2）；`app/integrations/site_session_catalog.py` 组合 `ProviderProfile` 的主机与 Cookie 域。
+    3. `schema.sql` 新增 `site_sessions` 与 ORM 模型；仓储分为只读非秘密列的 `SiteSessionStates`（API 用）和条件写入密文的 `SiteSessionSecrets`（仅 broker、导入命令使用）。旧表在 S8 删除。
     4. 在已有数据库和空数据库上幂等执行 `schema.sql`。
   - 验收：PRD AC-02；单元测试覆盖站点解析全部样例；仓储测试断言 `SiteSessionStates` 的 SQL 不含 `ciphertext`。
 
@@ -116,7 +116,7 @@ M3 是破坏性替换：S5–S8 同一发布，发布前部署者需按新手册
 - [ ] **S8**；状态：未开始；依赖：S5、S6、S7。
   - 需求：FR-09。
   - 步骤：
-    1. 按 Design §8 删除模块、类型、Compose 服务与卷、配置键、测试；开发与生产 Compose 同步。
+    1. 按 Design §8 删除模块、类型、Compose 服务与卷、配置键、测试；`schema.sql` 删除 `provider_session_sources`、`provider_authorizations`（`DROP TABLE IF EXISTS`）及其 ORM；删除 `provider_session_policy.py` 中与站点会话注册表重复的 Cookie 校验；开发与生产 Compose 同步。
     2. 新增运行手册 `docs/operations/009-站点会话运行手册.md`（导入、状态、撤销、换机、告警处理）；删除 002、003、008 中宿主来源内容；043 标为已被 046 取代并删除正文；044 PRD 的 FR-17／AC-21 改为指向 046，044 Plan 同步追溯表。
     3. 改写 AGENTS.md“安全与运行约束”中的宿主元宝浏览器条款和“凭据 Runner 单 Provider 只读 Secret”条款；README 部署章节改为“一次导入 + compose up”。
     4. BACKLOG 增加 046 导航。
@@ -155,4 +155,11 @@ M3 是破坏性替换：S5–S8 同一发布，发布前部署者需按新手册
 
 ## 6. 执行记录
 
-暂无。
+### S1（2026-09-28）
+
+- 实现：`app/services/site_sessions.py`（状态、权益、登录校验、11 个平台条目、PSL 解析）；`app/integrations/site_session_catalog.py`（URL／主机 → 站点与 Cookie 域）；`app/models/site_session.py`；`app/repositories/providers/site_sessions.py`；`schema.sql` 新增 `site_sessions`；依赖 `tldextract 5.3.2`。
+- 设计修正（已同步 Design §3）：视频号与腾讯视频同在 `qq.com` 下，已知平台的站点键允许比可注册域名更具体（`weixin.qq.com`、`v.qq.com`）；主机与 Cookie 域复用 `ProviderProfile`，不另建 `linked_sites`；注册表放在 services，组合放在 integrations，遵守架构测试；旧表推迟到 S8 删除。
+- 测试：新增 `tests/unit/services/test_site_session_policy.py`、`tests/unit/integrations/test_site_session_catalog.py`、`tests/integration/test_site_session_repository.py`，覆盖 PRD AC-02 全部样例、拒绝项、20 并发首次导入单胜者、迟到保活不能覆盖新导入、条件状态转换、撤销墓碑与重新导入、状态读取的 SQL 不含 `ciphertext`、schema 幂等与墓碑约束。
+- 门禁：`ruff check`、`ruff format --check`、`mypy app`（596 文件）通过；`pytest` 2184 passed、4 skipped（RabbitMQ、MinIO、下载角色 URL 未提供，Linux `O_PATH`），跳过项与本次改动无关。
+- 数据库：`schema.sql` 在本机既有 `video` 库连续执行两次成功，`site_sessions` 为空；隔离 schema 空库测试通过。运行中的 API `/health/ready` 仍为 200。
+- 未验收边界：S1 无真实平台行为；AC-02 的最终验收随 S2 导入命令一起做端到端确认。

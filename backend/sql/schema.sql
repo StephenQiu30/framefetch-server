@@ -1582,6 +1582,31 @@ CREATE TABLE IF NOT EXISTS provider_session_sources (
     )
 );
 
+-- Site sessions are deployment-owned logged-in identities keyed by domain.
+-- seed_revision changes only on import and fixes the access context version;
+-- jar_version tracks cookie rotation captured by the session browser. A revoked
+-- row is a durable tombstone: its ciphertext is cleared and routing reverts.
+CREATE TABLE IF NOT EXISTS site_sessions (
+    site VARCHAR(253) PRIMARY KEY,
+    provider_key VARCHAR(32),
+    state VARCHAR(24) NOT NULL,
+    seed_revision BIGINT NOT NULL,
+    jar_version BIGINT NOT NULL DEFAULT 0,
+    ciphertext BYTEA,
+    egress_route VARCHAR(64) NOT NULL,
+    seeded_at TIMESTAMPTZ NOT NULL,
+    refreshed_at TIMESTAMPTZ,
+    verified_at TIMESTAMPTZ,
+    last_error_code VARCHAR(64),
+    state_changed_at TIMESTAMPTZ NOT NULL,
+    CONSTRAINT ck_site_sessions_state CHECK (
+        state IN ('seeded', 'verifying', 'ready', 'degraded', 'reseed_required', 'revoked')
+    ),
+    CONSTRAINT ck_site_sessions_seed_revision CHECK (seed_revision > 0),
+    CONSTRAINT ck_site_sessions_jar_version CHECK (jar_version >= 0),
+    CONSTRAINT ck_site_sessions_revoked CHECK ((state = 'revoked') = (ciphertext IS NULL))
+);
+
 -- Guest contexts are deployment-owned public state, separate from account sources.
 CREATE TABLE IF NOT EXISTS provider_guest_contexts (
     id VARCHAR(64) PRIMARY KEY,
