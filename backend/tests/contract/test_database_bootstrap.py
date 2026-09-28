@@ -659,21 +659,29 @@ def test_projects_build_and_run_separate_images() -> None:
 
 
 def test_compose_application_roles_share_the_selected_release_image() -> None:
-    for path, image in (
-        (COMPOSE_PATH, "video-server:local"),
-        (PROD_COMPOSE_PATH, "video-server:prod"),
-    ):
+    for path, tag in ((COMPOSE_PATH, "local"), (PROD_COMPOSE_PATH, "prod")):
         services = yaml.safe_load(path.read_text())["services"]
         for name, config in services.items():
-            if config.get("build", {}).get("context") == "./backend":
-                assert config["image"] == image, name
+            build = config.get("build", {})
+            if build.get("context") != "./backend":
+                continue
+            # Only the session browser has its own target: it adds Chromium.
+            if build.get("target") == "session-browser":
+                assert config["image"] == f"video-session-browser:{tag}", name
+            else:
+                assert "target" not in build, name
+                assert config["image"] == f"video-server:{tag}", name
 
 
 def test_runtime_base_images_are_pinned_without_host_architecture_override() -> None:
     for path in (DOCKERFILE_PATH, ROOT.parent / "frontend/Dockerfile"):
-        references = re.findall(r"^FROM (\S+) AS ", path.read_text(), re.MULTILINE)
-        assert references
-        assert all(
-            re.fullmatch(r"[^@]+@sha256:[0-9a-f]{64}", ref) for ref in references
-        )
+        stages = re.findall(r"^FROM (\S+) AS (\S+)", path.read_text(), re.MULTILINE)
+        assert stages
+        earlier: set[str] = set()
+        for reference, name in stages:
+            # A stage may build on an earlier stage; external bases are pinned.
+            assert reference in earlier or re.fullmatch(
+                r"[^@]+@sha256:[0-9a-f]{64}", reference
+            ), reference
+            earlier.add(name)
         assert "FROM --platform=" not in path.read_text()

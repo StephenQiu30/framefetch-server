@@ -1,6 +1,6 @@
 # 046 容器自持平台会话 Plan
 
-日期：2026-09-28。状态：已评审（2026-09-28），S1–S3 代码完成待验收，其余未开始。需求见 [PRD](../prd/046-容器自持平台会话PRD.md)，技术方案见 [Design](../design/046-容器自持平台会话设计.md)。**任务状态、证据只在本文维护。**
+日期：2026-09-28。状态：已评审（2026-09-28），S1–S4 代码完成待验收，其余未开始。需求见 [PRD](../prd/046-容器自持平台会话PRD.md)，技术方案见 [Design](../design/046-容器自持平台会话设计.md)。**任务状态、证据只在本文维护。**
 
 工作方式沿用 [044 Plan §1](044-开源部署无感解析Plan.md#1-sdd-工作方式)：先写能判定的测试，再实现最小闭环；代码完成不等于平台实测完成；只有“已验收”才勾选。
 
@@ -68,15 +68,14 @@ M3 是破坏性替换：S5–S8 同一发布，发布前部署者需按新手册
 
 ### S4 session-browser 容器
 
-- [ ] **S4**；状态：未开始；依赖：S3。
+- [ ] **S4**；状态：代码完成待验收；依赖：S3。
   - 需求：FR-03、FR-07、FR-08；NFR-02、NFR-04、NFR-06。
   - 步骤：
-    1. 新增镜像：固定 digest 的 Chromium，非 root、只读根、`cap_drop: ALL`、Profile 卷 `site_session_profiles`；开发与生产 Compose 增加 `session-broker`（S3 的 `broker_app`）与 `session-browser`、`session_net` 网络，以及 `SITE_SESSION_RPC_SECRET`、`SITE_SESSION_BROWSER_SECRET`。
-    2. `app/workers/session/browser.py`：每站点 Profile、按站点代理、`Network.setCookies`／`getCookies`、`login_probe`、`Fetch` 顶层导航拦截、30 min ± 5 min 保活、2 个并发站点任务、60 s 超时。
-    3. 注册表中各平台的 `login_probe`（YouTube `ytcfg.LOGGED_IN`，其他平台以真实页面确定后写入注册表）。
-    4. 视频号 `yuanbao` 头插件：把 `yuanbao_session.py` 的读取逻辑迁入浏览器，删除宿主版本。
-    5. 浏览器崩溃恢复：从磁盘 Profile 重启；Profile 缺失时由 broker 重新 bootstrap。
-  - 验收：受控测试站点上的 bootstrap、轮换回写、导航拦截、崩溃恢复集成测试；PRD AC-10 的浏览器出口部分。
+    1. 后端 Dockerfile 增加 `session-browser` 目标：依赖组 `browser`（`playwright==1.63.0`）安装固定版本 Chromium；非 root、只读根、`cap_drop: ALL`、tmpfs `/tmp`／`$HOME`、Profile 卷 `site_session_profiles`。开发与生产 Compose 增加 `session-broker`、`session-browser` 与内部网络 `session_net`；生产要求显式的 `SITE_SESSION_RPC_SECRET`、`SITE_SESSION_BROWSER_SECRET`。
+    2. `app/workers/session/browser.py`：Playwright 持久化上下文（每站点 Profile、代理、Cookie 读写）、登录判定、主框架导航拦截、确定性 jar 导出；`browser_app.py`：身份密钥、五个签名接口、并发 2、单次 60 s。
+    3. 视频号元宝脚本从宿主 `yuanbao_session.py` 迁入浏览器（宿主版本在 S8 删除）。
+    4. 崩溃恢复：Profile 在卷上；卷丢失时由 broker 按 `profile_missing` 重建。
+  - 验收：浏览器逻辑与 broker↔浏览器契约测试；真实镜像内对真实站点的冒烟（见执行记录）；PRD AC-10 的出口部分随 S6。
 
 <a id="s5"></a>
 
@@ -182,4 +181,13 @@ M3 是破坏性替换：S5–S8 同一发布，发布前部署者需按新手册
 - 门禁：`ruff check`、`ruff format --check`、`mypy app`（606 文件）通过；`pytest` 2238 passed、4 skipped（原因同 S1）。
 - 本机实测：`schema.sql` 在既有 `video` 库重复执行成功并新增 `consecutive_failures`；以真实进程启动 `python -m app.workers.session.broker_app`：`/health/live` 200、扫描本机数据库后 `/health/ready` 200、未签名租约 401、签名租约 409 `provider_session_not_ready`（尚无会话）。
 - 未验收边界：没有真实浏览器，AC-05／AC-06／AC-09 的端到端部分待 S4、S5。
+
+### S4（2026-09-28）
+
+- 实现：`app/workers/session/browser.py`（Playwright 持久化上下文、登录判定、主框架导航拦截、确定性导出、元宝脚本）与 `browser_app.py`；后端 Dockerfile `session-browser` 目标；`pyproject.toml` 依赖组 `browser`（dev 组包含它）；两份 Compose 增加 `session-broker`、`session-browser`、`session_net`、卷 `site_session_profiles`；`.env.example` 说明两个 HMAC 密钥。
+- 契约测试同步：`test_compose_application_roles_share_the_selected_release_image` 允许唯一的 `session-browser` 目标使用独立镜像；`test_runtime_base_images_are_pinned_without_host_architecture_override` 允许阶段引用更早的构建阶段，外部基础镜像仍须 digest 固定。
+- 测试：浏览器逻辑（Cookie 替换与字段映射、YouTube 探测、403／429、导航异常、Profile 缺失、其他站点按注册表判定、跨域 jar 拒绝、导航拦截四种情形、元宝头过滤、`forget`、导出过滤与排序）；broker 客户端 ↔ 浏览器服务契约（双向封装、头封装给 Runner、错误密钥、异常转 `unavailable`）。
+- 门禁：`ruff check`、`ruff format --check`、`mypy app`（608 文件）通过；`pytest` 2249 passed、4 skipped（原因同 S1）；开发与生产 Compose `config --quiet` 通过。
+- 本机实测：`docker build --target session-browser` 成功（2.77 GB）；`docker compose up -d --build --no-deps session-browser session-broker` 后两个容器 healthy；在 broker 容器内经签名 RPC 对真实 youtube.com 执行 `bootstrap`（无登录 Cookie）→ `logged_out`，4.0 s；`keepalive` → `logged_out`，4.2 s；未知 Profile → `profile_missing`；`forget` 后 → `profile_missing`。浏览器容器直连外网失败（`URLError`），经 egress-proxy 访问 YouTube 返回 200。
+- 未验收边界：尚未用真实登录态导入（需部署者在本机 Terminal 执行一次 `seed import`）；AC-03 冷启动与 AC-11 视频号待 S5 路由接入后整体验收。
 

@@ -22,6 +22,33 @@ COPY --link app ./app
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --frozen --no-dev
 
+# --- Session browser (046): Playwright Chromium, no database or keys ---
+FROM backend-builder AS session-browser-builder
+RUN --mount=type=cache,target=/root/.cache/uv \
+    uv sync --frozen --no-dev --group browser
+
+FROM python:3.12-slim-bookworm@sha256:392307d22300de8b5986851a12d9176dfc0fc073e65bf6523ebd7dcbeb23564e AS session-browser
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PLAYWRIGHT_BROWSERS_PATH=/opt/playwright \
+    PATH="/app/backend/.venv/bin:${PATH}"
+WORKDIR /app/backend
+
+COPY --link --from=session-browser-builder /app/backend /app/backend
+# The pinned playwright package fixes the Chromium build it installs.
+RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
+    --mount=type=cache,target=/var/lib/apt/lists,sharing=locked \
+    rm -f /etc/apt/apt.conf.d/docker-clean \
+    && playwright install --with-deps chromium \
+    && useradd --create-home --uid 10001 appuser \
+    && install -d -o 10001 -g 10001 -m 0700 /profiles \
+    && chown -R appuser:appuser /app
+
+USER appuser
+EXPOSE 19300
+CMD ["python", "-m", "app.workers.session.browser_app"]
+
 FROM python:3.12-slim-bookworm@sha256:392307d22300de8b5986851a12d9176dfc0fc073e65bf6523ebd7dcbeb23564e AS runtime
 
 ENV PYTHONDONTWRITEBYTECODE=1 \

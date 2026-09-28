@@ -34,7 +34,10 @@ dependencies = [
 ]
 
 [dependency-groups]
+# Only the session-browser image installs Playwright and its Chromium.
+browser = ["playwright==1.63.0"]
 dev = [
+  { include-group = "browser" },
   "botocore-stubs>=1.40,<2",
   "mypy>=1.15,<2",
   "pytest>=8.3,<9",

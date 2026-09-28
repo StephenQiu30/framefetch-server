@@ -693,6 +693,69 @@ services:
       retries: 3
       start_period: 15s
 
+  # 046: the broker is the only holder of SITE_SESSION_ENCRYPTION_KEY; it never
+  # reaches the Internet. The browser owns per-site profiles and has no database.
+  session-broker:
+    build: *backend-build
+    image: video-server:prod
+    container_name: session-broker
+    restart: unless-stopped
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    networks: [app_net, session_net, runner_rpc_net]
+    extra_hosts: ["host.docker.internal:host-gateway"]
+    tmpfs: ["/tmp:rw,noexec,nosuid,size=16m"]
+    environment:
+      APP_ENV: "${APP_ENV:-production}"
+      SERVICE_ROLE: session-broker
+      DATABASE_URL: "postgresql+asyncpg://${POSTGRES_USER:-video}:${POSTGRES_PASSWORD:-video}@${POSTGRES_HOST:-host.docker.internal}:${POSTGRES_PORT:-5432}/${POSTGRES_DB:-video}"
+      SITE_SESSION_ENCRYPTION_KEY: "${SITE_SESSION_ENCRYPTION_KEY:-}"
+      SITE_SESSION_RPC_SECRET: "${SITE_SESSION_RPC_SECRET:?SITE_SESSION_RPC_SECRET is required}"
+      SITE_SESSION_BROWSER_SECRET: "${SITE_SESSION_BROWSER_SECRET:?SITE_SESSION_BROWSER_SECRET is required}"
+      SITE_SESSION_BROWSER_URL: http://session-browser:19300
+    depends_on:
+      session-browser:
+        condition: service_healthy
+    command: ["python", "-m", "app.workers.session.broker_app"]
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:19200/health/ready', timeout=3)"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 30s
+
+  session-browser:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+      target: session-browser
+    image: video-session-browser:prod
+    container_name: session-browser
+    restart: unless-stopped
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    shm_size: 512m
+    networks: [session_net, runner_egress_net]
+    tmpfs:
+      - /tmp:rw,nosuid,size=256m
+      - /home/appuser:rw,nosuid,size=64m,uid=10001,gid=10001
+    environment:
+      SITE_SESSION_BROWSER_SECRET: "${SITE_SESSION_BROWSER_SECRET:?SITE_SESSION_BROWSER_SECRET is required}"
+      SITE_SESSION_EGRESS_PROXY: http://egress-proxy:3128
+    volumes:
+      - site_session_profiles:/profiles
+    depends_on:
+      egress-proxy:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:19300/health/live', timeout=3)"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 15s
+
   provider-guest-init:
     build: *backend-build
     image: video-server:prod
@@ -925,6 +988,7 @@ services:
       - no-new-privileges:true
 
 volumes:
+  site_session_profiles:
   provider_guest_douyin:
   provider_source_youtube:
   provider_source_douyin:
@@ -942,6 +1006,8 @@ networks:
   runner_rpc_net:
     internal: true
   runner_egress_net:
+    internal: true
+  session_net:
     internal: true
   youtube_pot_net:
     internal: true
