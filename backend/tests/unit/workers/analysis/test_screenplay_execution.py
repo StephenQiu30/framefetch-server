@@ -5,7 +5,6 @@ from pathlib import Path
 import pytest
 from app.services.analysis.rules.screenplay_results import ScreenplayAnalysisResult
 from app.services.analysis_execution.models import (
-    AnalysisDisposition,
     ScreenplayAnalysisRequest,
     ScreenplayAnalysisSynthesisRequest,
     ScreenplaySceneSource,
@@ -29,11 +28,11 @@ async def test_screenplay_analysis_publishes_grounded_result(tmp_path: Path) -> 
     loader = FakeScreenplayLoader(tmp_path / "screenplay")
     analyzer = FakeScreenplayAnalyzer(valid_screenplay_mapping())
 
-    disposition = await build_screenplay_execution(
+    result = await build_screenplay_execution(
         repository, FakeLoader(tmp_path / "video"), loader, analyzer
-    ).execute(job.id, job.run_id, job.run_no, job.version)
+    ).execute(job.id, job.run_id, job.run_no, "run:1:1")
 
-    assert disposition is AnalysisDisposition.ACK
+    assert result == repository.job
     assert isinstance(repository.published[0], ScreenplayAnalysisResult)
     assert [stage for stage, _ in repository.heartbeats] == [
         "preparing",
@@ -57,7 +56,7 @@ async def test_screenplay_rewrite_stays_unsupported_without_model_call(
 
     await build_screenplay_execution(
         repository, FakeLoader(tmp_path / "video"), loader, analyzer
-    ).execute(job.id, job.run_id, job.run_no, job.version)
+    ).execute(job.id, job.run_id, job.run_no, "run:1:1")
 
     assert repository.failures[0]["error_code"] == "analysis_cli_unsupported"
     assert analyzer.requests == []
@@ -84,15 +83,15 @@ async def test_screenplay_over_single_call_limit_uses_chunks_and_synthesis(
     loader = FakeScreenplayLoader(tmp_path / "screenplay", text)
     analyzer = ChunkedScreenplayAnalyzer()
 
-    disposition = await build_screenplay_execution(
+    result = await build_screenplay_execution(
         repository,
         FakeLoader(tmp_path / "video"),
         loader,
         analyzer,
         maximum=max(second_start, len(text) - second_start),
-    ).execute(job.id, job.run_id, job.run_no, job.version)
+    ).execute(job.id, job.run_id, job.run_no, "run:1:1")
 
-    assert disposition is AnalysisDisposition.ACK
+    assert result == repository.job
     result = repository.published[0]
     assert isinstance(result, ScreenplayAnalysisResult)
     assert tuple(item.source_scene_id for item in result.scenes) == (
@@ -128,14 +127,14 @@ async def test_screenplay_scene_limit_uses_multiple_chunks(tmp_path: Path) -> No
     loader = FakeScreenplayLoader(tmp_path / "screenplay", text)
     analyzer = ChunkedScreenplayAnalyzer()
 
-    disposition = await build_screenplay_execution(
+    result = await build_screenplay_execution(
         repository,
         FakeLoader(tmp_path / "video"),
         loader,
         analyzer,
-    ).execute(job.id, job.run_id, job.run_no, job.version)
+    ).execute(job.id, job.run_id, job.run_no, "run:1:1")
 
-    assert disposition is AnalysisDisposition.ACK
+    assert result == repository.job
     assert [len(request.source_scene_ids) for request in analyzer.requests] == [120, 1]
     assert len(analyzer.synthesis_requests) == 1
 
@@ -156,7 +155,7 @@ async def test_screenplay_unknown_source_scene_retries_as_invalid_output(
         FakeLoader(tmp_path / "video"),
         FakeScreenplayLoader(tmp_path / "screenplay"),
         FakeScreenplayAnalyzer(payload),
-    ).execute(job.id, job.run_id, job.run_no, job.version)
+    ).execute(job.id, job.run_id, job.run_no, "run:1:1")
 
     assert repository.failures[0]["error_code"] == "invalid_model_output"
     assert repository.failures[0]["retryable"] is True

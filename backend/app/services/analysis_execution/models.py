@@ -13,14 +13,20 @@ SCREENPLAY_SINGLE_CALL_SCENE_LIMIT = 120
 SCREENPLAY_SYNTHESIS_SCENE_LIMIT = 5_000
 
 
-class AnalysisDisposition(StrEnum):
-    ACK = "ack"
-    REQUEUE = "requeue"
+class AnalysisStepStatus(StrEnum):
+    NEW = "new"
+    REPLAY = "replay"
+    UNKNOWN = "unknown"
+
+
+@dataclass(frozen=True, slots=True)
+class AnalysisStepBegin:
+    status: AnalysisStepStatus
+    payload: object | None = field(default=None, repr=False)
 
 
 @dataclass(frozen=True, slots=True)
 class AnalysisExecutionSettings:
-    worker_id: str
     bucket: str
     lease_for: timedelta
     heartbeat_interval: float
@@ -31,13 +37,12 @@ class AnalysisExecutionSettings:
 
     def __post_init__(self) -> None:
         if (
-            not self.worker_id.strip()
-            or not self.bucket.strip()
+            not self.bucket.strip()
             or not self.provider.strip()
             or not self.model.strip()
             or not self.cli_version.strip()
         ):
-            raise ValueError("worker id, bucket and provider labels cannot be blank")
+            raise ValueError("bucket and provider labels cannot be blank")
         if self.lease_for.total_seconds() <= 0 or self.heartbeat_interval <= 0:
             raise ValueError("lease and heartbeat interval must be positive")
         if self.heartbeat_interval >= self.lease_for.total_seconds():

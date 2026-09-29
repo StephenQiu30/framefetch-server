@@ -1,22 +1,34 @@
-"""Route durable inspection commands; other business events retain their transport."""
+"""Route durable inspection and Skill commands; other events keep their transport."""
 
 import asyncio
 from datetime import timedelta
+from typing import Protocol
+from uuid import UUID
 
 from temporalio.api.workflowservice.v1 import (
     DescribeNamespaceRequest,
     RegisterNamespaceRequest,
 )
-from temporalio.client import Client
+from temporalio.client import Client, WorkflowHandle
 from temporalio.common import WorkflowIDConflictPolicy, WorkflowIDReusePolicy
 from temporalio.exceptions import WorkflowAlreadyStartedError
 from temporalio.service import RPCError, RPCStatusCode
 
 from app.integrations.messaging import EventEnvelope, EventEnvelopeError
 from app.repositories.downloads.intent_repository import IntentRepository
+from app.services.analysis.models import AnalysisJobSnapshot
 from app.services.downloads.intent_models import ACTIVE_INTENT_STATUSES
+from app.workers.analysis.workflows import SKILL_TASK_QUEUE, SkillCommand, SkillWorkflow
 from app.workers.download.workflows import InspectionCommand, InspectionWorkflow
 from app.workers.outbox.loop import EventPublisher
+
+_INSPECTION_EVENTS = {"download.intent.requested", "download.intent.cancelled"}
+_ACTIVE_ANALYSIS_STATUSES = {"queued", "running", "retry_wait"}
+_RPC_TIMEOUT = timedelta(seconds=5)
+
+
+class AnalysisJobReader(Protocol):
+    async def get_job(self, job_id: UUID) -> AnalysisJobSnapshot | None: ...
 
 
 class CommandPublisher:
@@ -24,23 +36,27 @@ class CommandPublisher:
         self,
         fallback: EventPublisher,
         intents: IntentRepository,
+        analyses: AnalysisJobReader,
         *,
         address: str,
         namespace: str,
     ) -> None:
         self._fallback = fallback
         self._intents = intents
+        self._analyses = analyses
         self._address = address
         self._namespace = namespace
         self._client: Client | None = None
 
     async def publish(self, envelope: EventEnvelope) -> None:
-        if envelope.event_type not in {
-            "download.intent.requested",
-            "download.intent.cancelled",
-        }:
+        if envelope.event_type in _INSPECTION_EVENTS:
+            await self._inspection(envelope)
+        elif envelope.event_type == "analysis.requested":
+            await self._skill(envelope)
+        else:
             await self._fallback.publish(envelope)
-            return
+
+    async def _inspection(self, envelope: EventEnvelope) -> None:
         generation = envelope.payload.get("generation")
         if (
             set(envelope.payload) != {"intent_id", "generation"}
@@ -56,19 +72,21 @@ class CommandPublisher:
         cancel = envelope.event_type == "download.intent.cancelled"
         if not cancel and state.status not in ACTIVE_INTENT_STATUSES:
             return  # Also protects against redelivery after Temporal history retention.
-        if self._client is None:
-            self._client = await connect_temporal(self._address, self._namespace)
-        handle = self._client.get_workflow_handle(command.workflow_id)
+        client = await self._connect()
+        handle = client.get_workflow_handle(command.workflow_id)
         if cancel:
             try:
-                await handle.cancel(rpc_timeout=timedelta(seconds=5))
+                await handle.cancel(rpc_timeout=_RPC_TIMEOUT)
             except RPCError as exc:
                 if exc.status != RPCStatusCode.NOT_FOUND:
                     raise
             return
-        binding = {"intent_id": command.intent_id, "generation": command.generation}
+        binding: dict[str, object] = {
+            "intent_id": command.intent_id,
+            "generation": command.generation,
+        }
         try:
-            await self._client.start_workflow(
+            await client.start_workflow(
                 InspectionWorkflow.run,
                 command,
                 id=command.workflow_id,
@@ -76,14 +94,67 @@ class CommandPublisher:
                 memo=binding,
                 id_reuse_policy=WorkflowIDReusePolicy.REJECT_DUPLICATE,
                 id_conflict_policy=WorkflowIDConflictPolicy.FAIL,
-                rpc_timeout=timedelta(seconds=5),
+                rpc_timeout=_RPC_TIMEOUT,
             )
         except WorkflowAlreadyStartedError:
-            description = await handle.describe(rpc_timeout=timedelta(seconds=5))
-            if await description.memo() != binding:
-                raise EventEnvelopeError(
-                    "inspection workflow binding mismatch"
-                ) from None
+            await _require_binding(handle, binding, "inspection")
+
+    async def _skill(self, envelope: EventEnvelope) -> None:
+        payload = envelope.payload
+        run_no = payload.get("run_no")
+        if (
+            set(payload) != {"job_id", "run_id", "run_no", "version"}
+            or payload["job_id"] != str(envelope.aggregate_id)
+            or not isinstance(payload["run_id"], str)
+            or type(run_no) is not int
+            or run_no < 1
+        ):
+            raise EventEnvelopeError("invalid analysis command")
+        try:
+            run_id = UUID(payload["run_id"])
+        except ValueError:
+            raise EventEnvelopeError("invalid analysis command") from None
+        command = SkillCommand(str(envelope.aggregate_id), str(run_id), run_no)
+        job = await self._analyses.get_job(envelope.aggregate_id)
+        if (
+            job is None
+            or job.run_id != run_id
+            or job.status not in _ACTIVE_ANALYSIS_STATUSES
+        ):
+            return  # Superseded, cancelled or finished; also after history retention.
+        client = await self._connect()
+        binding: dict[str, object] = {
+            "job_id": command.job_id,
+            "run_id": command.run_id,
+            "run_no": command.run_no,
+        }
+        try:
+            await client.start_workflow(
+                SkillWorkflow.run,
+                command,
+                id=command.workflow_id,
+                task_queue=SKILL_TASK_QUEUE,
+                memo=binding,
+                id_reuse_policy=WorkflowIDReusePolicy.REJECT_DUPLICATE,
+                id_conflict_policy=WorkflowIDConflictPolicy.FAIL,
+                rpc_timeout=_RPC_TIMEOUT,
+            )
+        except WorkflowAlreadyStartedError:
+            handle = client.get_workflow_handle(command.workflow_id)
+            await _require_binding(handle, binding, "skill")
+
+    async def _connect(self) -> Client:
+        if self._client is None:
+            self._client = await connect_temporal(self._address, self._namespace)
+        return self._client
+
+
+async def _require_binding(
+    handle: WorkflowHandle[object, object], binding: dict[str, object], kind: str
+) -> None:
+    description = await handle.describe(rpc_timeout=_RPC_TIMEOUT)
+    if await description.memo() != binding:
+        raise EventEnvelopeError(f"{kind} workflow binding mismatch") from None
 
 
 async def connect_temporal(address: str, namespace: str) -> Client:

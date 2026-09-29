@@ -163,11 +163,10 @@ async def test_screenplay_retry_recreates_and_terminal_paths_release_lock(
     source = await seed_screenplay(analysis_db.sessions, NOW)
     command = screenplay_command(source)
     await analysis_db.repository.create_job_and_enqueue(command, now=NOW)
-    await analysis_db.repository.claim_job(
+    await analysis_db.repository.claim_run(
         command.id,
         command.run_id,
         1,
-        0,
         "worker-a",
         NOW,
         timedelta(seconds=30),

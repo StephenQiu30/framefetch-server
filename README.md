@@ -172,7 +172,7 @@ createdb -O framefetch_temporal framefetch_temporal_visibility
 
 首次切换前停止 API 接单并排空解析任务，再配套发布 API、Outbox、下载 Worker 和 `migrate` 容器。`schema.sql` 检测到旧解析在途记录会拒绝移除旧租约列；切勿通过删记录绕过。更新使用 `up --build`，不能只 `start` 旧版已退出的迁移容器。回退也需先排空新执行并恢复匹配的结构备份，不允许两套解析执行者并存。
 
-备份业务库时同步备份两个 Temporal 库，稳定环境密钥单独保管。该服务不设置公共访问，单节点停机期间任务暂停；端口健康不等于平台可以下载。下载与导入长期使用 RabbitMQ；分析与报告当前仍在 RabbitMQ，后续迁入 Temporal，分工见[工作流设计](docs/design/15-工作流与平台下载目标.md)。
+备份业务库时同步备份两个 Temporal 库，稳定环境密钥单独保管。该服务不设置公共访问，单节点停机期间任务暂停；端口健康不等于平台可以下载。Skill 分析同样由 Temporal 调度，宿主 AI Worker 连接 `TEMPORAL_ADDRESS`（默认 `127.0.0.1:17233`）而不再连接 RabbitMQ；报告发布、下载与导入长期使用 RabbitMQ，分工见[工作流设计](docs/design/15-工作流与平台下载目标.md)。
 
 ### 平台登录态（需要登录的平台）
 

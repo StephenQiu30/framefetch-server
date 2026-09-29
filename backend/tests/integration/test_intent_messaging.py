@@ -1,22 +1,18 @@
 """Real Temporal transport, with an isolated CLI test server as the CI default."""
 
 import asyncio
-import os
-import shutil
 from datetime import timedelta
 from unittest.mock import AsyncMock
 
 import pytest
 from app.integrations.temporal_client import CommandPublisher
 from app.models import MediaInspectionRow, OutboxEventRow
+from app.repositories.analysis.repository import SqlAlchemyAnalysisRepository
 from app.repositories.outbox_repository import SqlAlchemyOutboxRepository
 from app.workers.download.workflows import InspectionCommand, InspectionWorkflow
 from app.workers.outbox.loop import OutboxPublisherLoop
 from sqlalchemy import func, select
-from temporalio.api.workflowservice.v1 import RegisterNamespaceRequest
-from temporalio.client import Client, WorkflowFailureError
-from temporalio.service import RPCError, RPCStatusCode
-from temporalio.testing import WorkflowEnvironment
+from temporalio.client import WorkflowFailureError
 from temporalio.worker import Replayer, Worker
 from tests.integration.api.test_download_intent_routes import (
     URL,
@@ -26,28 +22,6 @@ from tests.integration.api.test_download_intent_routes import (
 from tests.integration.api.test_download_routes import TEST_USER
 from tests.unit.services.fakes import FakeRunner
 from tests.unit.services.test_inspect_media import runner_result
-
-
-@pytest.fixture
-async def temporal_client():
-    address = os.environ.get("TEST_TEMPORAL_ADDRESS")
-    if not address:
-        async with await WorkflowEnvironment.start_local(
-            namespace="framefetch-test",
-            dev_server_existing_path=shutil.which("temporal"),
-            dev_server_download_version="v1.8.2",
-        ) as environment:
-            yield environment.client
-        return
-    client = await Client.connect(address, namespace="framefetch-test")
-    request = RegisterNamespaceRequest(namespace="framefetch-test")
-    request.workflow_execution_retention_period.FromTimedelta(timedelta(days=1))
-    try:
-        await client.workflow_service.register_namespace(request)
-    except RPCError as exc:
-        if exc.status != RPCStatusCode.ALREADY_EXISTS:
-            raise
-    yield client
 
 
 def worker(client, activities):
@@ -66,6 +40,7 @@ def dispatch(repo, sessions, clock, client):
     publisher = CommandPublisher(
         AsyncMock(),
         repo,
+        SqlAlchemyAnalysisRepository(sessions),
         address=client.service_client.config.target_host,
         namespace="framefetch-test",
     )

@@ -180,16 +180,18 @@ class ScreenplayRewriteExecutor:
                 skill_instructions=job.skill_instructions,
                 custom_prompt=job.custom_prompt,
             )
-            payload = await monitor.run(
-                partial(selection.analyzer.build_screenplay_glossary, request),
-                stage=AnalysisStage.ANALYZING,
-                progress=20 + ((index + 1) * 5 // len(segments)),
-            )
             glossaries.append(
-                parse_screenplay_glossary(
-                    payload,
-                    expected_source_language=request.source_language,
-                    expected_target_language=request.target_language,
+                await monitor.step(
+                    f"glossary-{index:03d}",
+                    request,
+                    partial(selection.analyzer.build_screenplay_glossary, request),
+                    partial(
+                        parse_screenplay_glossary,
+                        expected_source_language=request.source_language,
+                        expected_target_language=request.target_language,
+                    ),
+                    stage=AnalysisStage.ANALYZING,
+                    progress=20 + ((index + 1) * 5 // len(segments)),
                 )
             )
         return merge_screenplay_glossaries(tuple(glossaries))
@@ -210,9 +212,11 @@ class ScreenplayRewriteExecutor:
             request = build_chunk_request(
                 job, local, text, chunk, glossary, self._context
             )
-            output = await monitor.run(
-                partial(self._rewrite_chunk_with_recovery, selection, request),
-                stage=AnalysisStage.ANALYZING,
+            output = await self._rewrite_chunk_with_recovery(
+                selection,
+                request,
+                monitor,
+                key=f"rewrite-{index:03d}",
                 progress=20 + ((index + 1) * 60 // len(plan)),
             )
             total += len(output.chunk.rewritten_text)
@@ -225,16 +229,26 @@ class ScreenplayRewriteExecutor:
         self,
         selection: ScreenplayRewriteAnalyzerSelection,
         request: ScreenplayRewriteChunkRequest,
+        monitor: AnalysisLeaseMonitor,
+        *,
+        key: str,
+        progress: int,
     ) -> ScreenplayRewriteChunkOutput:
         for call_attempt in range(1, self._chunk_call_attempts + 1):
             try:
-                payload = await selection.analyzer.rewrite_screenplay_chunk(request)
-                return parse_screenplay_rewrite_chunk(
-                    payload,
-                    expected_scene_id=request.source_scene_id,
-                    expected_part_no=request.part_no,
-                    expected_source_sha256=request.source_sha256,
-                    expected_target_language=request.target_language,
+                return await monitor.step(
+                    key,
+                    request,
+                    partial(selection.analyzer.rewrite_screenplay_chunk, request),
+                    partial(
+                        parse_screenplay_rewrite_chunk,
+                        expected_scene_id=request.source_scene_id,
+                        expected_part_no=request.part_no,
+                        expected_source_sha256=request.source_sha256,
+                        expected_target_language=request.target_language,
+                    ),
+                    stage=AnalysisStage.ANALYZING,
+                    progress=progress,
                 )
             except Exception as error:
                 if (
@@ -242,7 +256,14 @@ class ScreenplayRewriteExecutor:
                     or not _recoverable_chunk_error(error)
                 ):
                     raise
-                await self._sleep(self._chunk_retry_delay * (2 ** (call_attempt - 1)))
+                delay = self._chunk_retry_delay * (2 ** (call_attempt - 1))
+
+                async def pause(seconds: float = delay) -> None:
+                    await self._sleep(seconds)
+
+                await monitor.run(
+                    pause, stage=AnalysisStage.ANALYZING, progress=progress
+                )
         raise RuntimeError("unreachable screenplay chunk recovery state")
 
 

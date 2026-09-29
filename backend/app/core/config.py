@@ -142,17 +142,9 @@ class Settings(BaseSettings):
     site_session_agent_secret: SecretStr | None = None
     site_session_lease_seconds: int = Field(default=600, ge=60, le=3600)
     rabbitmq_url: str = "amqp://video-api:video-api-secret@localhost:5673/video"
-    rabbitmq_vhost: str = Field(
-        default="video",
-        min_length=1,
-        max_length=128,
-        pattern=r"^[A-Za-z0-9._-]+$",
-    )
     rabbitmq_exchange: str = "video.events"
     download_queue: str = "video.download"
     download_routing_key: Literal["download.requested"] = "download.requested"
-    analysis_queue: str = "video.analysis"
-    analysis_routing_key: Literal["analysis.requested"] = "analysis.requested"
     analysis_report_queue: str = "video.analysis-report"
     analysis_report_routing_key: Literal["analysis.report.publish.requested"] = (
         "analysis.report.publish.requested"
@@ -335,7 +327,6 @@ class Settings(BaseSettings):
     download_queued_recovery_seconds: int = Field(default=60, ge=15, le=3600)
     download_workspace_gc_seconds: int = Field(default=86_400, ge=300, le=2_592_000)
     analysis_max_runs_per_job: int = Field(default=10, ge=1, le=100)
-    analysis_queued_recovery_seconds: int = Field(default=60, ge=15, le=3600)
     analysis_worker_heartbeat_seconds: float = Field(default=10, ge=1, le=60)
     analysis_worker_stale_seconds: int = Field(default=45, ge=5, le=300)
     analysis_manual_retry_min_interval_seconds: int = Field(default=30, ge=0, le=86400)
@@ -390,9 +381,6 @@ class Settings(BaseSettings):
     analysis_terminate_grace_seconds: float = Field(default=2, ge=0.1, le=30)
     analysis_claude_max_turns: int = Field(default=40, ge=1, le=100)
     analysis_database_url: str = "postgresql+asyncpg://video:video@localhost:5432/video"
-    analysis_rabbitmq_url: str = (
-        "amqp://video-analysis:video-analysis-secret@localhost:5673/video"
-    )
     analysis_minio_endpoint: str = "localhost:19190"
 
     @field_validator("database_url", "analysis_database_url")
@@ -634,9 +622,8 @@ class Settings(BaseSettings):
             for value in secret_values
         )
         rabbitmq_url = ""
-        if self.service_role == "analysis-worker":
-            rabbitmq_url = self.analysis_rabbitmq_url
-        elif self.service_role not in {
+        if self.service_role not in {
+            "analysis-worker",
             "provider-canary",
             "provider-sources",
             "session-broker",

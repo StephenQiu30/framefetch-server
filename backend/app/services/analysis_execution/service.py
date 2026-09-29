@@ -23,7 +23,6 @@ from app.services.analysis_execution.errors import (
     classify_analysis_failure,
 )
 from app.services.analysis_execution.models import (
-    AnalysisDisposition,
     AnalysisExecutionOutput,
     AnalysisExecutionSettings,
 )
@@ -74,7 +73,7 @@ class AnalysisExecution:
             )
         self._clock = clock
         self._settings = settings
-        self._transitions = AnalysisTransitions(repository, settings, clock)
+        self._transitions = AnalysisTransitions(repository, clock)
         self._executors: dict[AnalysisInputKind, ClaimedAnalysisExecutor] = {
             AnalysisInputKind.VIDEO: VideoAnalysisExecutor(
                 repository=repository,
@@ -87,45 +86,38 @@ class AnalysisExecution:
             self._executors[AnalysisInputKind.SCREENPLAY] = screenplay_executor
 
     async def execute(
-        self, job_id: UUID, run_id: UUID, run_no: int, expected_version: int
-    ) -> AnalysisDisposition:
-        try:
-            claimed = await self._repository.claim_job(
-                job_id,
-                run_id,
-                run_no,
-                expected_version,
-                self._settings.worker_id,
-                self._clock(),
-                self._settings.lease_for,
-            )
-        except AnalysisSourceUnavailable:
-            return AnalysisDisposition.ACK
-        except Exception:
-            return AnalysisDisposition.REQUEUE
-        if claimed is None:
-            return await self._transitions.converge(job_id)
-        return await self._execute_claimed(claimed)
+        self, job_id: UUID, run_id: UUID, run_no: int, owner: str
+    ) -> AnalysisJobSnapshot | None:
+        """Execute one Workflow Activity attempt and return the resulting state.
 
-    async def _execute_claimed(self, job: AnalysisJobSnapshot) -> AnalysisDisposition:
-        monitor = self._monitor(job.id, job.attempt)
+        Persistence outages propagate so that Temporal retries the Activity;
+        the replacement attempt takes over the same run.
+        """
+        claimed = await self._repository.claim_run(
+            job_id, run_id, run_no, owner, self._clock(), self._settings.lease_for
+        )
+        if claimed is not None:
+            await self._execute_claimed(claimed, owner)
+        return await self._repository.get_job(job_id)
+
+    async def _execute_claimed(self, job: AnalysisJobSnapshot, owner: str) -> None:
+        monitor = self._monitor(job, owner)
         executor = self._executor(job.input_kind)
         if executor is None:
-            return await self._transitions.fail(
-                job.id, job.attempt, AnalysisErrorCode.CLI_UNSUPPORTED
+            await self._transitions.fail(
+                job.id, owner, job.attempt, AnalysisErrorCode.CLI_UNSUPPORTED
             )
+            return
         try:
             output = await executor.execute(job, monitor)
             await monitor.advance(AnalysisStage.VALIDATING, 90)
             current = await self._repository.get_job(job.id)
-            if current is None or not _owns(
-                current, self._settings.worker_id, job.attempt, self._clock()
-            ):
+            if current is None or not _owns(current, owner, job.attempt, self._clock()):
                 raise AnalysisLeaseLost
             await self._repository.publish_result(
                 job.id,
                 current.run_id,
-                self._settings.worker_id,
+                owner,
                 current.version,
                 output.result,
                 output.provider,
@@ -133,24 +125,21 @@ class AnalysisExecution:
                 output.cli_version,
                 self._clock(),
             )
-            return AnalysisDisposition.ACK
         except (AnalysisLeaseLost, AnalysisOwnershipLost):
-            return await self._transitions.converge(job.id)
-        except AnalysisPersistenceUnavailable:
-            return AnalysisDisposition.REQUEUE
+            return
         except AnalysisPersistenceRejected:
-            return await self._transitions.fail(
-                job.id, job.attempt, AnalysisErrorCode.INTERNAL_ERROR
+            await self._transitions.fail(
+                job.id, owner, job.attempt, AnalysisErrorCode.INTERNAL_ERROR
             )
         except AnalysisSourceUnavailable:
-            return await self._transitions.fail(
-                job.id, job.attempt, AnalysisErrorCode.INPUT_ARTIFACT_UNAVAILABLE
+            await self._transitions.fail(
+                job.id, owner, job.attempt, AnalysisErrorCode.INPUT_ARTIFACT_UNAVAILABLE
             )
-        except asyncio.CancelledError:
+        except (AnalysisPersistenceUnavailable, asyncio.CancelledError):
             raise
         except AnalysisValidationError:
-            return await self._transitions.fail(
-                job.id, job.attempt, AnalysisErrorCode.INVALID_MODEL_OUTPUT
+            await self._transitions.fail(
+                job.id, owner, job.attempt, AnalysisErrorCode.INVALID_MODEL_OUTPUT
             )
         except Exception as error:
             _LOGGER.warning(
@@ -162,18 +151,20 @@ class AnalysisExecution:
                 type(error.__cause__).__name__ if error.__cause__ else "none",
                 getattr(error, "code", "none"),
             )
-            return await self._transitions.fail(
+            await self._transitions.fail(
                 job.id,
+                owner,
                 job.attempt,
                 classify_analysis_failure(error, AnalysisStage.ANALYZING),
             )
 
-    def _monitor(self, job_id: UUID, attempt: int) -> AnalysisLeaseMonitor:
+    def _monitor(self, job: AnalysisJobSnapshot, owner: str) -> AnalysisLeaseMonitor:
         return AnalysisLeaseMonitor(
             repository=self._repository,
-            job_id=job_id,
-            worker_id=self._settings.worker_id,
-            attempt=attempt,
+            job_id=job.id,
+            run_id=job.run_id,
+            owner=owner,
+            attempt=job.attempt,
             clock=self._clock,
             lease_for=self._settings.lease_for,
             interval=self._settings.heartbeat_interval,
@@ -186,13 +177,11 @@ class AnalysisExecution:
             return None
 
 
-def _owns(
-    job: AnalysisJobSnapshot, worker_id: str, attempt: int, now: datetime
-) -> bool:
+def _owns(job: AnalysisJobSnapshot, owner: str, attempt: int, now: datetime) -> bool:
     return (
         job.status == AnalysisStatus.RUNNING.value
         and job.stage == AnalysisStage.VALIDATING.value
-        and job.lease_owner == worker_id
+        and job.lease_owner == owner
         and job.attempt == attempt
         and job.lease_expires_at is not None
         and now < job.lease_expires_at

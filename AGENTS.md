@@ -21,7 +21,7 @@
 ## 架构与数据边界
 
 - 后端模块职责遵循 PROJECT.md；路由不反向导入主应用，共享依赖通过 Depends 提供，业务逻辑按复用需求提取，不为目录整齐增加转发层。
-- API、下载 Worker、媒体 Runner、AI Worker 是独立进程。PostgreSQL 是业务状态事实来源；跨 PostgreSQL／Temporal／RabbitMQ 使用 transactional outbox。Temporal 与 RabbitMQ 按职责长期并存：Temporal 只编排解析（已独占）和 Skill 调用（待迁移），Activity 保留业务 generation／fence；下载、导入与实时事件保留 RabbitMQ，消费者继续保留幂等和 lease/heartbeat。不以清退 RabbitMQ 为目标，不经 RabbitMQ 中转启动 Workflow，不给已迁移链路重新增加数据库租约扫描。
+- API、下载 Worker、媒体 Runner、AI Worker 是独立进程。PostgreSQL 是业务状态事实来源；跨 PostgreSQL／Temporal／RabbitMQ 使用 transactional outbox。Temporal 与 RabbitMQ 按职责长期并存：Temporal 只编排解析和 Skill 分析调用（均已独占），Activity 保留业务 generation／fence，分析模型调用经步骤日志执行、不自动重发结果不明的调用；报告发布、下载、导入与实时事件保留 RabbitMQ，消费者继续保留幂等和 lease/heartbeat。不以清退 RabbitMQ 为目标，不经 RabbitMQ 中转启动 Workflow，不给已迁移链路重新增加数据库租约扫描。
 - PostgreSQL 只通过 `backend/sql/schema.sql` 维护当前态结构。本机直接复用已运行的 PostgreSQL，按结构变更需要在已有项目数据库中幂等执行该 SQL；不得为启动或验证项目另起基础服务或覆盖现有数据。空库验证只能使用已有服务中的隔离测试数据库或远端 CI。项目不维护迁移目录、历史 schema 或旧版本兼容逻辑。结构变化时同步更新可重复执行的当前态 SQL、ORM 和测试，并同时使用空数据库与已有当前态数据库验证。
 - OpenAPI 是前后端接口契约的唯一来源，通过 `/openapi.json` 提供，并由 `/docs` 展示 Swagger UI；不维护平行 DTO、手写生成类型或旧 API 适配层。
 - 只实现当前需求，不添加旧目录、旧 API、旧 Provider 或旧数据库的兼容分支。文件按业务内聚性和事务边界拆分，不以固定行数机械拆分，不为缩短文件引入转发层或多重继承。

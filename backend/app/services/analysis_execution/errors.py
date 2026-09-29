@@ -33,6 +33,13 @@ class AnalysisArtifactError(AnalysisExecutionError):
     pass
 
 
+class AnalysisOutcomeUnknown(AnalysisExecutionError):
+    """A journaled model call started but its result was never recorded."""
+
+    def __init__(self) -> None:
+        super().__init__("analysis_outcome_unknown")
+
+
 _ERROR_CODES = {
     "analysis_cli_unavailable": AnalysisErrorCode.CLI_UNAVAILABLE,
     "analysis_cli_unsupported": AnalysisErrorCode.CLI_UNSUPPORTED,
@@ -48,6 +55,7 @@ _ERROR_CODES = {
     "artifact_integrity_failed": AnalysisErrorCode.INPUT_ARTIFACT_UNAVAILABLE,
     "input_artifact_unavailable": AnalysisErrorCode.INPUT_ARTIFACT_UNAVAILABLE,
     "invalid_media_artifact": AnalysisErrorCode.MEDIA_INVALID,
+    "analysis_outcome_unknown": AnalysisErrorCode.OUTCOME_UNKNOWN,
 }
 
 

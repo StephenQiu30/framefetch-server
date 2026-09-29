@@ -7,7 +7,11 @@ from app.models.analysis_report import (
     AnalysisReportVersionRow,
     AnalysisResultRow,
 )
-from app.models.analysis_run import AnalysisRetryOperationRow, AnalysisRunRow
+from app.models.analysis_run import (
+    AnalysisRetryOperationRow,
+    AnalysisRunRow,
+    AnalysisStepResultRow,
+)
 from app.models.analysis_worker import AnalysisWorkerHeartbeatRow
 from app.models.auth import AuthSessionRow, UserRow
 from app.models.dlq_replay import DlqReplayRow
@@ -55,6 +59,7 @@ __all__ = [
     "AnalysisResultRow",
     "AnalysisRetryOperationRow",
     "AnalysisRunRow",
+    "AnalysisStepResultRow",
     "DownloadJobRow",
     "DownloadIntentRow",
     "DownloadThumbnailRow",

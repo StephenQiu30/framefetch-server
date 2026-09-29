@@ -85,7 +85,8 @@ declare namespace API {
     | "screenplay_output_incomplete"
     | "analysis_report_unavailable"
     | "internal_error"
-    | "worker_lost";
+    | "worker_lost"
+    | "analysis_outcome_unknown";
 
   type AnalysisInputKind = "video" | "screenplay";
 

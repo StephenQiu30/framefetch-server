@@ -993,6 +993,24 @@ CREATE TABLE IF NOT EXISTS analysis_retry_operations (
         UNIQUE (job_id, operation, idempotency_key)
 );
 
+-- Model-call journal for SkillWorkflow resume. A row left in 'started' means a
+-- call may have reached the provider; it is never re-sent automatically.
+CREATE TABLE IF NOT EXISTS analysis_step_results (
+    run_id UUID NOT NULL REFERENCES analysis_runs (id) ON DELETE CASCADE,
+    step_key VARCHAR(64) NOT NULL,
+    input_sha256 VARCHAR(64) NOT NULL,
+    status VARCHAR(16) NOT NULL,
+    payload JSONB,
+    started_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    completed_at TIMESTAMPTZ,
+    PRIMARY KEY (run_id, step_key),
+    CONSTRAINT ck_analysis_step_results_status CHECK (status IN ('started', 'succeeded')),
+    CONSTRAINT ck_analysis_step_results_input_sha CHECK (length(input_sha256) = 64),
+    CONSTRAINT ck_analysis_step_results_payload CHECK (
+        (status = 'succeeded') = (payload IS NOT NULL)
+    )
+);
+
 CREATE TABLE IF NOT EXISTS analysis_report_versions (
     id UUID PRIMARY KEY,
     job_id UUID NOT NULL REFERENCES analysis_jobs (id) ON DELETE CASCADE,

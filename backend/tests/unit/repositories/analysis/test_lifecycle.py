@@ -1,11 +1,13 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
+from uuid import uuid4
 
 import pytest
-from app.models import OutboxEventRow
+from app.models import AnalysisStepResultRow
 from app.models.analysis import AnalysisArtifactLockRow
 from app.services.analysis.errors import PersistenceConflict, PersistenceNotFound
+from app.services.analysis_execution.models import AnalysisStepStatus
 from sqlalchemy import func, select
 from tests.unit.repositories.analysis.factories import (
     analysis_command,
@@ -33,11 +35,10 @@ async def test_claim_and_heartbeat_enforce_lease_stage_and_progress(
     analysis_db,
 ) -> None:
     _, command = await create_job(analysis_db)
-    claimed = await analysis_db.repository.claim_job(
+    claimed = await analysis_db.repository.claim_run(
         command.id,
         command.run_id,
         1,
-        0,
         "worker-a",
         NOW,
         timedelta(seconds=30),
@@ -100,11 +101,10 @@ async def test_claim_and_heartbeat_enforce_lease_stage_and_progress(
 @pytest.mark.asyncio
 async def test_retry_keeps_lock_until_terminal_failure(analysis_db) -> None:
     _, command = await create_job(analysis_db, max_attempts=2)
-    await analysis_db.repository.claim_job(
+    await analysis_db.repository.claim_run(
         command.id,
         command.run_id,
         1,
-        0,
         "worker-a",
         NOW,
         timedelta(seconds=30),
@@ -122,18 +122,22 @@ async def test_retry_keeps_lock_until_terminal_failure(analysis_db) -> None:
     )
     assert retrying.status == "retry_wait"
     assert await lock_count(analysis_db) == 1
-    assert await analysis_db.repository.release_ready_retries(retry_at, limit=10) == (
-        command.id,
+    # The SkillWorkflow timer owns the retry; an early wake-up cannot claim.
+    assert (
+        await analysis_db.repository.claim_run(
+            command.id, command.run_id, 1, "worker-b", NOW, timedelta(seconds=30)
+        )
+        is None
     )
-    await analysis_db.repository.claim_job(
+    retried = await analysis_db.repository.claim_run(
         command.id,
         command.run_id,
         1,
-        3,
         "worker-b",
         retry_at,
         timedelta(seconds=30),
     )
+    assert retried is not None and (retried.attempt, retried.retry_at) == (2, None)
     failed = await analysis_db.repository.complete_failure(
         command.id,
         "worker-b",
@@ -146,57 +150,93 @@ async def test_retry_keeps_lock_until_terminal_failure(analysis_db) -> None:
     assert failed.status == "failed"
     assert await lock_count(analysis_db) == 0
 
-    _, stale = await create_job(analysis_db, max_attempts=1)
-    await analysis_db.repository.claim_job(
-        stale.id,
-        stale.run_id,
+
+@pytest.mark.asyncio
+async def test_replacement_activity_takes_over_run_and_fences_old_owner(
+    analysis_db,
+) -> None:
+    _, command = await create_job(analysis_db, max_attempts=1)
+    await analysis_db.repository.claim_run(
+        command.id, command.run_id, 1, "lost-attempt", NOW, timedelta(seconds=30)
+    )
+    assert (
+        await analysis_db.repository.claim_run(
+            command.id, command.run_id, 2, "other-run", NOW, timedelta(seconds=30)
+        )
+        is None
+    )
+    taken = await analysis_db.repository.claim_run(
+        command.id,
+        command.run_id,
         1,
-        0,
-        "dead-worker",
-        NOW,
-        timedelta(seconds=5),
+        "replacement",
+        NOW + timedelta(seconds=1),
+        timedelta(seconds=30),
     )
-    reclaimed = await analysis_db.repository.reclaim_stale(
-        NOW + timedelta(seconds=6), limit=10
+    # Takeover continues the same business attempt instead of consuming another.
+    assert taken is not None
+    assert (taken.attempt, taken.lease_owner, taken.stage) == (
+        1,
+        "replacement",
+        "preparing",
     )
-    assert reclaimed == (stale.id,)
-    stale_job = await analysis_db.repository.get_job(stale.id)
-    assert stale_job is not None and stale_job.status == "failed"
+    assert not await analysis_db.repository.heartbeat(
+        command.id,
+        "lost-attempt",
+        1,
+        stage="preparing",
+        progress=10,
+        now=NOW + timedelta(seconds=2),
+        lease_for=timedelta(seconds=30),
+    )
+    failed = await analysis_db.repository.fail_run(
+        command.id,
+        command.run_id,
+        error_code="worker_lost",
+        now=NOW + timedelta(seconds=3),
+    )
+    assert failed is not None
+    assert (failed.status, failed.error_code) == ("failed", "worker_lost")
     assert await lock_count(analysis_db) == 0
+    again = await analysis_db.repository.fail_run(
+        command.id, command.run_id, error_code="worker_lost", now=NOW
+    )
+    assert again is not None and again.finished_at == failed.finished_at
 
 
 @pytest.mark.asyncio
-async def test_stale_queued_job_is_republished_without_changing_identity(
+async def test_step_journal_replays_results_and_reports_unknown_outcomes(
     analysis_db,
 ) -> None:
     _, command = await create_job(analysis_db)
-    recovery_time = NOW + timedelta(seconds=61)
+    journal = analysis_db.repository
+    run_id = command.run_id
+    digest = "d" * 64
 
-    recovered = await analysis_db.repository.recover_stale_queued(
-        recovery_time,
-        recovery_time - timedelta(seconds=60),
-        limit=10,
+    first = await journal.begin_step(run_id, "chunk-000", digest, now=NOW)
+    assert first.status is AnalysisStepStatus.NEW
+    await journal.complete_step(run_id, "chunk-000", {"scenes": [1]}, now=NOW)
+    replay = await journal.begin_step(run_id, "chunk-000", digest, now=NOW)
+    assert (replay.status, replay.payload) == (
+        AnalysisStepStatus.REPLAY,
+        {"scenes": [1]},
     )
+    # A completed result for different input is simply recomputed.
+    changed = await journal.begin_step(run_id, "chunk-000", "e" * 64, now=NOW)
+    assert changed.status is AnalysisStepStatus.NEW
 
-    assert recovered == (command.id,)
-    job = await analysis_db.repository.get_job(command.id)
-    assert job is not None
-    assert (job.id, job.run_id, job.version, job.status) == (
-        command.id,
-        command.run_id,
-        0,
-        "queued",
-    )
+    await journal.begin_step(run_id, "chunk-001", digest, now=NOW)
+    assert not await journal.has_started_step(uuid4())
+    assert await journal.has_started_step(run_id)
+    unknown = await journal.begin_step(run_id, "chunk-001", digest, now=NOW)
+    assert unknown.status is AnalysisStepStatus.UNKNOWN
+    await journal.abandon_step(run_id, "chunk-001")
+    retried = await journal.begin_step(run_id, "chunk-001", digest, now=NOW)
+    assert retried.status is AnalysisStepStatus.NEW
+
+    await journal.purge_steps(run_id)
     async with analysis_db.sessions() as session:
-        outbox_count = int(
-            await session.scalar(select(func.count()).select_from(OutboxEventRow)) or 0
+        remaining = await session.scalar(
+            select(func.count()).select_from(AnalysisStepResultRow)
         )
-    assert outbox_count == 2
-    assert (
-        await analysis_db.repository.recover_stale_queued(
-            recovery_time,
-            recovery_time - timedelta(seconds=60),
-            limit=10,
-        )
-        == ()
-    )
+    assert remaining == 0

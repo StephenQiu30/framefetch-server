@@ -73,6 +73,7 @@ class AnalysisErrorCode(StrEnum):
     REPORT_UNAVAILABLE = "analysis_report_unavailable"
     INTERNAL_ERROR = "internal_error"
     WORKER_LOST = "worker_lost"
+    OUTCOME_UNKNOWN = "analysis_outcome_unknown"
 
     @property
     def retryable(self) -> bool:

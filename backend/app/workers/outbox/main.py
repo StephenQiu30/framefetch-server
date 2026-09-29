@@ -13,6 +13,7 @@ from app.core.config import get_settings_for_role
 from app.core.db import create_engine, create_session_factory
 from app.integrations.messaging import RabbitMqPublisher, RabbitMqTopology
 from app.integrations.temporal_client import CommandPublisher
+from app.repositories.analysis.repository import SqlAlchemyAnalysisRepository
 from app.repositories.downloads.intent_repository import IntentRepository
 from app.repositories.operation_logs import OperationLogStore
 from app.repositories.outbox_repository import SqlAlchemyOutboxRepository
@@ -37,8 +38,6 @@ async def run() -> None:
             exchange=settings.rabbitmq_exchange,
             download_queue=settings.download_queue,
             download_routing_key=settings.download_routing_key,
-            analysis_queue=settings.analysis_queue,
-            analysis_routing_key=settings.analysis_routing_key,
             report_queue=settings.analysis_report_queue,
             report_routing_key=settings.analysis_report_routing_key,
             import_queue=settings.import_queue,
@@ -54,6 +53,7 @@ async def run() -> None:
         publisher=CommandPublisher(
             publisher,
             IntentRepository(sessions),
+            SqlAlchemyAnalysisRepository(sessions),
             address=settings.temporal_address,
             namespace=settings.temporal_namespace,
         ),

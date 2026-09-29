@@ -28,10 +28,8 @@ async def run() -> None:
         settings.rabbitmq_exchange,
         settings.download_queue,
         settings.download_routing_key,
-        settings.analysis_queue,
-        settings.analysis_routing_key,
-        settings.analysis_report_queue,
-        settings.analysis_report_routing_key,
+        report_queue=settings.analysis_report_queue,
+        report_routing_key=settings.analysis_report_routing_key,
     )
     repository = SqlAlchemyAnalysisReportRepository(create_session_factory(engine))
     publisher = ReportPublisher(

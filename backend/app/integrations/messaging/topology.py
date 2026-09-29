@@ -31,8 +31,6 @@ class RabbitMqTopology:
     exchange: str
     download_queue: str
     download_routing_key: str
-    analysis_queue: str = "video.analysis"
-    analysis_routing_key: str = "analysis.requested"
     report_queue: str = "video.analysis-report"
     report_routing_key: str = "analysis.report.publish.requested"
     message_ttl_ms: int = 86_400_000
@@ -45,8 +43,6 @@ class RabbitMqTopology:
             self.exchange,
             self.download_queue,
             self.download_routing_key,
-            self.analysis_queue,
-            self.analysis_routing_key,
             self.report_queue,
             self.report_routing_key,
             self.import_queue,
@@ -79,12 +75,6 @@ class RabbitMqTopology:
                 self.max_length,
             ),
             DurableQueueTopology(
-                self.analysis_queue,
-                self.analysis_routing_key,
-                self.message_ttl_ms,
-                self.max_length,
-            ),
-            DurableQueueTopology(
                 self.report_queue,
                 self.report_routing_key,
                 self.message_ttl_ms,
@@ -99,17 +89,13 @@ class RabbitMqTopology:
         )
 
     @property
-    def analysis(self) -> DurableQueueTopology:
-        return self.durable_queues[1]
-
-    @property
     def download(self) -> DurableQueueTopology:
         return self.durable_queues[0]
 
     @property
     def report(self) -> DurableQueueTopology:
-        return self.durable_queues[2]
+        return self.durable_queues[1]
 
     @property
     def imports(self) -> DurableQueueTopology:
-        return self.durable_queues[3]
+        return self.durable_queues[2]

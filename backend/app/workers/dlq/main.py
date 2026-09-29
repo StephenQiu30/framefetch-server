@@ -26,10 +26,8 @@ async def run(queue_name: str, actor: str, reason: str) -> None:
         settings.rabbitmq_exchange,
         settings.download_queue,
         settings.download_routing_key,
-        settings.analysis_queue,
-        settings.analysis_routing_key,
-        settings.analysis_report_queue,
-        settings.analysis_report_routing_key,
+        report_queue=settings.analysis_report_queue,
+        report_routing_key=settings.analysis_report_routing_key,
     )
     engine = create_engine(settings.database_url)
     publisher = RabbitMqPublisher(

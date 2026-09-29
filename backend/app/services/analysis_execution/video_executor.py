@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from contextlib import suppress
+from functools import partial
 
 from app.services.analysis.models import AnalysisJobSnapshot
 from app.services.analysis.rules.enums import AnalysisResultContract, AnalysisStage
@@ -61,20 +62,26 @@ class VideoAnalysisExecutor:
                 result_contract=AnalysisResultContract(job.result_contract),
                 custom_prompt=job.custom_prompt,
             )
-            selection, payload = await monitor.run(
-                lambda: self._analyze(request),
+            selection = await monitor.run(
+                self._resolver.resolve, stage=AnalysisStage.ANALYZING, progress=15
+            )
+            media = AnalysisMedia(
+                duration_ms=source.duration_ms,
+                container=source.container,
+                size_bytes=source.size_bytes,
+            )
+            result = await monitor.step(
+                "video",
+                request,
+                partial(selection.analyzer.analyze, request),
+                lambda payload: parse_analysis_result(
+                    payload,
+                    media,
+                    expected_language=job.output_language,
+                    result_contract=job.result_contract,
+                ),
                 stage=AnalysisStage.ANALYZING,
                 progress=70,
-            )
-            result = parse_analysis_result(
-                payload,
-                AnalysisMedia(
-                    duration_ms=source.duration_ms,
-                    container=source.container,
-                    size_bytes=source.size_bytes,
-                ),
-                expected_language=job.output_language,
-                result_contract=job.result_contract,
             )
             return AnalysisExecutionOutput(
                 result=result,
@@ -86,12 +93,6 @@ class VideoAnalysisExecutor:
             if local is not None:
                 with suppress(Exception):
                     await self._loader.cleanup(local)
-
-    async def _analyze(
-        self, request: VideoAnalysisRequest
-    ) -> tuple[AnalyzerSelection, object]:
-        selection = await self._resolver.resolve()
-        return selection, await selection.analyzer.analyze(request)
 
 
 class StaticAnalyzerResolver:

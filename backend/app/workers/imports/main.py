@@ -113,8 +113,6 @@ def build_runtime(settings: Settings) -> ImportWorkerRuntime:
         exchange=settings.rabbitmq_exchange,
         download_queue=settings.download_queue,
         download_routing_key=settings.download_routing_key,
-        analysis_queue=settings.analysis_queue,
-        analysis_routing_key=settings.analysis_routing_key,
         report_queue=settings.analysis_report_queue,
         report_routing_key=settings.analysis_report_routing_key,
         import_queue=settings.import_queue,

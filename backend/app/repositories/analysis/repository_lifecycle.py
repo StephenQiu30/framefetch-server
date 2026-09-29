@@ -1,4 +1,4 @@
-"""Lease-bound claim, progress and owner cancellation operations."""
+"""Workflow-bound claim, progress and owner cancellation operations."""
 
 from __future__ import annotations
 
@@ -114,16 +114,22 @@ class AnalysisLifecycleRepository(AnalysisRepositoryBase):
             )
             return True
 
-    async def claim_job(
+    async def claim_run(
         self,
         job_id: UUID,
         run_id: UUID,
         run_no: int,
-        expected_version: int,
-        worker_id: str,
+        owner: str,
         now: datetime,
         lease_for: timedelta,
     ) -> AnalysisJobSnapshot | None:
+        """Bind the run to one SkillWorkflow Activity attempt.
+
+        A queued or due retry starts a new business attempt. A running row is
+        taken over by the replacement Activity attempt that Temporal schedules
+        only after the previous one timed out; the new owner fences its writes,
+        and the step journal prevents repeating any model call.
+        """
         if lease_for <= timedelta(0):
             raise ValueError("lease duration must be positive")
         async with self._sessions() as session, session.begin():
@@ -134,29 +140,36 @@ class AnalysisLifecycleRepository(AnalysisRepositoryBase):
             )
             if (
                 row is None
+                or row.deleted_at is not None
                 or row.active_run_id != run_id
                 or row.current_run_no != run_no
-                or row.version != expected_version
-                or row.status != "queued"
-                or row.attempt >= row.max_attempts
-                or row.retry_at is not None
             ):
                 await increment_counter(session, "claim_noop", "analysis")
                 return None
             run = await self.active_run(session, row, for_update=True)
-            if run.status != "queued" or run.run_no != row.current_run_no:
+            due_retry = (
+                row.status == "retry_wait"
+                and row.retry_at is not None
+                and as_utc(row.retry_at) <= as_utc(now)
+            )
+            starts = (
+                row.status == "queued" or due_retry
+            ) and row.attempt < row.max_attempts
+            if not starts and row.status != "running":
                 await increment_counter(session, "claim_noop", "analysis")
                 return None
+            if starts:
+                row.attempt += 1
+                row.started_at = row.started_at or now
             row.status = "running"
             row.stage = "preparing"
             row.stage_rank = 1
             row.progress = 0
-            row.attempt += 1
             row.version += 1
-            row.lease_owner = worker_id
+            row.lease_owner = owner
             row.lease_expires_at = now + lease_for
             row.heartbeat_at = now
-            row.started_at = row.started_at or now
+            row.retry_at = None
             row.error_code = None
             row.error_message = None
             row.updated_at = now

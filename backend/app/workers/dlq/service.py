@@ -11,7 +11,6 @@ from app.workers.dlq.repository import ReplayAudit
 ALLOWED_EVENTS = {
     "video.download.dead": "download.requested",
     "video.import.dead": "content.import.verify.requested",
-    "video.analysis.dead": "analysis.requested",
     "video.analysis-report.dead": "analysis.report.publish.requested",
 }
 

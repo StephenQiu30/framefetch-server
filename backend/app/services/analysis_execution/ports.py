@@ -11,6 +11,7 @@ from app.services.analysis.rules.result_types import AnalysisResult
 from app.services.analysis_execution.models import (
     AnalysisArtifactSource,
     AnalysisScreenplaySource,
+    AnalysisStepBegin,
     LocalAnalysisArtifact,
     LocalScreenplayArtifact,
     ScreenplayAnalysisRequest,
@@ -24,13 +25,12 @@ from app.services.analysis_execution.screenplay_rewrite_models import (
 
 
 class AnalysisExecutionRepository(Protocol):
-    async def claim_job(
+    async def claim_run(
         self,
         job_id: UUID,
         run_id: UUID,
         run_no: int,
-        expected_version: int,
-        worker_id: str,
+        owner: str,
         now: datetime,
         lease_for: timedelta,
     ) -> AnalysisJobSnapshot | None: ...
@@ -82,6 +82,16 @@ class AnalysisExecutionRepository(Protocol):
         now: datetime,
         retry_at: datetime | None,
     ) -> AnalysisJobSnapshot: ...
+
+    async def begin_step(
+        self, run_id: UUID, step_key: str, input_sha256: str, *, now: datetime
+    ) -> AnalysisStepBegin: ...
+
+    async def complete_step(
+        self, run_id: UUID, step_key: str, payload: object, *, now: datetime
+    ) -> None: ...
+
+    async def abandon_step(self, run_id: UUID, step_key: str) -> None: ...
 
 
 class ArtifactLoader(Protocol):

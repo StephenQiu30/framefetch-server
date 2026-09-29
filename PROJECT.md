@@ -15,7 +15,7 @@
 | 前端依赖 | pnpm；packageManager 固定版本，唯一 pnpm-lock.yaml |
 | 接口契约 | FastAPI 注解自动生成 OpenAPI，Swagger UI 展示同一份契约 |
 | 接口调用 | @umijs/openapi 生成 src/api，统一使用 Axios src/lib/request.ts |
-| 长任务 | 独立 Worker；HTTP 只提交、查询、取消。解析与 Skill 使用 Temporal，下载与导入使用 RabbitMQ；分工见设计 15，不允许同一业务双引擎调度 |
+| 长任务 | 独立 Worker；HTTP 只提交、查询、取消。解析与 Skill 分析使用 Temporal，报告发布、下载与导入使用 RabbitMQ；分工见设计 15，不允许同一业务双引擎调度 |
 | 检查 | 后端 Ruff、mypy、pytest；前端 Biome、TypeScript、Vitest、Next.js build |
 
 具体版本通过依赖清单与锁文件固定；禁止在本文维护另一份版本快照。新依赖必须承担明确职责，不因脚手架默认包含就保留。

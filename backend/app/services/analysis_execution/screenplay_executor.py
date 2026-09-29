@@ -125,15 +125,17 @@ class ScreenplayAnalysisExecutor:
         monitor: AnalysisLeaseMonitor,
     ) -> ScreenplayAnalysisResult:
         request = build_analysis_request(job, source, local, text, source.scenes)
-        payload = await monitor.run(
-            lambda: selection.analyzer.analyze_screenplay(request),
+        return await monitor.step(
+            "screenplay",
+            request,
+            partial(selection.analyzer.analyze_screenplay, request),
+            partial(
+                parse_screenplay_analysis_result,
+                expected_language=job.output_language,
+                source_scene_ids=request.source_scene_ids,
+            ),
             stage=AnalysisStage.ANALYZING,
             progress=70,
-        )
-        return parse_screenplay_analysis_result(
-            payload,
-            expected_language=job.output_language,
-            source_scene_ids=request.source_scene_ids,
         )
 
     async def _chunked(
@@ -158,16 +160,18 @@ class ScreenplayAnalysisExecutor:
             chunk_request = build_analysis_request(
                 job, source, local, chunk.text, chunk.scenes
             )
-            payload = await monitor.run(
-                partial(selection.analyzer.analyze_screenplay, chunk_request),
-                stage=AnalysisStage.ANALYZING,
-                progress=15 + ((index + 1) * 55 // len(plan)),
-            )
             results.append(
-                parse_screenplay_analysis_result(
-                    payload,
-                    expected_language=job.output_language,
-                    source_scene_ids=chunk_request.source_scene_ids,
+                await monitor.step(
+                    f"chunk-{index:03d}",
+                    chunk_request,
+                    partial(selection.analyzer.analyze_screenplay, chunk_request),
+                    partial(
+                        parse_screenplay_analysis_result,
+                        expected_language=job.output_language,
+                        source_scene_ids=chunk_request.source_scene_ids,
+                    ),
+                    stage=AnalysisStage.ANALYZING,
+                    progress=15 + ((index + 1) * 55 // len(plan)),
                 )
             )
         synthesis_input = synthesis_results_json(
@@ -184,18 +188,20 @@ class ScreenplayAnalysisExecutor:
             skill_instructions=job.skill_instructions,
             custom_prompt=job.custom_prompt,
         )
-        summary = await monitor.run(
-            lambda: selection.analyzer.synthesize_screenplay_analysis(
-                synthesis_request
+        chunk_results = tuple(results)
+        return await monitor.step(
+            "synthesis",
+            synthesis_request,
+            partial(
+                selection.analyzer.synthesize_screenplay_analysis, synthesis_request
+            ),
+            lambda summary: parse_screenplay_analysis_result(
+                combined_analysis_payload(summary, chunk_results),
+                expected_language=job.output_language,
+                source_scene_ids=synthesis_request.source_scene_ids,
             ),
             stage=AnalysisStage.ANALYZING,
             progress=85,
-        )
-        payload = combined_analysis_payload(summary, tuple(results))
-        return parse_screenplay_analysis_result(
-            payload,
-            expected_language=job.output_language,
-            source_scene_ids=synthesis_request.source_scene_ids,
         )
 
 

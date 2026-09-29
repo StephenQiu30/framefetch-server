@@ -29,8 +29,8 @@ async def test_concurrent_different_jobs_share_one_owner_retry_budget(
         initial = analysis_command(source)
         repo = analysis_db.repository
         await repo.create_job_and_enqueue(initial, now=NOW)
-        await repo.claim_job(
-            initial.id, initial.run_id, 1, 0, "worker", NOW, timedelta(seconds=30)
+        await repo.claim_run(
+            initial.id, initial.run_id, 1, "worker", NOW, timedelta(seconds=30)
         )
         await repo.complete_failure(
             initial.id,

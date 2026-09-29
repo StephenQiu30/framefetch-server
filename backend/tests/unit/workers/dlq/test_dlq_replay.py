@@ -16,6 +16,8 @@ AUDIT_ID = UUID("33333333-3333-4333-8333-333333333333")
 
 def test_all_declared_dead_letter_queues_can_be_replayed() -> None:
     assert ALLOWED_EVENTS["video.import.dead"] == "content.import.verify.requested"
+    # Skill runs are Temporal workflows; there is no analysis queue to replay into.
+    assert "video.analysis.dead" not in ALLOWED_EVENTS
 
 
 class FakeDelivery:
@@ -24,12 +26,13 @@ class FakeDelivery:
             1,
             ORIGINAL_ID,
             UUID("44444444-4444-4444-8444-444444444444"),
-            "analysis.requested",
+            "analysis.report.publish.requested",
             NOW,
             {
                 "job_id": "55555555-5555-4555-8555-555555555555",
                 "run_id": "66666666-6666-4666-8666-666666666666",
-                "run_no": 1,
+                "report_id": "77777777-7777-4777-8777-777777777777",
+                "renderer_version": "markdown-docx-v1",
                 "version": 1,
             },
         ).to_bytes()
@@ -82,7 +85,7 @@ async def test_replay_creates_new_event_and_acknowledges_after_audit() -> None:
 
     audit = await DlqReplayService(repository, publisher, lambda: NOW).replay(
         delivery,
-        source_queue="video.analysis.dead",
+        source_queue="video.analysis-report.dead",
         actor="operator@example.com",
         reason="validated model fix",
     )
@@ -90,7 +93,7 @@ async def test_replay_creates_new_event_and_acknowledges_after_audit() -> None:
     assert audit.replay_event_id == REPLAY_ID
     assert repository.published and delivery.acked and not delivery.requeued
     replay, headers = publisher.messages[0]
-    assert replay.event_id == REPLAY_ID and replay.payload["run_no"] == 1
+    assert replay.event_id == REPLAY_ID and replay.payload["version"] == 1
     assert headers == {
         "x-replay-count": 1,
         "x-original-event-id": str(ORIGINAL_ID),
@@ -106,7 +109,7 @@ async def test_replay_failure_and_limit_keep_original_in_dlq() -> None:
             repository, FakePublisher(fail=True), lambda: NOW
         ).replay(
             failed,
-            source_queue="video.analysis.dead",
+            source_queue="video.analysis-report.dead",
             actor="operator@example.com",
             reason="validated model fix",
         )
@@ -116,7 +119,7 @@ async def test_replay_failure_and_limit_keep_original_in_dlq() -> None:
     with pytest.raises(EventEnvelopeError):
         await DlqReplayService(repository, FakePublisher(), lambda: NOW).replay(
             limited,
-            source_queue="video.analysis.dead",
+            source_queue="video.analysis-report.dead",
             actor="operator@example.com",
             reason="validated model fix",
         )

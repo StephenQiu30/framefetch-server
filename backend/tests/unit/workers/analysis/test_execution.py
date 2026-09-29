@@ -7,10 +7,7 @@ from uuid import uuid4
 
 import pytest
 from app.services.analysis_execution.errors import AnalysisPersistenceRejected
-from app.services.analysis_execution.models import (
-    AnalysisDisposition,
-    VideoAnalysisRequest,
-)
+from app.services.analysis_execution.models import VideoAnalysisRequest
 from app.services.analysis_execution.service import AnalysisExecution
 
 from .fakes import (
@@ -21,6 +18,8 @@ from .fakes import (
     settings,
 )
 from .fixtures import valid_mapping
+
+OWNER = "run:1:1"
 
 
 class FakeAnalyzer:
@@ -83,18 +82,19 @@ async def test_success_runs_linear_stages_publishes_and_cleans(tmp_path: Path) -
     repository = FakeRepository(running_job())
     loader = FakeLoader(tmp_path)
 
-    disposition = await execution(
+    result = await execution(
         repository, loader, analyzer=FakeAnalyzer(valid_mapping())
     ).execute(
         repository.job.id,
         repository.job.run_id,
         repository.job.run_no,
-        repository.job.version,
+        OWNER,
     )
 
-    assert disposition is AnalysisDisposition.ACK
+    assert result == repository.job
     assert [stage for stage, _ in repository.heartbeats] == [
         "preparing",
+        "analyzing",
         "analyzing",
         "validating",
     ]
@@ -110,19 +110,19 @@ async def test_healthy_long_analysis_renews_lease_until_completion(
     repository = FakeRepository(running_job())
     loader = FakeLoader(tmp_path)
 
-    disposition = await execution(
+    result = await execution(
         repository, loader, analyzer=SlowAnalyzer(valid_mapping())
     ).execute(
         repository.job.id,
         repository.job.run_id,
         repository.job.run_no,
-        repository.job.version,
+        OWNER,
     )
 
     analyzing_heartbeats = [
         progress for stage, progress in repository.heartbeats if stage == "analyzing"
     ]
-    assert disposition is AnalysisDisposition.ACK
+    assert result == repository.job
     assert len(analyzing_heartbeats) >= 3
     assert repository.job.status == "succeeded"
 
@@ -135,16 +135,16 @@ async def test_rejected_result_persistence_fails_without_waiting_for_lease_expir
     repository.publish_error = AnalysisPersistenceRejected("invalid result constraint")
     loader = FakeLoader(tmp_path)
 
-    disposition = await execution(
+    result = await execution(
         repository, loader, analyzer=FakeAnalyzer(valid_mapping())
     ).execute(
         repository.job.id,
         repository.job.run_id,
         repository.job.run_no,
-        repository.job.version,
+        OWNER,
     )
 
-    assert disposition is AnalysisDisposition.ACK
+    assert result == repository.job
     assert repository.job.status == "failed"
     assert repository.failures[0]["error_code"] == "internal_error"
 
@@ -158,17 +158,17 @@ async def test_cancelled_lease_cancels_active_provider_and_cleans(
     loader = FakeLoader(tmp_path)
     analyzer = BlockingAnalyzer()
 
-    disposition = await execution(repository, loader, analyzer=analyzer).execute(
+    result = await execution(repository, loader, analyzer=analyzer).execute(
         repository.job.id,
         repository.job.run_id,
         repository.job.run_no,
-        repository.job.version,
+        OWNER,
     )
 
     assert analyzer.started.is_set()
     assert analyzer.cancelled is True
     assert repository.job.status == "cancelled"
-    assert disposition is AnalysisDisposition.ACK
+    assert result == repository.job
     assert loader.cleaned is True
 
 
@@ -176,7 +176,7 @@ async def test_cancelled_lease_cancels_active_provider_and_cleans(
 async def test_rate_limit_records_retry_and_cleans(tmp_path: Path) -> None:
     repository = FakeRepository(running_job())
     loader = FakeLoader(tmp_path)
-    disposition = await execution(
+    result = await execution(
         repository,
         loader,
         analyzer=FakeAnalyzer(ProviderFailure("analysis_provider_rate_limited")),
@@ -184,10 +184,10 @@ async def test_rate_limit_records_retry_and_cleans(tmp_path: Path) -> None:
         repository.job.id,
         repository.job.run_id,
         repository.job.run_no,
-        repository.job.version,
+        OWNER,
     )
 
-    assert disposition is AnalysisDisposition.ACK
+    assert result == repository.job
     assert repository.job.status == "retry_wait"
     assert repository.failures[0]["error_code"] == "analysis_provider_rate_limited"
     assert repository.failures[0]["retryable"] is True
@@ -207,16 +207,16 @@ async def test_invalid_model_evidence_retries_with_attempt_limit(
         "evidence_shot_ids": ["not-real"],
     }
 
-    disposition = await execution(
+    result = await execution(
         repository, loader, analyzer=FakeAnalyzer(invalid)
     ).execute(
         repository.job.id,
         repository.job.run_id,
         repository.job.run_no,
-        repository.job.version,
+        OWNER,
     )
 
-    assert disposition is AnalysisDisposition.ACK
+    assert result == repository.job
     assert repository.job.status == "retry_wait"
     assert repository.failures[0]["error_code"] == "invalid_model_output"
     assert repository.failures[0]["retryable"] is True
@@ -235,12 +235,87 @@ async def test_screenplay_never_falls_back_to_video_executor(tmp_path: Path) -> 
     repository = FakeRepository(job)
     loader = FakeLoader(tmp_path)
 
-    disposition = await execution(
+    result = await execution(
         repository, loader, analyzer=FakeAnalyzer(valid_mapping())
-    ).execute(job.id, job.run_id, job.run_no, job.version)
+    ).execute(job.id, job.run_id, job.run_no, OWNER)
 
-    assert disposition is AnalysisDisposition.ACK
+    assert result == repository.job
     assert repository.job.status == "failed"
     assert repository.failures[0]["error_code"] == "analysis_cli_unsupported"
     assert repository.heartbeats == []
     assert loader.cleaned is False
+
+
+class CountingAnalyzer(FakeAnalyzer):
+    def __init__(self, output: object) -> None:
+        super().__init__(output)
+        self.calls = 0
+
+    async def analyze(self, request: VideoAnalysisRequest) -> object:
+        self.calls += 1
+        return await super().analyze(request)
+
+
+@pytest.mark.asyncio
+async def test_recorded_model_result_is_replayed_without_calling_provider(
+    tmp_path: Path,
+) -> None:
+    repository = FakeRepository(running_job())
+    first = CountingAnalyzer(valid_mapping())
+    await execution(repository, FakeLoader(tmp_path), analyzer=first).execute(
+        repository.job.id, repository.job.run_id, repository.job.run_no, OWNER
+    )
+    assert first.calls == 1
+    assert repository.steps["video"][0] == "succeeded"
+
+    # A replacement attempt of the same run (e.g. after publication was lost)
+    # reuses the journaled payload instead of paying for a second call.
+    repository.job = replace(repository.job, status="running", stage="preparing")
+    replacement = CountingAnalyzer(valid_mapping())
+    await execution(repository, FakeLoader(tmp_path), analyzer=replacement).execute(
+        repository.job.id, repository.job.run_id, repository.job.run_no, "run:1:2"
+    )
+
+    assert replacement.calls == 0
+    assert len(repository.published) == 2
+
+
+@pytest.mark.asyncio
+async def test_interrupted_model_call_fails_as_unknown_outcome_without_retrying(
+    tmp_path: Path,
+) -> None:
+    repository = FakeRepository(running_job())
+    # A previous attempt recorded the call as started and then disappeared.
+    first = execution(repository, FakeLoader(tmp_path), analyzer=BlockingAnalyzer())
+    repository.heartbeat_failure_stage = "analyzing"
+    await first.execute(
+        repository.job.id, repository.job.run_id, repository.job.run_no, OWNER
+    )
+    assert repository.steps["video"][0] == "started"
+
+    repository.job = replace(repository.job, status="running", stage="preparing")
+    repository.heartbeat_failure_stage = None
+    analyzer = CountingAnalyzer(valid_mapping())
+    await execution(repository, FakeLoader(tmp_path), analyzer=analyzer).execute(
+        repository.job.id, repository.job.run_id, repository.job.run_no, "run:1:2"
+    )
+
+    assert analyzer.calls == 0
+    assert repository.job.status == "failed"
+    assert repository.failures[-1]["error_code"] == "analysis_outcome_unknown"
+    assert repository.failures[-1]["retryable"] is False
+
+
+@pytest.mark.asyncio
+async def test_returned_provider_failure_releases_step_for_normal_retry(
+    tmp_path: Path,
+) -> None:
+    repository = FakeRepository(running_job())
+    await execution(
+        repository,
+        FakeLoader(tmp_path),
+        analyzer=FakeAnalyzer(ProviderFailure("analysis_provider_rate_limited")),
+    ).execute(repository.job.id, repository.job.run_id, repository.job.run_no, OWNER)
+
+    assert repository.job.status == "retry_wait"
+    assert "video" not in repository.steps

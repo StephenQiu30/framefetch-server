@@ -9,6 +9,7 @@ from app.repositories.analysis.repository_lifecycle import AnalysisLifecycleRepo
 from app.repositories.analysis.repository_publish import AnalysisPublishRepository
 from app.repositories.analysis.repository_recovery import AnalysisRecoveryRepository
 from app.repositories.analysis.repository_retry import AnalysisRetryRepository
+from app.repositories.analysis.step_journal import AnalysisStepJournalRepository
 from app.services.quotas import QuotaPolicy
 
 
@@ -35,15 +36,19 @@ class SqlAlchemyAnalysisRepository:
         self.get_latest_job_for_download = lifecycle.get_latest_job_for_download
         self.get_latest_job_for_document = lifecycle.get_latest_job_for_document
         self.delete_job = lifecycle.delete_job
-        self.claim_job = lifecycle.claim_job
+        self.claim_run = lifecycle.claim_run
         self.heartbeat = lifecycle.heartbeat
         self.cancel_job = lifecycle.cancel_job
         publication = AnalysisPublishRepository(sessions, quota_policy=quota_policy)
         self.publish_result = publication.publish_result
         recovery = AnalysisRecoveryRepository(sessions, quota_policy=quota_policy)
-        self.recover_stale_queued = recovery.recover_stale_queued
         self.complete_failure = recovery.complete_failure
-        self.reclaim_stale = recovery.reclaim_stale
-        self.release_ready_retries = recovery.release_ready_retries
+        self.fail_run = recovery.fail_run
+        steps = AnalysisStepJournalRepository(sessions)
+        self.begin_step = steps.begin_step
+        self.complete_step = steps.complete_step
+        self.abandon_step = steps.abandon_step
+        self.has_started_step = steps.has_started_step
+        self.purge_steps = steps.purge_steps
         retry = AnalysisRetryRepository(sessions, quota_policy=quota_policy)
         self.retry_job_and_enqueue = retry.retry_job_and_enqueue

@@ -41,11 +41,10 @@ async def validating_job(
     source = await seed_artifact(analysis_db.sessions, NOW)
     command = replace(analysis_command(source), result_contract=result_contract)
     await analysis_db.repository.create_job_and_enqueue(command, now=NOW)
-    current = await analysis_db.repository.claim_job(
+    current = await analysis_db.repository.claim_run(
         command.id,
         command.run_id,
         1,
-        0,
         "worker-a",
         NOW,
         timedelta(seconds=30),

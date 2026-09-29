@@ -106,7 +106,7 @@ uv run python -m app.workers.analysis.agent_cli doctor --env-file ../.env.prod
 uv run python -m app.workers.analysis.agent_cli install --env-file ../.env.prod
 ```
 
-API 固定监听 `8111`，前端固定监听 `8101`。API `/health/live` 只证明进程存活；`/health/ready` 还会在有界超时内检查数据库结构、MinIO、RabbitMQ 与 Redis。宿主机 AI Worker 内部重连消费者并由系统服务监督进程；短暂故障期间任务保持 queued，恢复后继续消费。没有 AI Worker 的部署必须显式设置 `ANALYSIS_ENABLED=false` 并重建 API。
+API 固定监听 `8111`，前端固定监听 `8101`。API `/health/live` 只证明进程存活；`/health/ready` 还会在有界超时内检查数据库结构、MinIO、RabbitMQ 与 Redis。宿主机 AI Worker 在 `ff-skill` 队列执行 SkillWorkflow，与 Temporal 断连时自动重连，并由系统服务监督进程；Worker 离线期间任务保持排队，恢复后继续执行，已完成的模型步骤不会重跑。没有 AI Worker 的部署必须显式设置 `ANALYSIS_ENABLED=false` 并重建 API。
 
 ## 测试目录
 
@@ -138,4 +138,4 @@ Web JSON 响应及全局异常统一遵循 [PROJECT.md §3.1](../PROJECT.md#31-�
 管理员日志入口、记录范围、故障语义和部署验证见[系统操作日志运行说明](../docs/design/README.md)。
 
 
-Temporal 回归默认通过 SDK 启动固定版本 CLI 隔离测试服务；本机安装 `temporal` 时复用该二进制，CI 自动下载 CLI v1.8.2。要在已有持久服务上测试，执行 `TEST_TEMPORAL_ADDRESS=127.0.0.1:17233 uv run pytest tests/integration/test_intent_messaging.py`，测试只使用 `framefetch-test` 命名空间和 PostgreSQL 隔离 schema，不消费业务命名空间。测试覆盖确认丢失、Worker 重启、取消和 History replay，不替代真实平台验收。
+Temporal 回归默认通过 SDK 启动固定版本 CLI 隔离测试服务；本机安装 `temporal` 时复用该二进制，CI 自动下载 CLI v1.8.2。要在已有持久服务上测试，执行 `TEST_TEMPORAL_ADDRESS=127.0.0.1:17233 uv run pytest tests/integration/test_intent_messaging.py tests/integration/test_skill_workflow.py`，测试只使用 `framefetch-test` 命名空间和 PostgreSQL 隔离 schema，不消费业务命名空间。测试覆盖确认丢失、Worker 重启、取消、History replay 以及模型调用中断后不重发，不替代真实平台与模型验收。

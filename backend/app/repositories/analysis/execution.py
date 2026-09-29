@@ -26,6 +26,7 @@ from app.services.analysis_execution.errors import (
 from app.services.analysis_execution.models import (
     AnalysisArtifactSource,
     AnalysisScreenplaySource,
+    AnalysisStepBegin,
 )
 
 
@@ -38,25 +39,18 @@ class AnalysisExecutionPersistence:
         self._analysis = analysis
         self._downloads = downloads
 
-    async def claim_job(
+    async def claim_run(
         self,
         job_id: UUID,
         run_id: UUID,
         run_no: int,
-        expected_version: int,
-        worker_id: str,
+        owner: str,
         now: datetime,
         lease_for: timedelta,
     ) -> AnalysisJobSnapshot | None:
         with _translate_errors():
-            return await self._analysis.claim_job(
-                job_id,
-                run_id,
-                run_no,
-                expected_version,
-                worker_id,
-                now,
-                lease_for,
+            return await self._analysis.claim_run(
+                job_id, run_id, run_no, owner, now, lease_for
             )
         raise AssertionError("unreachable")
 
@@ -191,6 +185,43 @@ class AnalysisExecutionPersistence:
                 retry_at=retry_at,
             )
         raise AssertionError("unreachable")
+
+    async def fail_run(
+        self, job_id: UUID, run_id: UUID, *, error_code: str, now: datetime
+    ) -> AnalysisJobSnapshot | None:
+        with _translate_errors():
+            return await self._analysis.fail_run(
+                job_id, run_id, error_code=error_code, now=now
+            )
+        raise AssertionError("unreachable")
+
+    async def begin_step(
+        self, run_id: UUID, step_key: str, input_sha256: str, *, now: datetime
+    ) -> AnalysisStepBegin:
+        with _translate_errors():
+            return await self._analysis.begin_step(
+                run_id, step_key, input_sha256, now=now
+            )
+        raise AssertionError("unreachable")
+
+    async def complete_step(
+        self, run_id: UUID, step_key: str, payload: object, *, now: datetime
+    ) -> None:
+        with _translate_errors():
+            await self._analysis.complete_step(run_id, step_key, payload, now=now)
+
+    async def abandon_step(self, run_id: UUID, step_key: str) -> None:
+        with _translate_errors():
+            await self._analysis.abandon_step(run_id, step_key)
+
+    async def has_started_step(self, run_id: UUID) -> bool:
+        with _translate_errors():
+            return await self._analysis.has_started_step(run_id)
+        raise AssertionError("unreachable")
+
+    async def purge_steps(self, run_id: UUID) -> None:
+        with _translate_errors():
+            await self._analysis.purge_steps(run_id)
 
 
 @contextmanager

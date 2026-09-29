@@ -2,7 +2,6 @@ from pathlib import Path
 
 import pytest
 from app.services.analysis.rules.screenplay_results import ScreenplayRewriteResult
-from app.services.analysis_execution.models import AnalysisDisposition
 
 from .screenplay_rewrite_fakes import build_rewrite_execution
 
@@ -16,9 +15,9 @@ async def test_rewrite_publishes_complete_ordered_source_bound_result(
     )
     job = repository.job
 
-    disposition = await execution.execute(job.id, job.run_id, job.run_no, job.version)
+    result = await execution.execute(job.id, job.run_id, job.run_no, "run:1:1")
 
-    assert disposition is AnalysisDisposition.ACK
+    assert result == repository.job
     result = repository.published[0]
     assert isinstance(result, ScreenplayRewriteResult)
     assert len(result.chunks) == len(analyzer.chunk_requests) > 1
@@ -57,14 +56,14 @@ async def test_rewrite_scales_glossary_extraction_for_long_screenplay(
         text=text,
     )
 
-    disposition = await execution.execute(
+    result = await execution.execute(
         repository.job.id,
         repository.job.run_id,
         repository.job.run_no,
-        repository.job.version,
+        "run:1:1",
     )
 
-    assert disposition is AnalysisDisposition.ACK
+    assert result == repository.job
     assert len(analyzer.glossary_requests) > 1
     assert all(
         len(request.screenplay_text) <= 20_000 for request in analyzer.glossary_requests
@@ -86,7 +85,7 @@ async def test_rewrite_recovers_current_invalid_chunk_without_repeating_verified
     analyzer.invalid_call = 2
     job = repository.job
 
-    await execution.execute(job.id, job.run_id, job.run_no, job.version)
+    await execution.execute(job.id, job.run_id, job.run_no, "run:1:1")
 
     result = repository.published[0]
     assert isinstance(result, ScreenplayRewriteResult)
@@ -115,7 +114,7 @@ async def test_rewrite_recovers_current_transient_chunk_in_same_attempt(
     analyzer.error_calls[2] = error_code
     job = repository.job
 
-    await execution.execute(job.id, job.run_id, job.run_no, job.version)
+    await execution.execute(job.id, job.run_id, job.run_no, "run:1:1")
 
     result = repository.published[0]
     assert isinstance(result, ScreenplayRewriteResult)
@@ -132,7 +131,7 @@ async def test_rewrite_exhausts_current_chunk_without_partial_publish(
     analyzer.invalid_calls = {2, 3}
     job = repository.job
 
-    await execution.execute(job.id, job.run_id, job.run_no, job.version)
+    await execution.execute(job.id, job.run_id, job.run_no, "run:1:1")
 
     assert repository.published == []
     assert repository.failures[0]["error_code"] == "invalid_model_output"
@@ -151,7 +150,7 @@ async def test_rewrite_does_not_retry_nonrecoverable_chunk_failure(
     analyzer.error_calls[1] = "analysis_resource_limit"
     job = repository.job
 
-    await execution.execute(job.id, job.run_id, job.run_no, job.version)
+    await execution.execute(job.id, job.run_id, job.run_no, "run:1:1")
 
     assert repository.published == []
     assert repository.failures[0]["error_code"] == "analysis_resource_limit"
@@ -168,7 +167,7 @@ async def test_rewrite_output_limit_fails_without_partial_publish(
     )
     job = repository.job
 
-    await execution.execute(job.id, job.run_id, job.run_no, job.version)
+    await execution.execute(job.id, job.run_id, job.run_no, "run:1:1")
 
     assert repository.published == []
     assert repository.failures[0]["error_code"] == "analysis_resource_limit"
@@ -185,7 +184,7 @@ async def test_rewrite_glossary_drift_retries_without_partial_publish(
     analyzer.omit_glossary_target = True
     job = repository.job
 
-    await execution.execute(job.id, job.run_id, job.run_no, job.version)
+    await execution.execute(job.id, job.run_id, job.run_no, "run:1:1")
 
     assert repository.published == []
     assert repository.failures[0]["error_code"] == "invalid_model_output"
@@ -203,7 +202,7 @@ async def test_rewrite_chunk_limit_fails_before_model_resolution(
     )
     job = repository.job
 
-    await execution.execute(job.id, job.run_id, job.run_no, job.version)
+    await execution.execute(job.id, job.run_id, job.run_no, "run:1:1")
 
     assert repository.published == []
     assert repository.failures[0]["error_code"] == "analysis_resource_limit"

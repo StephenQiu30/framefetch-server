@@ -106,6 +106,8 @@ const localizedErrorMessages: Record<string, string> = {
   user_not_found: '用户不存在或已被删除。',
   username_already_registered: '该用户名已被使用，请更换后重试。',
   worker_lost: '任务执行服务连接中断，请确认服务正常后重试。',
+  analysis_outcome_unknown:
+    '分析执行中断，无法确认模型调用是否已完成。为避免重复计费未自动重试，请确认后手动重新分析。',
   video_import_invalid: '视频未通过 MP4 安全校验，请更换有效文件。',
 };
 

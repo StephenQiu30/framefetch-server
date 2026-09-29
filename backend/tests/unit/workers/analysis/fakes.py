@@ -11,6 +11,8 @@ from app.services.analysis.rules.result_types import AnalysisResult
 from app.services.analysis_execution.models import (
     AnalysisArtifactSource,
     AnalysisExecutionSettings,
+    AnalysisStepBegin,
+    AnalysisStepStatus,
     LocalAnalysisArtifact,
 )
 
@@ -62,28 +64,26 @@ class FakeRepository:
         self.source_error: Exception | None = None
         self.publish_error: Exception | None = None
         self.heartbeat_failure_stage: str | None = None
+        # Owner-visible heartbeats in that stage before cancellation is observed.
+        self.heartbeat_failure_after = 2
         self._stage_counts: dict[str, int] = {}
+        self.claims: list[str] = []
+        self.steps: dict[str, tuple[str, str, object | None]] = {}
 
-    async def claim_job(
+    async def claim_run(
         self,
         job_id: UUID,
         run_id: UUID,
         run_no: int,
-        expected_version: int,
-        worker_id: str,
+        owner: str,
         now: datetime,
         lease_for: timedelta,
     ) -> AnalysisJobSnapshot | None:
-        return (
-            self.job
-            if (
-                job_id == self.job.id
-                and run_id == self.job.run_id
-                and run_no == self.job.run_no
-                and expected_version == self.job.version
-            )
-            else None
-        )
+        if (job_id, run_id, run_no) != (self.job.id, self.job.run_id, self.job.run_no):
+            return None
+        self.claims.append(owner)
+        self.job = replace(self.job, lease_owner=owner)
+        return self.job
 
     async def get_job(self, job_id: UUID) -> AnalysisJobSnapshot | None:
         return self.job if job_id == self.job.id else None
@@ -117,7 +117,10 @@ class FakeRepository:
         self.heartbeats.append((stage, progress))
         count = self._stage_counts.get(stage, 0) + 1
         self._stage_counts[stage] = count
-        if self.heartbeat_failure_stage == stage and count > 1:
+        if (
+            self.heartbeat_failure_stage == stage
+            and count > self.heartbeat_failure_after
+        ):
             self.job = replace(
                 self.job,
                 status="cancelled",
@@ -171,6 +174,30 @@ class FakeRepository:
         self.job = replace(self.job, status=status, stage=None)
         return self.job
 
+    async def begin_step(
+        self, run_id: UUID, step_key: str, input_sha256: str, *, now: datetime
+    ) -> AnalysisStepBegin:
+        current = self.steps.get(step_key)
+        if current is None or (
+            current[0] == "succeeded" and current[1] != input_sha256
+        ):
+            self.steps[step_key] = ("started", input_sha256, None)
+            return AnalysisStepBegin(AnalysisStepStatus.NEW)
+        if current[0] == "succeeded":
+            return AnalysisStepBegin(AnalysisStepStatus.REPLAY, current[2])
+        return AnalysisStepBegin(AnalysisStepStatus.UNKNOWN)
+
+    async def complete_step(
+        self, run_id: UUID, step_key: str, payload: object, *, now: datetime
+    ) -> None:
+        status, digest, _ = self.steps[step_key]
+        assert status == "started"
+        self.steps[step_key] = ("succeeded", digest, payload)
+
+    async def abandon_step(self, run_id: UUID, step_key: str) -> None:
+        if self.steps.get(step_key, ("",))[0] == "started":
+            del self.steps[step_key]
+
 
 class FakeLoader:
     def __init__(self, root: Path) -> None:
@@ -188,7 +215,6 @@ class FakeLoader:
 
 def settings() -> AnalysisExecutionSettings:
     return AnalysisExecutionSettings(
-        worker_id="analysis-worker",
         bucket="video-artifacts",
         lease_for=timedelta(seconds=30),
         heartbeat_interval=0.01,

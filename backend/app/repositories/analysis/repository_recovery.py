@@ -1,11 +1,11 @@
-"""Retry, terminal failure and bounded stale analysis recovery."""
+"""Workflow-driven retry and terminal analysis failure transitions."""
 
 from __future__ import annotations
 
 from datetime import datetime
-from uuid import UUID, uuid4
+from uuid import UUID
 
-from sqlalchemy import Select, select
+from sqlalchemy import select
 
 from app.core.db import as_utc
 from app.models import AnalysisJobRow
@@ -15,75 +15,7 @@ from app.services.analysis.errors import PersistenceNotFound
 from app.services.analysis.models import AnalysisJobSnapshot
 
 
-def stale_analyses_statement(
-    now: datetime, limit: int
-) -> Select[tuple[AnalysisJobRow]]:
-    return (
-        select(AnalysisJobRow)
-        .where(
-            AnalysisJobRow.status == "running",
-            AnalysisJobRow.lease_expires_at <= now,
-        )
-        .order_by(AnalysisJobRow.lease_expires_at, AnalysisJobRow.id)
-        .limit(limit)
-        .with_for_update(skip_locked=True)
-    )
-
-
-def stale_queued_analyses_statement(
-    stale_before: datetime, limit: int
-) -> Select[tuple[AnalysisJobRow]]:
-    return (
-        select(AnalysisJobRow)
-        .where(
-            AnalysisJobRow.status == "queued",
-            AnalysisJobRow.updated_at <= stale_before,
-        )
-        .order_by(AnalysisJobRow.updated_at, AnalysisJobRow.id)
-        .limit(limit)
-        .with_for_update(skip_locked=True)
-    )
-
-
-def ready_analysis_retries_statement(
-    now: datetime, limit: int
-) -> Select[tuple[AnalysisJobRow]]:
-    return (
-        select(AnalysisJobRow)
-        .where(
-            AnalysisJobRow.status == "retry_wait",
-            AnalysisJobRow.retry_at <= now,
-        )
-        .order_by(AnalysisJobRow.retry_at, AnalysisJobRow.id)
-        .limit(limit)
-        .with_for_update(skip_locked=True)
-    )
-
-
 class AnalysisRecoveryRepository(AnalysisRepositoryBase):
-    async def recover_stale_queued(
-        self, now: datetime, stale_before: datetime, *, limit: int = 100
-    ) -> tuple[UUID, ...]:
-        _valid_limit(limit)
-        if stale_before >= now:
-            raise ValueError("stale_before must be before now")
-        async with self._sessions() as session, session.begin():
-            rows = tuple(
-                (
-                    await session.scalars(
-                        stale_queued_analyses_statement(stale_before, limit)
-                    )
-                ).all()
-            )
-            for row in rows:
-                run = await self.active_run(session, row, for_update=True)
-                session.add(
-                    self.requested_event(row, run, uuid4(), "analysis.requested", now)
-                )
-                row.updated_at = now
-            await session.flush()
-            return tuple(row.id for row in rows)
-
     async def complete_failure(
         self,
         job_id: UUID,
@@ -127,59 +59,38 @@ class AnalysisRecoveryRepository(AnalysisRepositoryBase):
             await session.flush()
             return analysis_job_snapshot(row)
 
-    async def reclaim_stale(
-        self, now: datetime, *, limit: int = 100
-    ) -> tuple[UUID, ...]:
-        _valid_limit(limit)
+    async def fail_run(
+        self, job_id: UUID, run_id: UUID, *, error_code: str, now: datetime
+    ) -> AnalysisJobSnapshot | None:
+        """Close a run whose Workflow can no longer execute it."""
         async with self._sessions() as session, session.begin():
-            rows = tuple(
-                (await session.scalars(stale_analyses_statement(now, limit))).all()
+            row = await session.scalar(
+                select(AnalysisJobRow)
+                .where(AnalysisJobRow.id == job_id)
+                .with_for_update()
             )
-            for row in rows:
-                run = await self.active_run(session, row, for_update=True)
-                can_retry = row.attempt < row.max_attempts
-                row.status = "retry_wait" if can_retry else "failed"
-                row.stage = None
-                row.stage_rank = 0
-                row.version += 1
-                row.retry_at = now if can_retry else None
-                row.finished_at = None if can_retry else now
-                row.error_code = "worker_lost"
-                row.error_message = "analysis worker lease expired"
-                row.lease_owner = None
-                row.lease_expires_at = None
-                row.heartbeat_at = None
-                row.updated_at = now
-                self.sync_run(row, run)
-                if not can_retry:
-                    await self.release_lock(session, row.id)
+            if row is None:
+                return None
+            if row.active_run_id != run_id or row.status not in {
+                "queued",
+                "running",
+                "retry_wait",
+            }:
+                return analysis_job_snapshot(row)
+            run = await self.active_run(session, row, for_update=True)
+            row.status = "failed"
+            row.stage = None
+            row.stage_rank = 0
+            row.version += 1
+            row.retry_at = None
+            row.finished_at = now
+            row.error_code = error_code
+            row.error_message = error_code
+            row.lease_owner = None
+            row.lease_expires_at = None
+            row.heartbeat_at = None
+            row.updated_at = now
+            self.sync_run(row, run)
+            await self.release_lock(session, row.id)
             await session.flush()
-            return tuple(row.id for row in rows)
-
-    async def release_ready_retries(
-        self, now: datetime, *, limit: int = 100
-    ) -> tuple[UUID, ...]:
-        _valid_limit(limit)
-        async with self._sessions() as session, session.begin():
-            rows = tuple(
-                (
-                    await session.scalars(ready_analysis_retries_statement(now, limit))
-                ).all()
-            )
-            for row in rows:
-                run = await self.active_run(session, row, for_update=True)
-                row.status = "queued"
-                row.retry_at = None
-                row.version += 1
-                row.updated_at = now
-                self.sync_run(row, run)
-                session.add(
-                    self.requested_event(row, run, uuid4(), "analysis.requested", now)
-                )
-            await session.flush()
-            return tuple(row.id for row in rows)
-
-
-def _valid_limit(limit: int) -> None:
-    if not 1 <= limit <= 1000:
-        raise ValueError("limit must be between 1 and 1000")
+            return analysis_job_snapshot(row)

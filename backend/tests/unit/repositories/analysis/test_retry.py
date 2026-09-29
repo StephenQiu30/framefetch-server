@@ -28,11 +28,10 @@ async def test_manual_retry_appends_run_and_replays_same_operation(analysis_db) 
     source = await seed_artifact(analysis_db.sessions, NOW)
     initial = analysis_command(source)
     await analysis_db.repository.create_job_and_enqueue(initial, now=NOW)
-    await analysis_db.repository.claim_job(
+    await analysis_db.repository.claim_run(
         initial.id,
         initial.run_id,
         1,
-        0,
         "worker-a",
         NOW,
         timedelta(seconds=30),
@@ -108,11 +107,10 @@ async def test_manual_retry_limits_leave_no_partial_facts(
     source = await seed_artifact(analysis_db.sessions, NOW)
     initial = analysis_command(source)
     await analysis_db.repository.create_job_and_enqueue(initial, now=NOW)
-    await analysis_db.repository.claim_job(
+    await analysis_db.repository.claim_run(
         initial.id,
         initial.run_id,
         1,
-        0,
         "worker-a",
         NOW,
         timedelta(seconds=30),

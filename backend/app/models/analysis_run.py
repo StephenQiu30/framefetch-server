@@ -1,8 +1,9 @@
-"""Append-only analysis execution runs and retry idempotency operations."""
+"""Append-only analysis runs, retry operations and model step journal."""
 
 from __future__ import annotations
 
 from datetime import datetime
+from typing import Any
 from uuid import UUID, uuid4
 
 from sqlalchemy import (
@@ -15,6 +16,7 @@ from sqlalchemy import (
     UniqueConstraint,
     Uuid,
 )
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.db import Base, utc_now
@@ -110,3 +112,36 @@ class AnalysisRetryOperationRow(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, default=utc_now
     )
+
+
+class AnalysisStepResultRow(Base):
+    """One model call per run and step; a started row without payload is unknown."""
+
+    __tablename__ = "analysis_step_results"
+    __table_args__ = (
+        CheckConstraint(
+            "status IN ('started', 'succeeded')", name="ck_analysis_step_results_status"
+        ),
+        CheckConstraint(
+            "length(input_sha256) = 64", name="ck_analysis_step_results_input_sha"
+        ),
+        CheckConstraint(
+            "(status = 'succeeded') = (payload IS NOT NULL)",
+            name="ck_analysis_step_results_payload",
+        ),
+    )
+
+    run_id: Mapped[UUID] = mapped_column(
+        Uuid,
+        ForeignKey("analysis_runs.id", ondelete="CASCADE"),
+        primary_key=True,
+    )
+    step_key: Mapped[str] = mapped_column(String(64), primary_key=True)
+    input_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    status: Mapped[str] = mapped_column(String(16), nullable=False)
+    # none_as_null: a cleared payload must be SQL NULL for the status check.
+    payload: Mapped[dict[str, Any] | None] = mapped_column(JSONB(none_as_null=True))
+    started_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, default=utc_now
+    )
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))

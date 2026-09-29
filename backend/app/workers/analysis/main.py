@@ -6,14 +6,14 @@ import asyncio
 import logging
 from dataclasses import dataclass
 from datetime import timedelta
-from urllib.parse import quote, urlsplit, urlunsplit
+from functools import partial
 
 from app.core.config import Settings, get_settings_for_role
 from app.core.db import create_engine, create_session_factory
 from app.core.security.ai_provider_cipher import FernetAiProviderSecretCipher
 from app.core.security.url_cipher import URLCipher
-from app.integrations.messaging import RabbitMqTopology
 from app.integrations.object_storage import MinioObjectStorage
+from app.integrations.temporal_client import connect_temporal
 from app.repositories.ai_provider_repository import SqlAlchemyAiProviderRepository
 from app.repositories.analysis.execution import AnalysisExecutionPersistence
 from app.repositories.analysis.repository import SqlAlchemyAnalysisRepository
@@ -24,29 +24,31 @@ from app.repositories.analysis.worker_registry import (
 from app.repositories.downloads.repository import SqlAlchemyDownloadRepository
 from app.services.analysis_execution.models import AnalysisExecutionSettings
 from app.services.analysis_execution.service import AnalysisExecution
+from app.workers.analysis.activities import SkillActivities
 from app.workers.analysis.agent_lock import (
     AnalysisAgentAlreadyRunning,
     analysis_agent_process_lock,
 )
 from app.workers.analysis.artifacts import LocalAnalysisArtifactLoader
-from app.workers.analysis.consumer import RabbitMqAnalysisConsumer
 from app.workers.analysis.heartbeat import AnalysisWorkerHeartbeat
 from app.workers.analysis.providers import ConfiguredAnalyzerResolver
 from app.workers.analysis.screenplay_runtime import (
     ScreenplayWorkerComponents,
     build_screenplay_components,
 )
-from app.workers.analysis.sweeper import AnalysisRecoverySweeper, RecoverySettings
 from app.workers.analysis.utilities import install_signal_handlers, utc_now, worker_id
+from app.workers.analysis.workflows import SKILL_TASK_QUEUE, SkillWorkflow
 from sqlalchemy.ext.asyncio import AsyncEngine
+from temporalio.worker import Worker
 
 _log = logging.getLogger(__name__)
 
 
 @dataclass(slots=True)
 class AnalysisWorkerRuntime:
-    consumer: RabbitMqAnalysisConsumer
-    sweeper: AnalysisRecoverySweeper
+    activities: SkillActivities
+    temporal_address: str
+    temporal_namespace: str
     heartbeat: AnalysisWorkerHeartbeat
     storage: MinioObjectStorage
     loader: LocalAnalysisArtifactLoader
@@ -56,12 +58,9 @@ class AnalysisWorkerRuntime:
 
     async def close(self) -> None:
         try:
-            await self.consumer.close()
+            await self.heartbeat.close()
         finally:
-            try:
-                await self.heartbeat.close()
-            finally:
-                await self.engine.dispose()
+            await self.engine.dispose()
 
 
 def build_runtime(settings: Settings) -> AnalysisWorkerRuntime:
@@ -69,9 +68,6 @@ def build_runtime(settings: Settings) -> AnalysisWorkerRuntime:
     host_settings = settings.model_copy(
         update={
             "database_url": settings.analysis_database_url,
-            "rabbitmq_url": _rabbitmq_worker_url(
-                settings.analysis_rabbitmq_url, settings.rabbitmq_vhost
-            ),
             "minio_endpoint": settings.analysis_minio_endpoint,
             "minio_access_key": minio_access_key,
             "minio_secret_key": minio_secret_key,
@@ -119,43 +115,16 @@ def build_runtime(settings: Settings) -> AnalysisWorkerRuntime:
         screenplay_executor=screenplay.executor,
         clock=utc_now,
         settings=AnalysisExecutionSettings(
-            worker_id=runtime_worker_id,
             bucket=settings.minio_bucket,
             lease_for=timedelta(seconds=settings.job_lease_seconds),
             heartbeat_interval=settings.heartbeat_interval_seconds,
             max_source_bytes=settings.max_file_size_bytes,
         ),
     )
-    topology = RabbitMqTopology(
-        settings.rabbitmq_exchange,
-        settings.download_queue,
-        settings.download_routing_key,
-        settings.analysis_queue,
-        settings.analysis_routing_key,
-        settings.analysis_report_queue,
-        settings.analysis_report_routing_key,
-    )
     return AnalysisWorkerRuntime(
-        consumer=RabbitMqAnalysisConsumer(
-            host_settings.rabbitmq_url,
-            topology,
-            execution,
-            prefetch=1,
-            connection_timeout=settings.rabbitmq_connection_timeout_seconds,
-            heartbeat=settings.rabbitmq_heartbeat_seconds,
-            reconnect_interval=settings.rabbitmq_reconnect_interval_seconds,
-        ),
-        sweeper=AnalysisRecoverySweeper(
-            analysis,
-            utc_now,
-            RecoverySettings(
-                interval=min(5.0, settings.heartbeat_interval_seconds),
-                batch_size=100,
-                queued_stale_after=timedelta(
-                    seconds=settings.analysis_queued_recovery_seconds
-                ),
-            ),
-        ),
+        activities=SkillActivities(execution, persistence, clock=utc_now),
+        temporal_address=settings.temporal_address,
+        temporal_namespace=settings.temporal_namespace,
         heartbeat=AnalysisWorkerHeartbeat(
             worker_registry,
             worker_id=runtime_worker_id,
@@ -189,12 +158,8 @@ async def run(settings: Settings | None = None) -> None:
 async def _serve(runtime: AnalysisWorkerRuntime, stop: asyncio.Event) -> None:
     tasks = (
         asyncio.create_task(
-            _run_resilient("consumer", runtime.consumer.run, stop),
-            name="analysis-consumer",
-        ),
-        asyncio.create_task(
-            _run_resilient("sweeper", runtime.sweeper.run, stop),
-            name="analysis-sweeper",
+            _run_resilient("skill", partial(_run_skill_worker, runtime), stop),
+            name="analysis-skill-worker",
         ),
         asyncio.create_task(
             _run_resilient("heartbeat", runtime.heartbeat.run, stop),
@@ -205,10 +170,37 @@ async def _serve(runtime: AnalysisWorkerRuntime, stop: asyncio.Event) -> None:
         await stop.wait()
     finally:
         stop.set()
-        await runtime.consumer.close()
-        for task in tasks:
-            task.cancel()
         await asyncio.gather(*tasks, return_exceptions=True)
+
+
+async def _run_skill_worker(
+    runtime: AnalysisWorkerRuntime, stop: asyncio.Event
+) -> None:
+    """Serve ff-skill with one model slot; a lost Temporal link is reconnected."""
+    client = await connect_temporal(
+        runtime.temporal_address, runtime.temporal_namespace
+    )
+    worker = Worker(
+        client,
+        task_queue=SKILL_TASK_QUEUE,
+        workflows=[SkillWorkflow],
+        activities=[
+            runtime.activities.run_skill,
+            runtime.activities.finish_skill,
+        ],
+        max_concurrent_activities=1,
+        graceful_shutdown_timeout=timedelta(seconds=30),
+        max_heartbeat_throttle_interval=timedelta(seconds=5),
+    )
+    running = asyncio.create_task(worker.run())
+    stopped = asyncio.create_task(stop.wait())
+    try:
+        await asyncio.wait({running, stopped}, return_when=asyncio.FIRST_COMPLETED)
+    finally:
+        stopped.cancel()
+        if not running.done():
+            await worker.shutdown()
+        await running
 
 
 async def _run_resilient(
@@ -238,11 +230,6 @@ def main(settings: Settings | None = None) -> None:
             asyncio.run(run(settings))
     except AnalysisAgentAlreadyRunning as exc:
         raise SystemExit(str(exc)) from None
-
-
-def _rabbitmq_worker_url(url: str, vhost: str) -> str:
-    parsed = urlsplit(url)
-    return urlunsplit(parsed._replace(path=f"/{quote(vhost, safe='')}"))
 
 
 if __name__ == "__main__":
