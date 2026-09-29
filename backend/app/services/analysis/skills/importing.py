@@ -147,15 +147,25 @@ def plan_import(
     if relative.is_absolute() or ".." in relative.parts:
         raise SkillImportRejected("subdirectory must stay inside the repository")
     root = checkout.resolve(strict=True)
-    base = (root / relative).resolve(strict=True)
-    if not base.is_relative_to(root) or not base.is_dir():
-        raise SkillImportRejected("subdirectory must be a directory in the checkout")
+    requested = root / relative
+    if any(part.is_symlink() for part in (requested, *requested.parents)):
+        raise SkillImportRejected("import path must not contain symlinks")
+    base = requested.resolve(strict=True)
+    if not base.is_relative_to(root):
+        raise SkillImportRejected("path must be a file or directory in the checkout")
+    single_file = base.is_file()
+    if single_file and base.suffix.lower() != ".md":
+        raise SkillImportRejected("a single imported file must be Markdown")
+    if not single_file and not base.is_dir():
+        raise SkillImportRejected("path must be a file or directory in the checkout")
 
-    license_name, license_text = _repository_license(root, base)
+    skill_dir = _skill_directory(root, base)
+    license_name, license_text = _repository_license(root, skill_dir)
     files: list[ImportedFile] = []
     dropped: list[str] = []
     findings: list[InjectionFinding] = []
-    for path in sorted(base.rglob("*")):
+    candidates = [base] if single_file else sorted(base.rglob("*"))
+    for path in candidates:
         if path.is_dir() and not path.is_symlink():
             continue
         shown = path.relative_to(root).as_posix()
@@ -172,11 +182,15 @@ def plan_import(
         except UnicodeDecodeError:
             dropped.append(shown)
             continue
-        within = path.relative_to(base).as_posix()
+        name = (
+            f"{skill_dir.name}-{path.name}"
+            if single_file
+            else _flatten(path.relative_to(base).as_posix(), base.name)
+        )
         files.append(
             ImportedFile(
                 source_path=shown,
-                destination=f"{source}/{_flatten(within, base.name)}",
+                destination=f"{source}/{name}",
                 content=content,
             )
         )
@@ -249,6 +263,18 @@ def apply_import(
     with notice.open("a", encoding="utf-8") as stream:
         stream.write(_notice_entry(plan, today, registered))
     return tuple(registered)
+
+
+def _skill_directory(root: Path, base: Path) -> Path:
+    """The nearest directory holding SKILL.md, for frontmatter license lookup."""
+    current = base if base.is_dir() else base.parent
+    while current.is_relative_to(root):
+        if (current / "SKILL.md").is_file():
+            return current
+        if current == root:
+            break
+        current = current.parent
+    return base if base.is_dir() else base.parent
 
 
 def _repository_license(root: Path, base: Path) -> tuple[str, bytes | None]:

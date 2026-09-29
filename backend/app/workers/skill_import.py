@@ -34,7 +34,9 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="引入经审查的第三方 Skill Markdown")
     parser.add_argument("--repository", required=True)
     parser.add_argument("--commit", required=True)
-    parser.add_argument("--path", required=True, help="Skill 目录在仓库中的路径")
+    parser.add_argument(
+        "--path", required=True, help="Skill 目录或单个 Markdown 文件在仓库中的路径"
+    )
     parser.add_argument("--source", required=True, help="本地来源名（kebab-case）")
     parser.add_argument(
         "--accept-findings",

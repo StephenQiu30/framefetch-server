@@ -233,3 +233,62 @@ def test_headings_inside_code_fences_are_not_sections() -> None:
     blocks = markdown_sections(text)
     assert list(blocks) == ["Template", "Next"]
     assert "## Video: [Title]" in "\n".join(blocks["Template"])
+
+
+def test_a_single_reference_file_can_be_imported_alone(tmp_path: Path) -> None:
+    repo = checkout(tmp_path)
+    result = plan_import(
+        repo,
+        "skills/shot-review/references/rubric.md",
+        source="example",
+        repository=REPO,
+        commit=COMMIT,
+    )
+    assert [item.destination for item in result.files] == [
+        "example/shot-review-rubric.md"
+    ]
+    assert result.dropped == () and result.license == "MIT"
+    with pytest.raises(SkillImportRejected, match="must be Markdown"):
+        plan_import(
+            repo,
+            "skills/shot-review/scripts/run.sh",
+            source="example",
+            repository=REPO,
+            commit=COMMIT,
+        )
+
+
+def test_single_reference_inherits_nearest_skill_license(tmp_path: Path) -> None:
+    repo = checkout(tmp_path, license_text=None)
+    (repo / "skills/shot-review/SKILL.md").write_text(
+        SKILL.replace("description:", "license: MIT\ndescription:")
+    )
+    result = plan_import(
+        repo,
+        "skills/shot-review/references/rubric.md",
+        source="example",
+        repository=REPO,
+        commit=COMMIT,
+    )
+    root, notice = modules_root(tmp_path)
+    assert apply_import(
+        result, root, notice, accept_findings=False, today=date(2026, 9, 29)
+    ) == ("example-shot-review-rubric",)
+    module = load_manifest(root / "manifest.json")["example-shot-review-rubric"]
+    assert module.license == "MIT"
+    assert module.source_url == (
+        f"{REPO}/blob/{COMMIT}/skills/shot-review/references/rubric.md"
+    )
+
+
+@pytest.mark.parametrize("directory", [False, True], ids=["file", "parent"])
+def test_explicit_import_paths_cannot_follow_symlinks(
+    tmp_path: Path, directory: bool
+) -> None:
+    repo = checkout(tmp_path)
+    target = repo / "skills/shot-review/references"
+    link = repo / ("linked" if directory else "linked.md")
+    link.symlink_to(target if directory else target / "rubric.md")
+    requested = "linked/rubric.md" if directory else "linked.md"
+    with pytest.raises(SkillImportRejected, match="symlinks"):
+        plan_import(repo, requested, source="example", repository=REPO, commit=COMMIT)
