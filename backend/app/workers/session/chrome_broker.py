@@ -20,6 +20,7 @@ from app.workers.session.chrome_agent import (
     CookiesRequest,
     CookiesResponse,
     cookies_associated_data,
+    headers_associated_data,
 )
 from app.workers.session.contracts import lease_associated_data
 from app.workers.session.rpc import RpcError, SignedClient
@@ -68,7 +69,7 @@ class ChromeSessionBroker:
         return False
 
     async def ready_revision(self, site: str) -> int:
-        await self._payload(site)
+        await self._read(site, include_headers=False)
         return LIVE_REVISION
 
     async def lease(
@@ -76,18 +77,29 @@ class ChromeSessionBroker:
     ) -> LeaseGrant:
         if seed_revision != LIVE_REVISION:
             raise SessionNotReady(site)
-        payload = await self._payload(site)
+        payload, headers = await self._read(site, include_headers=True)
         expires_at = int(time.time()) + self._lease_seconds
-        jar = seal(
-            payload,
-            runner_key,
-            associated_data=lease_associated_data(
-                "jar", task_id, site, seed_revision, expires_at
-            ),
-        )
+
+        def sealed(kind: str, value: bytes) -> bytes:
+            return seal(
+                value,
+                runner_key,
+                associated_data=lease_associated_data(
+                    kind, task_id, site, seed_revision, expires_at
+                ),
+            )
+
         # Runner-side rotations are dropped: Chrome stays the source of truth.
         discard = public_key(X25519PrivateKey.generate())
-        return LeaseGrant(site, seed_revision, 0, expires_at, jar, None, discard)
+        return LeaseGrant(
+            site,
+            seed_revision,
+            0,
+            expires_at,
+            sealed("jar", payload),
+            None if headers is None else sealed("headers", headers),
+            discard,
+        )
 
     async def absorb_rotation(self, **_: object) -> None:
         return None
@@ -95,7 +107,9 @@ class ChromeSessionBroker:
     async def report_failure(self, **_: object) -> None:
         return None
 
-    async def _payload(self, site: str) -> bytes:
+    async def _read(
+        self, site: str, *, include_headers: bool
+    ) -> tuple[bytes, bytes | None]:
         try:
             target = site_target(site)
         except InvalidSessionSite:
@@ -104,7 +118,11 @@ class ChromeSessionBroker:
         try:
             reply = await self._agent.post(
                 COOKIES_PATH,
-                CookiesRequest(site=site, public_key=encode(public_key(key))),
+                CookiesRequest(
+                    site=site,
+                    public_key=encode(public_key(key)),
+                    include_headers=include_headers,
+                ),
                 CookiesResponse,
             )
             opened = open_sealed(
@@ -112,7 +130,16 @@ class ChromeSessionBroker:
                 key,
                 associated_data=cookies_associated_data(site),
             )
-            return validated_cookie_payload(opened, target.cookie_domains)
+            headers = (
+                None
+                if reply.headers is None
+                else open_sealed(
+                    decode(reply.headers),
+                    key,
+                    associated_data=headers_associated_data(site),
+                )
+            )
+            return validated_cookie_payload(opened, target.cookie_domains), headers
         except RpcError as exc:
             if exc.code in {"credential_required", "chrome_profile_ambiguous"}:
                 raise SessionLoginRequired(site) from None

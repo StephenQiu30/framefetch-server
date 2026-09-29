@@ -1,5 +1,9 @@
 import pytest
-from app.workers.session.chrome_agent import CookiesResponse, cookies_associated_data
+from app.workers.session.chrome_agent import (
+    CookiesResponse,
+    cookies_associated_data,
+    headers_associated_data,
+)
 from app.workers.session.chrome_broker import (
     LIVE_REVISION,
     ChromeSessionBroker,
@@ -18,10 +22,11 @@ from app.workers.session.sealing import (
 )
 from cryptography.hazmat.primitives.asymmetric.x25519 import X25519PrivateKey
 
-JAR = (
-    b"# Netscape HTTP Cookie File\n"
-    b".youtube.com\tTRUE\t/\tTRUE\t4102444800\tSID\tvalue\n"
-)
+JARS = {
+    "youtube.com": b".youtube.com\tTRUE\t/\tTRUE\t4102444800\tSID\tvalue\n",
+    "weixin.qq.com": (b".yuanbao.tencent.com\tTRUE\t/\tTRUE\t4102444800\thy_user\tu\n"),
+}
+JAR = b"# Netscape HTTP Cookie File\n" + JARS["youtube.com"]
 
 
 class Agent:
@@ -32,10 +37,22 @@ class Agent:
         if self.error is not None:
             raise self.error
         recipient = decode_public_key(body.public_key)
+        jar = b"# Netscape HTTP Cookie File\n" + JARS[body.site]
         sealed = seal(
-            JAR, recipient, associated_data=cookies_associated_data(body.site)
+            jar, recipient, associated_data=cookies_associated_data(body.site)
         )
-        return CookiesResponse(site=body.site, profile="Default", jar=encode(sealed))
+        headers = None
+        if body.include_headers and body.site == "weixin.qq.com":
+            headers = encode(
+                seal(
+                    b'{"headers":{}}',
+                    recipient,
+                    associated_data=headers_associated_data(body.site),
+                )
+            )
+        return CookiesResponse(
+            site=body.site, profile="Default", jar=encode(sealed), headers=headers
+        )
 
 
 async def test_lease_reseals_live_chrome_cookies_for_the_runner():
@@ -85,3 +102,23 @@ async def test_stale_revision_is_rejected_and_rotation_is_ignored():
         )
     assert await broker.absorb_rotation(task_id="t1") is None
     assert decode(encode(b"x")) == b"x"
+
+
+async def test_page_headers_are_resealed_as_a_separate_lease_part():
+    broker = ChromeSessionBroker(Agent(), lease_seconds=600)
+    runner = X25519PrivateKey.generate()
+    grant = await broker.lease(
+        task_id="t2",
+        site="weixin.qq.com",
+        seed_revision=LIVE_REVISION,
+        runner_key=public_key(runner),
+    )
+    assert grant.headers is not None
+    headers = open_sealed(
+        grant.headers,
+        runner,
+        associated_data=lease_associated_data(
+            "headers", "t2", "weixin.qq.com", LIVE_REVISION, grant.expires_at
+        ),
+    )
+    assert headers == b'{"headers":{}}'

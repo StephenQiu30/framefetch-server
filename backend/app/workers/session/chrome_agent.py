@@ -26,7 +26,7 @@ import subprocess
 import sys
 import tempfile
 import time
-from collections.abc import Callable, Mapping
+from collections.abc import Awaitable, Callable, Mapping
 from dataclasses import dataclass
 from enum import IntEnum
 from http.cookiejar import Cookie, CookieJar
@@ -35,7 +35,11 @@ from typing import Annotated, Final
 
 import uvicorn
 from app.integrations.site_session_catalog import SiteTarget, site_target
-from app.services.site_sessions import InvalidSessionSite, known_session_sites
+from app.services.site_sessions import (
+    InvalidSessionSite,
+    SiteSessionPolicy,
+    known_session_sites,
+)
 from app.workers.runner.netscape_cookie import (
     has_safe_cookie_fields,
     is_allowed_domain,
@@ -47,6 +51,7 @@ from app.workers.session.chrome_reader import (
     chrome_profiles,
     extract_chrome_cookies,
 )
+from app.workers.session.page_headers import PageHeadersUnavailable, page_headers
 from app.workers.session.rpc import authenticator, verified_model
 from app.workers.session.sealing import SealError, decode_public_key, encode, seal
 from dotenv import dotenv_values
@@ -157,6 +162,8 @@ class CookiesRequest(BaseModel):
 
     site: Annotated[str, StringConstraints(pattern=r"^[a-z0-9.-]{3,253}$")]
     public_key: Annotated[str, StringConstraints(pattern=r"^[A-Za-z0-9_-]{1,64}$")]
+    # Page-signed headers are per request; only a lease asks for them.
+    include_headers: bool = False
 
 
 class CookiesResponse(BaseModel):
@@ -165,13 +172,21 @@ class CookiesResponse(BaseModel):
     site: str
     profile: str
     jar: str
+    headers: str | None = None
 
 
 def cookies_associated_data(site: str) -> bytes:
     return f"chrome-agent-cookies:v1:{site}".encode()
 
 
+def headers_associated_data(site: str) -> bytes:
+    return f"chrome-agent-headers:v1:{site}".encode()
+
+
 type LoginReader = Callable[[SiteTarget, str | None], ChromeLogin]
+type HeaderReader = Callable[
+    [SiteSessionPolicy, tuple[Cookie, ...]], Awaitable[bytes | None]
+]
 
 
 def create_app(
@@ -179,6 +194,7 @@ def create_app(
     secret: bytes,
     profiles: Mapping[str, str],
     reader: LoginReader | None = None,
+    header_reader: HeaderReader = page_headers,
     clock: Callable[[], float] = time.monotonic,
 ) -> FastAPI:
     verifier = authenticator(secret)
@@ -212,12 +228,31 @@ def create_app(
                 ExitCode.UNAVAILABLE: 503,
             }.get(exc.code, 409)
             raise HTTPException(status, exc.reason) from None
+        headers = None
+        if body.include_headers:
+            try:
+                raw = await header_reader(target.policy, login.cookies)
+            except PageHeadersUnavailable:
+                raise HTTPException(409, "credential_required") from None
+            except Exception:
+                raise HTTPException(503, "page_headers_unavailable") from None
+            if raw is not None:
+                headers = encode(
+                    seal(
+                        raw,
+                        recipient,
+                        associated_data=headers_associated_data(target.site),
+                    )
+                )
         payload = serialize_cookies(login.cookies)
         sealed = seal(
             payload, recipient, associated_data=cookies_associated_data(target.site)
         )
         return CookiesResponse(
-            site=target.site, profile=login.profile.directory, jar=encode(sealed)
+            site=target.site,
+            profile=login.profile.directory,
+            jar=encode(sealed),
+            headers=headers,
         )
 
     @app.get("/health")

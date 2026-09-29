@@ -34,7 +34,7 @@ dependencies = [
 ]
 
 [dependency-groups]
-# Only the session-browser image installs Playwright and its Chromium.
+# The host chrome_agent drives the installed Chrome for page-signed headers.
 browser = ["playwright==1.63.0"]
 dev = [
   { include-group = "browser" },

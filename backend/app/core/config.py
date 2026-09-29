@@ -155,7 +155,6 @@ class Settings(BaseSettings):
             raise ValueError("source sites must be registered session sites")
         return tuple(dict.fromkeys(value))
 
-
     @field_validator("site_session_source_profiles")
     @classmethod
     def validate_source_profiles(cls, value: dict[str, str]) -> dict[str, str]:

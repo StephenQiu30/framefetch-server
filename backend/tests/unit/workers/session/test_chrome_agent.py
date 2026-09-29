@@ -12,8 +12,10 @@ from app.workers.session.chrome_agent import (
     ExitCode,
     cookies_associated_data,
     create_app,
+    headers_associated_data,
 )
 from app.workers.session.chrome_reader import ChromeProfile
+from app.workers.session.page_headers import PageHeadersUnavailable, yuanbao_payload
 from app.workers.session.rpc import RpcError, SignedClient
 from app.workers.session.sealing import decode, encode, open_sealed, public_key
 from cryptography.hazmat.primitives.asymmetric.x25519 import X25519PrivateKey
@@ -54,8 +56,18 @@ class Reader:
         return self.outcome
 
 
-def client_for(reader, profiles=None, clock=lambda: 0.0):
-    app = create_app(secret=SECRET, profiles=profiles or {}, reader=reader, clock=clock)
+async def no_headers(policy, cookies):
+    return None
+
+
+def client_for(reader, profiles=None, clock=lambda: 0.0, header_reader=no_headers):
+    app = create_app(
+        secret=SECRET,
+        profiles=profiles or {},
+        reader=reader,
+        header_reader=header_reader,
+        clock=clock,
+    )
     raw = httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://a")
     return raw, SignedClient(raw, SECRET)
 
@@ -118,3 +130,67 @@ async def test_chrome_failures_keep_a_stable_reason(error, status, code):
 
 def test_site_target_used_by_agent_covers_youtube_domains():
     assert "youtube.com" in site_target("youtube.com").cookie_domains
+
+
+async def test_page_headers_are_sealed_separately_and_only_on_request():
+    login = ChromeLogin(ChromeProfile("Default", "Me"), (cookie("hy_user"),))
+    calls = []
+
+    async def header_reader(policy, cookies):
+        calls.append(policy.site)
+        return b'{"userId":"u","token":"t","headers":{"X-HY92":"s"}}'
+
+    raw, signed = client_for(Reader(login), header_reader=header_reader)
+    key = X25519PrivateKey.generate()
+    encoded = encode(public_key(key))
+    async with raw:
+        status = await signed.post(
+            COOKIES_PATH,
+            CookiesRequest(site="weixin.qq.com", public_key=encoded),
+            CookiesResponse,
+        )
+        lease = await signed.post(
+            COOKIES_PATH,
+            CookiesRequest(
+                site="weixin.qq.com", public_key=encoded, include_headers=True
+            ),
+            CookiesResponse,
+        )
+    assert status.headers is None
+    assert calls == ["weixin.qq.com"]
+    opened = open_sealed(
+        decode(lease.headers),
+        key,
+        associated_data=headers_associated_data("weixin.qq.com"),
+    )
+    assert b"X-HY92" in opened
+
+
+async def test_page_without_identity_is_a_login_problem():
+    login = ChromeLogin(ChromeProfile("Default", "Me"), (cookie("hy_user"),))
+
+    async def header_reader(policy, cookies):
+        raise PageHeadersUnavailable("no identity")
+
+    raw, signed = client_for(Reader(login), header_reader=header_reader)
+    key = encode(public_key(X25519PrivateKey.generate()))
+    async with raw:
+        with pytest.raises(RpcError) as caught:
+            await signed.post(
+                COOKIES_PATH,
+                CookiesRequest(
+                    site="weixin.qq.com", public_key=key, include_headers=True
+                ),
+                CookiesResponse,
+            )
+    assert (caught.value.status, caught.value.code) == (409, "credential_required")
+
+
+def test_yuanbao_identity_falls_back_to_login_cookies():
+    payload = yuanbao_payload(
+        {"userId": "", "token": "", "headers": {"X-HY92": "s"}},
+        (cookie("hy_user", "u1"), cookie("hy_token", "t1")),
+    )
+    assert b'"userId":"u1"' in payload and b'"token":"t1"' in payload
+    with pytest.raises(PageHeadersUnavailable):
+        yuanbao_payload({"headers": {"X-HY92": "s"}}, ())
