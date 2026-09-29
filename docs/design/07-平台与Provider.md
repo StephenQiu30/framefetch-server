@@ -1,5 +1,7 @@
 # 平台与 Provider 体系
 
+当前登记的 23 个 Profile 均有固定 metadata／media 样本，是否能在目标机器下载须用真实文件验证。后续按平台适配器契约收敛识别、凭据、解析、下载和完整性验证；Temporal 只编排这些操作。逐平台覆盖与待实施方案见[工作流与平台下载目标](15-工作流与平台下载目标.md)。
+
 ## 分层模型
 
 - **Provider Catalog**：声明式、版本化 Profile（平台、host 白名单、能力、访问模式、Cookie allowlist、状态）；`provider_catalog_entries` 承载管理员可见目录。当前默认 23 个解析 Profile，另有 Generic 与硬阻断域；已退出范围的平台域名明确拒绝，不落入 Generic。
@@ -19,7 +21,7 @@
 
 - **付费与试看识别**：B 站充电（`content_supporter_only`）、试看（`content_preview_only`）、抖音付费（`content_paid_only`／`content_export_required`）、权益元数据异常（`content_access_metadata_invalid`）在归一化之前识别并阻断：`access_decision=blocked`、`formats=[]`。“已购买”标记不是文件导出授权。字段缺失不证明免费。
 - **腾讯视频与优酷**：个人单视频、非 DRM 路径，复用固定 yt-dlp 提取器加仓库插件；在原始响应归一化前校验完整时长与分段，缺失 `cdn_url` 或试看返回受限原因；DRM 清单排除；最终以 ffprobe 校验实际文件（时长容差 `max(3 秒, 2%)`）。完整 VIP 下载待真实样本验证，不承诺全部会员画质。
-- **微信**：公众号文章作为多资产发现容器，只有无登录、身份映射唯一、公开 clear 的原生视频可下载；视频号公开 `/sph/` 链接走第一方匿名 `wechat-channels-public-v2`（状态 `degraded`，仅在第一方响应给出 clear 媒体时可用；出现 `decodeKey`、DRM、加密或未知媒体域立即拒绝）；平台无公开媒体时引导上传自有／已授权 clear 文件。
+- **微信**：公众号文章作为多资产发现容器，只有无登录、身份映射唯一、公开 clear 的原生视频可下载；视频号公开 `/sph/` 链接当前走元宝会话接入，登录态与页面请求头通过宿主机来源按需取得，细节见[平台会话](08-平台会话.md)。接入代码不等于已验证稳定下载，出现 `decodeKey`、DRM、加密或未知媒体域立即拒绝；无法取得合法 clear 媒体时引导上传自有／已授权文件。
 - **授权导出（预留）**：只有拿到正式逐资产导出渠道后，才单独实现 OfficialConnector（验证资产、主体、用途、有效期、非 DRM、完整时长与可解码性）；公共解析插件不得自行升级为授权下载。
 - **其他短视频平台**：分阶段补 canary 与完整 E2E 证据后才升级状态；carousel／一帖多视频在多资产模型支持前 fail closed；PeerTube 仅精确实例白名单。
 - **Edge Agent（未实施）**：用户设备配对与签名上传只传输用户已合法取得的明文文件，不做采集、解密或代理；复用本地上传的 quarantine、验证与晋升能力。
