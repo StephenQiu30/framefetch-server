@@ -61,7 +61,7 @@ def _select_target(
 
 
 async def _run(target_id: str, analysis_job_id: UUID) -> int:
-    settings = get_settings_for_role("provider-canary")
+    settings = get_settings_for_role("worker")
     configure_provider_instances(settings.peertube_allowed_instances)
     target = _select_target(
         parse_canary_targets(settings.provider_canary_targets), target_id

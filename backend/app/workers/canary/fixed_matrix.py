@@ -7,10 +7,11 @@ import asyncio
 import json
 
 from app.core.config import get_settings_for_role
+from app.core.db import create_engine
 from app.services.provider_access import NATIVE_PUBLIC_PROVIDERS
 from app.services.provider_types import ProviderCanaryOutcome, ProviderCanaryStage
 from app.workers.canary.fixed_cases import fixed_public_diagnostic_targets
-from app.workers.canary.main import build_runtime
+from app.workers.canary.runtime import build_runtime
 from app.workers.canary.targets import ProviderCanaryTarget
 
 
@@ -33,7 +34,9 @@ async def _run(providers: frozenset[str], stage: str) -> int:
         if (not providers or target.provider_key in providers)
         and (stage == "all" or target.stage.value == stage)
     )
-    runtime = build_runtime(get_settings_for_role("provider-canary"))
+    settings = get_settings_for_role("worker")
+    engine = create_engine(settings.database_url)
+    runtime = build_runtime(settings, engine)
     results: list[dict[str, object]] = []
     try:
         slots = asyncio.Semaphore(3)
@@ -53,7 +56,10 @@ async def _run(providers: frozenset[str], stage: str) -> int:
 
         results = list(await asyncio.gather(*(execute(target) for target in targets)))
     finally:
-        await runtime.close()
+        try:
+            await runtime.close()
+        finally:
+            await engine.dispose()
     passed = all(
         item["outcome"] == ProviderCanaryOutcome.SUCCEEDED.value for item in results
     )

@@ -30,6 +30,7 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PATH="/app/backend/.venv/bin:${PATH}"
 WORKDIR /app/backend
 
+# /work is created private to appuser; a fresh runner_work volume inherits it.
 RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     --mount=type=cache,target=/var/lib/apt/lists,sharing=locked \
     rm -f /etc/apt/apt.conf.d/docker-clean \
@@ -37,7 +38,8 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     && apt-get -o Acquire::Retries=5 install --no-install-recommends -y \
         ca-certificates ffmpeg libstdc++6 \
     && useradd --create-home --uid 10001 appuser \
-    && chown -R appuser:appuser /app
+    && chown -R appuser:appuser /app \
+    && install -d -o 10001 -g 10001 -m 0700 /work
 
 COPY --link --from=backend-builder --chown=10001:10001 /app/backend /app/backend
 COPY --link --from=node-runtime /usr/local/bin/node /usr/local/bin/node

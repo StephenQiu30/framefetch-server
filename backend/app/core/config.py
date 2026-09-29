@@ -110,12 +110,8 @@ class Settings(BaseSettings):
     app_env: Literal["development", "test", "staging", "production"] = "development"
     service_role: Literal[
         "api",
-        "outbox",
-        "download-worker",
-        "import-worker",
+        "worker",
         "analysis-worker",
-        "report-worker",
-        "provider-canary",
         "provider-sources",
         "session-broker",
     ] = "api"
@@ -579,18 +575,11 @@ class Settings(BaseSettings):
                     self.minio_secret_key.get_secret_value(),
                 )
             )
-        elif self.service_role == "download-worker":
+        elif self.service_role == "worker":
             secret_values.extend(
                 (
                     self.request_fingerprint_secret.get_secret_value(),
                     self.runner_hmac_secret.get_secret_value(),
-                    self.minio_access_key.get_secret_value(),
-                    self.minio_secret_key.get_secret_value(),
-                )
-            )
-        elif self.service_role == "import-worker":
-            secret_values.extend(
-                (
                     self.minio_access_key.get_secret_value(),
                     self.minio_secret_key.get_secret_value(),
                 )
@@ -602,21 +591,6 @@ class Settings(BaseSettings):
                     self.minio_secret_key.get_secret_value(),
                 )
             )
-        elif self.service_role == "report-worker":
-            secret_values.extend(
-                (
-                    self.minio_access_key.get_secret_value(),
-                    self.minio_secret_key.get_secret_value(),
-                )
-            )
-        elif self.service_role == "provider-canary":
-            secret_values.extend(
-                (
-                    self.runner_hmac_secret.get_secret_value(),
-                    self.minio_access_key.get_secret_value(),
-                    self.minio_secret_key.get_secret_value(),
-                )
-            )
         insecure = any(
             value.startswith(("development-", "video-")) or "replace-with" in value
             for value in secret_values
@@ -624,7 +598,6 @@ class Settings(BaseSettings):
         rabbitmq_url = ""
         if self.service_role not in {
             "analysis-worker",
-            "provider-canary",
             "provider-sources",
             "session-broker",
         }:
@@ -634,14 +607,12 @@ class Settings(BaseSettings):
             for marker in ("video:video@", "replace-with", "-secret@")
         )
         # Only processes that encrypt or decrypt URLs/provider keys receive this
-        # secret. Queue forwarding, import verification and report publication do
-        # not need it and must be able to start without it.
+        # secret; every containerized background loop now shares the worker role.
         default_url_key = (
             self.service_role
             in {
                 "api",
-                "download-worker",
-                "provider-canary",
+                "worker",
                 "analysis-worker",
             }
             and self.url_encryption_key.get_secret_value() == DEFAULT_URL_ENCRYPTION_KEY
@@ -677,15 +648,7 @@ def get_settings() -> Settings:
 
 
 def get_settings_for_role(
-    role: Literal[
-        "api",
-        "outbox",
-        "download-worker",
-        "import-worker",
-        "analysis-worker",
-        "report-worker",
-        "provider-canary",
-    ],
+    role: Literal["api", "worker", "analysis-worker"],
 ) -> Settings:
     return Settings(service_role=role)
 

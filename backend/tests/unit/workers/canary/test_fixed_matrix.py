@@ -43,14 +43,26 @@ async def test_selected_targets_execute_once_close_and_report_without_url(
         async def close(self):
             closed.append(True)
 
-    monkeypatch.setattr(fixed_matrix, "build_runtime", lambda _: Runtime())
-    monkeypatch.setattr(fixed_matrix, "get_settings_for_role", lambda _: None)
+    disposed = []
+
+    class Engine:
+        async def dispose(self):
+            disposed.append(True)
+
+    monkeypatch.setattr(fixed_matrix, "build_runtime", lambda *_: Runtime())
+    monkeypatch.setattr(
+        fixed_matrix,
+        "get_settings_for_role",
+        lambda _: SimpleNamespace(database_url="postgresql+asyncpg://unused"),
+    )
+    monkeypatch.setattr(fixed_matrix, "create_engine", lambda _: Engine())
     assert await fixed_matrix._run(frozenset({"youtube"}), "metadata") == 0
     output = capsys.readouterr().out
     assert "https://" not in output and "url" not in output
     assert json.loads(output)["target_count"] == 1
     assert calls == [("youtube", "metadata")]
     assert closed == [True]
+    assert disposed == [True]
 
 
 def test_native_public_cli_never_selects_account_platforms(monkeypatch):

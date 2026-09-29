@@ -93,7 +93,7 @@ def test_core_api_boot_does_not_wait_for_session_readiness() -> None:
         services = yaml.safe_load(path.read_text(encoding="utf-8"))["services"]
         # `docker compose up` starts everything; there are no opt-in profiles.
         assert not any(config.get("profiles") for config in services.values())
-        for service in ("api", "frontend", "worker-download"):
+        for service in ("api", "frontend", "worker"):
             assert not set(services[service].get("depends_on", {})) & set(
                 _SESSION_SERVICES
             )
@@ -286,14 +286,7 @@ def test_database_consumers_use_the_configured_postgres_service() -> None:
         "@${POSTGRES_HOST:-host.docker.internal}:${POSTGRES_PORT:-5432}/"
     )
 
-    for service in (
-        "api",
-        "outbox",
-        "worker-download",
-        "worker-import",
-        "worker-report",
-        "provider-canary",
-    ):
+    for service in ("api", "worker"):
         service_config = _service_block(compose, service)
         assert expected_endpoint in service_config
         assert '"host.docker.internal:host-gateway"' in service_config
@@ -341,36 +334,34 @@ def test_api_receives_feature_flags_and_uses_typed_import_defaults() -> None:
         assert variable in api
 
 
-def test_import_worker_is_private_bounded_and_receives_only_required_credentials() -> (
-    None
-):
-    compose = COMPOSE_PATH.read_text(encoding="utf-8")
-    worker = _service_block(compose, "worker-import")
-
-    assert "SERVICE_ROLE: import-worker" in worker
-    assert "RABBITMQ_IMPORT_USER" in worker
-    assert "RABBITMQ_IMPORT_PASS" in worker
-    assert "env_file" not in worker
-    assert "MINIO_ACCESS_KEY" in worker
-    assert "MINIO_SECRET_KEY" in worker
-    assert "MINIO_IMPORT_ACCESS_KEY" not in worker
-    assert "MINIO_IMPORT_SECRET_KEY" not in worker
-    assert "networks:\n      - app_net" in worker
-    assert "runner_egress_net" not in worker
-    assert "ports:" not in worker
-    assert 'command: ["python", "-m", "app.workers.imports.main"]' in worker
+def test_background_loops_share_one_private_worker_container() -> None:
+    for path in (COMPOSE_PATH, PROD_COMPOSE_PATH):
+        compose = path.read_text(encoding="utf-8")
+        services = yaml.safe_load(compose)["services"]
+        # Outbox, download, import, report and canary run in one process.
+        for retired in (
+            "outbox",
+            "worker-download",
+            "worker-import",
+            "worker-report",
+            "provider-canary",
+            "workspace-init",
+            "provider-lease-redis",
+        ):
+            assert retired not in services
+        worker = _service_block(compose, "worker")
+        assert "SERVICE_ROLE: worker" in worker
+        assert "RABBITMQ_WORKER_USER" in worker and "RABBITMQ_WORKER_PASS" in worker
+        assert "env_file" not in worker
+        assert "runner_egress_net" not in worker
+        assert "ports:" not in worker
+        assert services["worker"]["networks"] == ["app_net", "runner_rpc_net"]
+        assert 'command: ["python", "-m", "app.workers.main"]' in worker
 
 
 def test_compose_assigns_each_application_container_its_process_entrypoint() -> None:
     compose = COMPOSE_PATH.read_text(encoding="utf-8")
-    commands = {
-        "api": "app.main",
-        "outbox": "app.workers.outbox.main",
-        "worker-download": "app.workers.download.main",
-        "worker-import": "app.workers.imports.main",
-        "worker-report": "app.workers.report.main",
-        "provider-canary": "app.workers.canary.main",
-    }
+    commands = {"api": "app.main", "worker": "app.workers.main"}
 
     for service, module in commands.items():
         service_config = _service_block(compose, service)
@@ -382,7 +373,7 @@ def test_compose_isolates_media_dependencies_and_preserves_api_readiness() -> No
         compose = yaml.safe_load(path.read_text(encoding="utf-8"))
         services = compose["services"]
 
-        for service in ("api", "worker-download", "provider-canary"):
+        for service in ("api", "worker"):
             dependencies = services[service].get("depends_on", {})
             assert not (
                 {"media-runner", "egress-proxy", *_SESSION_SERVICES} & set(dependencies)
@@ -400,7 +391,7 @@ def test_compose_isolates_media_dependencies_and_preserves_api_readiness() -> No
             services["session-runner"]["healthcheck"]["test"]
         )
 
-        for service in ("worker-download", "session-runner"):
+        for service in ("worker", "session-runner"):
             assert services[service]["stop_grace_period"] == "90s"
 
 
@@ -445,10 +436,14 @@ def test_runtime_dependency_install_is_cached_and_retried() -> None:
 def test_compose_pins_shared_runner_workspace_to_the_mounted_container_path() -> None:
     compose = yaml.safe_load(COMPOSE_PATH.read_text(encoding="utf-8"))
 
-    for service in ("worker-download", "session-runner"):
+    for service in ("worker", "session-runner"):
         service_config = compose["services"][service]
         assert service_config["environment"]["RUNNER_WORKSPACE_ROOT"] == "/work"
         assert "runner_work:/work" in service_config["volumes"]
+    # The image owns /work, so a fresh volume starts private without an init job.
+    assert "install -d -o 10001 -g 10001 -m 0700 /work" in DOCKERFILE_PATH.read_text(
+        encoding="utf-8"
+    )
 
 
 _SESSION_SERVICES = ("session-runner", "session-broker")
@@ -504,22 +499,15 @@ def test_production_requires_explicit_site_session_secrets() -> None:
         assert ":?" in services[name]["environment"][key], (name, key)
 
 
-def test_provider_credential_lease_store_stays_on_the_internal_rpc_network() -> None:
+def test_single_session_runner_serializes_credentials_in_process() -> None:
     for path in (COMPOSE_PATH, PROD_COMPOSE_PATH):
         compose = yaml.safe_load(path.read_text(encoding="utf-8"))
-        lease_store = compose["services"]["provider-lease-redis"]
-        assert lease_store["networks"] == ["runner_rpc_net"]
-        assert "ports" not in lease_store
-        assert lease_store["read_only"] is True
-        assert lease_store["cap_drop"] == ["ALL"]
-        assert lease_store["command"] == ["--save", "", "--appendonly", "no"]
         runner = compose["services"]["session-runner"]
-        assert runner["environment"]["RUNNER_CREDENTIAL_LEASE_REDIS_URL"] == (
-            "redis://provider-lease-redis:6379/0"
+        assert "deploy" not in runner or "replicas" not in runner["deploy"]
+        assert not any(
+            key.startswith("RUNNER_CREDENTIAL_LEASE") for key in runner["environment"]
         )
-        assert runner["depends_on"]["provider-lease-redis"]["condition"] == (
-            "service_healthy"
-        )
+        assert "provider-lease-redis" not in runner["depends_on"]
 
 
 def test_production_compose_is_the_only_production_topology_file() -> None:

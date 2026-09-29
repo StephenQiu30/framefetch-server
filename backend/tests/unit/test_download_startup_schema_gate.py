@@ -8,7 +8,7 @@ from unittest.mock import AsyncMock
 
 import pytest
 from app.core.runtime import ApiRuntime, ApiServices
-from app.workers.download.main import DownloadWorkerRuntime, _serve
+from app.workers.download.runtime import DownloadWorkerRuntime, _serve
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncEngine
 

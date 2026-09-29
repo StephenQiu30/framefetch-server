@@ -108,10 +108,7 @@ def create_app(
     configure_provider_instances(configured.peertube_allowed_instances)
     sessions = ProviderSessionStore(configured)
     runner = service or MediaRunnerService(configured, session_store=sessions)
-    readiness_probe = readiness or RunnerReadiness(
-        configured,
-        session_ready=sessions.is_ready,
-    )
+    readiness_probe = readiness or RunnerReadiness(configured)
     runtime_probe = RunnerReadiness(configured)
     engine_catalog = RunnerEngineCatalog(configured)
     authenticator = HmacRequestAuthenticator(

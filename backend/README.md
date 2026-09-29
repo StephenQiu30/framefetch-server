@@ -76,7 +76,7 @@ uv run python -m app.main
 该命令是后端模块调试入口，不替代完整本地拓扑中的 Worker、Runner 与前端构建。
 
 API readiness 与媒体 Runner 健康隔离。在线解析复用 `session-runner`；固定公开平台不携带账号，其余平台在来源缺失或不可读时明确拒绝执行。API、
-下载 Worker 与 Canary 不等待平台健康；Worker/Canary 仅等待共享工作目录初始化。
+worker 不等待平台健康；共享工作目录由镜像预建。
 站点会话的可用性由 broker 状态、探针和真实任务证明，容器健康不代表平台接受会话。
 接入范围和未完成验证见[平台与 Provider 体系](../docs/design/07-平台与Provider.md)。
 

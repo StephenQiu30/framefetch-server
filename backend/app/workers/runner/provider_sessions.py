@@ -18,9 +18,7 @@ from app.services.provider_types import (
 )
 from app.services.site_sessions import InvalidSessionSite, known_site_policy
 from app.workers.runner.errors import RunnerFailure
-from app.workers.runner.provider_credential_lease import (
-    ProviderCredentialLeaseCoordinator,
-)
+from app.workers.runner.provider_credential_lease import ProviderCredentialLocks
 from app.workers.runner.provider_registry import ProviderProfile
 from app.workers.runner.provider_session_files import (
     operation_cookie,
@@ -46,23 +44,14 @@ class ProviderSessionStore:
         self,
         settings: RunnerSettings,
         *,
-        credential_lease: ProviderCredentialLeaseCoordinator | None = None,
+        credential_locks: ProviderCredentialLocks | None = None,
         site_sessions: SiteSessionClient | None = None,
         enforce_memory_backing: bool = True,
     ) -> None:
         self._settings = settings
         self._temp_root = settings.runner_provider_session_temp_root
         self._gate = asyncio.Semaphore(1)
-        self._credential_lease = credential_lease
-        if (
-            self._credential_lease is None
-            and settings.runner_credential_lease_redis_url
-        ):
-            self._credential_lease = ProviderCredentialLeaseCoordinator(
-                settings.runner_credential_lease_redis_url,
-                ttl_seconds=settings.runner_credential_lease_ttl_seconds,
-                heartbeat_seconds=settings.runner_credential_lease_heartbeat_seconds,
-            )
+        self._credential_locks = credential_locks or ProviderCredentialLocks()
         self._site_sessions = site_sessions
         broker, secret = (
             settings.runner_session_broker_url,
@@ -76,17 +65,6 @@ class ProviderSessionStore:
             prepare_private_root(self._temp_root)
             if enforce_memory_backing:
                 require_memory_backed_root(self._temp_root)
-
-    async def is_ready(self) -> bool:
-        mode = self._settings.runner_access_mode
-        if mode is ProviderAccessMode.ANONYMOUS:
-            return True
-        try:
-            assert self._credential_lease is not None
-            await self._credential_lease.ping()
-        except RunnerFailure:
-            return False
-        return True
 
     async def context_for(
         self, profile: ProviderProfile, *, url: str | None = None
@@ -155,11 +133,10 @@ class ProviderSessionStore:
         if context.access_mode is ProviderAccessMode.ANONYMOUS:
             yield None
             return
-        assert self._credential_lease is not None
         site, revision = parse_context_version(context.credential_version_id)
         assert self._site_sessions is not None
-        # One operation per site identity across every Runner replica.
-        async with self._credential_lease.hold(
+        # One operation per site identity at a time.
+        async with self._credential_locks.hold(
             site, "session", wait_seconds=_SESSION_LOCK_WAIT_SECONDS
         ):
             payload = await self._site_sessions.lease(site, revision)
@@ -180,9 +157,5 @@ class ProviderSessionStore:
         return policy.site
 
     async def close(self) -> None:
-        try:
-            if self._site_sessions is not None:
-                await self._site_sessions.close()
-        finally:
-            if self._credential_lease is not None:
-                await self._credential_lease.close()
+        if self._site_sessions is not None:
+            await self._site_sessions.close()

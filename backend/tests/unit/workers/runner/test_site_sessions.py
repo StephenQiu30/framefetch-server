@@ -1,11 +1,11 @@
 """Exercise encrypted broker leases through the Runner's operation boundary."""
 
 import time
-from contextlib import asynccontextmanager
 
 import httpx
 import pytest
 from app.workers.runner.errors import RunnerFailure
+from app.workers.runner.provider_credential_lease import ProviderCredentialLocks
 from app.workers.runner.provider_registry import provider_profile
 from app.workers.runner.provider_sessions import ProviderSessionStore
 from app.workers.runner.settings import RunnerSettings
@@ -27,15 +27,6 @@ COOKIE = (
     b"# Netscape HTTP Cookie File\n"
     b".youtube.com\tTRUE\t/\tTRUE\t4102444800\tSID\tfixture\n"
 )
-
-
-class ExecutionLease:
-    @asynccontextmanager
-    async def hold(self, *args, **kwargs):
-        yield
-
-    async def close(self):
-        pass
 
 
 @pytest.fixture
@@ -74,7 +65,6 @@ async def leased_store(tmp_path):
         runner_provider_session_temp_root=tmp_path / "sessions",
         runner_session_broker_url="http://broker",
         runner_session_rpc_secret=SECRET.decode(),
-        runner_credential_lease_redis_url="redis://unused:6379/0",
     )
     client = SiteSessionClient("http://broker", SECRET)
     await client.close()
@@ -85,7 +75,7 @@ async def leased_store(tmp_path):
     store = ProviderSessionStore(
         settings,
         site_sessions=client,
-        credential_lease=ExecutionLease(),
+        credential_locks=ProviderCredentialLocks(),
         enforce_memory_backing=False,
     )
     try:

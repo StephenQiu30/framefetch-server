@@ -1,18 +1,17 @@
-"""Run with: python -m app.workers.download.main."""
+"""Link inspection (Temporal) and downloads (RabbitMQ) inside the worker process."""
 
 from __future__ import annotations
 
 import asyncio
 import hashlib
 import os
-import signal
 import socket
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from uuid import uuid4
 
-from app.core.config import Settings, get_settings_for_role
-from app.core.db import create_engine, create_session_factory
+from app.core.config import Settings
+from app.core.db import create_session_factory
 from app.core.security.url_cipher import URLCipher
 from app.integrations.media_runner import MediaRunnerRouter
 from app.integrations.media_runner_factory import media_runner_router
@@ -55,19 +54,18 @@ class DownloadWorkerRuntime:
     temporal_address: str
     temporal_namespace: str
 
+    async def serve(self, stop: asyncio.Event) -> None:
+        await _serve(self, stop)
+
     async def close(self) -> None:
         try:
             await self.consumer.close()
         finally:
-            try:
-                await self.runner.close()
-            finally:
-                await self.engine.dispose()
+            await self.runner.close()
 
 
-def build_runtime(settings: Settings) -> DownloadWorkerRuntime:
+def build_runtime(settings: Settings, engine: AsyncEngine) -> DownloadWorkerRuntime:
     configure_provider_instances(settings.peertube_allowed_instances)
-    engine = create_engine(settings.database_url)
     sessions = create_session_factory(engine)
     raw_repository = SqlAlchemyDownloadRepository(sessions)
     repository = DownloadExecutionRepository(raw_repository)
@@ -174,17 +172,6 @@ def build_runtime(settings: Settings) -> DownloadWorkerRuntime:
     )
 
 
-async def run() -> None:
-    runtime = build_runtime(get_settings_for_role("download-worker"))
-    stop = asyncio.Event()
-    _install_signal_handlers(stop)
-    try:
-        await _serve(runtime, stop)
-    finally:
-        stop.set()
-        await asyncio.shield(runtime.close())
-
-
 async def _serve(runtime: DownloadWorkerRuntime, stop: asyncio.Event) -> None:
     await assert_download_execution_schema(runtime.engine)
     client = await connect_temporal(
@@ -234,20 +221,3 @@ def _worker_id() -> str:
 
 def _utc_now() -> datetime:
     return datetime.now(UTC)
-
-
-def _install_signal_handlers(stop: asyncio.Event) -> None:
-    loop = asyncio.get_running_loop()
-    for requested_signal in (signal.SIGINT, signal.SIGTERM):
-        try:
-            loop.add_signal_handler(requested_signal, stop.set)
-        except NotImplementedError:
-            pass
-
-
-def main() -> None:
-    asyncio.run(run())
-
-
-if __name__ == "__main__":
-    main()

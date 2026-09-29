@@ -75,11 +75,12 @@ backend/
 │   ├── integrations/               存储、队列、邮件、AI 等外部系统适配
 │   └── workers/
 │       ├── analysis/               宿主分析 Worker 与 Agent 管理入口
-│       ├── download/               下载 Worker
-│       ├── imports/                导入 Worker
-│       ├── outbox/                 消息发布
-│       ├── report/                 报告 Worker
-│       ├── canary/                 平台探针
+│       ├── main.py                 worker 进程入口，监督以下组件
+│       ├── download/               解析与下载组件
+│       ├── imports/                导入组件
+│       ├── outbox/                 Outbox 投递组件
+│       ├── report/                 报告发布组件
+│       ├── canary/                 平台探针组件
 │       ├── dlq/                    死信管理
 │       ├── session/                宿主机 Chrome 来源、密封租约与无状态中继
 │       └── runner/                 独立隔离的媒体执行进程与可信插件

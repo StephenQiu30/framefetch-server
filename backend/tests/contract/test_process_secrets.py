@@ -30,13 +30,14 @@ ALLOWED = {
         "URL_ENCRYPTION_KEY",
         "RUNNER_HMAC_SECRET",
     },
-    "outbox": set(),
-    "worker-download": STORAGE
-    | {"URL_ENCRYPTION_KEY", "RUNNER_HMAC_SECRET", "REQUEST_FINGERPRINT_SECRET"},
-    "worker-import": STORAGE,
-    "worker-report": STORAGE,
-    "provider-canary": STORAGE
-    | {"URL_ENCRYPTION_KEY", "RUNNER_HMAC_SECRET", "PROVIDER_CANARY_TARGETS"},
+    # The single background worker holds exactly its components' union.
+    "worker": STORAGE
+    | {
+        "URL_ENCRYPTION_KEY",
+        "RUNNER_HMAC_SECRET",
+        "REQUEST_FINGERPRINT_SECRET",
+        "PROVIDER_CANARY_TARGETS",
+    },
 }
 
 
@@ -53,5 +54,8 @@ def test_business_roles_use_explicit_scoped_secret_allowlists(filename):
         )
         assert "DATABASE_URL" in environment
         assert "APP_ENV" in environment
-    assert "REDIS_URL" not in services["worker-download"]["environment"]
-    assert "RABBITMQ_URL" not in services["provider-canary"]["environment"]
+    # Neither the business Redis nor the auth secrets reach background loops.
+    worker = services["worker"]["environment"]
+    assert "REDIS_URL" not in worker
+    assert "AUTH_JWT_SECRET" not in worker
+    assert "RABBITMQ_WORKER_USER" in worker["RABBITMQ_URL"]

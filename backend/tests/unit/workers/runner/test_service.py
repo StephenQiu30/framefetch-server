@@ -592,7 +592,7 @@ def operator_settings(tmp_path: Path) -> RunnerSettings:
 def operator_session_store(settings: RunnerSettings) -> ProviderSessionStore:
     return ProviderSessionStore(
         settings,
-        credential_lease=FakeCredentialLease(),
+        credential_locks=FakeCredentialLease(),
         site_sessions=FakeSiteSessions(),
         enforce_memory_backing=False,
     )

@@ -1,6 +1,7 @@
 from app.core.config import Settings
+from app.core.db import create_engine
 from app.services.provider_types import ProviderAccessMode
-from app.workers.canary import main
+from app.workers.canary import runtime as canary
 from pydantic import SecretStr
 
 
@@ -12,8 +13,13 @@ def _settings(**overrides) -> Settings:
     )
 
 
+def _build(settings: Settings) -> canary.ProviderCanaryRuntime:
+    # Engine creation is lazy; building the runtime never connects.
+    return canary.build_runtime(settings, create_engine(settings.database_url))
+
+
 def test_empty_targets_fall_back_to_fixed_public_samples() -> None:
-    runtime = main.build_runtime(_settings())
+    runtime = _build(_settings())
     targets = runtime.scheduler._targets
     assert targets
     assert {t.provider_key for t in targets} >= {"youtube", "bilibili", "tiktok"}
@@ -23,8 +29,8 @@ def test_empty_targets_fall_back_to_fixed_public_samples() -> None:
 def test_operator_samples_are_skipped_without_a_session_runner() -> None:
     settings = Settings(provider_canary_targets=SecretStr("[]"))
     runtime = (
-        main.build_runtime.__wrapped__(settings)
-        if hasattr(main.build_runtime, "__wrapped__")
+        canary.build_runtime.__wrapped__(settings)
+        if hasattr(canary.build_runtime, "__wrapped__")
         else None
     )
     assert runtime is None or all(
@@ -34,5 +40,5 @@ def test_operator_samples_are_skipped_without_a_session_runner() -> None:
 
 
 def test_default_targets_can_be_disabled() -> None:
-    runtime = main.build_runtime(_settings(provider_canary_default_targets=False))
+    runtime = _build(_settings(provider_canary_default_targets=False))
     assert runtime.scheduler._targets == ()

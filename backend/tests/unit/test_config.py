@@ -182,21 +182,6 @@ def test_import_worker_runtime_limits_are_relationally_safe() -> None:
         )
 
 
-def test_production_import_worker_accepts_shared_minio_credentials() -> None:
-    settings = Settings(
-        app_env="production",
-        service_role="import-worker",
-        database_url="postgresql+asyncpg://imports:StrongDb@postgres:5432/video",
-        rabbitmq_url="amqp://imports:StrongMq@rabbitmq:5672/video",
-        minio_access_key=SecretStr("production-access"),
-        minio_secret_key=SecretStr("i" * 48),
-        url_encryption_key=SecretStr("MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY="),
-        _env_file=None,
-    )
-
-    assert settings.service_role == "import-worker"
-
-
 def test_persistent_artifacts_have_no_retention_ttl_setting() -> None:
     defaults = Settings(app_env="test", _env_file=None)
 
@@ -361,36 +346,7 @@ def test_production_rejects_default_url_encryption_key() -> None:
         )
 
 
-def test_production_canary_requires_dedicated_storage_credentials() -> None:
-    settings = Settings(
-        app_env="production",
-        service_role="provider-canary",
-        database_url="postgresql+asyncpg://canary:StrongDbPass@postgres:5432/video",
-        runner_hmac_secret=SecretStr("r" * 48),
-        url_encryption_key=SecretStr("MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY="),
-        minio_access_key=SecretStr("canary-read-access"),
-        minio_secret_key=SecretStr("m" * 48),
-    )
-
-    assert settings.service_role == "provider-canary"
-    with pytest.raises(ValidationError, match="production secrets"):
-        Settings(
-            app_env="production",
-            service_role="provider-canary",
-            database_url=(
-                "postgresql+asyncpg://canary:StrongDbPass@postgres:5432/video"
-            ),
-            runner_hmac_secret=SecretStr("r" * 48),
-            url_encryption_key=SecretStr(
-                "MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY="
-            ),
-            _env_file=None,
-        )
-
-
-@pytest.mark.parametrize(
-    "role", ("api", "download-worker", "analysis-worker", "provider-canary")
-)
+@pytest.mark.parametrize("role", ("api", "worker", "analysis-worker"))
 def test_production_url_key_required_only_for_consumers(role: str) -> None:
     kwargs = dict(
         _env_file=None,
@@ -398,7 +354,6 @@ def test_production_url_key_required_only_for_consumers(role: str) -> None:
         service_role=role,
         database_url="postgresql+asyncpg://app:db-password@postgres:5432/video",
         rabbitmq_url="amqp://app:mq-password@rabbitmq:5672/",
-        analysis_rabbitmq_url="amqp://app:mq-password@rabbitmq:5672/",
         auth_jwt_secret="s" * 48,
         request_fingerprint_secret="f" * 48,
         runner_hmac_secret="r" * 48,
@@ -413,34 +368,37 @@ def test_production_url_key_required_only_for_consumers(role: str) -> None:
         Settings(**kwargs, url_encryption_key=DEFAULT_URL_ENCRYPTION_KEY)
 
 
-@pytest.mark.parametrize("role", ("outbox", "import-worker", "report-worker"))
-def test_production_non_consumers_do_not_require_url_or_auth_secrets(role: str) -> None:
-    Settings(
-        _env_file=None,
-        app_env="production",
-        service_role=role,
-        database_url="postgresql+asyncpg://app:db-password@postgres:5432/video",
-        rabbitmq_url="amqp://app:mq-password@rabbitmq:5672/",
-        minio_access_key="production-access",
-        minio_secret_key="m" * 48,
-    )
-
-
-def test_production_download_worker_requires_explicit_fingerprint_secret() -> None:
+def test_production_worker_requires_every_background_secret() -> None:
+    """The merged worker needs the union of its components' secrets."""
     kwargs = dict(
         _env_file=None,
         app_env="production",
-        service_role="download-worker",
+        service_role="worker",
         database_url="postgresql+asyncpg://app:db-password@postgres:5432/video",
         rabbitmq_url="amqp://app:mq-password@rabbitmq:5672/",
+        request_fingerprint_secret="f" * 48,
         runner_hmac_secret="r" * 48,
         minio_access_key="production-access",
         minio_secret_key="m" * 48,
         url_encryption_key=Fernet.generate_key().decode(),
     )
+    settings = Settings(**kwargs)
+    assert settings.service_role == "worker"
+    for missing in (
+        "request_fingerprint_secret",
+        "runner_hmac_secret",
+        "minio_secret_key",
+    ):
+        values = {key: value for key, value in kwargs.items() if key != missing}
+        with pytest.raises(ValidationError, match="production secrets"):
+            Settings(**values)
     with pytest.raises(ValidationError, match="production secrets"):
-        Settings(**kwargs)
-    Settings(**kwargs, request_fingerprint_secret="f" * 48)
+        Settings(
+            **{
+                **kwargs,
+                "rabbitmq_url": "amqp://video-worker:video-worker-secret@rabbitmq:5672/",
+            }
+        )
 
 
 def test_analysis_settings_only_configure_host_binary_paths() -> None:

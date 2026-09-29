@@ -18,8 +18,6 @@ x-provider-session-runner: &provider-session-runner
   depends_on:
     egress-proxy:
       condition: service_healthy
-    provider-lease-redis:
-      condition: service_healthy
   healthcheck:
     test:
       [
@@ -53,9 +51,6 @@ x-provider-session-environment: &provider-session-environment
   RUNNER_PROVIDER_EGRESS_PROXIES: "${RUNNER_PROVIDER_EGRESS_PROXIES:-{}}"
   RUNNER_WORKSPACE_ROOT: /work
   RUNNER_ACCESS_MODE: operator_managed
-  RUNNER_CREDENTIAL_LEASE_REDIS_URL: redis://provider-lease-redis:6379/0
-  RUNNER_CREDENTIAL_LEASE_TTL_SECONDS: "${RUNNER_CREDENTIAL_LEASE_TTL_SECONDS:-120}"
-  RUNNER_CREDENTIAL_LEASE_HEARTBEAT_SECONDS: "${RUNNER_CREDENTIAL_LEASE_HEARTBEAT_SECONDS:-30}"
   RUNNER_MAX_ACTIVE_TASKS: "1"
   RUNNER_DOWNLOAD_TIMEOUT_SECONDS: "${RUNNER_DOWNLOAD_TIMEOUT_SECONDS:-7200}"
   RUNNER_INSPECT_TIMEOUT_SECONDS: "${RUNNER_INSPECT_TIMEOUT_SECONDS:-120}"
@@ -328,48 +323,12 @@ services:
     working_dir: /app/frontend/.next/standalone
     command: ["node", "server.js"]
 
-  outbox:
+  # Every containerized background loop: Outbox dispatch, inspection and
+  # downloads, imports, report publication and Provider canaries.
+  worker:
     build: *backend-build
     image: video-server:local
-    container_name: video-outbox
-    depends_on:
-      migrate:
-        condition: service_completed_successfully
-    restart: unless-stopped
-    environment:
-      TEMPORAL_ADDRESS: temporal:7233
-      TEMPORAL_NAMESPACE: "${TEMPORAL_NAMESPACE:-framefetch}"
-      ANALYSIS_REPORT_QUEUE: '${ANALYSIS_REPORT_QUEUE:-video.analysis-report}'
-      ANALYSIS_REPORT_ROUTING_KEY: '${ANALYSIS_REPORT_ROUTING_KEY:-analysis.report.publish.requested}'
-      APP_ENV: '${APP_ENV:-development}'
-      APP_VERSION: '${APP_VERSION:-0.2.0}'
-      DOWNLOAD_QUEUE: '${DOWNLOAD_QUEUE:-video.download}'
-      DOWNLOAD_ROUTING_KEY: '${DOWNLOAD_ROUTING_KEY:-download.requested}'
-      IMPORT_QUEUE: '${IMPORT_QUEUE:-video.import}'
-      IMPORT_ROUTING_KEY: '${IMPORT_ROUTING_KEY:-content.import.verify.requested}'
-      OUTBOX_BATCH_SIZE: '${OUTBOX_BATCH_SIZE:-50}'
-      OUTBOX_POLL_INTERVAL_SECONDS: '${OUTBOX_POLL_INTERVAL_SECONDS:-1.0}'
-      OPERATION_LOG_RETENTION_DAYS: '${OPERATION_LOG_RETENTION_DAYS:-180}'
-      OPERATION_LOG_PURGE_INTERVAL_SECONDS: '${OPERATION_LOG_PURGE_INTERVAL_SECONDS:-3600}'
-      OPERATION_LOG_PURGE_BATCH_SIZE: '${OPERATION_LOG_PURGE_BATCH_SIZE:-5000}'
-      RABBITMQ_CONNECTION_TIMEOUT_SECONDS: '${RABBITMQ_CONNECTION_TIMEOUT_SECONDS:-10}'
-      RABBITMQ_EXCHANGE: '${RABBITMQ_EXCHANGE:-video.events}'
-      RABBITMQ_HEARTBEAT_SECONDS: '${RABBITMQ_HEARTBEAT_SECONDS:-60}'
-      RABBITMQ_PUBLISH_TIMEOUT_SECONDS: '${RABBITMQ_PUBLISH_TIMEOUT_SECONDS:-10}'
-      RABBITMQ_RECONNECT_INTERVAL_SECONDS: '${RABBITMQ_RECONNECT_INTERVAL_SECONDS:-5}'
-      SERVICE_ROLE: outbox
-      DATABASE_URL: "postgresql+asyncpg://${POSTGRES_USER:-video}:${POSTGRES_PASSWORD:-video}@${POSTGRES_HOST:-host.docker.internal}:${POSTGRES_PORT:-5432}/${POSTGRES_DB:-video}"
-      RABBITMQ_URL: "amqp://${RABBITMQ_OUTBOX_USER:-video-outbox}:${RABBITMQ_OUTBOX_PASS:-video-outbox-secret}@${RABBITMQ_HOST:-host.docker.internal}:${RABBITMQ_PORT:-5672}/${RABBITMQ_VHOST:-video}"
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
-    networks:
-      - app_net
-    command: ["python", "-m", "app.workers.outbox.main"]
-
-  worker-download:
-    build: *backend-build
-    image: video-server:local
-    container_name: video-worker-download
+    container_name: video-worker
     restart: unless-stopped
     stop_grace_period: 90s
     environment:
@@ -409,14 +368,49 @@ services:
       SESSION_RUNNER_BASE_URL: http://session-runner:19100
       URL_ENCRYPTION_KEY: '${URL_ENCRYPTION_KEY:-ZGV2ZWxvcG1lbnQtdXJsLWtleS0zMi1ieXRlcyEhISE=}'
       URL_ENCRYPTION_KEY_ID: '${URL_ENCRYPTION_KEY_ID:-fernet}'
-      SERVICE_ROLE: download-worker
       DATABASE_URL: "postgresql+asyncpg://${POSTGRES_USER:-video}:${POSTGRES_PASSWORD:-video}@${POSTGRES_HOST:-host.docker.internal}:${POSTGRES_PORT:-5432}/${POSTGRES_DB:-video}"
-      RABBITMQ_URL: "amqp://${RABBITMQ_DOWNLOAD_USER:-video-download}:${RABBITMQ_DOWNLOAD_PASS:-video-download-secret}@${RABBITMQ_HOST:-host.docker.internal}:${RABBITMQ_PORT:-5672}/${RABBITMQ_VHOST:-video}"
       MINIO_ENDPOINT: "${MINIO_HOST:-host.docker.internal}:${MINIO_PORT:-19190}"
       MINIO_BUCKET: "${MINIO_BUCKET:-video-artifacts}"
       MINIO_INTERNAL_SECURE: "${MINIO_INTERNAL_SECURE:-false}"
       RUNNER_WORKSPACE_ROOT: /work
       RUNNER_EGRESS_PROXY: http://egress-proxy:3128
+      OUTBOX_BATCH_SIZE: '${OUTBOX_BATCH_SIZE:-50}'
+      OUTBOX_POLL_INTERVAL_SECONDS: '${OUTBOX_POLL_INTERVAL_SECONDS:-1.0}'
+      OPERATION_LOG_RETENTION_DAYS: '${OPERATION_LOG_RETENTION_DAYS:-180}'
+      OPERATION_LOG_PURGE_INTERVAL_SECONDS: '${OPERATION_LOG_PURGE_INTERVAL_SECONDS:-3600}'
+      OPERATION_LOG_PURGE_BATCH_SIZE: '${OPERATION_LOG_PURGE_BATCH_SIZE:-5000}'
+      DOCUMENT_IMPORT_MAX_BYTES: '${DOCUMENT_IMPORT_MAX_BYTES:-52428800}'
+      DOCUMENT_NORMALIZED_MAX_CHARACTERS: '${DOCUMENT_NORMALIZED_MAX_CHARACTERS:-2000000}'
+      IMPORT_ARTIFACT_ORPHAN_GRACE_SECONDS: '${IMPORT_ARTIFACT_ORPHAN_GRACE_SECONDS:-3600}'
+      IMPORT_FFPROBE_BINARY: '${IMPORT_FFPROBE_BINARY:-ffprobe}'
+      IMPORT_FFPROBE_TIMEOUT_SECONDS: '${IMPORT_FFPROBE_TIMEOUT_SECONDS:-30}'
+      IMPORT_MAX_MEDIA_STREAMS: '${IMPORT_MAX_MEDIA_STREAMS:-32}'
+      IMPORT_MAX_PROBE_OUTPUT_BYTES: '${IMPORT_MAX_PROBE_OUTPUT_BYTES:-262144}'
+      IMPORT_MAX_VIDEO_HEIGHT: '${IMPORT_MAX_VIDEO_HEIGHT:-8192}'
+      IMPORT_MAX_VIDEO_WIDTH: '${IMPORT_MAX_VIDEO_WIDTH:-8192}'
+      IMPORT_RECOVERY_BATCH_SIZE: '${IMPORT_RECOVERY_BATCH_SIZE:-50}'
+      IMPORT_RECOVERY_INTERVAL_SECONDS: '${IMPORT_RECOVERY_INTERVAL_SECONDS:-5}'
+      IMPORT_RIGHTS_STATEMENT_VERSION: '${IMPORT_RIGHTS_STATEMENT_VERSION:-content-rights}'
+      IMPORT_UPLOAD_MAX_CONCURRENCY: '${IMPORT_UPLOAD_MAX_CONCURRENCY:-4}'
+      IMPORT_UPLOAD_MAX_PARTS: '${IMPORT_UPLOAD_MAX_PARTS:-1000}'
+      IMPORT_UPLOAD_PART_SIZE_BYTES: '${IMPORT_UPLOAD_PART_SIZE_BYTES:-33554432}'
+      IMPORT_UPLOAD_SESSION_TTL_SECONDS: '${IMPORT_UPLOAD_SESSION_TTL_SECONDS:-900}'
+      IMPORT_WORKSPACE_GRACE_SECONDS: '${IMPORT_WORKSPACE_GRACE_SECONDS:-1800}'
+      IMPORT_WORKSPACE_ROOT: '${IMPORT_WORKSPACE_ROOT:-.import-work}'
+      MEDIA_IMPORT_MAX_BYTES: '${MEDIA_IMPORT_MAX_BYTES:-2147483648}'
+      WORKER_PREFETCH: '${WORKER_PREFETCH:-2}'
+      ANALYSIS_REPORT_GC_BATCH_SIZE: '${ANALYSIS_REPORT_GC_BATCH_SIZE:-50}'
+      ANALYSIS_REPORT_GC_INTERVAL_SECONDS: '${ANALYSIS_REPORT_GC_INTERVAL_SECONDS:-300}'
+      ANALYSIS_REPORT_MAX_BYTES: '${ANALYSIS_REPORT_MAX_BYTES:-16777216}'
+      ANALYSIS_REPORT_ORPHAN_GRACE_SECONDS: '${ANALYSIS_REPORT_ORPHAN_GRACE_SECONDS:-3600}'
+      ARTIFACT_DELETE_TIMEOUT_SECONDS: '${ARTIFACT_DELETE_TIMEOUT_SECONDS:-30}'
+      PROVIDER_CANARY_MEDIA_INTERVAL_SECONDS: '${PROVIDER_CANARY_MEDIA_INTERVAL_SECONDS:-86400}'
+      PROVIDER_CANARY_METADATA_INTERVAL_SECONDS: '${PROVIDER_CANARY_METADATA_INTERVAL_SECONDS:-21600}'
+      PROVIDER_CANARY_POLL_SECONDS: '${PROVIDER_CANARY_POLL_SECONDS:-60}'
+      PROVIDER_CANARY_TARGETS: '${PROVIDER_CANARY_TARGETS:-[]}'
+      PROVIDER_CANARY_DEFAULT_TARGETS: '${PROVIDER_CANARY_DEFAULT_TARGETS:-true}'
+      SERVICE_ROLE: worker
+      RABBITMQ_URL: "amqp://${RABBITMQ_WORKER_USER:-video-worker}:${RABBITMQ_WORKER_PASS:-video-worker-secret}@${RABBITMQ_HOST:-host.docker.internal}:${RABBITMQ_PORT:-5672}/${RABBITMQ_VHOST:-video}"
     extra_hosts:
       - "host.docker.internal:host-gateway"
     networks:
@@ -429,161 +423,7 @@ services:
         condition: service_healthy
       migrate:
         condition: service_completed_successfully
-      workspace-init:
-        condition: service_completed_successfully
-    command: ["python", "-m", "app.workers.download.main"]
-
-  worker-import:
-    build: *backend-build
-    image: video-server:local
-    container_name: video-worker-import
-    depends_on:
-      migrate:
-        condition: service_completed_successfully
-    restart: unless-stopped
-    environment:
-      ANALYSIS_REPORT_QUEUE: '${ANALYSIS_REPORT_QUEUE:-video.analysis-report}'
-      ANALYSIS_REPORT_ROUTING_KEY: '${ANALYSIS_REPORT_ROUTING_KEY:-analysis.report.publish.requested}'
-      APP_ENV: '${APP_ENV:-development}'
-      APP_VERSION: '${APP_VERSION:-0.2.0}'
-      DOCUMENT_IMPORT_MAX_BYTES: '${DOCUMENT_IMPORT_MAX_BYTES:-52428800}'
-      DOCUMENT_NORMALIZED_MAX_CHARACTERS: '${DOCUMENT_NORMALIZED_MAX_CHARACTERS:-2000000}'
-      DOWNLOAD_QUEUE: '${DOWNLOAD_QUEUE:-video.download}'
-      DOWNLOAD_ROUTING_KEY: '${DOWNLOAD_ROUTING_KEY:-download.requested}'
-      DOWNLOAD_THUMBNAIL_FFMPEG_BINARY: '${DOWNLOAD_THUMBNAIL_FFMPEG_BINARY:-ffmpeg}'
-      DOWNLOAD_THUMBNAIL_MAX_BYTES: '${DOWNLOAD_THUMBNAIL_MAX_BYTES:-2000000}'
-      DOWNLOAD_THUMBNAIL_TIMEOUT_SECONDS: '${DOWNLOAD_THUMBNAIL_TIMEOUT_SECONDS:-15}'
-      HEARTBEAT_INTERVAL_SECONDS: '${HEARTBEAT_INTERVAL_SECONDS:-15}'
-      IMPORT_ARTIFACT_ORPHAN_GRACE_SECONDS: '${IMPORT_ARTIFACT_ORPHAN_GRACE_SECONDS:-3600}'
-      IMPORT_FFPROBE_BINARY: '${IMPORT_FFPROBE_BINARY:-ffprobe}'
-      IMPORT_FFPROBE_TIMEOUT_SECONDS: '${IMPORT_FFPROBE_TIMEOUT_SECONDS:-30}'
-      IMPORT_MAX_MEDIA_STREAMS: '${IMPORT_MAX_MEDIA_STREAMS:-32}'
-      IMPORT_MAX_PROBE_OUTPUT_BYTES: '${IMPORT_MAX_PROBE_OUTPUT_BYTES:-262144}'
-      IMPORT_MAX_VIDEO_HEIGHT: '${IMPORT_MAX_VIDEO_HEIGHT:-8192}'
-      IMPORT_MAX_VIDEO_WIDTH: '${IMPORT_MAX_VIDEO_WIDTH:-8192}'
-      IMPORT_QUEUE: '${IMPORT_QUEUE:-video.import}'
-      IMPORT_RECOVERY_BATCH_SIZE: '${IMPORT_RECOVERY_BATCH_SIZE:-50}'
-      IMPORT_RECOVERY_INTERVAL_SECONDS: '${IMPORT_RECOVERY_INTERVAL_SECONDS:-5}'
-      IMPORT_RIGHTS_STATEMENT_VERSION: '${IMPORT_RIGHTS_STATEMENT_VERSION:-content-rights}'
-      IMPORT_ROUTING_KEY: '${IMPORT_ROUTING_KEY:-content.import.verify.requested}'
-      IMPORT_UPLOAD_MAX_CONCURRENCY: '${IMPORT_UPLOAD_MAX_CONCURRENCY:-4}'
-      IMPORT_UPLOAD_MAX_PARTS: '${IMPORT_UPLOAD_MAX_PARTS:-1000}'
-      IMPORT_UPLOAD_PART_SIZE_BYTES: '${IMPORT_UPLOAD_PART_SIZE_BYTES:-33554432}'
-      IMPORT_UPLOAD_SESSION_TTL_SECONDS: '${IMPORT_UPLOAD_SESSION_TTL_SECONDS:-900}'
-      IMPORT_WORKSPACE_GRACE_SECONDS: '${IMPORT_WORKSPACE_GRACE_SECONDS:-1800}'
-      IMPORT_WORKSPACE_ROOT: '${IMPORT_WORKSPACE_ROOT:-.import-work}'
-      JOB_LEASE_SECONDS: '${JOB_LEASE_SECONDS:-60}'
-      MAX_VIDEO_DURATION_SECONDS: '${MAX_VIDEO_DURATION_SECONDS:-86400}'
-      MEDIA_IMPORT_MAX_BYTES: '${MEDIA_IMPORT_MAX_BYTES:-2147483648}'
-      MINIO_ACCESS_KEY: '${MINIO_ACCESS_KEY:-video-access}'
-      MINIO_REGION: '${MINIO_REGION:-us-east-1}'
-      MINIO_SECRET_KEY: '${MINIO_SECRET_KEY:-video-secret-change-me}'
-      RABBITMQ_CONNECTION_TIMEOUT_SECONDS: '${RABBITMQ_CONNECTION_TIMEOUT_SECONDS:-10}'
-      RABBITMQ_EXCHANGE: '${RABBITMQ_EXCHANGE:-video.events}'
-      RABBITMQ_HEARTBEAT_SECONDS: '${RABBITMQ_HEARTBEAT_SECONDS:-60}'
-      RABBITMQ_PUBLISH_TIMEOUT_SECONDS: '${RABBITMQ_PUBLISH_TIMEOUT_SECONDS:-10}'
-      RABBITMQ_RECONNECT_INTERVAL_SECONDS: '${RABBITMQ_RECONNECT_INTERVAL_SECONDS:-5}'
-      WORKER_PREFETCH: '${WORKER_PREFETCH:-2}'
-      SERVICE_ROLE: import-worker
-      DATABASE_URL: "postgresql+asyncpg://${POSTGRES_USER:-video}:${POSTGRES_PASSWORD:-video}@${POSTGRES_HOST:-host.docker.internal}:${POSTGRES_PORT:-5432}/${POSTGRES_DB:-video}"
-      RABBITMQ_URL: "amqp://${RABBITMQ_IMPORT_USER:-video-import}:${RABBITMQ_IMPORT_PASS:-video-import-secret}@${RABBITMQ_HOST:-host.docker.internal}:${RABBITMQ_PORT:-5672}/${RABBITMQ_VHOST:-video}"
-      MINIO_ENDPOINT: "${MINIO_HOST:-host.docker.internal}:${MINIO_PORT:-19190}"
-      MINIO_BUCKET: "${MINIO_BUCKET:-video-artifacts}"
-      MINIO_INTERNAL_SECURE: "${MINIO_INTERNAL_SECURE:-false}"
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
-    networks:
-      - app_net
-    command: ["python", "-m", "app.workers.imports.main"]
-
-  worker-report:
-    build: *backend-build
-    image: video-server:local
-    container_name: video-worker-report
-    depends_on:
-      migrate:
-        condition: service_completed_successfully
-    restart: unless-stopped
-    environment:
-      ANALYSIS_REPORT_GC_BATCH_SIZE: '${ANALYSIS_REPORT_GC_BATCH_SIZE:-50}'
-      ANALYSIS_REPORT_GC_INTERVAL_SECONDS: '${ANALYSIS_REPORT_GC_INTERVAL_SECONDS:-300}'
-      ANALYSIS_REPORT_MAX_BYTES: '${ANALYSIS_REPORT_MAX_BYTES:-16777216}'
-      ANALYSIS_REPORT_ORPHAN_GRACE_SECONDS: '${ANALYSIS_REPORT_ORPHAN_GRACE_SECONDS:-3600}'
-      ANALYSIS_REPORT_QUEUE: '${ANALYSIS_REPORT_QUEUE:-video.analysis-report}'
-      ANALYSIS_REPORT_ROUTING_KEY: '${ANALYSIS_REPORT_ROUTING_KEY:-analysis.report.publish.requested}'
-      APP_ENV: '${APP_ENV:-development}'
-      APP_VERSION: '${APP_VERSION:-0.2.0}'
-      ARTIFACT_DELETE_TIMEOUT_SECONDS: '${ARTIFACT_DELETE_TIMEOUT_SECONDS:-30}'
-      DOWNLOAD_QUEUE: '${DOWNLOAD_QUEUE:-video.download}'
-      DOWNLOAD_ROUTING_KEY: '${DOWNLOAD_ROUTING_KEY:-download.requested}'
-      IMPORT_QUEUE: '${IMPORT_QUEUE:-video.import}'
-      IMPORT_ROUTING_KEY: '${IMPORT_ROUTING_KEY:-content.import.verify.requested}'
-      MINIO_ACCESS_KEY: '${MINIO_ACCESS_KEY:-video-access}'
-      MINIO_REGION: '${MINIO_REGION:-us-east-1}'
-      MINIO_SECRET_KEY: '${MINIO_SECRET_KEY:-video-secret-change-me}'
-      RABBITMQ_CONNECTION_TIMEOUT_SECONDS: '${RABBITMQ_CONNECTION_TIMEOUT_SECONDS:-10}'
-      RABBITMQ_EXCHANGE: '${RABBITMQ_EXCHANGE:-video.events}'
-      RABBITMQ_HEARTBEAT_SECONDS: '${RABBITMQ_HEARTBEAT_SECONDS:-60}'
-      RABBITMQ_PUBLISH_TIMEOUT_SECONDS: '${RABBITMQ_PUBLISH_TIMEOUT_SECONDS:-10}'
-      RABBITMQ_RECONNECT_INTERVAL_SECONDS: '${RABBITMQ_RECONNECT_INTERVAL_SECONDS:-5}'
-      WORKER_PREFETCH: '${WORKER_PREFETCH:-2}'
-      SERVICE_ROLE: report-worker
-      DATABASE_URL: "postgresql+asyncpg://${POSTGRES_USER:-video}:${POSTGRES_PASSWORD:-video}@${POSTGRES_HOST:-host.docker.internal}:${POSTGRES_PORT:-5432}/${POSTGRES_DB:-video}"
-      RABBITMQ_URL: "amqp://${RABBITMQ_REPORT_USER:-video-report}:${RABBITMQ_REPORT_PASS:-video-report-secret}@${RABBITMQ_HOST:-host.docker.internal}:${RABBITMQ_PORT:-5672}/${RABBITMQ_VHOST:-video}"
-      MINIO_ENDPOINT: "${MINIO_HOST:-host.docker.internal}:${MINIO_PORT:-19190}"
-      MINIO_BUCKET: "${MINIO_BUCKET:-video-artifacts}"
-      MINIO_INTERNAL_SECURE: "${MINIO_INTERNAL_SECURE:-false}"
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
-    networks:
-      - app_net
-    command: ["python", "-m", "app.workers.report.main"]
-
-  provider-canary:
-    build: *backend-build
-    image: video-server:local
-    container_name: video-provider-canary
-    restart: unless-stopped
-    environment:
-      APP_ENV: '${APP_ENV:-development}'
-      APP_VERSION: '${APP_VERSION:-0.2.0}'
-      DOWNLOAD_TIMEOUT_SECONDS: '${DOWNLOAD_TIMEOUT_SECONDS:-7200}'
-      INSPECT_TIMEOUT_SECONDS: '${INSPECT_TIMEOUT_SECONDS:-150}'
-      MAX_FILE_SIZE_BYTES: '${MAX_FILE_SIZE_BYTES:-21474836480}'
-      MAX_VIDEO_DURATION_SECONDS: '${MAX_VIDEO_DURATION_SECONDS:-86400}'
-      MINIO_ACCESS_KEY: '${MINIO_ACCESS_KEY:-video-access}'
-      MINIO_REGION: '${MINIO_REGION:-us-east-1}'
-      MINIO_SECRET_KEY: '${MINIO_SECRET_KEY:-video-secret-change-me}'
-      PEERTUBE_ALLOWED_INSTANCES: '${PEERTUBE_ALLOWED_INSTANCES:-[]}'
-      PROVIDER_CANARY_MEDIA_INTERVAL_SECONDS: '${PROVIDER_CANARY_MEDIA_INTERVAL_SECONDS:-86400}'
-      PROVIDER_CANARY_METADATA_INTERVAL_SECONDS: '${PROVIDER_CANARY_METADATA_INTERVAL_SECONDS:-21600}'
-      PROVIDER_CANARY_POLL_SECONDS: '${PROVIDER_CANARY_POLL_SECONDS:-60}'
-      PROVIDER_CANARY_TARGETS: '${PROVIDER_CANARY_TARGETS:-[]}'
-      PROVIDER_CANARY_DEFAULT_TARGETS: '${PROVIDER_CANARY_DEFAULT_TARGETS:-true}'
-      RUNNER_HMAC_SECRET: '${RUNNER_HMAC_SECRET:-development-runner-secret-change-me}'
-      SESSION_RUNNER_BASE_URL: http://session-runner:19100
-      URL_ENCRYPTION_KEY: '${URL_ENCRYPTION_KEY:-ZGV2ZWxvcG1lbnQtdXJsLWtleS0zMi1ieXRlcyEhISE=}'
-      URL_ENCRYPTION_KEY_ID: '${URL_ENCRYPTION_KEY_ID:-fernet}'
-      SERVICE_ROLE: provider-canary
-      DATABASE_URL: "postgresql+asyncpg://${POSTGRES_USER:-video}:${POSTGRES_PASSWORD:-video}@${POSTGRES_HOST:-host.docker.internal}:${POSTGRES_PORT:-5432}/${POSTGRES_DB:-video}"
-      MINIO_ENDPOINT: "${MINIO_HOST:-host.docker.internal}:${MINIO_PORT:-19190}"
-      MINIO_BUCKET: "${MINIO_BUCKET:-video-artifacts}"
-      MINIO_INTERNAL_SECURE: "${MINIO_INTERNAL_SECURE:-false}"
-      RUNNER_WORKSPACE_ROOT: /work
-      RUNNER_EGRESS_PROXY: http://egress-proxy:3128
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
-    networks:
-      - app_net
-      - runner_rpc_net
-    volumes:
-      - runner_work:/work
-    depends_on:
-      migrate:
-        condition: service_completed_successfully
-      workspace-init:
-        condition: service_completed_successfully
-    command: ["python", "-m", "app.workers.canary.main"]
+    command: ["python", "-m", "app.workers.main"]
 
   egress-proxy:
     image: ubuntu/squid:6.6-24.04_edge@sha256:8a3baed477e2c282ab8aa5edad442f69873246964f225c5c2ae8364b6610963c
@@ -626,28 +466,6 @@ services:
       retries: 12
       start_period: 5s
 
-  provider-lease-redis:
-    image: redis:7-alpine@sha256:520775a41a63e77e06c73e35d2fd9cc15921a609516818796b4ecbb813078bc7
-    container_name: provider-lease-redis
-    restart: unless-stopped
-    read_only: true
-    user: "999:1000"
-    entrypoint: ["redis-server"]
-    command: ["--save", "", "--appendonly", "no"]
-    networks:
-      - runner_rpc_net
-    cap_drop: [ALL]
-    tmpfs:
-      - /data:rw,noexec,nosuid,size=16m,mode=0700,uid=999,gid=1000
-    security_opt:
-      - no-new-privileges:true
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 5s
-      timeout: 3s
-      retries: 12
-      start_period: 3s
-
   # Single-user deployment: the broker relays the operator's live Chrome login
   # state from the host agent (app.workers.session.chrome_agent) to Runners as
   # sealed one-task leases. Nothing is stored and nothing is kept alive here.
@@ -676,19 +494,8 @@ services:
       retries: 6
       start_period: 30s
 
-  workspace-init:
-    build: *backend-build
-    image: video-server:local
-    container_name: workspace-init
-    restart: "no"
-    network_mode: none
-    user: "0:0"
-    command: ["sh", "-c", "install -d -o 10001 -g 10001 -m 0700 /work"]
-    volumes:
-      - runner_work:/work
-
-  # One Runner for every site session (046): per-task leases from the broker,
-  # one operation per site across replicas through provider-lease-redis.
+  # The single Runner for every site session (046): per-task leases from the
+  # broker, one operation per site through an in-process lock.
   session-runner:
     <<: *provider-session-runner
     container_name: session-runner
@@ -709,11 +516,7 @@ services:
     volumes:
       - runner_work:/work
     depends_on:
-      workspace-init:
-        condition: service_completed_successfully
       egress-proxy:
-        condition: service_healthy
-      provider-lease-redis:
         condition: service_healthy
       youtube-pot-provider:
         condition: service_healthy

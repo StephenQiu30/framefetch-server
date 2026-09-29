@@ -51,12 +51,6 @@ class FakeCredentialLease:
         self.held.append((provider, version))
         yield
 
-    async def ping(self) -> None:
-        pass
-
-    async def close(self) -> None:
-        pass
-
 
 def anonymous_settings(tmp_path: Path) -> RunnerSettings:
     return RunnerSettings(
@@ -75,7 +69,6 @@ def session_settings(tmp_path: Path, **overrides) -> RunnerSettings:
         runner_provider_session_temp_root=tmp_path / "session-tmp",
         runner_session_broker_url="http://session-broker:19200",
         runner_session_rpc_secret="r" * 32,
-        runner_credential_lease_redis_url="redis://provider-lease-redis:6379/0",
     )
     values.update(overrides)
     return RunnerSettings(**values)
@@ -85,7 +78,7 @@ def session_store(tmp_path: Path):
     sessions, lease = FakeSiteSessions(), FakeCredentialLease()
     store = ProviderSessionStore(
         session_settings(tmp_path),
-        credential_lease=lease,
+        credential_locks=lease,
         site_sessions=sessions,
         enforce_memory_backing=False,
     )
@@ -111,10 +104,6 @@ async def test_runtime_change_between_lookup_and_download_is_retryable(
     [
         ({"runner_session_broker_url": None}, "requires the broker URL and secret"),
         ({"runner_session_rpc_secret": "short"}, "requires the broker URL and secret"),
-        (
-            {"runner_credential_lease_redis_url": None},
-            "requires distributed execution leases",
-        ),
         (
             {"runner_access_mode": ProviderAccessMode.ANONYMOUS},
             "only the session runner may reach the session broker",
@@ -247,7 +236,7 @@ async def test_native_public_operation_uses_no_credentials_or_broker(tmp_path):
     store = ProviderSessionStore(
         session_settings(tmp_path),
         site_sessions=broker,
-        credential_lease=locks,
+        credential_locks=locks,
         enforce_memory_backing=False,
     )
     profile = provider_profile("https://t.me/example/1")

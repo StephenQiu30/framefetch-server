@@ -1,4 +1,4 @@
-"""Run with: python -m app.workers.imports.main."""
+"""Media and document import verification inside the worker process."""
 
 from __future__ import annotations
 
@@ -6,8 +6,8 @@ import asyncio
 from dataclasses import dataclass
 from datetime import timedelta
 
-from app.core.config import Settings, get_settings_for_role
-from app.core.db import create_engine, create_session_factory
+from app.core.config import Settings
+from app.core.db import create_session_factory
 from app.integrations.imports.verifier_factory import build_screenplay_verifier
 from app.integrations.imports.video import Mp4ImportVerifier, VideoVerificationSettings
 from app.integrations.imports.workspace import PrivateImportWorkspace
@@ -29,11 +29,7 @@ from app.services.import_execution.routing import RoutedImportExecution
 from app.services.import_execution.service import ImportExecution, ImportRecoverySweeper
 from app.workers.download.thumbnail import ArtifactThumbnailRecovery
 from app.workers.imports.consumer import RabbitMqImportConsumer
-from app.workers.imports.runtime_support import (
-    install_signal_handlers,
-    utc_now,
-    worker_id,
-)
+from app.workers.imports.runtime_support import utc_now, worker_id
 from app.workers.imports.thumbnail_backfill import DownloadThumbnailBackfill
 from sqlalchemy.ext.asyncio import AsyncEngine
 
@@ -44,17 +40,15 @@ class ImportWorkerRuntime:
     sweeper: ImportRecoverySweeper
     document_sweeper: DocumentImportRecoverySweeper
     thumbnail_backfill: DownloadThumbnailBackfill
-    engine: AsyncEngine
+
+    async def serve(self, stop: asyncio.Event) -> None:
+        await _serve(self, stop)
 
     async def close(self) -> None:
-        try:
-            await self.consumer.close()
-        finally:
-            await self.engine.dispose()
+        await self.consumer.close()
 
 
-def build_runtime(settings: Settings) -> ImportWorkerRuntime:
-    engine = create_engine(settings.database_url)
+def build_runtime(settings: Settings, engine: AsyncEngine) -> ImportWorkerRuntime:
     sessions = create_session_factory(engine)
     repository = SqlAlchemyMediaImportRepository(sessions)
     download_repository = SqlAlchemyDownloadRepository(sessions)
@@ -160,19 +154,7 @@ def build_runtime(settings: Settings) -> ImportWorkerRuntime:
             interval=settings.import_recovery_interval_seconds,
             batch_size=settings.import_recovery_batch_size,
         ),
-        engine=engine,
     )
-
-
-async def run() -> None:
-    runtime = build_runtime(get_settings_for_role("import-worker"))
-    stop = asyncio.Event()
-    install_signal_handlers(stop)
-    try:
-        await _serve(runtime, stop)
-    finally:
-        stop.set()
-        await asyncio.shield(runtime.close())
 
 
 async def _serve(runtime: ImportWorkerRuntime, stop: asyncio.Event) -> None:
@@ -199,11 +181,3 @@ async def _serve(runtime: ImportWorkerRuntime, stop: asyncio.Event) -> None:
     finally:
         stop_wait.cancel()
         await asyncio.gather(stop_wait, return_exceptions=True)
-
-
-def main() -> None:
-    asyncio.run(run())
-
-
-if __name__ == "__main__":
-    main()

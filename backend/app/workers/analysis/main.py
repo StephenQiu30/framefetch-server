@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import asyncio
-import logging
 from dataclasses import dataclass
 from datetime import timedelta
 from functools import partial
@@ -36,12 +35,11 @@ from app.workers.analysis.screenplay_runtime import (
     ScreenplayWorkerComponents,
     build_screenplay_components,
 )
-from app.workers.analysis.utilities import install_signal_handlers, utc_now, worker_id
+from app.workers.analysis.utilities import utc_now, worker_id
 from app.workers.analysis.workflows import SKILL_TASK_QUEUE, SkillWorkflow
+from app.workers.supervision import install_signal_handlers, run_resilient
 from sqlalchemy.ext.asyncio import AsyncEngine
 from temporalio.worker import Worker
-
-_log = logging.getLogger(__name__)
 
 
 @dataclass(slots=True)
@@ -158,11 +156,11 @@ async def run(settings: Settings | None = None) -> None:
 async def _serve(runtime: AnalysisWorkerRuntime, stop: asyncio.Event) -> None:
     tasks = (
         asyncio.create_task(
-            _run_resilient("skill", partial(_run_skill_worker, runtime), stop),
+            run_resilient("skill", partial(_run_skill_worker, runtime), stop),
             name="analysis-skill-worker",
         ),
         asyncio.create_task(
-            _run_resilient("heartbeat", runtime.heartbeat.run, stop),
+            run_resilient("heartbeat", runtime.heartbeat.run, stop),
             name="analysis-heartbeat",
         ),
     )
@@ -201,27 +199,6 @@ async def _run_skill_worker(
         if not running.done():
             await worker.shutdown()
         await running
-
-
-async def _run_resilient(
-    component: str,
-    operation: object,
-    stop: asyncio.Event,
-) -> None:
-    delay = 1.0
-    while not stop.is_set():
-        try:
-            await operation(stop)  # type: ignore[operator]
-            if stop.is_set():
-                return
-        except asyncio.CancelledError:
-            raise
-        except Exception:
-            _log.exception("analysis worker %s failed; restarting", component)
-        try:
-            await asyncio.wait_for(stop.wait(), timeout=delay)
-        except TimeoutError:
-            delay = min(delay * 2, 30.0)
 
 
 def main(settings: Settings | None = None) -> None:

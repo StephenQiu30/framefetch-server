@@ -21,7 +21,7 @@
 ## 架构与数据边界
 
 - 后端模块职责遵循 PROJECT.md；路由不反向导入主应用，共享依赖通过 Depends 提供，业务逻辑按复用需求提取，不为目录整齐增加转发层。
-- API、下载 Worker、媒体 Runner、AI Worker 是独立进程。PostgreSQL 是业务状态事实来源；跨 PostgreSQL／Temporal／RabbitMQ 使用 transactional outbox。Temporal 与 RabbitMQ 按职责长期并存：Temporal 只编排解析和 Skill 分析调用（均已独占），Activity 保留业务 generation／fence，分析模型调用经步骤日志执行、不自动重发结果不明的调用；报告发布、下载、导入与实时事件保留 RabbitMQ，消费者继续保留幂等和 lease/heartbeat。不以清退 RabbitMQ 为目标，不经 RabbitMQ 中转启动 Workflow，不给已迁移链路重新增加数据库租约扫描。
+- API、worker（全部容器化后台循环）、媒体 Runner、宿主 AI Worker 是独立进程；新增后台循环并入 worker 作为独立监督的组件，不新增容器，除非它需要不同的凭据或信任边界。PostgreSQL 是业务状态事实来源；跨 PostgreSQL／Temporal／RabbitMQ 使用 transactional outbox。Temporal 与 RabbitMQ 按职责长期并存：Temporal 只编排解析和 Skill 分析调用（均已独占），Activity 保留业务 generation／fence，分析模型调用经步骤日志执行、不自动重发结果不明的调用；报告发布、下载、导入与实时事件保留 RabbitMQ，消费者继续保留幂等和 lease/heartbeat。不以清退 RabbitMQ 为目标，不经 RabbitMQ 中转启动 Workflow，不给已迁移链路重新增加数据库租约扫描。
 - PostgreSQL 只通过 `backend/sql/schema.sql` 维护当前态结构。本机直接复用已运行的 PostgreSQL，按结构变更需要在已有项目数据库中幂等执行该 SQL；不得为启动或验证项目另起基础服务或覆盖现有数据。空库验证只能使用已有服务中的隔离测试数据库或远端 CI。项目不维护迁移目录、历史 schema 或旧版本兼容逻辑。结构变化时同步更新可重复执行的当前态 SQL、ORM 和测试，并同时使用空数据库与已有当前态数据库验证。
 - OpenAPI 是前后端接口契约的唯一来源，通过 `/openapi.json` 提供，并由 `/docs` 展示 Swagger UI；不维护平行 DTO、手写生成类型或旧 API 适配层。
 - 只实现当前需求，不添加旧目录、旧 API、旧 Provider 或旧数据库的兼容分支。文件按业务内聚性和事务边界拆分，不以固定行数机械拆分，不为缩短文件引入转发层或多重继承。
@@ -94,6 +94,6 @@ pnpm build
 
 API 使用 `runtime.py` 定义类型化的 `ApiServices`，在 `app.state.services` 中只挂载一次，通过 FastAPI 依赖函数读取；`lifespan.py` 管理资源所有权和释放，不逐项复制服务到动态 State。外部注入的运行时由调用方管理。
 
-API readiness 检查业务核心依赖，不把单个平台 Runner 的健康作为全局可用条件。API、下载 Worker 和 Canary 的启动不得等待所有 Provider 健康；Worker/Canary 仍等待共享工作目录初始化。broker readiness 只表示中继资源已初始化；来源可读和平台接受会话分别由按需查询与真实任务验证，不通过空转扫描、预热或无人消费的上报实现就绪。下载 Worker 与 Runner 的容器停止宽限必须覆盖 Worker 有限排空预算。当前设计见 docs/design/08-平台会话.md 与 docs/design/13-可靠性与运行.md。
+API readiness 检查业务核心依赖，不把单个平台 Runner 的健康作为全局可用条件。API 与 worker 的启动不得等待所有 Provider 健康；共享工作目录由镜像预建。broker readiness 只表示中继资源已初始化；来源可读和平台接受会话分别由按需查询与真实任务验证，不通过空转扫描、预热或无人消费的上报实现就绪。worker 与 Runner 的容器停止宽限必须覆盖下载有限排空预算。当前设计见 docs/design/08-平台会话.md 与 docs/design/13-可靠性与运行.md。
 
 前端目录职责以 PROJECT.md“前端目录与文件规则”为准。接口类型直接使用生成的 API.*，不新增 services、utils、types 聚合目录或纯转发文件。

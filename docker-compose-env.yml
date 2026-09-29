@@ -78,14 +78,8 @@ services:
       RABBITMQ_VHOST: "${RABBITMQ_VHOST:-video}"
       RABBITMQ_API_USER: "${RABBITMQ_API_USER:-video-api}"
       RABBITMQ_API_PASS: "${RABBITMQ_API_PASS:-video-api-secret}"
-      RABBITMQ_OUTBOX_USER: "${RABBITMQ_OUTBOX_USER:-video-outbox}"
-      RABBITMQ_OUTBOX_PASS: "${RABBITMQ_OUTBOX_PASS:-video-outbox-secret}"
-      RABBITMQ_DOWNLOAD_USER: "${RABBITMQ_DOWNLOAD_USER:-video-download}"
-      RABBITMQ_DOWNLOAD_PASS: "${RABBITMQ_DOWNLOAD_PASS:-video-download-secret}"
-      RABBITMQ_IMPORT_USER: "${RABBITMQ_IMPORT_USER:-video-import}"
-      RABBITMQ_IMPORT_PASS: "${RABBITMQ_IMPORT_PASS:-video-import-secret}"
-      RABBITMQ_REPORT_USER: "${RABBITMQ_REPORT_USER:-video-report}"
-      RABBITMQ_REPORT_PASS: "${RABBITMQ_REPORT_PASS:-video-report-secret}"
+      RABBITMQ_WORKER_USER: "${RABBITMQ_WORKER_USER:-video-worker}"
+      RABBITMQ_WORKER_PASS: "${RABBITMQ_WORKER_PASS:-video-worker-secret}"
       RABBITMQ_DLQ_USER: "${RABBITMQ_DLQ_USER:-video-dlq}"
       RABBITMQ_DLQ_PASS: "${RABBITMQ_DLQ_PASS:-video-dlq-secret}"
     depends_on:
@@ -102,10 +96,7 @@ services:
           $$admin --vhost=/ declare permission vhost="$${RABBITMQ_VHOST}" user="$$1" configure='.*' write='.*' read='.*'
         }
         declare_user "$${RABBITMQ_API_USER}" "$${RABBITMQ_API_PASS}"
-        declare_user "$${RABBITMQ_OUTBOX_USER}" "$${RABBITMQ_OUTBOX_PASS}"
-        declare_user "$${RABBITMQ_DOWNLOAD_USER}" "$${RABBITMQ_DOWNLOAD_PASS}"
-        declare_user "$${RABBITMQ_IMPORT_USER}" "$${RABBITMQ_IMPORT_PASS}"
-        declare_user "$${RABBITMQ_REPORT_USER}" "$${RABBITMQ_REPORT_PASS}"
+        declare_user "$${RABBITMQ_WORKER_USER}" "$${RABBITMQ_WORKER_PASS}"
         declare_user "$${RABBITMQ_DLQ_USER}" "$${RABBITMQ_DLQ_PASS}"
         declare_exchange() {
           $$admin --vhost="$${RABBITMQ_VHOST}" declare exchange name="$$1" type=topic durable=true

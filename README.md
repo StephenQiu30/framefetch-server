@@ -143,8 +143,10 @@ test -f .env || cp .env.example .env
 uv run --project backend python -m app.workers.session.chrome_agent install --env-file .env
 
 # 启动：migrate 容器先应用幂等的 backend/sql/schema.sql，其余服务随后启动
-docker compose up -d --build --wait
+docker compose up -d --build --wait --remove-orphans
 ```
+
+所有容器化后台循环（Outbox 投递、解析与下载、导入、报告发布、Provider 探针）运行在一个 `worker` 容器中，使用一个 RabbitMQ 账号 `RABBITMQ_WORKER_USER` / `RABBITMQ_WORKER_PASS`（对 `RABBITMQ_VHOST` 需要 configure/write/read 权限）。从旧的多 Worker 拓扑升级时，先在 RabbitMQ 中创建该账号并写入环境文件；`--remove-orphans` 会移除已退役的 `outbox`、`worker-*`、`provider-canary`、`provider-lease-redis` 与 `workspace-init` 容器，旧的 outbox／download／import／report 账号随后可删除。
 
 agent 安装后会执行来源检查；未登录站点可能让检查返回非零，这不等于系统服务安装失败。公开平台不依赖 Chrome 登录态；需要登录的平台按检查结果完成授权与登录。
 
@@ -170,7 +172,7 @@ createdb -O framefetch_temporal framefetch_temporal_visibility
 
 将同一个密码保存到部署环境文件的 `TEMPORAL_POSTGRES_PASSWORD`，文件权限设为 `0600`。`TEMPORAL_POSTGRES_USER` 默认 `framefetch_temporal`；容器使用已有的 `POSTGRES_HOST/PORT`。`temporal-schema` 使用对应版本官方工具幂等初始化，工作进程首次连接时幂等创建 `framefetch` 命名空间。普通 `docker compose up -d --build --wait` 重启复用配置与数据库，不重新生成密码。CLI／宿主 Worker 地址默认为 `127.0.0.1:17233`，容器内部为 `temporal:7233`；不会占用其他项目默认 7233 端口。
 
-首次切换前停止 API 接单并排空解析任务，再配套发布 API、Outbox、下载 Worker 和 `migrate` 容器。`schema.sql` 检测到旧解析在途记录会拒绝移除旧租约列；切勿通过删记录绕过。更新使用 `up --build`，不能只 `start` 旧版已退出的迁移容器。回退也需先排空新执行并恢复匹配的结构备份，不允许两套解析执行者并存。
+首次切换前停止 API 接单并排空解析任务，再配套发布 API、worker 和 `migrate` 容器。`schema.sql` 检测到旧解析在途记录会拒绝移除旧租约列；切勿通过删记录绕过。更新使用 `up --build`，不能只 `start` 旧版已退出的迁移容器。回退也需先排空新执行并恢复匹配的结构备份，不允许两套解析执行者并存。
 
 备份业务库时同步备份两个 Temporal 库，稳定环境密钥单独保管。该服务不设置公共访问，单节点停机期间任务暂停；端口健康不等于平台可以下载。Skill 分析同样由 Temporal 调度，宿主 AI Worker 连接 `TEMPORAL_ADDRESS`（默认 `127.0.0.1:17233`）而不再连接 RabbitMQ；报告发布、下载与导入长期使用 RabbitMQ，分工见[工作流设计](docs/design/15-工作流与平台下载目标.md)。
 
@@ -186,7 +188,7 @@ createdb -O framefetch_temporal framefetch_temporal_visibility
 
 ```bash
 uv run --project backend python -m app.workers.session.chrome_agent install --env-file .env.prod
-docker compose --env-file .env.prod -f docker-compose-prod.yml up -d --build --wait
+docker compose --env-file .env.prod -f docker-compose-prod.yml up -d --build --wait --remove-orphans
 ```
 
 启动后访问：

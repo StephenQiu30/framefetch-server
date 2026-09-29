@@ -1,14 +1,13 @@
-"""Run with: python -m app.workers.canary.main."""
+"""Scheduled Provider canary diagnostics inside the worker process."""
 
 from __future__ import annotations
 
 import asyncio
-import signal
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 
-from app.core.config import Settings, get_settings_for_role
-from app.core.db import create_engine, create_session_factory
+from app.core.config import Settings
+from app.core.db import create_session_factory
 from app.integrations.media_runner_factory import (
     session_media_runner,
     session_provider_keys,
@@ -37,16 +36,15 @@ class ProviderCanaryRuntime:
     scheduler: ProviderCanaryScheduler
     service: ProviderCanaryService
     runner: ProviderCanaryRunner
-    engine: AsyncEngine
+
+    async def serve(self, stop: asyncio.Event) -> None:
+        await self.scheduler.run(stop)
 
     async def close(self) -> None:
-        try:
-            await self.runner.close()
-        finally:
-            await self.engine.dispose()
+        await self.runner.close()
 
 
-def build_runtime(settings: Settings) -> ProviderCanaryRuntime:
+def build_runtime(settings: Settings, engine: AsyncEngine) -> ProviderCanaryRuntime:
     configure_provider_instances(settings.peertube_allowed_instances)
     session_keys = session_provider_keys(settings)
     targets = parse_canary_targets(settings.provider_canary_targets)
@@ -60,7 +58,6 @@ def build_runtime(settings: Settings) -> ProviderCanaryRuntime:
             or target.provider_key in session_keys
         )
     validate_canary_target_routes(targets, session_keys)
-    engine = create_engine(settings.database_url)
     sessions = create_session_factory(engine)
     repository = SqlAlchemyProviderCanaryRepository(sessions)
     admission = ProviderRouteAdmission(SqlAlchemyProviderRouteCooldowns(sessions))
@@ -90,36 +87,8 @@ def build_runtime(settings: Settings) -> ProviderCanaryRuntime:
         ),
         service=service,
         runner=runner,
-        engine=engine,
     )
-
-
-async def run() -> None:
-    runtime = build_runtime(get_settings_for_role("provider-canary"))
-    stop = asyncio.Event()
-    _install_signal_handlers(stop)
-    try:
-        await runtime.scheduler.run(stop)
-    finally:
-        await asyncio.shield(runtime.close())
 
 
 def _utc_now() -> datetime:
     return datetime.now(UTC)
-
-
-def _install_signal_handlers(stop: asyncio.Event) -> None:
-    loop = asyncio.get_running_loop()
-    for requested_signal in (signal.SIGINT, signal.SIGTERM):
-        try:
-            loop.add_signal_handler(requested_signal, stop.set)
-        except NotImplementedError:
-            pass
-
-
-def main() -> None:
-    asyncio.run(run())
-
-
-if __name__ == "__main__":
-    main()

@@ -18,7 +18,7 @@ from app.workers.dlq.service import ALLOWED_EVENTS, DlqReplayService
 
 
 async def run(queue_name: str, actor: str, reason: str) -> None:
-    settings = Settings(service_role="outbox")
+    settings = Settings(service_role="worker")
     url = os.environ.get("RABBITMQ_DLQ_URL")
     if not url:
         raise RuntimeError("RABBITMQ_DLQ_URL is required")

@@ -136,8 +136,10 @@ test -f .env || cp .env.example .env
 uv run --project backend python -m app.workers.session.chrome_agent install --env-file .env
 
 # Start: the migrate container applies the idempotent backend/sql/schema.sql first
-docker compose up -d --build --wait
+docker compose up -d --build --wait --remove-orphans
 ```
+
+Every containerized background loop (Outbox dispatch, inspection and downloads, imports, report publication, provider canaries) runs in one `worker` container with one RabbitMQ account, `RABBITMQ_WORKER_USER` / `RABBITMQ_WORKER_PASS`, which needs configure/write/read on `RABBITMQ_VHOST`. When upgrading from the former multi-worker topology, create that account first; `--remove-orphans` removes the retired `outbox`, `worker-*`, `provider-canary`, `provider-lease-redis` and `workspace-init` containers.
 
 Agent installation also runs a source check. Missing site logins may produce a nonzero check result even after the system service was installed. Fixed public platforms do not require Chrome login state; configure permissions and sign in for the platforms that do.
 
@@ -160,7 +162,7 @@ The production configuration uses its own env and Compose files and needs the sa
 
 ```bash
 uv run --project backend python -m app.workers.session.chrome_agent install --env-file .env.prod
-docker compose --env-file .env.prod -f docker-compose-prod.yml up -d --build --wait
+docker compose --env-file .env.prod -f docker-compose-prod.yml up -d --build --wait --remove-orphans
 ```
 
 Open the services after startup:

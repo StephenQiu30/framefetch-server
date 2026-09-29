@@ -48,15 +48,9 @@ async def test_runner_readiness_fails_when_a_dependency_is_missing(
         binary_exists=lambda binary: binary,
     )
     monkeypatch.setattr(readiness, "_tcp_ready", _always_ready)
-    missing_session = RunnerReadiness(
-        settings(tmp_path),
-        binary_exists=lambda binary: binary,
-        session_ready=_session_unavailable,
-    )
 
     assert await missing_binary.check() is False
     assert await missing_workspace.check() is False
-    assert await missing_session.check() is False
 
 
 @pytest.mark.asyncio
@@ -111,7 +105,3 @@ def test_runtime_package_probe_requires_exact_source_commit(
 
 async def _always_ready(_url: str) -> bool:
     return True
-
-
-async def _session_unavailable() -> bool:
-    return False
