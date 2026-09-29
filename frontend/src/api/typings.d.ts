@@ -1894,16 +1894,10 @@ declare namespace API {
   };
 
   type ProviderRuntimeResponse = {
-    /** Session State */
-    session_state: SiteSessionState | string;
+    /** Login State */
+    login_state: "not_required" | "signed_in" | "unavailable";
     /** Session Site */
     session_site?: string | null;
-    /** Session Verified At */
-    session_verified_at?: string | null;
-    /** Session Next Check At */
-    session_next_check_at?: string | null;
-    /** Session Error Code */
-    session_error_code?: string | null;
     /** Provider Key */
     provider_key: string;
     access_policy_id: ProviderAccessPolicy | null;
@@ -2236,14 +2230,6 @@ declare namespace API {
     /** Asset Ids */
     asset_ids: string[];
   };
-
-  type SiteSessionState =
-    | "seeded"
-    | "verifying"
-    | "ready"
-    | "degraded"
-    | "reseed_required"
-    | "revoked";
 
   type SourceDiscoveryItemResponse = {
     /** Item Ref */

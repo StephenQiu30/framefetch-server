@@ -74,7 +74,6 @@ from app.repositories.providers.catalog_repository import (
     SqlAlchemyProviderCatalogRepository,
 )
 from app.repositories.providers.route_cooldowns import SqlAlchemyProviderRouteCooldowns
-from app.repositories.providers.site_sessions import SiteSessionStates
 from app.repositories.providers.status_evidence import (
     MergedProviderStatusEvidenceReader,
     SqlAlchemyDownloadEvidenceReader,
@@ -202,7 +201,7 @@ def build_api_runtime(settings: Settings) -> ApiRuntime:
     provider_catalog_repository = SqlAlchemyProviderCatalogRepository(sessions)
     ai_provider_repository = SqlAlchemyAiProviderRepository(sessions)
     store = repository
-    session_routes = SiteSessionRoutes(SiteSessionStates(sessions))
+    session_routes = SiteSessionRoutes()
     runner = media_runner_router(
         settings,
         ProviderRouteAdmission(SqlAlchemyProviderRouteCooldowns(sessions)),
@@ -508,7 +507,6 @@ def build_api_runtime(settings: Settings) -> ApiRuntime:
     return ApiRuntime(
         services=ApiServices(
             engine_catalog_reader=runner.engine_catalog,
-            site_session_reader=SiteSessionStates(sessions).list,
             intent_service=IntentService(
                 IntentRepository(sessions, quota_policy=quota_policy),
                 MediaUrlValidator(),

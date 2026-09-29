@@ -17,7 +17,6 @@ from pydantic import (
     EmailStr,
     Field,
     SecretStr,
-    ValidationInfo,
     field_validator,
     model_validator,
 )
@@ -25,7 +24,6 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from app.services.identifiers import RightsStatementVersion, UrlEncryptionKeyId
 from app.services.quotas import QuotaPolicy
-from app.services.site_sessions import known_session_sites
 from app.workers.runner.provider_instances import validated_instance_hosts
 
 
@@ -132,54 +130,12 @@ class Settings(BaseSettings):
     )
 
     database_url: str = "postgresql+asyncpg://video:video@localhost:5432/video"
-    # Only the session broker and the host source receive this key.
-    site_session_encryption_key: SecretStr | None = None
-    # Runner -> broker and broker -> browser use independent HMAC secrets.
+    # Runner -> broker and broker -> host agent use independent HMAC secrets.
     site_session_rpc_secret: SecretStr | None = None
     # Host agent that reads the operator's live Chrome (single-user deployment).
     site_session_agent_url: str = "http://host.docker.internal:19250"
     site_session_agent_secret: SecretStr | None = None
     site_session_lease_seconds: int = Field(default=600, ge=60, le=3600)
-    site_session_source_sites: tuple[str, ...] = Field(
-        default_factory=known_session_sites
-    )
-    site_session_source_profiles: dict[str, str] = Field(default_factory=dict)
-
-    @field_validator("site_session_source_sites")
-    @classmethod
-    def validate_source_sites(cls, value: tuple[str, ...]) -> tuple[str, ...]:
-        if set(value) - set(known_session_sites()):
-            raise ValueError("source sites must be registered session sites")
-        return tuple(dict.fromkeys(value))
-
-    @field_validator("site_session_source_profiles")
-    @classmethod
-    def validate_source_profiles(cls, value: dict[str, str]) -> dict[str, str]:
-        if set(value) - set(known_session_sites()):
-            raise ValueError("source profile sites must be registered session sites")
-        if any(
-            re.fullmatch(r"(?:Default|Profile [1-9][0-9]*)", v) is None
-            for v in value.values()
-        ):
-            raise ValueError("source profiles must name a Chrome profile directory")
-        return value
-
-    provider_source_root: Path = Path("/run/provider-sources")
-
-    @field_validator("site_session_encryption_key", mode="before")
-    @classmethod
-    def validate_encryption_key(cls, value: object, info: ValidationInfo) -> object:
-        if value is None or value == "":
-            return None
-        raw = value.get_secret_value() if isinstance(value, SecretStr) else str(value)
-        try:
-            Fernet(raw.encode("ascii"))
-        except (ValueError, UnicodeError):
-            raise ValueError(
-                f"{str(info.field_name).upper()} must be a Fernet key"
-            ) from None
-        return value
-
     rabbitmq_url: str = "amqp://video-api:video-api-secret@localhost:5673/video"
     rabbitmq_vhost: str = Field(
         default="video",

@@ -1530,44 +1530,9 @@ CREATE TABLE IF NOT EXISTS email_registration_challenges (
 
 CREATE INDEX IF NOT EXISTS ix_email_registration_expires ON email_registration_challenges (expires_at);
 
--- Replaced by site_sessions (046): host-side sources and authorization
--- transactions no longer exist.
+-- Retired host-side sources and authorization transactions.
 DROP TABLE IF EXISTS provider_authorizations;
 DROP TABLE IF EXISTS provider_session_sources;
-
--- Site sessions are deployment-owned logged-in identities keyed by domain.
--- seed_revision changes only on import and fixes the access context version;
--- jar_version tracks cookie rotation captured by the session browser. A revoked
--- row is a durable tombstone: its ciphertext is cleared and routing reverts.
-CREATE TABLE IF NOT EXISTS site_sessions (
-    site VARCHAR(253) PRIMARY KEY,
-    provider_key VARCHAR(32),
-    state VARCHAR(24) NOT NULL,
-    seed_revision BIGINT NOT NULL,
-    jar_version BIGINT NOT NULL DEFAULT 0,
-    ciphertext BYTEA,
-    source_profile VARCHAR(64),
-    source_fingerprint VARCHAR(64),
-    egress_route VARCHAR(64) NOT NULL,
-    seeded_at TIMESTAMPTZ NOT NULL,
-    refreshed_at TIMESTAMPTZ,
-    verified_at TIMESTAMPTZ,
-    next_check_at timestamptz,
-    last_error_code VARCHAR(64),
-    consecutive_failures INTEGER NOT NULL DEFAULT 0,
-    state_changed_at TIMESTAMPTZ NOT NULL,
-    CONSTRAINT ck_site_sessions_state CHECK (
-        state IN ('seeded', 'verifying', 'ready', 'degraded', 'reseed_required', 'revoked')
-    ),
-    CONSTRAINT ck_site_sessions_seed_revision CHECK (seed_revision > 0),
-    CONSTRAINT ck_site_sessions_jar_version CHECK (jar_version >= 0),
-    CONSTRAINT ck_site_sessions_revoked CHECK ((state = 'revoked') = (ciphertext IS NULL))
-);
-ALTER TABLE site_sessions ADD COLUMN IF NOT EXISTS next_check_at timestamptz;
-ALTER TABLE site_sessions ADD COLUMN IF NOT EXISTS source_profile VARCHAR(64);
-ALTER TABLE site_sessions ADD COLUMN IF NOT EXISTS source_fingerprint VARCHAR(64);
-ALTER TABLE site_sessions
-    ADD COLUMN IF NOT EXISTS consecutive_failures INTEGER NOT NULL DEFAULT 0;
 
 COMMIT;
 

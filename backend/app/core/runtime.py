@@ -69,7 +69,6 @@ from app.services.imports.service import (
 )
 from app.services.provider_canaries import ProviderStatusService
 from app.services.provider_catalog import ProviderCatalogService
-from app.services.site_sessions import SiteSessionStatus
 from app.services.source_discoveries.use_cases import (
     CreateSourceDiscovery,
     GetSourceDiscovery,
@@ -140,9 +139,6 @@ class DocumentImportUseCases:
 
 @dataclass(slots=True)
 class ApiServices:
-    site_session_reader: (
-        Callable[[], Awaitable[tuple[SiteSessionStatus, ...]]] | None
-    ) = None
     engine_catalog_reader: Callable[[], Awaitable[EngineCatalogResponse]] | None = None
     intent_service: IntentService | None = None
     history_record_service: HistoryRecordService | None = None

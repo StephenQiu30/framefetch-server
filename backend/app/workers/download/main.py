@@ -26,7 +26,6 @@ from app.repositories.downloads.execution import DownloadExecutionRepository
 from app.repositories.downloads.intent_repository import IntentRepository
 from app.repositories.downloads.repository import SqlAlchemyDownloadRepository
 from app.repositories.providers.route_cooldowns import SqlAlchemyProviderRouteCooldowns
-from app.repositories.providers.site_sessions import SiteSessionStates
 from app.services.download_execution.models import DownloadExecutionSettings
 from app.services.download_execution.service import DownloadExecution
 from app.services.downloads.fingerprints import HmacRequestFingerprinter
@@ -68,7 +67,7 @@ def build_runtime(settings: Settings) -> DownloadWorkerRuntime:
     raw_repository = SqlAlchemyDownloadRepository(sessions)
     repository = DownloadExecutionRepository(raw_repository)
     workspace_cleaner = SharedWorkspaceCleaner(settings.runner_workspace_root)
-    session_routes = SiteSessionRoutes(SiteSessionStates(sessions))
+    session_routes = SiteSessionRoutes()
     runner = media_runner_router(
         settings,
         ProviderRouteAdmission(SqlAlchemyProviderRouteCooldowns(sessions)),

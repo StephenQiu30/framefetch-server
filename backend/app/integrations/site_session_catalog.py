@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Protocol
 from urllib.parse import urlsplit
 
 from app.services.downloads.errors import (
@@ -14,7 +13,6 @@ from app.services.site_sessions import (
     InvalidSessionSite,
     SessionEntitlement,
     SiteSessionPolicy,
-    SiteSessionStatus,
     known_site_policy,
     registrable_site,
     site_policy,
@@ -69,15 +67,8 @@ def _target(policy: SiteSessionPolicy) -> SiteTarget:
     return SiteTarget(policy, frozenset(str(domain) for domain in domains))
 
 
-class SiteSessionStatusReader(Protocol):
-    async def get(self, site: str) -> SiteSessionStatus | None: ...
-
-
 class SiteSessionRoutes:
-    """Decide from persisted state whether a URL must use its site session."""
-
-    def __init__(self, states: SiteSessionStatusReader) -> None:
-        self._states = states
+    """Decide whether a URL uses a fixed public route or the Chrome session."""
 
     async def policy_for(self, url: str) -> ProviderAccessPolicy:
         if provider_profile(url).key in NATIVE_PUBLIC_PROVIDERS:

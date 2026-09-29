@@ -5,7 +5,6 @@ from app.services.site_sessions import (
     InvalidSessionSite,
     SessionEntitlement,
     SiteSessionPolicy,
-    SiteSessionState,
     known_site_policy,
     registrable_site,
     site_policy,
@@ -46,22 +45,9 @@ def test_hosts_that_cannot_own_a_session_are_rejected(host):
         registrable_site(host)
 
 
-def test_only_revoked_records_release_the_session_route():
-    assert not SiteSessionState.REVOKED.routes_to_session
-    assert all(
-        state.routes_to_session
-        for state in SiteSessionState
-        if state is not SiteSessionState.REVOKED
-    )
-    assert [state for state in SiteSessionState if state.executable] == [
-        SiteSessionState.READY
-    ]
-
-
 def test_known_policies_keep_their_entitlement_boundaries():
     youtube = known_site_policy(ProviderKey.YOUTUBE)
     assert youtube is not None and youtube.site == "youtube.com"
-    assert youtube.login_probe.proves_login
     for provider in (ProviderKey.YOUKU, ProviderKey.QQVIDEO):
         policy = known_site_policy(provider)
         assert policy is not None
@@ -77,7 +63,6 @@ def test_unknown_sites_get_a_weak_public_only_policy():
     assert policy.provider_key is None
     assert policy.keepalive_url == "https://example.co.uk/"
     assert policy.entitlement is SessionEntitlement.PUBLIC_ONLY
-    assert not policy.login_probe.proves_login
     assert site_policy("youtube.com") is known_site_policy(ProviderKey.YOUTUBE)
     with pytest.raises(InvalidSessionSite):
         site_policy("www.example.co.uk")

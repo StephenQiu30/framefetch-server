@@ -22,6 +22,7 @@ import asyncio
 import json
 import os
 import plistlib
+import re
 import subprocess
 import sys
 import tempfile
@@ -62,6 +63,7 @@ PROJECT_ROOT = Path(__file__).resolve().parents[4]
 AGENT_PORT: Final = 19250
 COOKIES_PATH: Final = "/v1/cookies"
 AGENT_LABEL: Final = "com.framefetch.chrome-agent"
+_PROFILE_NAME: Final = re.compile(r"(?:Default|Profile [1-9][0-9]*)")
 # Chrome rewrites its Cookie database continuously; a short cache only absorbs
 # the status + lease pair of one operation.
 _CACHE_SECONDS: Final = 20.0
@@ -283,6 +285,11 @@ def load_config(env_file: Path) -> AgentConfig:
     sites = json.loads(values.get("SITE_SESSION_SOURCE_SITES") or "null") or list(
         known_session_sites()
     )
+    known = set(known_session_sites())
+    if set(sites) - known or set(profiles) - known:
+        raise SystemExit("SITE_SESSION_SOURCE_* may only name registered sites")
+    if any(_PROFILE_NAME.fullmatch(name) is None for name in profiles.values()):
+        raise SystemExit("SITE_SESSION_SOURCE_PROFILES must name Chrome profile dirs")
     return AgentConfig(secret.encode(), dict(profiles), tuple(sites))
 
 

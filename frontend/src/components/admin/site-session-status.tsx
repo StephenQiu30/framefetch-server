@@ -15,19 +15,11 @@ import {
 } from '@/components/ui/table';
 import { privateQueryKey } from '@/lib/query-keys';
 
-const labels: Record<API.ProviderRuntimeResponse['session_state'], string> = {
-  not_configured: '未配置',
-  seeded: '等待首次验证',
-  verifying: '正在验证',
-  ready: '登录状态已验证',
-  degraded: '等待自动恢复',
-  reseed_required: '需要重新登录',
-  revoked: '已撤销',
+const labels: Record<API.ProviderRuntimeResponse['login_state'], string> = {
+  not_required: '无需登录态',
+  signed_in: '登录态来源可读',
+  unavailable: '暂时无法读取',
 };
-
-function time(value?: string | null) {
-  return value ? new Date(value).toLocaleString('zh-CN') : '—';
-}
 
 export function SiteSessionStatus() {
   const query = useQuery({
@@ -49,8 +41,9 @@ export function SiteSessionStatus() {
         </Button>
       </div>
       <p>
-        系统自动检查与维护会话。已启用自动接入的平台，在部署主机的 Chrome
-        完成登录后会自动同步；平台验证码仍需部署者处理。
+        需要登录的平台按需读取部署主机 Chrome
+        的登录态。来源可读不代表平台接受会话，
+        下载是否成功以实际文件为准；重新登录后请稍候再刷新。
       </p>
       {query.isPending ? <p role="status">正在读取会话状态…</p> : null}
       {query.isError ? (
@@ -66,8 +59,6 @@ export function SiteSessionStatus() {
             <TableRow>
               <TableHead>站点</TableHead>
               <TableHead>状态</TableHead>
-              <TableHead>最近验证</TableHead>
-              <TableHead>下次检查</TableHead>
               <TableHead>恢复操作</TableHead>
             </TableRow>
           </TableHeader>
@@ -78,24 +69,14 @@ export function SiteSessionStatus() {
                 <TableRow key={item.provider_key}>
                   <TableCell>{item.session_site}</TableCell>
                   <TableCell>
-                    <Badge variant="outline">
-                      {item.session_state === 'ready' && !item.context_available
-                        ? '等待运行环境验证'
-                        : labels[item.session_state]}
-                    </Badge>
+                    <Badge variant="outline">{labels[item.login_state]}</Badge>
                   </TableCell>
-                  <TableCell>{time(item.session_verified_at)}</TableCell>
-                  <TableCell>{time(item.session_next_check_at)}</TableCell>
                   <TableCell>
-                    {item.session_state === 'revoked'
-                      ? '已主动撤销，不会自动恢复；恢复使用需显式导入。'
-                      : ['not_configured', 'reseed_required'].includes(
-                            item.session_state,
-                          )
-                        ? '已启用自动接入时，在部署主机 Chrome 登录后等待同步；否则请检查站点接入配置。'
-                        : item.session_state === 'degraded'
-                          ? '系统将自动重试；持续失败时检查平台验证要求与网络出口。'
-                          : '自动维护中'}
+                    {item.login_state === 'unavailable'
+                      ? '检查本机 Chrome 登录、读取权限和登录态服务是否运行。'
+                      : item.login_state === 'signed_in'
+                        ? '可发起解析；若平台拒绝会话，请按实际错误重新登录或完成验证。'
+                        : '公开路线不需要账号登录态。'}
                   </TableCell>
                 </TableRow>
               ))}

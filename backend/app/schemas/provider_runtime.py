@@ -7,19 +7,13 @@ from app.schemas.common import StrictModel
 from app.services.provider_access import ProviderAccessPolicy
 from app.services.provider_types import ProviderAccessMode
 from app.services.providers import ProviderEvidenceState, ProviderStatusView
-from app.services.site_sessions import (
-    SiteSessionState,
-    SiteSessionStatus,
-    known_site_policy,
-)
+from app.services.site_sessions import known_site_policy
 
 
 class ProviderRuntimeResponse(StrictModel):
-    session_state: SiteSessionState | Literal["not_configured"]
+    # Live: whether the Runner could read this site's login from local Chrome.
+    login_state: Literal["not_required", "signed_in", "unavailable"]
     session_site: str | None = None
-    session_verified_at: datetime | None = None
-    session_next_check_at: datetime | None = None
-    session_error_code: str | None = None
     provider_key: str
     access_policy_id: ProviderAccessPolicy | None
     route_configured: bool
@@ -35,19 +29,20 @@ class ProviderRuntimeResponse(StrictModel):
     route_retry_at: datetime | None = None
 
     @classmethod
-    def from_view(
-        cls, view: ProviderStatusView, session: SiteSessionStatus | None = None
-    ) -> "ProviderRuntimeResponse":
+    def from_view(cls, view: ProviderStatusView) -> "ProviderRuntimeResponse":
         site_policy = known_site_policy(view.key)
         context = view.runtime_context
         policy = view.default_access_policy_id
         return cls(
             provider_key=view.key,
-            session_state=session.state if session else "not_configured",
+            login_state=(
+                "not_required"
+                if policy is None or policy.access_mode is ProviderAccessMode.ANONYMOUS
+                else "signed_in"
+                if context is not None
+                else "unavailable"
+            ),
             session_site=site_policy.site if site_policy else None,
-            session_verified_at=session.verified_at if session else None,
-            session_next_check_at=session.next_check_at if session else None,
-            session_error_code=session.last_error_code if session else None,
             access_policy_id=policy,
             route_configured=any(
                 item.id is policy and item.configured for item in view.access_policies
