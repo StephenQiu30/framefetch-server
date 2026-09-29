@@ -86,15 +86,6 @@ def chrome_profiles(
     return tuple(profiles)
 
 
-def chrome_profile_directory(
-    profile: str = "Default",
-    *,
-    chrome_root: Path = DEFAULT_CHROME_ROOT,
-) -> Path:
-    """Resolve one allowlisted Chrome profile without following symlinks."""
-    return _safe_profile(chrome_root, profile)
-
-
 def _safe_profile(chrome_root: Path, profile: str) -> Path:
     if _PROFILE.fullmatch(profile) is None:
         raise ValueError("unsafe Chrome profile name")

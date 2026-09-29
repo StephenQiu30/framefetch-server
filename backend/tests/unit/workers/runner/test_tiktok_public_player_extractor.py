@@ -3,7 +3,6 @@ from __future__ import annotations
 import subprocess
 import sys
 from pathlib import Path
-from typing import Any
 
 import pytest
 from app.workers.runner.plugins.yt_dlp_plugins.extractor.tiktok_public_player import (
@@ -18,37 +17,6 @@ from yt_dlp.utils import ExtractorError  # type: ignore[import-untyped]
 
 VIDEO_ID = "7492902606063275294"
 VIDEO_URL = f"https://www.tiktok.com/@nba/video/{VIDEO_ID}"
-MEDIA_URL = "https://v16m.tiktokcdn.com/video.mp4?signature=redacted"
-
-
-def player_payload() -> dict[str, Any]:
-    return {
-        "status_code": 0,
-        "items": [
-            {
-                "id_str": VIDEO_ID,
-                "desc": "Yuki is on fire",
-                "author_info": {"nickname": "NBA", "unique_id": "nba"},
-                "video_info": {
-                    "meta": {"duration": 13_100, "width": 576, "height": 1024},
-                    "cover": {"url_list": ["https://cdn.test/cover.jpg"]},
-                    "profiles": [
-                        {
-                            "bitrate": 2_419_797,
-                            "codec_type": "h264",
-                            "fps": 30,
-                            "play_addr": {
-                                "data_size": 3_961_918,
-                                "width": 576,
-                                "height": 1024,
-                                "url_list": [MEDIA_URL],
-                            },
-                        }
-                    ],
-                },
-            }
-        ],
-    }
 
 
 def test_plugin_registers_as_the_builtin_tiktok_override() -> None:

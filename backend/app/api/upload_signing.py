@@ -27,23 +27,6 @@ def use_local_browser_upload_endpoint(request: Request, settings: Settings) -> b
     return _is_loopback_web_origin(source)
 
 
-def use_local_browser_download_endpoint(request: Request, settings: Settings) -> bool:
-    """Use loopback signing for an explicitly identified local Web client.
-
-    Downloads and previews are also used by the production-shaped local
-    Compose stack. The endpoint remains opt-in and is restricted to loopback
-    browser origins so remote/native clients keep receiving the public URL.
-    """
-    if (
-        settings.app_env not in {"development", "production"}
-        or settings.minio_local_browser_endpoint is None
-        or request.headers.get(LOCAL_WEB_DOWNLOAD_HEADER) != LOCAL_WEB_DOWNLOAD_VALUE
-    ):
-        return False
-    source = request.headers.get("origin") or request.headers.get("referer")
-    return _is_loopback_web_origin(source)
-
-
 def use_browser_download_proxy(request: Request, settings: Settings) -> bool:
     """Use the authenticated same-origin file stream for the Web client."""
     return settings.app_env in {"development", "production"} and (

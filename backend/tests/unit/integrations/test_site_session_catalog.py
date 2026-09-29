@@ -1,11 +1,10 @@
 import pytest
 from app.integrations.site_session_catalog import (
     site_target,
-    site_target_for_host,
     site_target_for_url,
 )
 from app.services.provider_types import ProviderAccessMode, ProviderKey
-from app.services.site_sessions import InvalidSessionSite, known_site_policy
+from app.services.site_sessions import known_site_policy
 from app.workers.runner.provider_registry import provider_profile_for_key
 
 
@@ -35,20 +34,6 @@ def test_unknown_sites_are_scoped_by_registrable_domain():
     assert target.cookie_domains == frozenset({"example.co.uk"})
     # A different qq.com host is not captured by the Tencent Video session.
     assert site_target_for_url("https://m.qq.com/v").site == "qq.com"
-
-
-def test_operator_hosts_resolve_like_urls():
-    assert site_target_for_host("youtu.be").site == "youtube.com"
-    assert site_target_for_host(" Example.CO.uk. ").site == "example.co.uk"
-    assert (
-        site_target("weixin.qq.com").policy.provider_key is ProviderKey.WECHAT_CHANNELS
-    )
-
-
-@pytest.mark.parametrize("host", ["10.0.0.1", "localhost", "co.uk", "youtu.be/x"])
-def test_operator_hosts_that_cannot_own_sessions(host):
-    with pytest.raises(InvalidSessionSite):
-        site_target_for_host(host)
 
 
 def test_every_known_policy_is_an_account_capable_provider():

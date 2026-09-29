@@ -109,27 +109,6 @@ async def run_with_workspace_policy[ResultT](
         await asyncio.gather(monitor_task, return_exceptions=True)
 
 
-def read_result(path: Path, *, root: Path, maximum: int) -> object:
-    try:
-        info = path.lstat()
-        resolved = path.resolve(strict=True)
-        if (
-            stat.S_ISLNK(info.st_mode)
-            or not stat.S_ISREG(info.st_mode)
-            or not resolved.is_relative_to(root / "output")
-            or info.st_size <= 0
-            or info.st_size > maximum
-        ):
-            raise OSError
-        with resolved.open("rb") as stream:
-            raw = stream.read(maximum + 1)
-        if len(raw) > maximum:
-            raise OSError
-        return json.loads(raw)
-    except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
-        raise AnalysisCliError("invalid_model_output") from exc
-
-
 async def _monitor(root: Path, config: WorkspacePolicyConfig) -> None:
     while True:
         await asyncio.to_thread(_validate_workspace, root, config)

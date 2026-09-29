@@ -12,7 +12,3 @@ class FormatSelectionError(ValueError):
             raise ValueError("invalid format selection error code")
         self.code = code
         super().__init__(code.value)
-
-
-class InvalidJobTransition(ValueError):
-    """Raised when a command violates the download job state contract."""

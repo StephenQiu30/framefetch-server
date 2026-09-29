@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import time
 from collections.abc import Iterable
 from dataclasses import dataclass
 from http.cookiejar import Cookie
@@ -65,24 +64,6 @@ def parse_cookie_payload(
     if not cookies:
         raise RunnerFailure("credential_rejected", status=422)
     return tuple(cookies)
-
-
-def live_cookie_payload(
-    payload: bytes,
-    allowlist: frozenset[str],
-    *,
-    now: float | None = None,
-) -> tuple[bytes, frozenset[str]]:
-    cookies = parse_cookie_payload(payload, allowlist)
-    current_time = time.time() if now is None else now
-    live = [
-        cookie
-        for cookie in cookies
-        if cookie.expires == 0 or cookie.expires > current_time
-    ]
-    names = frozenset(cookie.name for cookie in live if cookie.line.split(b"\t")[6])
-    header = payload.splitlines()[0]
-    return b"\n".join([header, *(cookie.line for cookie in live)]) + b"\n", names
 
 
 def is_allowed_domain(domain: str, allowed_domains: Iterable[str]) -> bool:

@@ -52,7 +52,6 @@ async def runtime_probe(
         _env_file=None,
         database_url=str(engine.url),
         rabbitmq_url="amqp://user:redacted@rabbit.test:5672/",
-        runner_base_url="http://runner.test",
         runner_operator_base_urls=operator_runners or {},
         minio_endpoint="minio.test:9000",
         readiness_timeout_seconds=1,

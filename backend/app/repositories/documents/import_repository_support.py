@@ -16,7 +16,7 @@ from app.services.imports.errors import (
     ImportPersistenceNotFound,
 )
 from app.services.imports.models import ImportResourceCreate
-from app.services.imports.rules.enums import ContentKind, ImportSourceFormat
+from app.services.imports.rules.enums import ContentKind
 
 
 def require_document_create(command: ImportResourceCreate) -> None:
@@ -99,10 +99,3 @@ async def current_attempt(
     if for_update:
         statement = statement.with_for_update()
     return cast(DocumentImportAttemptRow | None, await session.scalar(statement))
-
-
-def require_supported_format(source_format: str) -> ImportSourceFormat:
-    parsed = ImportSourceFormat(source_format)
-    if parsed.content_kind is not ContentKind.SCREENPLAY:
-        raise ImportPersistenceConflict("document source format is invalid")
-    return parsed

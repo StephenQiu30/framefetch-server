@@ -241,7 +241,6 @@ class Settings(BaseSettings):
         pattern=r"^[a-z0-9_-]+$",
     )
 
-    runner_base_url: str = "http://localhost:19100"
     # One Runner serves every site with a deployment session (046). A site with a
     # session record never falls back to the anonymous Runner.
     session_runner_base_url: str | None = None
@@ -260,12 +259,10 @@ class Settings(BaseSettings):
         default=86_400, ge=300, le=2_592_000
     )
     provider_canary_poll_seconds: float = Field(default=60, ge=5, le=3600)
-    runner_signature_ttl_seconds: int = Field(default=30, ge=5, le=300)
     inspect_timeout_seconds: int = Field(default=150, ge=1, le=300)
     download_timeout_seconds: int = Field(default=7200, ge=1, le=7200)
     max_video_duration_seconds: int = Field(default=86400, ge=1, le=86400)
     max_file_size_bytes: int = Field(default=20 * 1024**3, ge=1, le=20 * 1024**3)
-    max_workspace_size_bytes: int = Field(default=40 * 1024**3, ge=1, le=40 * 1024**3)
     download_thumbnail_ffmpeg_binary: Path = Path("ffmpeg")
     download_thumbnail_timeout_seconds: float = Field(default=15, ge=1, le=60)
     download_thumbnail_max_bytes: int = Field(
@@ -296,7 +293,6 @@ class Settings(BaseSettings):
     )
     import_upload_max_parts: int = Field(default=1000, ge=1, le=10_000)
     import_upload_max_concurrency: int = Field(default=4, ge=1, le=16)
-    import_quarantine_retention_days: int = Field(default=1, ge=1, le=7)
     import_rights_statement_version: str = Field(
         default=RightsStatementVersion.CONTENT,
         min_length=1,
@@ -498,12 +494,6 @@ class Settings(BaseSettings):
         if value is None or not value.strip():
             return None
         return _internal_http_url(value)
-
-    @model_validator(mode="after")
-    def validate_runner_route_declarations(self) -> Settings:
-        if self.session_runner_base_url == self.runner_base_url:
-            raise ValueError("the session runner must be isolated from anonymous")
-        return self
 
     @field_validator("article_discovery_proxy_url", mode="before")
     @classmethod

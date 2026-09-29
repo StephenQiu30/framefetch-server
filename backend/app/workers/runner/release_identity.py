@@ -33,7 +33,6 @@ _PROVIDER_PLUGINS = {
     "hongguo_official_share.py": "hongguo_web",
     "instagram_media.py": "instagram",
     "kuaishou_public.py": "kuaishou",
-    "tiktok_player_payload.py": "tiktok",
     "tiktok_public_player.py": "tiktok",
     "tumblr_public.py": "tumblr",
     "wechat_channels_public.py": "wechat_channels",

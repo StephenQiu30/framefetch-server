@@ -7,7 +7,6 @@ from app.workers.runner.errors import RunnerFailure
 from app.workers.runner.netscape_cookie import (
     has_safe_cookie_fields,
     is_allowed_domain,
-    live_cookie_payload,
     parse_cookie_payload,
     serialize_cookies,
 )
@@ -18,20 +17,6 @@ COOKIE = (
     b"#HttpOnly_.youtube.com\tTRUE\t/\tTRUE\t2147483647\tSID\tfixture\n"
     b"youtube.com\tFALSE\t/\tTRUE\t1\told\tstale\n"
 )
-
-
-def test_live_payload_filters_expired_lines_and_returns_names() -> None:
-    payload, names = live_cookie_payload(
-        COOKIE,
-        frozenset({"youtube.com"}),
-        now=100,
-    )
-
-    assert payload == (
-        b"# Netscape HTTP Cookie File\n"
-        b"#HttpOnly_.youtube.com\tTRUE\t/\tTRUE\t2147483647\tSID\tfixture\n"
-    )
-    assert names == frozenset({"SID"})
 
 
 @pytest.mark.parametrize(

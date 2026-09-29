@@ -31,7 +31,6 @@ def test_download_limits_are_validated() -> None:
     assert defaults.download_timeout_seconds == 7_200
     assert defaults.max_video_duration_seconds == 86_400
     assert defaults.max_file_size_bytes == 20 * 1024**3
-    assert defaults.max_workspace_size_bytes == 40 * 1024**3
 
     with pytest.raises(ValidationError):
         Settings(app_env="test", max_file_size_bytes=0)
@@ -64,7 +63,6 @@ def test_local_import_defaults_and_bounds() -> None:
     assert settings.import_upload_part_size_bytes == 32 * 1024**2
     assert settings.import_upload_max_parts == 1000
     assert settings.import_upload_max_concurrency == 4
-    assert settings.import_quarantine_retention_days == 1
     assert settings.import_rights_statement_version == "content-rights"
     assert settings.import_ffprobe_timeout_seconds == 30
     assert settings.import_max_probe_output_bytes == 256 * 1024
@@ -82,7 +80,6 @@ def test_local_import_defaults_and_bounds() -> None:
         "import_upload_part_size_bytes",
         "import_upload_max_parts",
         "import_upload_max_concurrency",
-        "import_quarantine_retention_days",
         "import_ffprobe_timeout_seconds",
         "import_max_probe_output_bytes",
         "import_max_video_width",
@@ -250,13 +247,6 @@ def test_session_runner_endpoint_is_one_isolated_internal_url() -> None:
     ):
         with pytest.raises(ValidationError):
             Settings(app_env="test", _env_file=None, session_runner_base_url=invalid)
-    with pytest.raises(ValidationError, match="isolated from anonymous"):
-        Settings(
-            app_env="test",
-            _env_file=None,
-            runner_base_url="http://media-runner:19100",
-            session_runner_base_url="http://media-runner:19100",
-        )
 
 
 def test_article_discovery_proxy_is_an_http_authority() -> None:

@@ -3,10 +3,6 @@ from __future__ import annotations
 from app.services.analysis.rules.enums import AnalysisValidationCode
 
 
-class InvalidAnalysisTransition(ValueError):
-    """A command violates the independent analysis job state contract."""
-
-
 class AnalysisValidationError(ValueError):
     def __init__(self, code: AnalysisValidationCode, detail: str) -> None:
         self.code = code

@@ -46,13 +46,6 @@ def site_target_for_url(url: str) -> SiteTarget:
     return _target(site_policy(registrable_site(host)))
 
 
-def site_target_for_host(host: str) -> SiteTarget:
-    """Resolve an operator-supplied host or site key, e.g. ``youtu.be``."""
-    normalized = host.strip().lower().rstrip(".")
-    registrable_site(normalized)  # rejects IPs, paths, private and suffix-only names
-    return site_target_for_url(f"https://{normalized}/")
-
-
 def site_target(site: str) -> SiteTarget:
     """Resolve a stored site key without reinterpreting it as a URL."""
     return _target(site_policy(site))

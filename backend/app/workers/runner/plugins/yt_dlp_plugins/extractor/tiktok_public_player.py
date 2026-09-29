@@ -4,12 +4,6 @@ from typing import Any, cast
 from urllib.parse import urlsplit
 
 from app.workers.runner.errors import RunnerFailure
-from app.workers.runner.plugins.yt_dlp_plugins.extractor.tiktok_player_payload import (
-    PLAYER_SCHEMA_CHANGED,
-    PLAYER_TEMPORARY,
-    PLAYER_UNAVAILABLE,
-    player_failure,
-)
 from app.workers.runner.provider_normalizers import tiktok_url
 from yt_dlp.extractor.tiktok import (  # type: ignore[import-untyped]
     TikTokIE,
@@ -21,7 +15,9 @@ from yt_dlp.networking.exceptions import (  # type: ignore[import-untyped]
 )
 from yt_dlp.utils import ExtractorError  # type: ignore[import-untyped]
 
-_PLAYER_URL = "https://www.tiktok.com/player/v1/{video_id}"
+PLAYER_UNAVAILABLE = "TikTok video not available from the official player"
+PLAYER_TEMPORARY = "TikTok official player API temporarily unavailable"
+PLAYER_SCHEMA_CHANGED = "TikTok official player response structure changed"
 _UNAVAILABLE_MARKERS = ("video not available", "log into an account", "requiring login")
 _REGRESSION_MARKERS = (
     "unexpected response from webpage request",
@@ -51,17 +47,21 @@ class _TikTokPublicPlayerIE(TikTokIE, plugin_name="public_player"):  # type: ign
             raise _mapped_failure(exc, video_id) from exc
 
 
+def _player_failure(message: str, video_id: str) -> ExtractorError:
+    return ExtractorError(message, video_id=video_id, expected=True)
+
+
 def _mapped_failure(exc: ExtractorError, video_id: str) -> ExtractorError:
     message = (exc.orig_msg or str(exc)).casefold()
     if "your ip address is blocked" in message:
-        return player_failure(str(exc.orig_msg or exc), video_id)
+        return _player_failure(str(exc.orig_msg or exc), video_id)
     if isinstance(exc.cause, RequestError):
-        return player_failure(PLAYER_TEMPORARY, video_id)
+        return _player_failure(PLAYER_TEMPORARY, video_id)
     if any(marker in message for marker in _UNAVAILABLE_MARKERS):
-        return player_failure(PLAYER_UNAVAILABLE, video_id)
+        return _player_failure(PLAYER_UNAVAILABLE, video_id)
     if any(marker in message for marker in _REGRESSION_MARKERS):
-        return player_failure(PLAYER_SCHEMA_CHANGED, video_id)
-    return player_failure(PLAYER_TEMPORARY, video_id)
+        return _player_failure(PLAYER_SCHEMA_CHANGED, video_id)
+    return _player_failure(PLAYER_TEMPORARY, video_id)
 
 
 class _TikTokPublicShortIE(TikTokVMIE, plugin_name="public_short"):  # type: ignore[misc, call-arg]
@@ -81,16 +81,16 @@ class _TikTokPublicShortIE(TikTokVMIE, plugin_name="public_short"):  # type: ign
                 if isinstance(exc.cause, RequestError)
                 else PLAYER_SCHEMA_CHANGED
             )
-            raise player_failure(message, video_id) from exc
+            raise _player_failure(message, video_id) from exc
         redirected = getattr(response, "url", None)
         if not isinstance(redirected, str):
-            raise player_failure(PLAYER_SCHEMA_CHANGED, video_id)
+            raise _player_failure(PLAYER_SCHEMA_CHANGED, video_id)
         try:
             normalized = tiktok_url(redirected, urlsplit(redirected))
         except RunnerFailure as exc:
-            raise player_failure(PLAYER_UNAVAILABLE, video_id) from exc
+            raise _player_failure(PLAYER_UNAVAILABLE, video_id) from exc
         if not _TikTokPublicPlayerIE.suitable(normalized):
-            raise player_failure(PLAYER_UNAVAILABLE, video_id)
+            raise _player_failure(PLAYER_UNAVAILABLE, video_id)
         return cast(
             dict[str, Any],
             self.url_result(normalized, ie=_TikTokPublicPlayerIE.ie_key()),

@@ -1,8 +1,6 @@
 from __future__ import annotations
 
 from app.services.analysis.report_formatting import format_range as _format_range
-from app.services.analysis.report_formatting import format_size as _format_size
-from app.services.analysis.report_formatting import format_time as _format_time
 from app.services.analysis.report_formatting import markdown_block as _markdown_block
 from app.services.analysis.report_formatting import markdown_text as _markdown_text
 from app.services.analysis.rules.result_models import (
@@ -12,7 +10,6 @@ from app.services.analysis.rules.result_models import (
 from app.services.analysis.rules.result_types import AnalysisResult
 from app.services.analysis.screenplay_report import render_screenplay_report_markdown
 from app.services.analysis.video_report import render_video_analysis_report_markdown
-from app.services.analysis.video_report_labels import video_report_labels as _labels
 
 
 def render_analysis_report_markdown(result: AnalysisResult) -> str:
@@ -65,19 +62,3 @@ def _render_video_article_report_markdown(result: VideoArticleResult) -> str:
         lines.extend(("### 事实边界与待核验项", ""))
         lines.extend(f"- {_markdown_text(item)}" for item in result.limitations)
     return "\n".join(lines).rstrip() + "\n"
-
-
-def format_report_time(milliseconds: int) -> str:
-    return _format_time(milliseconds)
-
-
-def format_report_range(start_ms: int, end_ms: int) -> str:
-    return _format_range(start_ms, end_ms)
-
-
-def format_report_size(size_bytes: int) -> str:
-    return _format_size(size_bytes)
-
-
-def report_labels(language: str) -> dict[str, str]:
-    return _labels(language)

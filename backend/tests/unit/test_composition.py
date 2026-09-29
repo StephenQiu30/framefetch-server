@@ -27,7 +27,6 @@ def disable_external_realtime(monkeypatch: pytest.MonkeyPatch) -> None:
 def test_non_test_app_wires_download_use_cases(tmp_path: Path) -> None:
     settings = Settings(
         app_env="development",
-        runner_base_url="http://runner.test",
         session_runner_base_url="http://session-runner.test",
         redis_url="redis://127.0.0.1:6379/0",
         _env_file=None,
@@ -44,7 +43,6 @@ def test_non_test_app_wires_download_use_cases(tmp_path: Path) -> None:
 def test_non_test_app_wires_runtime_readiness_into_the_route(tmp_path: Path) -> None:
     settings = Settings(
         app_env="development",
-        runner_base_url="http://runner.test",
         session_runner_base_url="http://session-runner.test",
         redis_url="redis://127.0.0.1:6379/0",
         _env_file=None,
