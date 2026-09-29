@@ -55,6 +55,7 @@ def test_builtin_skills_are_filtered_ordered_and_contract_bound() -> None:
         "director-breakdown",
         "comprehensive",
         "video-to-article",
+        "short-video-packaging",
         "visual-shots",
         "scene-extraction",
         "narrative-structure-review",
@@ -77,6 +78,7 @@ def test_builtin_skills_are_filtered_ordered_and_contract_bound() -> None:
     assert {skill.result_contract for skill in video} == {
         AnalysisResultContract.VIDEO_VISUAL_ANALYSIS,
         AnalysisResultContract.VIDEO_ARTICLE,
+        AnalysisResultContract.STRUCTURED_REPORT,
     }
     assert [skill.result_contract for skill in screenplay] == [
         *([AnalysisResultContract.SCREENPLAY_ANALYSIS] * 7),
@@ -323,3 +325,79 @@ def test_registry_rejects_reference_symlinks(tmp_path: Path) -> None:
 
     with pytest.raises(ValueError, match="missing analysis skill reference"):
         AnalysisSkillRegistry.from_directory(tmp_path)
+
+
+@pytest.mark.parametrize(
+    ("skill_id", "input_kind", "contract", "modules", "excluded"),
+    [
+        (
+            "director-breakdown",
+            AnalysisInputKind.VIDEO,
+            AnalysisResultContract.VIDEO_VISUAL_ANALYSIS,
+            (
+                "drama-skills-short-drama-storyboard-shot-craft",
+                "drama-skills-short-drama-storyboard-production-shot-grammar",
+                "drama-skills-short-drama-storyboard-blocking-playbooks",
+            ),
+            "## 四、动作顺序交接（给视频提示词环节的输入）",
+        ),
+        (
+            "editing-rhythm-review",
+            AnalysisInputKind.VIDEO,
+            AnalysisResultContract.VIDEO_VISUAL_ANALYSIS,
+            (
+                "drama-skills-short-drama-edit-cut-craft",
+                "marketingskills-video-edit-anatomy",
+            ),
+            "## Step 1 —",
+        ),
+        (
+            "continuity-quality-review",
+            AnalysisInputKind.VIDEO,
+            AnalysisResultContract.VIDEO_VISUAL_ANALYSIS,
+            ("drama-skills-short-drama-storyboard-blocking-playbooks",),
+            "## 5.",
+        ),
+        (
+            "screenplay-structure-review",
+            AnalysisInputKind.SCREENPLAY,
+            AnalysisResultContract.SCREENPLAY_ANALYSIS,
+            (
+                "sw-story-structure",
+                "sw-scene-craft",
+                "screenwriting-skills-sw-premise-theme-skill",
+                "screenwriting-skills-sw-truby-anatomy-skill",
+            ),
+            "## 十二、从想法到前提：工作流程",
+        ),
+        (
+            "short-video-packaging",
+            AnalysisInputKind.VIDEO,
+            AnalysisResultContract.STRUCTURED_REPORT,
+            (
+                "marketingskills-social-short-form-video",
+                "marketingskills-social-platforms",
+            ),
+            "## Posting Strategy",
+        ),
+    ],
+)
+def test_reviewed_product_skills_compile_pinned_methods_with_local_boundaries(
+    skill_id: str,
+    input_kind: AnalysisInputKind,
+    contract: AnalysisResultContract,
+    modules: tuple[str, ...],
+    excluded: str,
+) -> None:
+    skill = BUILTIN_ANALYSIS_SKILLS.get(skill_id, input_kind)
+    assert skill is not None and skill.result_contract is contract
+    text = skill.instructions
+    for module in modules:
+        assert f"# Source module: {module}\nPinned source: https://github.com/" in text
+    assert excluded not in text
+    assert "## 引用方法的用法" in text
+    assert text.rindex("# Source module:") < text.index("## 引用方法的用法")
+    if input_kind is AnalysisInputKind.VIDEO:
+        assert "当前没有可靠音频证据" in text
+    else:
+        assert "不得要求剧本套用固定步骤数或页码" in text

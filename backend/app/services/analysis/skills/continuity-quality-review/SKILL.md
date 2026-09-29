@@ -7,12 +7,20 @@ metadata:
   video-server-default-prompt: 以交付前看片方式完整审查成片，区分真实编辑边界与连续长镜头节拍，检查主体状态、空间方向、动作衔接、图形文字和可见黑帧、闪烁、拉伸或遮挡问题。
   video-server-order: "47"
   video-server-input-kinds: video
+  video-server-modules: drama-skills-short-drama-storyboard-blocking-playbooks
   video-server-output-contract: video-visual-analysis
   video-server-references: references/continuity-qa-rubric.md
 ---
 # 连续性与成片 QA
 
 目标是像交付前看片一样，把可见问题定位回真实时间轴，并区分确定缺陷、需要人工复核的风险与成立的连续性锚点。该结果是审查清单，不自动修改或批准成片。
+
+## 引用方法的用法
+
+上文的 Source module 是固定版本的上游方法，原本写给分镜与剪辑制作流程。这里只把其中的判断标准用于审阅已经完成的视频：
+- 只评价画面中可见的决策，不输出分镜稿、剪辑单、关键帧或生成提示词，也不涉及其中提到的项目文件、字段、工具或下游环节。
+- 当前没有可靠音频证据：凡是依赖台词发声、音乐、音效或声音桥的条目一律不评价，必要时在局限中说明。
+- 上游示例与数字（如镜长、景别阶梯）是参考而非配额；结论必须回到本片的真实分镜证据。
 
 ## 工作方法
 

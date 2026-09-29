@@ -103,3 +103,102 @@ Both repositories' original MIT licenses are included beside their vendored file
 - Local use: the opening-hook review independently emphasizes reviewing rendered evidence before delivery, legible on-screen text, a clear initial subject, purposeful visual progression, and shot-specific handoff checks. Upstream wording, shot cards, recipes, demos, media, Remotion templates, source code, gallery, generation workflow, sound library, examples, and assets were excluded.
 
 Updating any reviewed commit requires a fresh license and prompt-injection review, static fixtures, and real-provider E2E before release.
+
+## marketingskills (2026-09-29)
+
+- Source: https://github.com/coreyhaines31/marketingskills/tree/5b2c0007766c6a1cf1d53fd8fc73e979e0821022/skills/video/references/edit-anatomy.md
+- Reviewed commit: `5b2c0007766c6a1cf1d53fd8fc73e979e0821022`
+- License: MIT
+- Imported Markdown (unmodified): `marketingskills/video-edit-anatomy.md`
+- Registered modules: `marketingskills-video-edit-anatomy`
+- Dropped, never vendored or executed: none
+- Prompt-injection scan: no findings
+- Local use: `editing-rhythm-review`: beat-by-beat visual edit analysis only; download/execution sections excluded, audio and imitation instructions do not apply.
+
+## marketingskills (2026-09-29)
+
+- Source: https://github.com/coreyhaines31/marketingskills/tree/5b2c0007766c6a1cf1d53fd8fc73e979e0821022/skills/social/references/short-form-video.md
+- Reviewed commit: `5b2c0007766c6a1cf1d53fd8fc73e979e0821022`
+- License: MIT
+- Imported Markdown (unmodified): `marketingskills/social-short-form-video.md`
+- Registered modules: `marketingskills-social-short-form-video`
+- Dropped, never vendored or executed: none
+- Prompt-injection scan: 2 findings reviewed and accepted
+- Local use: `short-video-packaging`: hook types, information order and visual patterns only; examples are not facts, audio is unverified and production/publishing workflows are not executed. Scan matches were two uses of "secret" in hook examples, not access to secrets.
+
+## marketingskills (2026-09-29)
+
+- Source: https://github.com/coreyhaines31/marketingskills/tree/5b2c0007766c6a1cf1d53fd8fc73e979e0821022/skills/social/references/platforms.md
+- Reviewed commit: `5b2c0007766c6a1cf1d53fd8fc73e979e0821022`
+- License: MIT
+- Imported Markdown (unmodified): `marketingskills/social-platforms.md`
+- Registered modules: `marketingskills-social-platforms`
+- Dropped, never vendored or executed: none
+- Prompt-injection scan: 1 findings reviewed and accepted
+- Local use: `short-video-packaging`: TikTok and Instagram presentation references only; demographic, reach, algorithm, posting-time and frequency claims are not verified facts or output requirements. The scan match was "Post consistently to train algorithm", not a network instruction.
+
+## drama-skills (2026-09-29)
+
+- Source: https://github.com/zenstory-ai/drama-skills/tree/4e48ccbf0f77da757d7cacc6937b1cc59c124845/skills/short-drama-edit/references/cut-craft.md
+- Reviewed commit: `4e48ccbf0f77da757d7cacc6937b1cc59c124845`
+- License: MIT
+- Imported Markdown (unmodified): `drama-skills/short-drama-edit-cut-craft.md`
+- Registered modules: `drama-skills-short-drama-edit-cut-craft`
+- Dropped, never vendored or executed: none
+- Prompt-injection scan: no findings
+- Local use: `editing-rhythm-review`: entry/exit points, adjacency, cuts and duration as visual review criteria; audio-dependent judgments excluded.
+
+## drama-skills (2026-09-29)
+
+- Source: https://github.com/zenstory-ai/drama-skills/tree/4e48ccbf0f77da757d7cacc6937b1cc59c124845/skills/short-drama-storyboard/references/shot-craft.md
+- Reviewed commit: `4e48ccbf0f77da757d7cacc6937b1cc59c124845`
+- License: MIT
+- Imported Markdown (unmodified): `drama-skills/short-drama-storyboard-shot-craft.md`
+- Registered modules: `drama-skills-short-drama-storyboard-shot-craft`
+- Dropped, never vendored or executed: none
+- Prompt-injection scan: no findings
+- Local use: `director-breakdown`: selected shot purpose, geography, framing, timing, continuity and review questions; no storyboard or project output.
+
+## drama-skills (2026-09-29)
+
+- Source: https://github.com/zenstory-ai/drama-skills/tree/4e48ccbf0f77da757d7cacc6937b1cc59c124845/skills/short-drama-storyboard/references/production-shot-grammar.md
+- Reviewed commit: `4e48ccbf0f77da757d7cacc6937b1cc59c124845`
+- License: MIT
+- Imported Markdown (unmodified): `drama-skills/short-drama-storyboard-production-shot-grammar.md`
+- Registered modules: `drama-skills-short-drama-storyboard-production-shot-grammar`
+- Dropped, never vendored or executed: none
+- Prompt-injection scan: no findings
+- Local use: `director-breakdown`: selected narrative photography questions, scene diagnosis and anti-patterns; production fields, prompts and workflow sections excluded.
+
+## drama-skills (2026-09-29)
+
+- Source: https://github.com/zenstory-ai/drama-skills/tree/4e48ccbf0f77da757d7cacc6937b1cc59c124845/skills/short-drama-storyboard/references/blocking-playbooks.md
+- Reviewed commit: `4e48ccbf0f77da757d7cacc6937b1cc59c124845`
+- License: MIT
+- Imported Markdown (unmodified): `drama-skills/short-drama-storyboard-blocking-playbooks.md`
+- Registered modules: `drama-skills-short-drama-storyboard-blocking-playbooks`
+- Dropped, never vendored or executed: none
+- Prompt-injection scan: no findings
+- Local use: `director-breakdown` and `continuity-quality-review`: axis, screen direction, visible dialogue staging, evidence reveals and observation boundaries only; no audio judgments.
+
+## screenwriting-skills (2026-09-29)
+
+- Source: https://github.com/jtydhr88/screenwriting-skills/tree/357d1348ccaa1ab75f2f51ef7c90a7f00a686c76/plugins/screenwriting/skills/sw-premise-theme/SKILL.md
+- Reviewed commit: `357d1348ccaa1ab75f2f51ef7c90a7f00a686c76`
+- License: MIT
+- Imported Markdown (unmodified): `screenwriting-skills/sw-premise-theme-SKILL.md`
+- Registered modules: `screenwriting-skills-sw-premise-theme-skill`
+- Dropped, never vendored or executed: none
+- Prompt-injection scan: no findings
+- Local use: `screenplay-structure-review`: selected premise/theme diagnostic perspectives grounded in supplied scenes; no authoring workflow or mandatory formula.
+
+## screenwriting-skills (2026-09-29)
+
+- Source: https://github.com/jtydhr88/screenwriting-skills/tree/357d1348ccaa1ab75f2f51ef7c90a7f00a686c76/plugins/screenwriting/skills/sw-truby-anatomy/SKILL.md
+- Reviewed commit: `357d1348ccaa1ab75f2f51ef7c90a7f00a686c76`
+- License: MIT
+- Imported Markdown (unmodified): `screenwriting-skills/sw-truby-anatomy-SKILL.md`
+- Registered modules: `screenwriting-skills-sw-truby-anatomy-skill`
+- Dropped, never vendored or executed: none
+- Prompt-injection scan: no findings
+- Local use: `screenplay-structure-review`: selected Truby structure and scene-weave diagnostics; no mandatory step counts or page quotas.

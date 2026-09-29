@@ -7,12 +7,21 @@ metadata:
   video-server-default-prompt: 完整观察时间线，区分真实编辑切点与连续视觉节拍，审阅停留、信息密度、边界动机、动作和构图衔接，区分必要停留、拖沓、无目的快切和信息过载。
   video-server-order: "42"
   video-server-input-kinds: video
+  video-server-modules: drama-skills-short-drama-edit-cut-craft, marketingskills-video-edit-anatomy
   video-server-output-contract: video-visual-analysis
   video-server-references: references/editing-rhythm-rubric.md
 ---
 # 剪辑节奏审阅
 
 目标不是追求更多 Cut 或统一镜头时长，而是判断每次停留和切换是否给观看者足够时间读懂画面，并让动作、信息和段落目标持续推进。
+
+## 引用方法的用法
+
+上文的 Source module 是固定版本的上游方法，原本写给分镜与剪辑制作流程。这里只把其中的判断标准用于审阅已经完成的视频：
+- 只评价画面中可见的决策，不输出分镜稿、剪辑单、关键帧或生成提示词，也不涉及其中提到的项目文件、字段、工具或下游环节。
+- 当前没有可靠音频证据：凡是依赖台词发声、音乐、音效或声音桥的条目一律不评价，必要时在局限中说明。
+- 上游示例与数字（如镜长、景别阶梯）是参考而非配额；结论必须回到本片的真实分镜证据。
+- 剪辑解剖（edit anatomy）的逐拍维度用于识别本片的切点节奏、画面文字、运动与标志性手法；其中的“复刻参考剪辑”目标不适用，不建议照搬他人成片。
 
 ## 工作方法
 

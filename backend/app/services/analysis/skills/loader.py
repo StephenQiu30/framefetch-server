@@ -50,11 +50,6 @@ def load_skill(path: Path) -> AnalysisSkill:
     result_contract = _result_contract(product["video-server-output-contract"], path)
     _validate_contract(input_kinds, result_contract, path)
     raw_modules = product.get("video-server-modules")
-    if (
-        raw_modules is not None
-        and result_contract != AnalysisResultContract.SCREENPLAY_ANALYSIS
-    ):
-        raise ValueError(f"analysis source modules require screenplay analysis: {path}")
     instructions = _compile_instructions(
         body, product.get("video-server-references"), raw_modules, path
     )

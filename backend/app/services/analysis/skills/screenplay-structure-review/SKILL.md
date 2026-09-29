@@ -8,13 +8,17 @@ metadata:
   video-server-order: "70"
   video-server-input-kinds: screenplay
   video-server-output-contract: screenplay-analysis
-  video-server-modules: sw-story-structure, sw-scene-craft
+  video-server-modules: sw-story-structure, sw-scene-craft, screenwriting-skills-sw-premise-theme-skill, screenwriting-skills-sw-truby-anatomy-skill
   video-server-references: references/structure-rules.md
 ---
 
 # 剧本结构审阅
 
 把每个源场景视为因果链中的一环，审阅目标、阻力、结果、反应与下一步选择如何累积成全局结构。直接加载上游 `sw-story-structure` 和 `sw-scene-craft` 的指定审阅章节；其中固定页码、场景数量、三幕形状及“每场必须转折”等写作建议不是本任务的硬性质量标准。场景相关判断须能回到已上传原文的位置，但内部源场景 ID 只用于覆盖校验，不能充当证据。不直接创建资产、镜头或人工决策。
+
+## 引用方法的用法（前提、主题与 Truby 结构）
+
+上文新增的前提与主题（埃格里、麦基、克龙、希克斯、陆军）和 Truby 结构方法只作为诊断视角：先检查前提、主控思想与“渴望 vs 错误信念”是否在文本中成立，再用 Truby 的关键步骤、中段组件与场景编排定位结构松散处。不得要求剧本套用固定步骤数或页码，所有结论必须引用真实源场景。
 
 ## 工作规则
 
