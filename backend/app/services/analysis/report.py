@@ -11,6 +11,7 @@ from app.services.analysis.rules.enums import AnalysisResultKind
 from app.services.analysis.rules.result_models import VideoArticleResult
 from app.services.analysis.rules.result_types import AnalysisResult
 from app.services.analysis.screenplay_report import render_screenplay_report_markdown
+from app.services.analysis.structured_report import render_structured_report_markdown
 from app.services.analysis.video_report import render_video_analysis_report_markdown
 
 
@@ -68,4 +69,5 @@ _RENDERERS: dict[AnalysisResultKind, Callable[[Any], str]] = {
     AnalysisResultKind.VIDEO_ARTICLE: _render_video_article_report_markdown,
     AnalysisResultKind.SCREENPLAY_ANALYSIS: render_screenplay_report_markdown,
     AnalysisResultKind.SCREENPLAY_REWRITE: render_screenplay_report_markdown,
+    AnalysisResultKind.STRUCTURED_REPORT: render_structured_report_markdown,
 }

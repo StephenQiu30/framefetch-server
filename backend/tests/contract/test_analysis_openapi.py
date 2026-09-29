@@ -73,6 +73,7 @@ def test_analysis_openapi_is_current_and_excludes_internal_fields(
         "video-article",
         "screenplay-analysis",
         "screenplay-rewrite",
+        "structured-report",
     ]
     assert {"artifact_id", "schema_version", "transcript", "provider"}.isdisjoint(
         fields
@@ -91,6 +92,9 @@ def test_analysis_openapi_is_current_and_excludes_internal_fields(
             "video_visual_analysis": (
                 "#/components/schemas/VideoAnalysisResultResponse"
             ),
+            "structured_report": (
+                "#/components/schemas/StructuredReportResultResponse"
+            ),
         },
     }
     assert {item["$ref"] for item in result_union["oneOf"]} == {
@@ -98,6 +102,7 @@ def test_analysis_openapi_is_current_and_excludes_internal_fields(
         "#/components/schemas/VideoArticleResultResponse",
         "#/components/schemas/ScreenplayAnalysisResultResponse",
         "#/components/schemas/ScreenplayRewriteResultResponse",
+        "#/components/schemas/StructuredReportResultResponse",
     }
     result_fields = components["VideoAnalysisResultResponse"]["properties"]
     assert {

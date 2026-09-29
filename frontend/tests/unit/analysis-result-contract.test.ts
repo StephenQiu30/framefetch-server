@@ -12,6 +12,8 @@ function resultMetric(result: PublicResult): number {
       return result.scenes.length;
     case 'screenplay_rewrite':
       return result.output_scene_count;
+    case 'structured_report':
+      return result.sections.length;
     default: {
       const exhaustive: never = result;
       return exhaustive;

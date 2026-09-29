@@ -1,7 +1,6 @@
 'use client';
 
 import { ArrowClockwise, DownloadSimple, Robot } from '@phosphor-icons/react';
-import AnalysisArticleResultView from '@/components/analysis/analysis-article-result-view';
 import AnalysisConfigurator from '@/components/analysis/analysis-configurator';
 import AnalysisDeleteDialog from '@/components/analysis/analysis-delete-dialog';
 import {
@@ -13,8 +12,10 @@ import {
   statusLabels,
 } from '@/components/analysis/analysis-panel-model';
 import AnalysisReportDownloadLink from '@/components/analysis/analysis-report-download-link';
-import AnalysisResultView from '@/components/analysis/analysis-result-view';
 import AnalysisStorageNotice from '@/components/analysis/analysis-storage-notice';
+import AnalysisVideoResult, {
+  isVideoAnalysisResult,
+} from '@/components/analysis/analysis-video-result';
 import { useAnalysisJob } from '@/components/analysis/use-analysis-job';
 import { FeedbackNotice } from '@/components/layout/feedback-notice';
 import { PageErrorNotice } from '@/components/layout/page-error-notice';
@@ -73,8 +74,7 @@ export default function AnalysisPanel({
 
   if (
     state.job?.status === AnalysisStatusCode.Succeeded &&
-    (state.job.result?.kind === 'video_visual_analysis' ||
-      state.job.result?.kind === 'video_article')
+    isVideoAnalysisResult(state.job.result)
   ) {
     const formats = new Set(
       state.job.report?.status === AnalysisReportStatusCode.Available
@@ -174,22 +174,12 @@ export default function AnalysisPanel({
             {playbackUnavailableReason}
           </p>
         ) : null}
-        {state.job.result.kind === 'video_article' ? (
-          <AnalysisArticleResultView
-            onSelectTime={onSelectTime}
-            reportMarkdown={state.job.report_markdown}
-            result={state.job.result}
-          />
-        ) : (
-          <AnalysisResultView
-            onSelectTime={onSelectTime}
-            defaultView={
-              state.job.skill_id === 'scene-extraction' ? 'scenes' : 'shots'
-            }
-            reportMarkdown={state.job.report_markdown}
-            result={state.job.result}
-          />
-        )}
+        <AnalysisVideoResult
+          onSelectTime={onSelectTime}
+          reportMarkdown={state.job.report_markdown}
+          result={state.job.result}
+          skillId={state.job.skill_id}
+        />
       </div>
     );
   }
@@ -356,8 +346,7 @@ function AnalysisJobState({
       <p className="mt-8 text-sm text-muted-foreground">
         分析结果会经过连续时间轴、严格结构与分镜证据校验。
       </p>
-      {job.result?.kind === 'video_visual_analysis' ||
-      job.result?.kind === 'video_article' ? (
+      {isVideoAnalysisResult(job.result) ? (
         <div className="mt-10">
           <div className="flex flex-wrap items-center gap-3">
             <Badge variant="secondary">
@@ -383,22 +372,12 @@ function AnalysisJobState({
               {playbackUnavailableReason}
             </p>
           ) : null}
-          {job.result.kind === 'video_article' ? (
-            <AnalysisArticleResultView
-              onSelectTime={onSelectTime}
-              reportMarkdown={job.report_markdown}
-              result={job.result}
-            />
-          ) : (
-            <AnalysisResultView
-              onSelectTime={onSelectTime}
-              defaultView={
-                job.skill_id === 'scene-extraction' ? 'scenes' : 'shots'
-              }
-              reportMarkdown={job.report_markdown}
-              result={job.result}
-            />
-          )}
+          <AnalysisVideoResult
+            onSelectTime={onSelectTime}
+            reportMarkdown={job.report_markdown}
+            result={job.result}
+            skillId={job.skill_id}
+          />
         </div>
       ) : null}
     </div>

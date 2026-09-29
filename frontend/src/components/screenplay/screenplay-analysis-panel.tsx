@@ -4,6 +4,7 @@ import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import AnalysisConfigurator from '@/components/analysis/analysis-configurator';
 import { AnalysisStatusCode } from '@/components/analysis/analysis-panel-model';
+import { isVideoAnalysisResult } from '@/components/analysis/analysis-video-result';
 import { useAnalysisJob } from '@/components/analysis/use-analysis-job';
 import { FeedbackNotice } from '@/components/layout/feedback-notice';
 import { PageErrorNotice } from '@/components/layout/page-error-notice';
@@ -62,7 +63,7 @@ export default function ScreenplayAnalysisPanel({
   const succeeded =
     state.job?.status === AnalysisStatusCode.Succeeded &&
     state.job.result &&
-    state.job.result.kind !== 'video_visual_analysis';
+    !isVideoAnalysisResult(state.job.result);
 
   return (
     <div className="mt-14 py-12 sm:mt-16 sm:py-16">

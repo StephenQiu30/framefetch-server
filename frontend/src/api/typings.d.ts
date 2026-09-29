@@ -177,6 +177,7 @@ declare namespace API {
       | VideoArticleResultResponse
       | ScreenplayAnalysisResultResponse
       | ScreenplayRewriteResultResponse
+      | StructuredReportResultResponse
       | null;
     /** Report Markdown */
     report_markdown: string | null;
@@ -189,7 +190,8 @@ declare namespace API {
     | "video-visual-analysis"
     | "video-article"
     | "screenplay-analysis"
-    | "screenplay-rewrite";
+    | "screenplay-rewrite"
+    | "structured-report";
 
   type AnalysisRunHistoryPageResponse = {
     /** Items */
@@ -2314,6 +2316,35 @@ declare namespace API {
     size_bytes: number;
     /** Created At */
     created_at: string;
+  };
+
+  type StructuredReportResultResponse = {
+    /** Kind */
+    kind: "structured_report";
+    /** Language */
+    language: string;
+    /** Title */
+    title: string;
+    /** Summary */
+    summary: string;
+    /** Sections */
+    sections: StructuredReportSectionResponse[];
+    /** Limitations */
+    limitations: string[];
+    media: AnalysisMediaResponse;
+  };
+
+  type StructuredReportSectionResponse = {
+    /** Id */
+    id: string;
+    /** Heading */
+    heading: string;
+    /** Body */
+    body: string;
+    /** Items */
+    items: string[];
+    /** Evidence */
+    evidence: VideoArticleEvidenceResponse[];
   };
 
   type updateAiProviderProfileParams = {

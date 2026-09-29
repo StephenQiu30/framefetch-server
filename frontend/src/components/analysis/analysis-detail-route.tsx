@@ -5,14 +5,15 @@ import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { useState } from 'react';
 import { getAnalysisHistoryRecord, listAnalysisRuns } from '@/api/analyses';
-import AnalysisArticleResultView from '@/components/analysis/analysis-article-result-view';
 import AnalysisDeleteDialog from '@/components/analysis/analysis-delete-dialog';
 import {
   stageLabels,
   statusLabels,
 } from '@/components/analysis/analysis-panel-model';
 import AnalysisReportDownloadLink from '@/components/analysis/analysis-report-download-link';
-import AnalysisResultView from '@/components/analysis/analysis-result-view';
+import AnalysisVideoResult, {
+  isVideoAnalysisResult,
+} from '@/components/analysis/analysis-video-result';
 import { useAnalysisJob } from '@/components/analysis/use-analysis-job';
 import { useAnalysisSkills } from '@/components/analysis/use-analysis-skills';
 import { historyRecordLabel } from '@/components/intake/history-record-presentation';
@@ -242,13 +243,8 @@ function AnalysisDetailContent({
               tone="error"
             />
           ) : null}
-          {job.result?.kind === 'video_visual_analysis' ? (
-            <AnalysisResultView
-              result={job.result}
-              reportMarkdown={job.report_markdown}
-            />
-          ) : job.result?.kind === 'video_article' ? (
-            <AnalysisArticleResultView
+          {isVideoAnalysisResult(job.result) ? (
+            <AnalysisVideoResult
               result={job.result}
               reportMarkdown={job.report_markdown}
             />

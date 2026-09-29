@@ -818,7 +818,8 @@ CREATE TABLE IF NOT EXISTS analysis_jobs (
     ),
     CONSTRAINT ck_analysis_jobs_result_contract CHECK (
         result_contract IN (
-            'video-visual-analysis', 'video-article', 'screenplay-analysis', 'screenplay-rewrite'
+            'video-visual-analysis', 'video-article', 'screenplay-analysis', 'screenplay-rewrite',
+            'structured-report'
         )
     ),
     CONSTRAINT ck_analysis_jobs_input_shape CHECK (
@@ -826,7 +827,7 @@ CREATE TABLE IF NOT EXISTS analysis_jobs (
             input_kind = 'video'
             AND artifact_id IS NOT NULL
             AND document_id IS NULL
-            AND result_contract IN ('video-visual-analysis', 'video-article')
+            AND result_contract IN ('video-visual-analysis', 'video-article', 'structured-report')
         ) OR (
             input_kind = 'screenplay'
             AND artifact_id IS NULL
@@ -877,7 +878,8 @@ ALTER TABLE analysis_jobs
     DROP CONSTRAINT IF EXISTS ck_analysis_jobs_result_contract;
 ALTER TABLE analysis_jobs ADD CONSTRAINT ck_analysis_jobs_result_contract
     CHECK (result_contract IN (
-        'video-visual-analysis', 'video-article', 'screenplay-analysis', 'screenplay-rewrite'
+        'video-visual-analysis', 'video-article', 'screenplay-analysis', 'screenplay-rewrite',
+            'structured-report'
     ));
 ALTER TABLE analysis_jobs DROP CONSTRAINT IF EXISTS ck_analysis_jobs_input_shape;
 ALTER TABLE analysis_jobs ADD CONSTRAINT ck_analysis_jobs_input_shape CHECK (
@@ -885,7 +887,7 @@ ALTER TABLE analysis_jobs ADD CONSTRAINT ck_analysis_jobs_input_shape CHECK (
         input_kind = 'video'
         AND artifact_id IS NOT NULL
         AND document_id IS NULL
-        AND result_contract IN ('video-visual-analysis', 'video-article')
+        AND result_contract IN ('video-visual-analysis', 'video-article', 'structured-report')
     ) OR (
         input_kind = 'screenplay'
         AND artifact_id IS NULL
@@ -1045,7 +1047,7 @@ CREATE TABLE IF NOT EXISTS analysis_report_versions (
     CONSTRAINT ck_analysis_report_versions_result_kind CHECK (
         result_json ? 'kind' AND result_json ->> 'kind' IN (
             'video_visual_analysis', 'video_article',
-            'screenplay_analysis', 'screenplay_rewrite'
+            'screenplay_analysis', 'screenplay_rewrite', 'structured_report'
         )
     )
 );
@@ -1101,7 +1103,7 @@ ALTER TABLE analysis_report_versions
     ADD CONSTRAINT ck_analysis_report_versions_result_kind CHECK (
         result_json ? 'kind' AND result_json ->> 'kind' IN (
             'video_visual_analysis', 'video_article',
-            'screenplay_analysis', 'screenplay_rewrite'
+            'screenplay_analysis', 'screenplay_rewrite', 'structured_report'
         )
     );
 ALTER TABLE analysis_report_artifacts DROP COLUMN IF EXISTS expires_at;

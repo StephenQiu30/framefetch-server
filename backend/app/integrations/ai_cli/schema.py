@@ -105,6 +105,40 @@ def video_article_output_schema(language: str) -> dict[str, Any]:
     }
 
 
+def structured_report_output_schema(language: str) -> dict[str, Any]:
+    evidence = _object(
+        ["start_ms", "end_ms", "note"],
+        {"start_ms": _integer(), "end_ms": _integer(), "note": _text()},
+    )
+    section = _object(
+        ["id", "heading", "body", "items", "evidence"],
+        {
+            "id": _identifier(),
+            "heading": _text(),
+            "body": _text(),
+            "items": {"type": "array", "maxItems": 20, "items": _text()},
+            "evidence": {"type": "array", "maxItems": 12, "items": evidence},
+        },
+    )
+    return {
+        "type": "object",
+        "additionalProperties": False,
+        "required": ["language", "title", "summary", "sections", "limitations"],
+        "properties": {
+            "language": {"type": "string", "enum": [language]},
+            "title": _text(),
+            "summary": _text(),
+            "sections": {
+                "type": "array",
+                "minItems": 1,
+                "maxItems": 16,
+                "items": section,
+            },
+            "limitations": {"type": "array", "maxItems": 12, "items": _text()},
+        },
+    }
+
+
 def _shot() -> dict[str, Any]:
     fields = [
         "id",
@@ -279,4 +313,5 @@ def _integer() -> dict[str, Any]:
 _VIDEO_SCHEMAS: dict[AnalysisResultContract, Callable[[str], dict[str, Any]]] = {
     AnalysisResultContract.VIDEO_VISUAL_ANALYSIS: video_visual_output_schema,
     AnalysisResultContract.VIDEO_ARTICLE: video_article_output_schema,
+    AnalysisResultContract.STRUCTURED_REPORT: structured_report_output_schema,
 }

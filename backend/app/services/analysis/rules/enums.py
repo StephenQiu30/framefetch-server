@@ -22,6 +22,7 @@ class AnalysisResultContract(StrEnum):
     VIDEO_ARTICLE = "video-article"
     SCREENPLAY_ANALYSIS = "screenplay-analysis"
     SCREENPLAY_REWRITE = "screenplay-rewrite"
+    STRUCTURED_REPORT = "structured-report"
 
 
 class AnalysisResultKind(StrEnum):
@@ -29,6 +30,7 @@ class AnalysisResultKind(StrEnum):
     VIDEO_ARTICLE = "video_article"
     SCREENPLAY_ANALYSIS = "screenplay_analysis"
     SCREENPLAY_REWRITE = "screenplay_rewrite"
+    STRUCTURED_REPORT = "structured_report"
 
 
 class AnalysisStage(StrEnum):

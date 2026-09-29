@@ -55,7 +55,7 @@ class AnalysisReportVersionRow(Base):
         CheckConstraint(
             "result_json ? 'kind' AND result_json ->> 'kind' IN ("
             "'video_visual_analysis','video_article',"
-            "'screenplay_analysis','screenplay_rewrite')",
+            "'screenplay_analysis','screenplay_rewrite','structured_report')",
             name="ck_analysis_report_versions_result_kind",
         ).ddl_if(dialect="postgresql"),
     )

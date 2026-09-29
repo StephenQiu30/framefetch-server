@@ -26,6 +26,10 @@ from app.services.analysis.rules.result_models import (
     VideoArticleResult,
 )
 from app.services.analysis.rules.result_validation import validate_analysis_result
+from app.services.analysis.rules.structured_report import StructuredReportResult
+from app.services.analysis.rules.structured_report_parser import (
+    parse_structured_report_result,
+)
 from app.services.analysis.rules.video_article_parser import parse_video_article_result
 from app.services.analysis.rules.video_scene import VideoScene
 
@@ -37,7 +41,7 @@ def parse_analysis_result(
     expected_language: str,
     result_contract: str = AnalysisResultContract.VIDEO_VISUAL_ANALYSIS.value,
     limits: AnalysisLimits | None = None,
-) -> VideoAnalysisResult | VideoArticleResult:
+) -> VideoAnalysisResult | VideoArticleResult | StructuredReportResult:
     """Strictly parse a video contract's model output."""
     parser = _VIDEO_PARSERS.get(contract_for(result_contract).contract)
     if parser is None:
@@ -210,8 +214,10 @@ def _referenced(
 
 
 _VIDEO_PARSERS: dict[
-    AnalysisResultContract, Callable[..., VideoAnalysisResult | VideoArticleResult]
+    AnalysisResultContract,
+    Callable[..., VideoAnalysisResult | VideoArticleResult | StructuredReportResult],
 ] = {
     AnalysisResultContract.VIDEO_VISUAL_ANALYSIS: parse_visual_analysis_result,
     AnalysisResultContract.VIDEO_ARTICLE: parse_video_article_result,
+    AnalysisResultContract.STRUCTURED_REPORT: parse_structured_report_result,
 }

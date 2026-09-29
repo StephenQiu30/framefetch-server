@@ -10,6 +10,9 @@ from app.repositories.analysis.screenplay_serialization import (
     screenplay_analysis_from_document,
 )
 from app.repositories.analysis.storage_fields import dataclass_document, mapping
+from app.repositories.analysis.structured_report_serialization import (
+    structured_report_from_document,
+)
 from app.repositories.analysis.video_article_serialization import (
     video_article_from_document,
 )
@@ -29,6 +32,7 @@ _FROM_DOCUMENT: dict[AnalysisResultKind, Callable[[dict[str, Any]], AnalysisResu
     AnalysisResultKind.VIDEO_ARTICLE: video_article_from_document,
     AnalysisResultKind.SCREENPLAY_ANALYSIS: screenplay_analysis_from_document,
     AnalysisResultKind.SCREENPLAY_REWRITE: screenplay_rewrite_from_document,
+    AnalysisResultKind.STRUCTURED_REPORT: structured_report_from_document,
 }
 
 

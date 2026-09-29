@@ -24,6 +24,7 @@ from app.services.analysis.rules.screenplay_results import (
     ScreenplayAnalysisResult,
     ScreenplayRewriteResult,
 )
+from app.services.analysis.rules.structured_report import StructuredReportResult
 
 
 @dataclass(frozen=True, slots=True)
@@ -66,6 +67,12 @@ RESULT_CONTRACTS: tuple[ResultContract, ...] = (
         AnalysisInputKind.SCREENPLAY,
         ScreenplayRewriteResult,
         language_field="target_language",
+    ),
+    ResultContract(
+        AnalysisResultContract.STRUCTURED_REPORT,
+        AnalysisResultKind.STRUCTURED_REPORT,
+        AnalysisInputKind.VIDEO,
+        StructuredReportResult,
     ),
 )
 

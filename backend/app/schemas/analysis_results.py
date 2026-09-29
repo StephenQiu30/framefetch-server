@@ -181,11 +181,32 @@ class ScreenplayRewriteResultResponse(StrictModel):
     change_summary: tuple[str, ...]
 
 
+class StructuredReportSectionResponse(StrictModel):
+    id: str
+    heading: str
+    body: str
+    items: tuple[str, ...]
+    evidence: tuple[VideoArticleEvidenceResponse, ...]
+
+
+class StructuredReportResultResponse(StrictModel):
+    kind: Literal["structured_report"] = Field(
+        json_schema_extra={"enum": ["structured_report"]}
+    )
+    language: str
+    title: str
+    summary: str
+    sections: tuple[StructuredReportSectionResponse, ...]
+    limitations: tuple[str, ...]
+    media: AnalysisMediaResponse
+
+
 AnalysisResultResponse: TypeAlias = Annotated[  # noqa: UP040
     VideoAnalysisResultResponse
     | VideoArticleResultResponse
     | ScreenplayAnalysisResultResponse
-    | ScreenplayRewriteResultResponse,
+    | ScreenplayRewriteResultResponse
+    | StructuredReportResultResponse,
     Field(discriminator="kind"),
 ]
 

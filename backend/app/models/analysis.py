@@ -60,14 +60,15 @@ class AnalysisJobRow(Base):
         ),
         CheckConstraint(
             "result_contract IN ("
-            "'video-visual-analysis','video-article','screenplay-analysis','screenplay-rewrite'"
+            "'video-visual-analysis','video-article','screenplay-analysis',"
+            "'screenplay-rewrite','structured-report'"
             ")",
             name="ck_analysis_jobs_result_contract",
         ),
         CheckConstraint(
             "(input_kind = 'video' AND artifact_id IS NOT NULL "
             "AND document_id IS NULL AND result_contract IN ("
-            "'video-visual-analysis','video-article')) "
+            "'video-visual-analysis','video-article','structured-report')) "
             "OR (input_kind = 'screenplay' AND artifact_id IS NULL "
             "AND document_id IS NOT NULL AND result_contract IN ("
             "'screenplay-analysis','screenplay-rewrite'))",

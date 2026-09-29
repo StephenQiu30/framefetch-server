@@ -1,5 +1,4 @@
 import { Robot } from '@phosphor-icons/react';
-
 import AnalysisDeleteDialog from '@/components/analysis/analysis-delete-dialog';
 import {
   AnalysisStatusCode,
@@ -9,6 +8,7 @@ import {
   statusLabels,
 } from '@/components/analysis/analysis-panel-model';
 import AnalysisStorageNotice from '@/components/analysis/analysis-storage-notice';
+import { isVideoAnalysisResult } from '@/components/analysis/analysis-video-result';
 import type { useAnalysisJob } from '@/components/analysis/use-analysis-job';
 import { PageErrorNotice } from '@/components/layout/page-error-notice';
 import { ScreenplayResultView } from '@/components/screenplay/screenplay-result-view';
@@ -111,7 +111,7 @@ export function ScreenplayAnalysisJobState({
           onDelete={state.remove}
         />
       </div>
-      {job.result && job.result.kind !== 'video_visual_analysis' ? (
+      {job.result && !isVideoAnalysisResult(job.result) ? (
         <div className="mt-10 pt-10">
           <Badge variant="secondary">上一版本结果</Badge>
           <ScreenplayResultView
