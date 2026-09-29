@@ -36,15 +36,15 @@
 
 ## 最新动态
 
-**未发布 · 登录态改为现读本机 Chrome**
+**未发布 · 专用浏览器与原任务恢复**
 
-- 移除 `./start`、会话数据库副本、`session-browser` 与保活状态机：每次解析时从你自己的 Chrome 现读登录态。
+- 删除日常 Chrome 数据库与钥匙串读取，改用平台专用持久浏览器；缺登录时保留原任务等待处理。
 - 新增 `migrate` 容器应用数据库结构，冷启动只需 `docker compose up -d --wait`。
 - TikTok 改走 yt-dlp 官方维护的提取器；金丝雀默认探测仓库自带的公开样例。
 
 **[v0.2.0](https://github.com/StephenQiu30/video-server/releases/tag/v0.2.0) · 容器自持平台会话**
 
-- 平台账号来源当前由宿主 Chrome 接入和 `session-broker` 按需提供，不自动保活；专用持久浏览器与登录恢复正在重设计，实施状态见[设计文档](docs/design/15-工作流与平台下载目标.md)。
+- 平台账号来源按需提供，不自动保活；当前专用浏览器与登录恢复的实施状态见[设计文档](docs/design/15-工作流与平台下载目标.md)。
 - 在线解析统一走站点会话路线，移除匿名与访客执行路线，结果以真实文件验收为准。
 - Web 体验：头像上传与个人资料、统一的解析结果双栏卡片、可恢复错误提示与 shadcn 组件整理。
 
@@ -121,12 +121,12 @@ Web 实例提供公开页面：`/guide/` 使用指南、`/self-hosting/` 自托�
 
 ## 快速开始
 
-本机开发使用 `docker-compose.yml`，生产使用 `docker-compose-prod.yml`。固定公开平台走原生公开接口，其余平台使用你本机 Chrome 的登录态；Chrome 未登录时明确提示登录，不自动切换路线。提取器存在、Cookie 存在与服务健康均不代表媒体可下载，必须以真实文件结果验收。
+本机开发使用 `docker-compose.yml`，生产使用 `docker-compose-prod.yml`。固定公开平台走原生公开接口，其余平台使用平台专用浏览器的登录态；未登录时明确提示登录，不自动切换路线。提取器存在、Cookie 存在与服务健康均不代表媒体可下载，必须以真实文件结果验收。
 
 ### 前置条件
 
 - Docker Engine 与 Docker Compose
-- macOS 自动接入入口需要 uv、本机 Chrome 中已有的平台登录态及一次系统读取授权
+- macOS 登录来源需要 uv 和 Playwright Chromium，首次在专用浏览器中登录平台
 - 本机已运行 PostgreSQL、RabbitMQ、Redis 和 MinIO，已有配置直接复用
 - 用于生产部署时，需要自行提供强随机密钥和公开访问地址
 
@@ -139,8 +139,9 @@ test -f .env || cp .env.example .env
 
 # 确认 .env 连接本机已运行的 PostgreSQL、RabbitMQ、Redis 与 MinIO
 
-# 一次性：安装 Chrome 登录态服务（用户登录后自启、崩溃自动重启）
-uv run --project backend python -m app.workers.session.chrome_agent install --env-file .env
+# 一次性：安装专用浏览器来源（用户登录后自启、崩溃自动重启）
+uv run --project backend --group browser playwright install chromium
+uv run --project backend python -m app.workers.session.source_cli install --env-file .env
 
 # 启动：migrate 容器先应用幂等的 backend/sql/schema.sql，其余服务随后启动
 docker compose up -d --build --wait --remove-orphans
@@ -156,7 +157,7 @@ rabbitmqctl set_permissions -p video video-worker "$DL" "$DL" "$DL|^video\.impor
 
 `--remove-orphans` 会移除已退役的 `outbox`、`worker-*`、`provider-canary`、`provider-lease-redis` 与 `workspace-init` 容器，旧的 outbox／download／import／report 账号随后可删除。
 
-agent 安装后会执行来源检查；未登录站点可能让检查返回非零，这不等于系统服务安装失败。公开平台不依赖 Chrome 登录态；需要登录的平台按检查结果完成授权与登录。
+安装只启动来源服务；`source_cli check` 按需检查，未登录时返回待处理。公开平台不依赖登录来源。
 
 全新空库还没有登录账号时，在部署机终端执行一次首管理员初始化（需使用可连接 PostgreSQL 的 `DATABASE_URL`，密码交互输入，不进入命令行历史）：
 
@@ -186,18 +187,22 @@ createdb -O framefetch_temporal framefetch_temporal_visibility
 
 ### 平台登录态（需要登录的平台）
 
-帧取是单人自用工具，**你日常使用的 Chrome 就是唯一的登录态来源**：每次解析前现读对应站点的 Cookie，用完即丢，不另存副本、不另开浏览器保活。重新登录后，agent 会在 20 秒内存缓存过期后读取新状态；平台是否接受该状态仍由实际解析与下载验证。broker 只负责按需中继，不扫描、预热或保存回写结果。
-
-- 首次安装后运行 `uv run --project backend python -m app.workers.session.chrome_agent check --env-file .env` 查看各站点是否已登录；它会打印需要在“系统设置 → 隐私与安全性 → 完全磁盘访问权限”中添加的程序路径，并在钥匙串弹窗中对“Chrome Safe Storage”选择“始终允许”。
-- 多个 Chrome Profile 登录了同一平台时，在 `.env` 的 `SITE_SESSION_SOURCE_PROFILES` 指定一个。
-- 卸载：`uv run --project backend python -m app.workers.session.chrome_agent uninstall`。设计见[平台会话](docs/design/08-平台会话.md)。
-
-媒体内部接口已统一为 `/internal/inspect`、`/internal/download` 等直接命名，宿主来源为 `/cookies`，不保留带代际前缀的路径。升级时先暂停新媒体任务并排空在途操作，再配套重建 API、worker、session-runner、session-broker，并重新运行上述 `chrome_agent install` 更新宿主服务；不能混用新旧镜像或只更新客户端。此次改名不修改业务数据库结构。
-
-生产配置使用独立的环境文件与 Compose 文件，同样需要本机 Chrome 登录态服务：
+每个平台使用帧取的独立持久浏览器 Profile。首次解析需要登录的平台时，点击“打开平台登录”，在弹出的专用浏览器中登录，再点击“已处理，继续解析”。无需读取日常 Chrome 或授权钥匙串。任务会释放执行资源并等待，最多保留 24 小时；可以从历史记录继续或取消。
 
 ```bash
-uv run --project backend python -m app.workers.session.chrome_agent install --env-file .env.prod
+uv run --project backend --group browser playwright install chromium
+uv run --project backend python -m app.workers.session.source_cli install --env-file .env
+# 也可按站点手动打开首次登录窗口
+uv run --project backend python -m app.workers.session.source_cli login --site youtube.com --env-file .env
+uv run --project backend python -m app.workers.session.source_cli check --env-file .env
+```
+
+Profile 默认保存在 `~/Library/Application Support/FrameFetch/Browsers`，可通过 `SITE_SESSION_PROFILE_ROOT` 指定专用目录；不要指向日常浏览器目录。`SITE_SESSION_BROWSER_PROXY` 默认连接已有出口代理 `http://127.0.0.1:13128`。卸载服务使用 `source_cli uninstall`，不会删除 Profile 或业务数据。来源重启会使旧解析上下文失效，需要重新解析。来源检查不代表真实下载可用，见[平台会话设计](docs/design/08-平台会话.md)。
+
+升级时先暂停接单并排空在途媒体操作，再配套重建 API、worker、session-runner、session-broker 和前端，并执行上述安装命令。安装会停止旧 Chrome 来源服务。密封租约直接从浏览器来源发给 Runner，中继不再解密材料；不要混用新旧镜像。生产使用同一套入口：
+
+```bash
+uv run --project backend python -m app.workers.session.source_cli install --env-file .env.prod
 docker compose --env-file .env.prod -f docker-compose-prod.yml up -d --build --wait --remove-orphans
 ```
 
@@ -273,7 +278,7 @@ flowchart LR
 
 - 只处理你拥有相应权利的内容，并遵守内容来源、所在地和部署环境适用的法律与平台规则。
 - Provider 只接受公开、免费、非 DRM 的 HTTP(S) 内容；私网 URL、任意 yt-dlp 参数和 shell 输入始终禁止。
-- 普通业务请求不接收原始 Cookie。登录态只从本机 Chrome 按次读取，经密封信道交给 `session-runner`，明文只进入其 tmpfs，操作结束即销毁，不落库、不进入日志或其他 Worker。见[平台会话设计](docs/design/08-平台会话.md)。
+- 普通业务请求不接收原始 Cookie。登录态只从平台专用 Profile 按次读取，经密封信道交给 `session-runner`，明文只进入其 tmpfs，操作结束即销毁，不落库、不进入日志或其他 Worker。见[平台会话设计](docs/design/08-平台会话.md)。
 - Edge Agent 只能传输用户已合法取得并明确选择的明文文件，不能读取平台会话、拦截流量、提取密钥或转换受保护媒体。
 - 外部媒体访问必须经过阻断私网的出口代理；入口 URL 校验不能替代网络隔离。
 

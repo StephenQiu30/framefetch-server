@@ -34,8 +34,8 @@ class FakeSiteSessions:
             raise RunnerFailure("provider_session_not_ready", status=503)
         return self.revisions[site]
 
-    async def lease(self, site: str, seed_revision: int) -> bytes:
-        self.leases.append((site, seed_revision))
+    async def lease(self, site: str, source_generation: int) -> bytes:
+        self.leases.append((site, source_generation))
         return COOKIE
 
     async def close(self) -> None:

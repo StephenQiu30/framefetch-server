@@ -11,7 +11,7 @@ from app.services.providers import ProviderEvidenceState, ProviderStatusView
 
 
 class ProviderRuntimeResponse(StrictModel):
-    # Live: whether the Runner could read this site's login from local Chrome.
+    # Live: whether the Runner could read this site's login from dedicated profiles.
     login_state: Literal["not_required", "signed_in", "unavailable"]
     session_site: str | None = None
     provider_key: str

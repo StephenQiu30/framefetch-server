@@ -21,6 +21,7 @@ from app.workers.runner.contracts import (
     ProviderContextRequest,
     ProviderContextsRequest,
     ProviderContextsResponse,
+    ProviderLoginRequest,
     TaskStatusResponse,
 )
 from app.workers.runner.engine_catalog import RunnerEngineCatalog
@@ -181,6 +182,13 @@ def create_app(
         if configured.runner_access_mode is not ProviderAccessMode.ANONYMOUS:
             raise RunnerFailure("engine_catalog_unavailable", status=503)
         return await engine_catalog.get()
+
+    @app.post("/internal/site-sessions/login")
+    async def login(request: Request) -> dict[str, bool]:
+        body = await _authenticated_body(request, configured, authenticator)
+        payload = _parse(ProviderLoginRequest, body)
+        await sessions.login(payload.url, finish=payload.finish)
+        return {"opened": not payload.finish}
 
     @app.post("/internal/inspect", response_model=InspectResponse)
     async def inspect(request: Request) -> InspectResponse:

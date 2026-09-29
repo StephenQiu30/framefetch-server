@@ -36,7 +36,7 @@ async def leased_store(tmp_path):
     async def broker(request):
         requests.append(request.url.path)
         if request.url.path == STATUS_PATH:
-            response = StatusResponse(site="youtube.com", seed_revision=1)
+            response = StatusResponse(site="youtube.com", source_generation=1)
         elif request.url.path == LEASE_PATH:
             body = LeaseRequest.model_validate_json(request.content)
             expires_at = int(time.time()) + 600
@@ -44,12 +44,12 @@ async def leased_store(tmp_path):
                 COOKIE,
                 decode_public_key(body.public_key),
                 associated_data=lease_associated_data(
-                    "jar", body.task_id, body.site, body.seed_revision, expires_at
+                    "jar", body.task_id, body.site, body.source_generation, expires_at
                 ),
             )
             response = LeaseResponse(
                 site=body.site,
-                seed_revision=body.seed_revision,
+                source_generation=body.source_generation,
                 expires_at=expires_at,
                 jar=encode(jar),
             )

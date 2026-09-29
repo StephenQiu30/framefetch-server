@@ -410,13 +410,25 @@ export default function DownloadWorkspace() {
                 snapshot.status === IntentStatusCode.ActionRequired)) ? (
               <>
                 {snapshot?.status === IntentStatusCode.ActionRequired ? (
-                  <Button
-                    disabled={intent.cancelling || !!intent.attempt?.submitting}
-                    onClick={() => void intent.resume()}
-                    size="sm"
-                  >
-                    已处理，继续解析
-                  </Button>
+                  <>
+                    <Button
+                      disabled={intent.openingLogin || intent.cancelling}
+                      onClick={() => void intent.openLogin()}
+                      size="sm"
+                      variant="outline"
+                    >
+                      {intent.openingLogin ? '正在打开…' : '打开平台登录'}
+                    </Button>
+                    <Button
+                      disabled={
+                        intent.cancelling || !!intent.attempt?.submitting
+                      }
+                      onClick={() => void intent.resume()}
+                      size="sm"
+                    >
+                      已处理，继续解析
+                    </Button>
+                  </>
                 ) : null}
                 {intent.resultExpired && !intent.pending ? (
                   <Button

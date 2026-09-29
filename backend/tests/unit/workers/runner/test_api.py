@@ -25,6 +25,7 @@ def test_internal_media_contract_has_only_direct_operation_paths(tmp_path):
     } == {
         "/internal/engine-catalog",
         "/internal/context",
+        "/internal/site-sessions/login",
         "/internal/contexts",
         "/internal/inspect",
         "/internal/download",

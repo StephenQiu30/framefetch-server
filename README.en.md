@@ -35,15 +35,15 @@ FrameFetch is not designed to circumvent platform restrictions. By default it on
 
 ## What's new
 
-**Unreleased · Login state read live from your Chrome**
+**Unreleased · Dedicated browsers and resumable login waits**
 
-- `./start`, the stored session copy, `session-browser` and the keep-alive state machine are gone: each parse reads the site's cookies from your own Chrome.
+- Daily Chrome database and keychain reads are replaced by dedicated persistent platform profiles. Login failures now retain the original task for user action.
 - A `migrate` container applies the schema, so `docker compose up -d --wait` is the whole cold start.
 - TikTok now uses yt-dlp's maintained extractor; the provider canary probes the bundled public samples by default.
 
 **[v0.2.0](https://github.com/StephenQiu30/video-server/releases/tag/v0.2.0) · Container-owned platform sessions**
 
-- One command, `./start`, applies the schema, discovers platform logins from your local Chrome, registers them encrypted, has the containers verify them and starts every business service.
+- One command, `./start`, applies the schema, discovers platform logins from dedicated platform profiles, registers them encrypted, has the containers verify them and starts every business service.
 - Platform sessions are owned by `session-broker` and a containerized session browser: cold-start recovery, keep-alive, invalidation detection and automatic rotation. Users just paste a link.
 - Online parsing always uses the site-session route; the anonymous and guest execution routes were removed, and success is judged by a real downloaded file.
 - Web UX: avatar upload and profile page, unified two-column result cards, recoverable error notices and shadcn component clean-up.
@@ -114,12 +114,12 @@ The web application includes media inspection and download, job history and deta
 
 ## Quick start
 
-Use `docker-compose.yml` for local development and `docker-compose-prod.yml` for production. Fixed public platforms use their native public interfaces; every other platform uses the login state of your local Chrome. When Chrome is not signed in, FrameFetch asks you to sign in instead of silently switching routes. An installed extractor, an existing cookie or a healthy service does not prove that media can be downloaded; only a real file result does.
+Use `docker-compose.yml` for local development and `docker-compose-prod.yml` for production. Fixed public platforms use their native public interfaces; every other platform uses the login state of dedicated platform profiles. When the dedicated browser is not signed in, FrameFetch asks you to sign in instead of silently switching routes. An installed extractor, an existing cookie or a healthy service does not prove that media can be downloaded; only a real file result does.
 
 ### Requirements
 
 - Docker Engine and Docker Compose
-- For the automatic macOS entry point: `uv`, platform logins already present in your local Chrome, and a one-time system read permission
+- For the macOS login source: `uv`, Playwright Chromium, and first login in the dedicated browser
 - Existing PostgreSQL, RabbitMQ, Redis and MinIO services; reuse their addresses and credentials
 - Strong random secrets and a public origin before any internet-facing deployment
 
@@ -132,8 +132,9 @@ test -f .env || cp .env.example .env
 
 # Configure .env to reuse existing PostgreSQL, RabbitMQ, Redis and MinIO
 
-# Once: install the Chrome login-state agent (starts at login, restarts on crash)
-uv run --project backend python -m app.workers.session.chrome_agent install --env-file .env
+# Once: install the dedicated browser source
+uv run --project backend --group browser playwright install chromium
+uv run --project backend python -m app.workers.session.source_cli install --env-file .env
 
 # Start: the migrate container applies the idempotent backend/sql/schema.sql first
 docker compose up -d --build --wait --remove-orphans
@@ -141,7 +142,7 @@ docker compose up -d --build --wait --remove-orphans
 
 Every containerized background loop (Outbox dispatch, inspection and downloads, imports, report publication, provider canaries) runs in one `worker` container with one RabbitMQ account, `RABBITMQ_WORKER_USER` / `RABBITMQ_WORKER_PASS`, which needs configure/write/read on `RABBITMQ_VHOST`. When upgrading from the former multi-worker topology, create that account first; `--remove-orphans` removes the retired `outbox`, `worker-*`, `provider-canary`, `provider-lease-redis` and `workspace-init` containers.
 
-Agent installation also runs a source check. Missing site logins may produce a nonzero check result even after the system service was installed. Fixed public platforms do not require Chrome login state; configure permissions and sign in for the platforms that do.
+Installation starts the source. Run `source_cli check` separately; public platforms do not require a login source.
 
 For an empty user table, create the first administrator on the deployment host. The command prompts for a password, refuses to run once any user exists, and does not expose a remote bootstrap endpoint:
 
@@ -152,16 +153,21 @@ uv run --project backend python -m app.workers.bootstrap_admin \
 
 ### Platform login state
 
-FrameFetch is a single-user tool: **the Chrome you use every day is the only source of platform login state.** Each parse reads the site's cookies live and discards them afterwards; no copy is stored and no second browser keeps it alive. After signing in again, the agent reads the new state once its 20-second memory cache expires; an actual parse or download must still verify that the platform accepts it. The broker relays requests on demand, without background scans, warmup timers or cookie writeback.
-
-- After installing, run `uv run --project backend python -m app.workers.session.chrome_agent check --env-file .env` to see which sites are signed in. It prints the binary to add under System Settings → Privacy & Security → Full Disk Access; choose "Always Allow" for "Chrome Safe Storage" in the keychain prompt.
-- If several Chrome profiles are signed in to one platform, pin one with `SITE_SESSION_SOURCE_PROFILES` in `.env`.
-- Uninstall with `uv run --project backend python -m app.workers.session.chrome_agent uninstall`. See the [platform session design](docs/design/08-平台会话.md) (Chinese).
-
-The production configuration uses its own env and Compose files and needs the same Chrome agent:
+Each supported account site has its own persistent Playwright Chromium profile. Select **Open platform login** on a waiting task, sign in in that dedicated browser, then continue the same task. No daily Chrome database or keychain access is needed. Waiting releases execution resources, lasts at most 24 hours, and is recoverable from history.
 
 ```bash
-uv run --project backend python -m app.workers.session.chrome_agent install --env-file .env.prod
+uv run --project backend --group browser playwright install chromium
+uv run --project backend python -m app.workers.session.source_cli install --env-file .env
+uv run --project backend python -m app.workers.session.source_cli login --site youtube.com --env-file .env
+uv run --project backend python -m app.workers.session.source_cli check --env-file .env
+```
+
+Profiles live in `~/Library/Application Support/FrameFetch/Browsers` (`SITE_SESSION_PROFILE_ROOT`). The dedicated browser uses `SITE_SESSION_BROWSER_PROXY`, defaulting to the existing local egress proxy at `http://127.0.0.1:13128`. Never point the root at your daily browser. `source_cli uninstall` removes only the service. Restarting the source invalidates old inspection contexts conservatively. A readable source does not prove download availability.
+
+Drain media operations before upgrading API, worker, Runner, relay and frontend together. Install the source with the matching environment file; installation retires the old Chrome source service. The relay forwards end-to-end sealed leases without decrypting them. For production:
+
+```bash
+uv run --project backend python -m app.workers.session.source_cli install --env-file .env.prod
 docker compose --env-file .env.prod -f docker-compose-prod.yml up -d --build --wait --remove-orphans
 ```
 
@@ -235,7 +241,7 @@ See [docs/design/README.md](docs/design/README.md) for the maintained system des
 
 - Process only content you are legally authorized to download or analyze.
 - Providers accept only public, free and non-DRM HTTP(S) content. Private-network URLs, arbitrary yt-dlp arguments and shell input are always rejected.
-- Normal API requests never accept raw cookies. Login state is read per operation from the local Chrome and handed to `session-runner` over a sealed channel; the clear copy lives only in its tmpfs and is destroyed when the operation ends. See the [platform session design](docs/design/08-平台会话.md).
+- Normal API requests never accept raw cookies. Login state is read per operation from dedicated platform profiles and handed to `session-runner` over a sealed channel; the clear copy lives only in its tmpfs and is destroyed when the operation ends. See the [platform session design](docs/design/08-平台会话.md).
 - An edge agent may transfer only a clear file the user has legally obtained and explicitly selected. It must not inspect platform sessions, intercept traffic, extract content keys or transform protected media.
 - External media access must pass through an egress proxy that blocks private networks; input validation is not a substitute for network isolation.
 

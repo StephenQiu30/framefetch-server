@@ -7,6 +7,7 @@ import {
   createDownloadIntent,
   findDownloadIntent,
   getDownloadIntent,
+  openDownloadIntentLogin,
   refreshDownloadIntent,
   resumeDownloadIntent,
 } from '@/api/downloadIntents';
@@ -41,6 +42,7 @@ export function useDownloadIntent() {
   const writing = useRef(false);
   const [restored, setRestored] = useState(false);
   const [operationError, setOperationError] = useState<string | null>(null);
+  const [openingLogin, setOpeningLogin] = useState(false);
   const [cancelling, setCancelling] = useState(false);
   const intentRoot = privateQueryKey('download-intent');
   const key = [
@@ -217,6 +219,22 @@ export function useDownloadIntent() {
     }
   }
 
+  async function openLogin() {
+    if (!intent.data?.authorization_id || openingLogin) return;
+    setOpeningLogin(true);
+    setOperationError(null);
+    try {
+      await openDownloadIntentLogin(
+        { intent_id: intent.data.id },
+        { authorization_id: intent.data.authorization_id },
+      );
+    } catch (error) {
+      setOperationError(displayError(error));
+    } finally {
+      setOpeningLogin(false);
+    }
+  }
+
   async function refresh(resume = false) {
     if (
       !intent.data ||
@@ -295,6 +313,8 @@ export function useDownloadIntent() {
       intent.error instanceof ApiError &&
       intent.error.status === 404,
     cancelling,
+    openingLogin,
+    openLogin,
     restored,
     submit,
     cancel,

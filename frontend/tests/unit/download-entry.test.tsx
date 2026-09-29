@@ -224,6 +224,7 @@ it('restores a login wait after the execution deadline and resumes the original 
   );
   mockHttpResponses(
     waiting,
+    null,
     intentFixture({ status: 'queued', inspection_id: null }),
   );
   renderEntry();
@@ -242,6 +243,19 @@ it('restores a login wait after the execution deadline and resumes the original 
         '[data-sonner-toast][data-type="loading"]:not([data-removed="true"])',
       ),
     ).toBeNull(),
+  );
+  fireEvent.click(screen.getByRole('button', { name: '打开平台登录' }));
+  await waitFor(() =>
+    expect(httpRequests()).toContainEqual(
+      expect.objectContaining({
+        method: 'POST',
+        url: `/api/download-intents/${waiting.id}/login`,
+        data: { authorization_id: waiting.authorization_id },
+      }),
+    ),
+  );
+  await waitFor(() =>
+    expect(screen.getByRole('button', { name: '打开平台登录' })).toBeEnabled(),
   );
   fireEvent.click(resume);
   await waitFor(() =>

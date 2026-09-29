@@ -66,6 +66,25 @@ export async function cancelDownloadIntent(
   );
 }
 
+/** 打开当前任务的平台专用登录浏览器 POST /api/download-intents/${param0}/login */
+export async function openDownloadIntentLogin(
+  // 叠加生成的Param类型 (非body参数swagger默认没有生成对象)
+  params: API.openDownloadIntentLoginParams,
+  body: API.IntentResumeRequest,
+  options?: RequestOptions
+) {
+  const { intent_id: param0, ...queryParams } = params;
+  return request<any>(`/api/download-intents/${param0}/login`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    params: { ...queryParams },
+    data: body,
+    ...(options || {}),
+  });
+}
+
 /** 在原意图与剩余预算内更新过期解析结果 POST /api/download-intents/${param0}/refresh */
 export async function refreshDownloadIntent(
   // 叠加生成的Param类型 (非body参数swagger默认没有生成对象)

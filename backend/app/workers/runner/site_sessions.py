@@ -14,9 +14,12 @@ from app.workers.runner.provider_session_files import validated_cookie_payload
 from app.workers.runner.provider_session_headers import yuanbao_session_cookie_jar
 from app.workers.session.contracts import (
     LEASE_PATH,
+    LOGIN_PATH,
     STATUS_PATH,
     LeaseRequest,
     LeaseResponse,
+    LoginRequest,
+    LoginResponse,
     StatusRequest,
     StatusResponse,
     lease_associated_data,
@@ -34,8 +37,8 @@ from cryptography.hazmat.primitives.asymmetric.x25519 import X25519PrivateKey
 _TIMEOUT_SECONDS = 90
 
 
-def context_version(site: str, seed_revision: int) -> str:
-    return f"{site}:{seed_revision}"
+def context_version(site: str, source_generation: int) -> str:
+    return f"{site}:{source_generation}"
 
 
 def parse_context_version(value: str | None) -> tuple[str, int]:
@@ -50,6 +53,14 @@ class SiteSessionClient:
         self._http = httpx.AsyncClient(base_url=base_url, timeout=_TIMEOUT_SECONDS)
         self._client = SignedClient(self._http, secret)
 
+    async def login(self, site: str, *, finish: bool = False) -> None:
+        try:
+            await self._client.post(
+                LOGIN_PATH, LoginRequest(site=site, finish=finish), LoginResponse
+            )
+        except RpcError as exc:
+            raise _failure(exc) from exc
+
     async def ready_revision(self, site: str) -> int:
         try:
             response = await self._client.post(
@@ -57,9 +68,11 @@ class SiteSessionClient:
             )
         except RpcError as exc:
             raise _failure(exc) from exc
-        return response.seed_revision
+        if response.site != site:
+            raise RunnerFailure("provider_session_not_ready", status=503)
+        return response.source_generation
 
-    async def lease(self, site: str, seed_revision: int) -> bytes:
+    async def lease(self, site: str, source_generation: int) -> bytes:
         """Return a validated Netscape payload for one operation only."""
         key = X25519PrivateKey.generate()
         task_id = secrets.token_urlsafe(16)
@@ -69,14 +82,18 @@ class SiteSessionClient:
                 LeaseRequest(
                     task_id=task_id,
                     site=site,
-                    seed_revision=seed_revision,
+                    source_generation=source_generation,
                     public_key=encode(public_key(key)),
                 ),
                 LeaseResponse,
             )
         except RpcError as exc:
             raise _failure(exc) from exc
-        if grant.expires_at <= time.time():
+        if (
+            grant.site != site
+            or grant.source_generation != source_generation
+            or grant.expires_at <= time.time()
+        ):
             raise RunnerFailure("provider_session_not_ready", status=503)
 
         def opened(kind: str, value: str) -> bytes:
@@ -84,7 +101,7 @@ class SiteSessionClient:
                 decode(value),
                 key,
                 associated_data=lease_associated_data(
-                    kind, task_id, site, seed_revision, grant.expires_at
+                    kind, task_id, site, source_generation, grant.expires_at
                 ),
             )
 
@@ -116,8 +133,10 @@ class SiteSessionClient:
 
 def _failure(error: RpcError) -> RunnerFailure:
     if error.code == "credential_required":
-        # The operator is not logged in to this site in Chrome.
+        # The operator is not logged in to this dedicated site profile.
         return RunnerFailure("credential_required", status=422)
+    if error.code == "credential_revoked":
+        return RunnerFailure("credential_revoked", status=422)
     if error.code == "provider_session_not_ready":
         return RunnerFailure("provider_session_not_ready", status=503)
     return RunnerFailure("provider_session_unavailable", status=503)

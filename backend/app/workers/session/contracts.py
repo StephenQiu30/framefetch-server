@@ -11,6 +11,7 @@ from typing import Annotated, Final
 from pydantic import BaseModel, ConfigDict, Field, StringConstraints
 
 STATUS_PATH: Final = "/internal/site-sessions/status"
+LOGIN_PATH: Final = "/internal/site-sessions/login"
 LEASE_PATH: Final = "/internal/site-sessions/lease"
 
 Site = Annotated[str, StringConstraints(pattern=r"^[a-z0-9.-]{3,253}$")]
@@ -31,28 +32,37 @@ class StatusRequest(_Strict):
     site: Site
 
 
+class LoginRequest(StatusRequest):
+    finish: bool = False
+
+
+class LoginResponse(_Strict):
+    site: Site
+    opened: bool
+
+
 class StatusResponse(_Strict):
     site: Site
-    seed_revision: int = Field(ge=1)
+    source_generation: int = Field(ge=1)
 
 
 class LeaseRequest(_Strict):
     task_id: TaskId
     site: Site
-    seed_revision: int = Field(ge=1)
+    source_generation: int = Field(ge=1)
     public_key: Encoded
 
 
 class LeaseResponse(_Strict):
     site: Site
-    seed_revision: int = Field(ge=1)
+    source_generation: int = Field(ge=1)
     expires_at: int
     jar: Encoded
     headers: Encoded | None = None
 
 
 def lease_associated_data(
-    kind: str, task_id: str, site: str, seed_revision: int, expires_at: int
+    kind: str, task_id: str, site: str, source_generation: int, expires_at: int
 ) -> bytes:
-    fields = (kind, task_id, site, seed_revision, expires_at)
+    fields = (kind, task_id, site, source_generation, expires_at)
     return ("site-session-lease:v1:" + ":".join(map(str, fields))).encode()

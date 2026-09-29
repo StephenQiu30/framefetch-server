@@ -341,7 +341,7 @@ PROVIDER_FAILURE_RULES: tuple[FailureRule, ...] = (
         any_stderr=(b"no video formats found",),
         providers=frozenset({ProviderKey.INSTAGRAM}),
     ),
-    # A platform that asks for cookies needs the operator's Chrome login.
+    # A platform that asks for cookies needs the dedicated platform login.
     FailureRule(
         "provider_session_not_ready",
         503,

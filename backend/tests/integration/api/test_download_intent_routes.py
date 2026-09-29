@@ -470,3 +470,48 @@ async def test_expired_result_refresh_is_an_owned_202_on_the_same_intent(
         app.dependency_overrides[get_current_user] = lambda: TEST_USER
         await service.cancel(item.id, TEST_USER.owner_hash)
         assert (await client.post(path)).status_code == 409
+
+
+async def test_login_control_is_bound_to_owned_current_wait(postgres_engine):
+    from unittest.mock import AsyncMock
+
+    service, repo, _, clock, _ = components(
+        postgres_engine, operator_providers=frozenset({"youtube"})
+    )
+    opener = AsyncMock()
+    service._open_login = opener
+    intent = await service.create(URL, TEST_USER.owner_hash, "login-control")
+    operation = await repo.begin_attempt(intent.id, 0, "prepare", now=clock[0])
+    waiting = await repo.fail(
+        operation.intent, now=clock[0], reason_code="provider_auth_required"
+    )
+    app = create_app(Settings(app_env="test"))
+    app.state.services.intent_service = service
+    app.dependency_overrides[get_current_user] = lambda: TEST_USER
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=app), base_url="http://testserver"
+    ) as client:
+        rejected = await client.post(
+            f"/api/download-intents/{intent.id}/login",
+            json={"authorization_id": str(uuid4())},
+        )
+        assert rejected.status_code == 409
+        opener.assert_not_awaited()
+        opened = await client.post(
+            f"/api/download-intents/{intent.id}/login",
+            json={"authorization_id": str(waiting.authorization_id)},
+        )
+        assert opened.status_code == 204 and not opened.content
+        opener.assert_awaited_once_with(URL)
+        resumed = await client.post(
+            f"/api/download-intents/{intent.id}/resume",
+            json={"authorization_id": str(waiting.authorization_id)},
+        )
+        assert resumed.status_code == 202
+        assert (await repo.get(intent.id, TEST_USER.owner_hash)).status == "queued"
+        stale = await client.post(
+            f"/api/download-intents/{intent.id}/login",
+            json={"authorization_id": str(waiting.authorization_id)},
+        )
+        assert stale.status_code == 409
+        opener.assert_awaited_once()

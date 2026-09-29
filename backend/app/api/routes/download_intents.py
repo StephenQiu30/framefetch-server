@@ -258,3 +258,17 @@ async def resume_intent(
     return IntentResponse.from_snapshot(
         await service.resume(intent_id, user.owner_hash, body.authorization_id)
     )
+
+
+@router.post(
+    "/{intent_id}/login",
+    status_code=204,
+    operation_id="openDownloadIntentLogin",
+    dependencies=[Depends(RateLimitAdmission("inspect"))],
+    summary="打开当前任务的平台专用登录浏览器",
+)
+async def open_intent_login(
+    intent_id: UUID, body: IntentResumeRequest, user: User, service: Service
+) -> Response:
+    await service.login(intent_id, user.owner_hash, body.authorization_id)
+    return Response(status_code=204, headers={"Cache-Control": "no-store"})

@@ -466,9 +466,8 @@ services:
       retries: 12
       start_period: 5s
 
-  # Single-user deployment: the broker relays the operator's live Chrome login
-  # state from the host agent (app.workers.session.chrome_agent) to Runners as
-  # sealed one-task leases. Nothing is stored and nothing is kept alive here.
+  # Network-boundary bridge to the dedicated host browser source. Leases are
+  # sealed directly to Runner keys; this process never decrypts session data.
   session-broker:
     build: *backend-build
     image: video-server:local

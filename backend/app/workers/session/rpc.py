@@ -1,7 +1,7 @@
-"""HMAC-authenticated JSON RPC shared by the session broker and host agent.
+"""HMAC-authenticated JSON RPC shared by the session broker and browser source.
 
 Two independent secrets keep the channels apart: Runners can ask the broker for
-leases but cannot use their RPC secret to authenticate to the host agent.
+leases but cannot use their RPC secret to authenticate to the browser source.
 """
 
 from __future__ import annotations

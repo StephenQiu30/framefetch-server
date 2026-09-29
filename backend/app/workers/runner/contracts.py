@@ -176,6 +176,14 @@ class ProviderContextRequest(ContractModel):
     url: str = Field(min_length=1, max_length=4096)
 
 
+class ProviderLoginResponse(ContractModel):
+    opened: bool
+
+
+class ProviderLoginRequest(ProviderContextRequest):
+    finish: bool = False
+
+
 class ProviderContextsRequest(ContractModel):
     provider_keys: list[str] = Field(min_length=1, max_length=64)
 

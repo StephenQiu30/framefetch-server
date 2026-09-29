@@ -89,7 +89,7 @@ class ProviderCookieDomain(StrEnum):
 class ProviderAccessMode(StrEnum):
     """Privilege boundary for one provider operation.
 
-    OPERATOR_MANAGED carries the operator's own Chrome login for one operation.
+    OPERATOR_MANAGED carries the dedicated platform login for one operation.
     GUEST only appears in persisted history from the retired visitor route.
     """
 

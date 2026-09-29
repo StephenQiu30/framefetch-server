@@ -299,6 +299,18 @@ class IntentRepository:
                 _transition(row, IntentStatus.FAILED, now, "inspection_timeout")
             return _snapshot(row)
 
+    async def waiting_source(
+        self, intent_id: UUID, owner_hash: str, authorization_id: UUID
+    ) -> EncryptedUrl:
+        async with self._sessions() as session:
+            row = await self._owned(session, intent_id, owner_hash)
+            if (
+                row.status != IntentStatus.ACTION_REQUIRED.value
+                or row.authorization_id != authorization_id
+            ):
+                raise RepositoryConflict("intent is not waiting for this action")
+            return EncryptedUrl(row.url_ciphertext, row.url_nonce, row.url_key_id)
+
     async def resume(
         self, intent_id: UUID, owner_hash: str, authorization_id: UUID, *, now: datetime
     ) -> IntentSnapshot:

@@ -73,6 +73,8 @@ from app.workers.runner.contracts import (
     ProviderContextRequest,
     ProviderContextsRequest,
     ProviderContextsResponse,
+    ProviderLoginRequest,
+    ProviderLoginResponse,
     TaskStatusResponse,
 )
 from app.workers.runner.provider_registry import (
@@ -82,7 +84,7 @@ from app.workers.runner.provider_registry import (
 from app.workers.runner.signing import sign_request
 
 _TASK_ID = re.compile(r"[A-Za-z0-9_-]{1,64}")
-_CONTEXT_TIMEOUT_SECONDS = 2.0
+_CONTEXT_TIMEOUT_SECONDS = 30.0
 logger = logging.getLogger(__name__)
 
 _STATUS_CONTEXT_TIMEOUT_SECONDS = 0.25
@@ -90,6 +92,8 @@ ResponseModel = TypeVar("ResponseModel", bound=BaseModel)
 
 
 class MediaRunnerClient(Protocol):
+    async def login(self, url: str, *, finish: bool = False) -> None: ...
+
     """Runner strategy used by the routing facade."""
 
     async def engine_catalog(self) -> EngineCatalogResponse: ...
@@ -421,6 +425,16 @@ class MediaRunnerHttpClient:
             asset_count=response.artifact.asset_count,
         )
 
+    async def login(self, url: str, *, finish: bool = False) -> None:
+        await self._request(
+            "POST",
+            "/internal/site-sessions/login",
+            ProviderLoginRequest(url=url, finish=finish).model_dump_json().encode(),
+            ProviderLoginResponse,
+            40,
+            timeout_code="provider_session_not_ready",
+        )
+
     async def status(self, task_id: str) -> RunnerProgress:
         self._validate_task_id(task_id)
         response = await self._request(
@@ -507,6 +521,9 @@ class MediaRunnerRouter:
             session, session_routes=session_routes
         )
         self._active: dict[str, MediaRunnerClient] = {}
+
+    async def login(self, url: str, *, finish: bool = False) -> None:
+        await self._session.login(url, finish=finish)
 
     async def resolve_access_policy(
         self, url: str, requested: ProviderAccessPolicy | None = None

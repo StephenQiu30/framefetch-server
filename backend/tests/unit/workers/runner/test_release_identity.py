@@ -27,9 +27,9 @@ def test_runtime_revision_changes_with_plugin_and_policy(tmp_path: Path) -> None
     wechat_policy = runner / "wechat_channels_policy.py"
     wechat_policy.write_text("policy = 1\n")
     # Host-only session import code is never packaged into a media Runner.
-    chrome_reader = tmp_path / "workers" / "session" / "chrome_reader.py"
-    chrome_reader.parent.mkdir(parents=True)
-    chrome_reader.write_text("extract = 1\n")
+    browser_source = tmp_path / "workers" / "session" / "browser_source.py"
+    browser_source.parent.mkdir(parents=True)
+    browser_source.write_text("extract = 1\n")
     yuanbao_session = runner / "provider_session_headers.py"
     yuanbao_session.write_text("session = 1\n")
     services = tmp_path / "services"
@@ -67,7 +67,7 @@ def test_runtime_revision_changes_with_plugin_and_policy(tmp_path: Path) -> None
     youtube_operator = runtime_code_sha256(
         "youtube", tmp_path, access_mode=ProviderAccessMode.OPERATOR_MANAGED
     )
-    chrome_reader.write_text("extract = 2\n")
+    browser_source.write_text("extract = 2\n")
     runtime_code_sha256.cache_clear()
     assert (
         runtime_code_sha256(

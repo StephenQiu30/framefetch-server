@@ -46,7 +46,7 @@ class InvalidSessionSite(ValueError):
 class SiteSessionPolicy:
     site: str
     provider_key: str | None
-    keepalive_url: str
+    login_url: str
     entitlement: SessionEntitlement = SessionEntitlement.PUBLIC_ONLY
     required_cookie_names: frozenset[str] = frozenset()
     requirement: CookieRequirement = CookieRequirement.ANY
@@ -55,8 +55,8 @@ class SiteSessionPolicy:
     def __post_init__(self) -> None:
         if _HOST.fullmatch(self.site) is None:
             raise ValueError(f"invalid session site: {self.site}")
-        if not self.keepalive_url.startswith("https://"):
-            raise ValueError(f"session keepalive must use HTTPS: {self.site}")
+        if not self.login_url.startswith("https://"):
+            raise ValueError(f"session login must use HTTPS: {self.site}")
 
     def accepts(self, cookie_names: frozenset[str]) -> bool:
         if not cookie_names:

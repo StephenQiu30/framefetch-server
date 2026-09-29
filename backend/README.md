@@ -6,7 +6,7 @@ FastAPI API、下载/分析领域逻辑、异步 Worker、当前态数据库 SQL
 
 ## 平台会话
 
-当前登录态按需从宿主机 Chrome 读取，经无状态 broker 密封交给 Runner；Runner 只在单次操作期间保留 tmpfs 工作文件，结束即清理。broker 不连接会话数据库、不运行保活或扫描，也不接收 Cookie 回写与失败上报。来源读取失败与平台拒绝会话分别返回错误。
+当前登录态按需从平台专用持久 Profile 读取，由来源直接密封给 Runner；broker 只作签名转发；Runner 只在单次操作期间保留 tmpfs 工作文件，结束即清理。broker 不连接会话数据库、不运行保活或扫描，也不接收 Cookie 回写与失败上报。来源读取失败与平台拒绝会话分别返回错误。
 
 接入与安装命令统一见[根 README](../README.md)，职责、错误与尚未解决的限制见[平台会话设计](../docs/design/08-平台会话.md)。
 
@@ -64,7 +64,7 @@ Media Runner 通过 `app/workers/runner/plugins/yt_dlp_plugins/` 加载随项目
 
 ## 运行与就绪
 
-完整启动与更新统一使用[根 README](../README.md)的入口，复用已有 PostgreSQL、RabbitMQ、Redis、MinIO 和环境配置。Chrome 登录态 agent 与 AI Worker 为宿主机组件，业务 Compose 不负责安装它们；容器健康不能代替宿主机来源与真实任务验证。
+完整启动与更新统一使用[根 README](../README.md)的入口，复用已有 PostgreSQL、RabbitMQ、Redis、MinIO 和环境配置。专用浏览器来源 与 AI Worker 为宿主机组件，业务 Compose 不负责安装它们；容器健康不能代替宿主机来源与真实任务验证。
 
 只调试无异步依赖的 API 路由时，才使用 Python 模块入口：
 

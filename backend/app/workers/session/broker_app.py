@@ -1,6 +1,7 @@
-"""HTTP entry point of the session broker.
+"""Narrow bridge across the container network boundary; never decrypts sessions.
 
-Run with ``python -m app.workers.session.broker_app``.
+The media sandbox cannot reach the host directly. This relay has only two RPC
+keys and forwards sealed leases; platform state lives in the browser source.
 """
 
 from __future__ import annotations
@@ -11,134 +12,110 @@ from contextlib import AbstractAsyncContextManager, asynccontextmanager
 import httpx
 import uvicorn
 from app.core.config import Settings
-from app.workers.session.chrome_broker import (
-    ChromeSessionBroker,
-    SessionLoginRequired,
-    SessionNotReady,
-)
 from app.workers.session.contracts import (
     LEASE_PATH,
+    LOGIN_PATH,
     STATUS_PATH,
     LeaseRequest,
     LeaseResponse,
+    LoginRequest,
+    LoginResponse,
     StatusRequest,
     StatusResponse,
 )
-from app.workers.session.rpc import SignedClient, authenticator, verified_model
-from app.workers.session.sealing import SealError, decode_public_key, encode
+from app.workers.session.rpc import (
+    RpcError,
+    SignedClient,
+    authenticator,
+    verified_model,
+)
 from fastapi import FastAPI, HTTPException, Request, Response
 
-BROKER_PORT = 19200
-_AGENT_TIMEOUT_SECONDS = 30
-
-type BrokerFactory = Callable[[], AbstractAsyncContextManager[ChromeSessionBroker]]
+type SourceFactory = Callable[[], AbstractAsyncContextManager[SignedClient]]
 
 
-def create_app(
-    *,
-    broker_factory: BrokerFactory,
-    rpc_secret: bytes,
-) -> FastAPI:
+def create_app(*, source_factory: SourceFactory, rpc_secret: bytes) -> FastAPI:
     verifier = authenticator(rpc_secret)
+    source: SignedClient | None = None
 
     @asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:
-        async with broker_factory() as broker:
-            app.state.broker = broker
+        nonlocal source
+        async with source_factory() as client:
+            source = client
             try:
                 yield
             finally:
-                del app.state.broker
+                source = None
 
-    app = FastAPI(
-        title="Site Session Broker",
-        docs_url=None,
-        redoc_url=None,
-        openapi_url=None,
-        lifespan=lifespan,
-    )
+    app = FastAPI(docs_url=None, redoc_url=None, openapi_url=None, lifespan=lifespan)
+
+    @app.exception_handler(RpcError)
+    async def rpc_error(request: Request, error: RpcError) -> Response:
+        from fastapi.responses import JSONResponse
+
+        return JSONResponse({"detail": error.code}, status_code=error.status)
+
+    def connected() -> SignedClient:
+        if source is None:
+            raise HTTPException(503, "provider_session_not_ready")
+        return source
 
     @app.post(STATUS_PATH, response_model=StatusResponse)
     async def status(request: Request) -> StatusResponse:
         body = await verified_model(request, verifier, StatusRequest)
-        broker: ChromeSessionBroker = request.app.state.broker
-        try:
-            revision = await broker.ready_revision(body.site)
-        except SessionLoginRequired:
-            raise HTTPException(409, "credential_required") from None
-        except SessionNotReady:
-            raise HTTPException(409, "provider_session_not_ready") from None
-        return StatusResponse(site=body.site, seed_revision=revision)
+        return await connected().post(STATUS_PATH, body, StatusResponse)
 
     @app.post(LEASE_PATH, response_model=LeaseResponse)
     async def lease(request: Request) -> LeaseResponse:
         body = await verified_model(request, verifier, LeaseRequest)
-        broker: ChromeSessionBroker = request.app.state.broker
-        try:
-            grant = await broker.lease(
-                task_id=body.task_id,
-                site=body.site,
-                seed_revision=body.seed_revision,
-                runner_key=decode_public_key(body.public_key),
-            )
-        except SessionLoginRequired:
-            raise HTTPException(409, "credential_required") from None
-        except SessionNotReady:
-            raise HTTPException(409, "provider_session_not_ready") from None
-        except (SealError, ValueError):
-            raise HTTPException(422, "invalid_request") from None
-        return LeaseResponse(
-            site=grant.site,
-            seed_revision=grant.seed_revision,
-            expires_at=grant.expires_at,
-            jar=encode(grant.jar),
-            headers=None if grant.headers is None else encode(grant.headers),
-        )
+        return await connected().post(LEASE_PATH, body, LeaseResponse)
+
+    @app.post(LOGIN_PATH, response_model=LoginResponse)
+    async def login(request: Request) -> LoginResponse:
+        body = await verified_model(request, verifier, LoginRequest)
+        return await connected().post(LOGIN_PATH, body, LoginResponse)
 
     @app.get("/health/live")
-    async def live() -> dict[str, str]:
-        return {"status": "ok"}
+    async def live() -> Response:
+        return Response(status_code=200)
 
     @app.get("/health/ready")
-    async def ready(request: Request) -> Response:
-        # Readiness describes this relay's lifecycle, not a platform login.
-        # STATUS_PATH and LEASE_PATH report source failures on demand.
-        return Response(
-            status_code=200 if hasattr(request.app.state, "broker") else 503
-        )
+    async def ready() -> Response:
+        return Response(status_code=200 if source is not None else 503)
 
     return app
 
 
-def settings_factory(settings: Settings) -> BrokerFactory:
+def settings_factory(settings: Settings) -> SourceFactory:
     secret = settings.site_session_agent_secret
     if secret is None:
-        raise SystemExit("session broker requires SITE_SESSION_AGENT_SECRET")
+        raise SystemExit("session bridge requires SITE_SESSION_AGENT_SECRET")
 
     @asynccontextmanager
-    async def factory() -> AsyncIterator[ChromeSessionBroker]:
+    async def factory() -> AsyncIterator[SignedClient]:
         async with httpx.AsyncClient(
-            base_url=settings.site_session_agent_url,
-            timeout=_AGENT_TIMEOUT_SECONDS,
+            base_url=settings.site_session_agent_url, timeout=65, trust_env=False
         ) as client:
-            yield ChromeSessionBroker(
-                SignedClient(client, secret.get_secret_value().encode()),
-                lease_seconds=settings.site_session_lease_seconds,
-            )
+            yield SignedClient(client, secret.get_secret_value().encode())
 
     return factory
 
 
 def main() -> None:
     settings = Settings(service_role="session-broker")
-    rpc_secret = settings.site_session_rpc_secret
-    if rpc_secret is None:
-        raise SystemExit("session broker requires SITE_SESSION_RPC_SECRET")
-    app = create_app(
-        broker_factory=settings_factory(settings),
-        rpc_secret=rpc_secret.get_secret_value().encode(),
+    secret = settings.site_session_rpc_secret
+    if secret is None:
+        raise SystemExit("session bridge requires SITE_SESSION_RPC_SECRET")
+    uvicorn.run(
+        create_app(
+            source_factory=settings_factory(settings),
+            rpc_secret=secret.get_secret_value().encode(),
+        ),
+        host="0.0.0.0",
+        port=19200,
+        access_log=False,
     )
-    uvicorn.run(app, host="0.0.0.0", port=BROKER_PORT, access_log=False)
 
 
 if __name__ == "__main__":

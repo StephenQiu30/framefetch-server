@@ -76,11 +76,11 @@ const localizedErrorMessages: Record<string, string> = {
   provider_media_unsupported: '该链接不包含受支持的可下载视频，请更换链接。',
   provider_rate_limited: '平台请求过于频繁，请稍后重试。',
   provider_session_expired:
-    '平台登录状态已失效，请在本机 Chrome 中重新登录该平台后重试。',
+    '平台登录状态已失效，请打开平台专用浏览器重新登录，然后继续原任务。',
   provider_session_not_ready:
-    '暂时读不到本机 Chrome 的登录状态，本次任务会在等待期限内自动重试；请确认 Chrome 登录态服务正在运行。',
+    '平台登录来源暂不可用。请确认专用浏览器来源服务正在运行，处理后继续原任务。',
   provider_configuration_missing:
-    '本机 Chrome 中没有该平台的登录状态，请先在 Chrome 登录后重新解析。',
+    '平台尚未登录，请打开平台专用浏览器完成登录，然后继续原任务。',
   provider_access_policy_not_allowed:
     '该来源尚未接入可验证的平台会话，当前无法解析。',
   provider_temporarily_unavailable: '平台服务暂时不可用，请稍后重试。',

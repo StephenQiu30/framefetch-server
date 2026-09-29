@@ -35,7 +35,7 @@ dependencies = [
 ]
 
 [dependency-groups]
-# The host chrome_agent drives the installed Chrome for page-signed headers.
+# Dedicated host profiles and same-context page state use Playwright Chromium.
 browser = ["playwright==1.63.0"]
 dev = [
   { include-group = "browser" },

@@ -1734,6 +1734,10 @@ declare namespace API {
     refresh_expires_at: string;
   };
 
+  type openDownloadIntentLoginParams = {
+    intent_id: string;
+  };
+
   type OperationLogPageResponse = {
     /** Items */
     items: OperationLogResponse[];

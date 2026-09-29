@@ -15,7 +15,7 @@ URL = "https://youtube.com/watch?v=owned"
 
 
 async def test_session_sites_always_use_the_session_route():
-    # Login state is read live from Chrome by the Runner; a session site never
+    # Login state is read from a dedicated profile by the Runner; a session site never
     # falls back to anonymous.
     client = FakeClient(context(Mode.OPERATOR_MANAGED))
     routes = SiteSessionRoutes()

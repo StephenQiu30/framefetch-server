@@ -410,7 +410,7 @@ def test_project_documents_container_and_complete_local_entrypoints() -> None:
     # installation commands and share the selected deployment environment.
     assert not (ROOT.parent / "start").exists()
     assert (
-        "uv run --project backend python -m app.workers.session.chrome_agent "
+        "uv run --project backend python -m app.workers.session.source_cli "
         "install --env-file .env" in root_readme
     )
     assert not (ROOT / "app/workers/runner/provider_startup.py").exists()
@@ -457,7 +457,7 @@ def test_site_session_services_relay_live_chrome_without_storing_it() -> None:
         runner = services["session-runner"]
 
         # No stored copy and no second browser: login state is read from the
-        # operator's Chrome by the host agent on each operation.
+        # dedicated platform browser by the host agent on each operation.
         assert "session-browser" not in services
         for config in services.values():
             assert "SITE_SESSION_ENCRYPTION_KEY" not in config.get("environment", {})

@@ -66,6 +66,12 @@ class ProviderSessionStore:
             if enforce_memory_backing:
                 require_memory_backed_root(self._temp_root)
 
+    async def login(self, url: str, *, finish: bool = False) -> None:
+        target = site_target_for_url(url)
+        if target.policy.provider_key is None or self._site_sessions is None:
+            raise RunnerFailure("provider_session_not_allowed", status=422)
+        await self._site_sessions.login(target.site, finish=finish)
+
     async def context_for(
         self, profile: ProviderProfile, *, url: str | None = None
     ) -> ProviderAccessContextRef:

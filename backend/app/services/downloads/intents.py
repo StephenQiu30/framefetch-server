@@ -12,6 +12,7 @@ from app.services.downloads.errors import (
     PersistenceIdempotencyConflict,
     PersistenceNotFound,
 )
+from app.services.downloads.inspection_models import EncryptedUrl
 from app.services.downloads.intent_models import (
     IntentCreate,
     IntentHistoryPage,
@@ -27,6 +28,10 @@ from app.services.quotas import DEFAULT_USER_QUOTA, UserQuota
 
 
 class IntentPersistence(Protocol):
+    async def waiting_source(
+        self, intent_id: UUID, owner_hash: str, authorization_id: UUID
+    ) -> EncryptedUrl: ...
+
     async def accept(
         self,
         command: IntentCreate,
@@ -68,6 +73,7 @@ class IntentService:
         now: Callable[[], datetime],
         new_id: Callable[[], UUID],
         select_policy: Callable[[str], Awaitable[ProviderAccessPolicy]] | None = None,
+        open_login: Callable[[str], Awaitable[None]] | None = None,
     ) -> None:
         self._repository = repository
         self._validator = validator
@@ -76,6 +82,7 @@ class IntentService:
         self._now = now
         self._new_id = new_id
         self._select_policy = select_policy
+        self._open_login = open_login
 
     async def create(
         self,
@@ -126,6 +133,21 @@ class IntentService:
     async def cancel(self, intent_id: UUID, owner_hash: str) -> IntentSnapshot:
         try:
             return await self._repository.cancel(intent_id, owner_hash, now=self._now())
+        except PersistenceNotFound as exc:
+            raise ApplicationError(ApplicationErrorCode.NOT_FOUND) from exc
+        except PersistenceConflict as exc:
+            raise ApplicationError(ApplicationErrorCode.INVALID_STATE) from exc
+
+    async def login(
+        self, intent_id: UUID, owner_hash: str, authorization_id: UUID
+    ) -> None:
+        if self._open_login is None:
+            raise ApplicationError(ApplicationErrorCode.PROVIDER_CONFIGURATION_MISSING)
+        try:
+            encrypted = await self._repository.waiting_source(
+                intent_id, owner_hash, authorization_id
+            )
+            await self._open_login(self._cipher.decrypt(encrypted))
         except PersistenceNotFound as exc:
             raise ApplicationError(ApplicationErrorCode.NOT_FOUND) from exc
         except PersistenceConflict as exc:

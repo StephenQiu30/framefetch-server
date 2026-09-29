@@ -60,7 +60,7 @@ def test_known_policies_keep_their_entitlement_boundaries():
 def test_unknown_sites_get_a_weak_public_only_policy():
     policy = site_policy("example.co.uk")
     assert policy.provider_key is None
-    assert policy.keepalive_url == "https://example.co.uk/"
+    assert policy.login_url == "https://example.co.uk/"
     assert policy.entitlement is SessionEntitlement.PUBLIC_ONLY
     assert site_policy("youtube.com") is known_site_policy(ProviderKey.YOUTUBE)
     with pytest.raises(InvalidSessionSite):
