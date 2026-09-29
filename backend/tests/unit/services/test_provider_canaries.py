@@ -312,11 +312,6 @@ def test_access_state_projection_uses_the_selected_route_not_all_capabilities() 
         ),
         default_access_policy_id=ProviderAccessPolicy.PUBLIC,
     )
-    guest = replace(
-        public,
-        access_modes=(ProviderAccessMode.GUEST,),
-        default_access_policy_id=ProviderAccessPolicy.PUBLIC_SESSION,
-    )
     operator = replace(
         public,
         access_modes=(ProviderAccessMode.OPERATOR_MANAGED,),
@@ -326,18 +321,7 @@ def test_access_state_projection_uses_the_selected_route_not_all_capabilities() 
     assert (
         public_with_operator_capability.access_state is ProviderAccessState.PUBLIC_PROBE
     )
-    assert guest.access_state is ProviderAccessState.GUEST_PROBE
     assert operator.access_state is ProviderAccessState.OPERATOR_PROBE
-
-
-def test_guest_access_required_stays_an_automatic_guest_recovery_state() -> None:
-    guest = replace(
-        baseline(ProviderSupportStatus.ACCESS_REQUIRED),
-        access_modes=(ProviderAccessMode.GUEST,),
-        default_access_policy_id=ProviderAccessPolicy.PUBLIC_SESSION,
-    )
-
-    assert guest.access_state is ProviderAccessState.GUEST_PROBE
 
 
 @pytest.mark.asyncio

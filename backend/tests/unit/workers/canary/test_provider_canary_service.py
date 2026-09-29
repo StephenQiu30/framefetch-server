@@ -9,7 +9,6 @@ from app.services.downloads.errors import (
     MediaInspectionAuthRequired,
     MediaInspectionConfigurationMissing,
     MediaInspectionFormatUnavailable,
-    MediaInspectionGuestContextRequired,
     MediaInspectionSessionExpired,
 )
 from app.services.downloads.inspection_models import RunnerFormat, RunnerInspection
@@ -599,14 +598,4 @@ def _context(access_mode: ProviderAccessMode) -> ProviderAccessContextRef:
         attestation_provider_version=None,
         engine_commit="5d6b8c8cd19785c3086ae3a9ec618c45e25eb3bc",
         runtime_revision="a" * 64,
-    )
-
-
-def test_guest_preparation_failure_is_not_reported_as_account_authorization() -> None:
-    assert (
-        _stable_error(MediaInspectionGuestContextRequired()) == "guest_context_required"
-    )
-    assert (
-        _stable_error(MediaRunnerClientError("guest_context_required", 503))
-        == "guest_context_required"
     )

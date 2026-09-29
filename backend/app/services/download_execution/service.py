@@ -42,7 +42,7 @@ from app.services.downloads.rules.enums import (
     MediaKind,
 )
 from app.services.provider_route_admission import RouteCoolingDown
-from app.services.provider_types import ProviderAccessContextRef, ProviderAccessMode
+from app.services.provider_types import ProviderAccessContextRef
 
 
 class DownloadExecution:
@@ -144,11 +144,6 @@ class DownloadExecution:
                 candidate = replace(
                     access_context,
                     runtime_revision=current_context.runtime_revision,
-                    credential_version_id=(
-                        current_context.credential_version_id
-                        if access_context.access_mode is ProviderAccessMode.GUEST
-                        else access_context.credential_version_id
-                    ),
                 )
                 if candidate == current_context:
                     access_context = current_context

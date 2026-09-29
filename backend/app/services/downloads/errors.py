@@ -92,19 +92,6 @@ class MediaInspectionAuthRequired(MediaInspectionFailure):
     """The provider requires an approved session."""
 
 
-class MediaInspectionGuestContextRequired(MediaInspectionFailure):
-    """The public route needs a visitor context, never an account login."""
-
-    def __init__(
-        self,
-        *,
-        before_media_io: bool = False,
-        access_mode: ProviderAccessMode | None = None,
-    ) -> None:
-        self.before_media_io = before_media_io
-        super().__init__(access_mode=access_mode)
-
-
 class MediaInspectionConfigurationMissing(MediaInspectionFailure):
     """The selected approved route has no configured runner endpoint."""
 

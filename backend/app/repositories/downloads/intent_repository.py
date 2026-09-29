@@ -356,10 +356,6 @@ class IntentRepository:
             if preparation_wait:
                 if (row.access_policy, reason_code) not in {
                     (
-                        ProviderAccessPolicy.PUBLIC_SESSION.value,
-                        "provider_guest_context_required",
-                    ),
-                    (
                         ProviderAccessPolicy.OPERATOR_PUBLIC.value,
                         "provider_session_not_ready",
                     ),

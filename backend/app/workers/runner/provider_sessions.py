@@ -1,5 +1,5 @@
-"""Access context and per-operation Cookie jars for anonymous, guest and site
-session runners."""
+"""Access context and per-operation Cookie jars for anonymous and site-session
+runners."""
 
 from __future__ import annotations
 
@@ -7,12 +7,10 @@ import asyncio
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from dataclasses import replace
-from datetime import UTC, datetime
 from pathlib import Path
 
 from app.integrations.site_session_catalog import site_target_for_url
 from app.services.provider_access import execution_access_mode
-from app.services.provider_guest import GuestScope
 from app.services.provider_types import (
     ProviderAccessContextRef,
     ProviderAccessMode,
@@ -20,7 +18,6 @@ from app.services.provider_types import (
 )
 from app.services.site_sessions import InvalidSessionSite, known_site_policy
 from app.workers.runner.errors import RunnerFailure
-from app.workers.runner.guest_material import read_guest_lease
 from app.workers.runner.provider_credential_lease import (
     ProviderCredentialLeaseCoordinator,
 )
@@ -85,10 +82,6 @@ class ProviderSessionStore:
         if mode is ProviderAccessMode.ANONYMOUS:
             return True
         try:
-            if mode is ProviderAccessMode.GUEST:
-                provider = self._settings.runner_guest_provider
-                assert provider is not None
-                self._guest_version(_profile_for_key(provider))
             assert self._credential_lease is not None
             await self._credential_lease.ping()
         except RunnerFailure:
@@ -111,8 +104,6 @@ class ProviderSessionStore:
             credential_version = context_version(site, revision)
         elif mode not in profile.access_modes:
             raise RunnerFailure("provider_session_not_allowed", status=422)
-        elif mode is ProviderAccessMode.GUEST:
-            credential_version = self._guest_version(profile)
         return ProviderAccessContextRef(
             provider_key=profile.key,
             profile_version=profile.version,
@@ -136,7 +127,6 @@ class ProviderSessionStore:
         expected: ProviderAccessContextRef,
         *,
         url: str | None = None,
-        allow_guest_refresh: bool = False,
     ) -> ProviderAccessContextRef:
         current = await self.context_for(profile, url=url)
         if (
@@ -149,20 +139,6 @@ class ProviderSessionStore:
                 raise RunnerFailure("client_context_mismatch", status=409)
             return current
         if expected != current:
-            if (
-                allow_guest_refresh
-                and current.access_mode is ProviderAccessMode.GUEST
-                and expected.access_mode is ProviderAccessMode.GUEST
-                and replace(
-                    expected, credential_version_id=current.credential_version_id
-                )
-                == current
-            ):
-                # Only visitor material may rotate. Provider, engine, profile,
-                # client and egress remain frozen; download re-inspects identity.
-                return current
-            if current.access_mode is ProviderAccessMode.GUEST:
-                raise RunnerFailure("guest_context_required", status=503)
             # A re-import changes the frozen revision: the inspection is stale.
             raise RunnerFailure("credential_revoked", status=422)
         return current
@@ -180,28 +156,6 @@ class ProviderSessionStore:
             yield None
             return
         assert self._credential_lease is not None
-        if context.access_mode is ProviderAccessMode.GUEST:
-            profile = _profile_for_key(context.provider_key)
-            path = self._settings.runner_guest_cookie_file
-            if (
-                path is None
-                or context.provider_key != self._settings.runner_guest_provider
-            ):
-                raise RunnerFailure("provider_session_not_allowed", status=422)
-            async with (
-                self._gate,
-                self._credential_lease.hold(context.provider_key, "public-guest"),
-            ):
-                lease = read_guest_lease(
-                    path, self._guest_scope(profile), now=datetime.now(UTC)
-                )
-                if lease.version != context.credential_version_id:
-                    raise RunnerFailure("guest_context_required", status=503)
-                with operation_cookie(
-                    lease.payload, self._temp_root, context.provider_key
-                ) as jar:
-                    yield jar
-            return
         site, revision = parse_context_version(context.credential_version_id)
         assert self._site_sessions is not None
         # One operation per site identity across every Runner replica.
@@ -241,23 +195,6 @@ class ProviderSessionStore:
             raise RunnerFailure("provider_session_not_allowed", status=422)
         return policy.site
 
-    def _guest_version(self, profile: ProviderProfile) -> str:
-        if profile.key != self._settings.runner_guest_provider:
-            raise RunnerFailure("provider_session_not_allowed", status=422)
-        path = self._settings.runner_guest_cookie_file
-        assert path is not None
-        return read_guest_lease(
-            path, self._guest_scope(profile), now=datetime.now(UTC)
-        ).version
-
-    def _guest_scope(self, profile: ProviderProfile) -> GuestScope:
-        return GuestScope(
-            ProviderKey(profile.key),
-            profile.version,
-            profile.client_profile_id,
-            self._settings.egress_affinity_for(profile.key),
-        )
-
     async def close(self) -> None:
         try:
             if self._site_sessions is not None:
@@ -265,12 +202,3 @@ class ProviderSessionStore:
         finally:
             if self._credential_lease is not None:
                 await self._credential_lease.close()
-
-
-def _profile_for_key(key: str | ProviderKey) -> ProviderProfile:
-    from app.workers.runner.provider_registry import default_provider_registry
-
-    for profile in default_provider_registry().profiles:
-        if profile.key == key:
-            return profile
-    raise RunnerFailure("provider_session_not_allowed", status=422)

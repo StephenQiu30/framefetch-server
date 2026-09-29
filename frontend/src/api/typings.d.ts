@@ -1838,8 +1838,6 @@ declare namespace API {
   type ProviderAccessState =
     | "public_probe"
     | "public_ready"
-    | "guest_probe"
-    | "guest_ready"
     | "authorization_required"
     | "operator_probe"
     | "operator_ready"

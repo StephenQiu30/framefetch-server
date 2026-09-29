@@ -124,8 +124,7 @@ class YtDlpCommandBuilder:
         include_playlist: bool = False,
     ) -> BuiltYtDlpCommand:
         profile = request.profile
-        # The access context already admitted the jar: the session broker for
-        # any site with a deployment session, the guest profile for guests.
+        # The access context already admitted the jar from the session broker.
         if (
             cookie_jar is not None
             and self._settings.runner_access_mode is ProviderAccessMode.ANONYMOUS
@@ -160,10 +159,7 @@ class YtDlpCommandBuilder:
             argv=command,
             request=request,
             egress_proxy=egress_proxy,
-            authenticated=(
-                cookie_jar is not None
-                and self._settings.runner_access_mode is not ProviderAccessMode.GUEST
-            ),
+            authenticated=cookie_jar is not None,
         )
 
     @staticmethod

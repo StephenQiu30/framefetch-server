@@ -51,7 +51,6 @@ def standard_provider(
     host_suffixes: frozenset[str] = frozenset(),
     operator_cookie_domains: frozenset[str] = frozenset(),
     anonymous_access: bool = True,
-    guest_access: bool = False,
     command_args: tuple[str, ...] = (),
     runtime_command_args: RuntimeCommandArgs = default_runtime_command_args,
     client_profile_id: str = "yt-dlp-default",
@@ -66,8 +65,6 @@ def standard_provider(
     )
     if operator_cookie_domains:
         access_modes += (ProviderAccessMode.OPERATOR_MANAGED,)
-    if guest_access:
-        access_modes += (ProviderAccessMode.GUEST,)
     if not access_modes:
         raise ValueError("provider must allow at least one access mode")
     return ProviderProfile(
@@ -103,7 +100,6 @@ def challenged_provider(
     status: ProviderSupportStatus = ProviderSupportStatus.UNKNOWN,
     operator_cookie_domains: frozenset[str] = frozenset(),
     anonymous_access: bool = True,
-    guest_access: bool = False,
     command_args: tuple[str, ...] = CHROME_IMPERSONATION,
     client_profile_id: str = "chrome-136-macos-15",
     runtime_command_args: RuntimeCommandArgs = default_runtime_command_args,
@@ -121,7 +117,6 @@ def challenged_provider(
         status=status,
         operator_cookie_domains=operator_cookie_domains,
         anonymous_access=anonymous_access,
-        guest_access=guest_access,
         command_args=command_args,
         runtime_command_args=runtime_command_args,
         client_profile_id=client_profile_id,

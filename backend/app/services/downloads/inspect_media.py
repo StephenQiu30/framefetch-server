@@ -15,7 +15,6 @@ from app.services.downloads.errors import (
     MediaInspectionFailure,
     MediaInspectionFormatUnavailable,
     MediaInspectionGeoRestricted,
-    MediaInspectionGuestContextRequired,
     MediaInspectionLinkUnavailable,
     MediaInspectionMediaUnsupported,
     MediaInspectionPaidContentRestricted,
@@ -163,11 +162,6 @@ class InspectMedia:
             ) from exc
         except MediaInspectionAuthRequired as exc:
             raise ApplicationError(ApplicationErrorCode.PROVIDER_AUTH_REQUIRED) from exc
-        except MediaInspectionGuestContextRequired as exc:
-            raise ApplicationError(
-                ApplicationErrorCode.PROVIDER_GUEST_CONTEXT_REQUIRED,
-                preparation_wait=exc.before_media_io,
-            ) from exc
         except MediaInspectionSessionExpired as exc:
             raise ApplicationError(
                 ApplicationErrorCode.PROVIDER_SESSION_EXPIRED

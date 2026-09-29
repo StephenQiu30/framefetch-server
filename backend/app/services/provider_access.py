@@ -34,6 +34,7 @@ def execution_access_mode(provider_key: str) -> ProviderAccessMode:
 
 class ProviderAccessPolicy(StrEnum):
     PUBLIC = "public"
+    # Historical records only: the retired visitor route.
     PUBLIC_SESSION = "public_session"
     OPERATOR_PUBLIC = "operator_public"
     PERSONAL_ENTITLED = "personal_entitled"
@@ -51,12 +52,10 @@ class ProviderAccessPolicy(StrEnum):
 def provider_access_policies(
     provider_key: str, access_modes: tuple[ProviderAccessMode, ...]
 ) -> tuple[ProviderAccessPolicy, ...]:
-    """Only approved policies are selectable; visitor maintenance remains gated."""
+    """Only approved policies are selectable."""
     policies = []
     if ProviderAccessMode.ANONYMOUS in access_modes:
         policies.append(ProviderAccessPolicy.PUBLIC)
-    if ProviderAccessMode.GUEST in access_modes:
-        policies.append(ProviderAccessPolicy.PUBLIC_SESSION)
     if ProviderAccessMode.OPERATOR_MANAGED in access_modes:
         policies.append(
             ProviderAccessPolicy.PERSONAL_ENTITLED
@@ -64,20 +63,3 @@ def provider_access_policies(
             else ProviderAccessPolicy.OPERATOR_PUBLIC
         )
     return tuple(policies)
-
-
-def default_access_policy(
-    provider_key: str,
-    access_modes: tuple[ProviderAccessMode, ...],
-    *,
-    guest_configured: bool = False,
-) -> ProviderAccessPolicy:
-    # Input-only clients do not choose infrastructure or credentials. Prefer
-    # public access; deployments may explicitly select an authorized session.
-    # An available endpoint alone must never increase the request's privileges.
-    policies = provider_access_policies(provider_key, access_modes)
-    if not policies:
-        raise ValueError("provider has no admitted access policy")
-    if guest_configured and ProviderAccessPolicy.PUBLIC_SESSION in policies:
-        return ProviderAccessPolicy.PUBLIC_SESSION
-    return policies[0]

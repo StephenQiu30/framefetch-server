@@ -16,7 +16,6 @@ from app.services.downloads.errors import (
     MediaInspectionFailure,
     MediaInspectionFormatUnavailable,
     MediaInspectionGeoRestricted,
-    MediaInspectionGuestContextRequired,
     MediaInspectionLinkUnavailable,
     MediaInspectionMediaUnsupported,
     MediaInspectionRateLimited,
@@ -47,7 +46,6 @@ from app.workers.runner.provider_registry import provider_profile
 
 _INSPECTION_ERRORS: tuple[tuple[type[Exception], str], ...] = (
     (MediaInspectionConfigurationMissing, "provider_configuration_missing"),
-    (MediaInspectionGuestContextRequired, "guest_context_required"),
     (MediaInspectionAuthRequired, "provider_auth_required"),
     (MediaInspectionSessionExpired, "provider_session_expired"),
     (MediaInspectionSessionNotReady, "provider_session_not_ready"),
@@ -103,7 +101,6 @@ _RUNNER_ERRORS = {
     "content_access_metadata_invalid",
     "content_entitlement_unknown",
     "credential_required",
-    "guest_context_required",
     "provider_session_not_allowed",
     "credential_expired",
     "credential_rejected",

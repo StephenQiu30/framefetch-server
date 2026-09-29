@@ -32,7 +32,6 @@ from app.models.operational_metric import OperationalCounterRow
 from app.models.outbox import OutboxEventRow
 from app.models.provider_canary import ProviderCanaryResultRow
 from app.models.provider_catalog import ProviderCatalogEntryRow
-from app.models.provider_guest_context import ProviderGuestContextRow
 from app.models.provider_route_cooldown import ProviderRouteCooldownRow
 from app.models.quota import ResourceAdmissionRow
 from app.models.site_session import SiteSessionRow
@@ -73,7 +72,6 @@ __all__ = [
     "OperationalCounterRow",
     "ProviderCanaryResultRow",
     "ProviderCatalogEntryRow",
-    "ProviderGuestContextRow",
     "ProviderRouteCooldownRow",
     "SiteSessionRow",
     "SourceDiscoveryItemRow",

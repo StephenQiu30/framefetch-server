@@ -89,8 +89,8 @@ class ProviderCookieDomain(StrEnum):
 class ProviderAccessMode(StrEnum):
     """Privilege boundary for one provider operation.
 
-    GUEST may use automatically maintained visitor material but has no account
-    entitlement. OPERATOR_MANAGED is the only account-bearing mode.
+    OPERATOR_MANAGED carries the operator's own Chrome login for one operation.
+    GUEST only appears in persisted history from the retired visitor route.
     """
 
     ANONYMOUS = "anonymous"
@@ -125,8 +125,6 @@ class ProviderAccessState(StrEnum):
 
     PUBLIC_PROBE = "public_probe"
     PUBLIC_READY = "public_ready"
-    GUEST_PROBE = "guest_probe"
-    GUEST_READY = "guest_ready"
     AUTHORIZATION_REQUIRED = "authorization_required"
     OPERATOR_PROBE = "operator_probe"
     OPERATOR_READY = "operator_ready"

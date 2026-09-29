@@ -12,8 +12,6 @@ export enum ProviderSupportStatusCode {
 export enum ProviderAccessStateCode {
   PublicProbe = 'public_probe',
   PublicReady = 'public_ready',
-  GuestProbe = 'guest_probe',
-  GuestReady = 'guest_ready',
   AuthorizationRequired = 'authorization_required',
   OperatorProbe = 'operator_probe',
   OperatorReady = 'operator_ready',
@@ -25,7 +23,6 @@ export enum ProviderAccessStateCode {
 
 const READY_ACCESS_STATES = new Set<API.ProviderAccessState>([
   ProviderAccessStateCode.PublicReady,
-  ProviderAccessStateCode.GuestReady,
   ProviderAccessStateCode.OperatorReady,
 ]);
 

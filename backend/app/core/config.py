@@ -24,7 +24,6 @@ from pydantic import (
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from app.services.identifiers import RightsStatementVersion, UrlEncryptionKeyId
-from app.services.provider_types import ProviderAccessMode, ProviderKey
 from app.services.quotas import QuotaPolicy
 from app.services.site_sessions import known_session_sites
 from app.workers.runner.provider_instances import validated_instance_hosts
@@ -115,7 +114,6 @@ class Settings(BaseSettings):
         "report-worker",
         "provider-canary",
         "provider-sources",
-        "provider-guest",
         "session-broker",
     ] = "api"
     app_host: str = "0.0.0.0"
@@ -292,7 +290,6 @@ class Settings(BaseSettings):
     # One Runner serves every site with a deployment session (046). A site with a
     # session record never falls back to the anonymous Runner.
     session_runner_base_url: str | None = None
-    runner_guest_base_urls: dict[ProviderKey, str] = Field(default_factory=dict)
     runner_workspace_root: Path = Path("/work")
     runner_hmac_secret: SecretStr = SecretStr("development-runner-secret-change-me")
     provider_canary_targets: SecretStr = SecretStr("[]")
@@ -547,36 +544,10 @@ class Settings(BaseSettings):
             return None
         return _internal_http_url(value)
 
-    @field_validator("runner_guest_base_urls")
-    @classmethod
-    def validate_runner_guest_urls(
-        cls, value: dict[ProviderKey, str]
-    ) -> dict[ProviderKey, str]:
-        validated = {
-            provider: _internal_http_url(endpoint)
-            for provider, endpoint in value.items()
-        }
-        if len(set(validated.values())) != len(validated):
-            raise ValueError("guest runner URLs must be provider-isolated")
-        return validated
-
     @model_validator(mode="after")
     def validate_runner_route_declarations(self) -> Settings:
-        from app.workers.runner.provider_registry import provider_profile_for_key
-
-        isolated = {self.runner_base_url, self.session_runner_base_url}
-        if set(self.runner_guest_base_urls.values()) & isolated:
-            raise ValueError(
-                "guest runners must be isolated from anonymous and session runners"
-            )
         if self.session_runner_base_url == self.runner_base_url:
             raise ValueError("the session runner must be isolated from anonymous")
-        for guest_key in self.runner_guest_base_urls:
-            if (
-                ProviderAccessMode.GUEST
-                not in provider_profile_for_key(guest_key).access_modes
-            ):
-                raise ValueError("provider does not allow guest access")
         return self
 
     @field_validator("article_discovery_proxy_url", mode="before")
@@ -718,7 +689,6 @@ class Settings(BaseSettings):
         elif self.service_role not in {
             "provider-canary",
             "provider-sources",
-            "provider-guest",
             "session-broker",
         }:
             rabbitmq_url = self.rabbitmq_url
@@ -736,7 +706,6 @@ class Settings(BaseSettings):
                 "download-worker",
                 "provider-canary",
                 "analysis-worker",
-                "provider-guest",
             }
             and self.url_encryption_key.get_secret_value() == DEFAULT_URL_ENCRYPTION_KEY
         )
@@ -779,7 +748,6 @@ def get_settings_for_role(
         "analysis-worker",
         "report-worker",
         "provider-canary",
-        "provider-guest",
     ],
 ) -> Settings:
     return Settings(service_role=role)

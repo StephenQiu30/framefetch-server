@@ -48,7 +48,6 @@ _HASH_SCHEMA_VERSION = b"v1"
 _SHARED_PROVIDER_SERVICES = frozenset(
     {
         "provider_access.py",
-        "provider_guest.py",
         "provider_route_admission.py",
         "provider_types.py",
     }

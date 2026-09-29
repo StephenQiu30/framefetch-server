@@ -114,7 +114,7 @@ The web application includes media inspection and download, job history and deta
 
 ## Quick start
 
-Use `docker-compose.yml` for local development and `docker-compose-prod.yml` for production. Online parsing requires the operator to configure valid site sessions; the anonymous and guest execution routes have been removed. Ordinary users still just paste a public link, while the containers verify, maintain and rotate sessions. When a session is missing, revoked or needs a new login, FrameFetch reports the missing deployment prerequisite instead of silently switching routes. An installed extractor, an existing cookie or a healthy service does not prove that media can be downloaded; only a real file result does.
+Use `docker-compose.yml` for local development and `docker-compose-prod.yml` for production. Fixed public platforms use their native public interfaces; every other platform uses the login state of your local Chrome. When Chrome is not signed in, FrameFetch asks you to sign in instead of silently switching routes. An installed extractor, an existing cookie or a healthy service does not prove that media can be downloaded; only a real file result does.
 
 ### Requirements
 

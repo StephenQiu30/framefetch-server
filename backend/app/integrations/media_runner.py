@@ -3,13 +3,12 @@
 from __future__ import annotations
 
 import asyncio
-import contextlib
 import logging
 import math
 import re
 import secrets
 import time
-from collections.abc import Awaitable, Callable, Mapping
+from collections.abc import Callable, Mapping
 from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 from email.utils import parsedate_to_datetime
@@ -39,7 +38,6 @@ from app.services.downloads.errors import (
     MediaInspectionFailure,
     MediaInspectionFormatUnavailable,
     MediaInspectionGeoRestricted,
-    MediaInspectionGuestContextRequired,
     MediaInspectionLinkUnavailable,
     MediaInspectionMediaUnsupported,
     MediaInspectionPaidContentRestricted,
@@ -136,8 +134,6 @@ class MediaRunnerHttpClient:
         nonce: Callable[[], str] | None = None,
         admission: ProviderRouteAdmission | None = None,
         expected_access_mode: ProviderAccessMode | None = None,
-        reject_guest: Callable[[ProviderAccessContextRef], Awaitable[None]]
-        | None = None,
     ) -> None:
         if len(secret) < 32:
             raise ValueError("runner HMAC secret must contain at least 32 bytes")
@@ -150,7 +146,6 @@ class MediaRunnerHttpClient:
         self._owns_client = client is None
         self._admission = admission
         self._expected_access_mode = expected_access_mode
-        self._reject_guest = reject_guest
         self._client = client or httpx.AsyncClient(base_url=base_url)
 
     async def engine_catalog(self) -> EngineCatalogResponse:
@@ -238,15 +233,6 @@ class MediaRunnerHttpClient:
                 ):
                     raise MediaInspectionConfigurationMissing from exc
                 raise MediaInspectionAuthRequired from exc
-            if exc.code == "guest_context_required":
-                if context is not None:
-                    try:
-                        await self._expire_rejected_guest(context)
-                    except Exception:
-                        raise MediaInspectionTemporarilyUnavailable from None
-                raise MediaInspectionGuestContextRequired(
-                    before_media_io=not context_ready
-                ) from exc
             if exc.code == "provider_session_not_allowed":
                 raise MediaInspectionPolicyNotAllowed from exc
             if exc.code in {
@@ -406,26 +392,18 @@ class MediaRunnerHttpClient:
                 timeout_code="download_timeout",
             )
 
-        try:
-            response = (
-                await execute()
-                if self._admission is None
-                else await self._admission.run(
-                    access_context,
-                    execute,
-                    owner=task_id,
-                    probe=lambda deadline: self._inspect_response(
-                        url, access_context, deadline
-                    ),
-                )
+        response = (
+            await execute()
+            if self._admission is None
+            else await self._admission.run(
+                access_context,
+                execute,
+                owner=task_id,
+                probe=lambda deadline: self._inspect_response(
+                    url, access_context, deadline
+                ),
             )
-        except MediaRunnerClientError as exc:
-            if exc.code == "guest_context_required":
-                # The original rejection stays authoritative for retry policy;
-                # a failed expiry only delays the next guest refresh.
-                with contextlib.suppress(Exception):
-                    await self._expire_rejected_guest(access_context)
-            raise
+        )
         workspace = Path(response.workspace_path).resolve()
         artifact = (workspace / response.artifact.relative_path).resolve()
         outside_root = not workspace.is_relative_to(self._workspace_root)
@@ -468,13 +446,6 @@ class MediaRunnerHttpClient:
             self._inspect_timeout,
             timeout_code="runner_unavailable",
         )
-
-    async def _expire_rejected_guest(self, context: ProviderAccessContextRef) -> None:
-        if (
-            context.access_mode is ProviderAccessMode.GUEST
-            and self._reject_guest is not None
-        ):
-            await self._reject_guest(context)
 
     async def close(self) -> None:
         if self._owns_client:
@@ -558,13 +529,7 @@ class MediaRunnerRouter:
     ) -> ProviderAccessContextRef:
         client = self._client_for_mode(provider_profile(url).key, access_mode)
         if client is None:
-            code = (
-                "guest_context_required"
-                if access_mode is ProviderAccessMode.GUEST
-                else "credential_required"
-            )
-            status = 503 if access_mode is ProviderAccessMode.GUEST else 422
-            raise MediaRunnerClientError(code, status)
+            raise MediaRunnerClientError("credential_required", 422)
         context = await client.context(url)
         if context.access_mode is not access_mode:
             raise MediaRunnerClientError("client_context_mismatch", 502)
@@ -651,13 +616,7 @@ class MediaRunnerRouter:
         client = self._client_for_mode(context.provider_key, context.access_mode)
         if client is not None:
             return client
-        code = (
-            "guest_context_required"
-            if context.access_mode is ProviderAccessMode.GUEST
-            else "credential_required"
-        )
-        status = 503 if context.access_mode is ProviderAccessMode.GUEST else 422
-        raise MediaRunnerClientError(code, status)
+        raise MediaRunnerClientError("credential_required", 422)
 
     def _client_for_mode(
         self, provider_key: str, access_mode: ProviderAccessMode

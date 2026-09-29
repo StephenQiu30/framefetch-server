@@ -1569,42 +1569,6 @@ ALTER TABLE site_sessions ADD COLUMN IF NOT EXISTS source_fingerprint VARCHAR(64
 ALTER TABLE site_sessions
     ADD COLUMN IF NOT EXISTS consecutive_failures INTEGER NOT NULL DEFAULT 0;
 
--- Guest contexts are deployment-owned public state, separate from account sources.
-CREATE TABLE IF NOT EXISTS provider_guest_contexts (
-    id VARCHAR(64) PRIMARY KEY,
-    provider_key VARCHAR(32) NOT NULL,
-    profile_version VARCHAR(128) NOT NULL,
-    client_profile_id VARCHAR(128) NOT NULL,
-    egress_affinity_id VARCHAR(128) NOT NULL,
-    state VARCHAR(16) NOT NULL DEFAULT 'absent',
-    revision BIGINT NOT NULL DEFAULT 0,
-    fence BIGINT NOT NULL DEFAULT 0,
-    failures INTEGER NOT NULL DEFAULT 0,
-    ciphertext BYTEA,
-    valid_until TIMESTAMPTZ,
-    refresh_after TIMESTAMPTZ,
-    lease_owner VARCHAR(128),
-    lease_expires_at TIMESTAMPTZ,
-    retry_at TIMESTAMPTZ,
-    reason_code VARCHAR(64),
-    updated_at TIMESTAMPTZ NOT NULL,
-    CONSTRAINT uq_guest_context_scope UNIQUE (provider_key, profile_version, client_profile_id, egress_affinity_id),
-    CONSTRAINT ck_guest_context_state CHECK (state IN ('absent','preparing','ready','refreshing','cooling','expired','revoked')),
-    CONSTRAINT ck_guest_context_counters CHECK (revision >= 0 AND fence >= 0 AND failures >= 0),
-    CONSTRAINT ck_guest_context_material CHECK (
-        (ciphertext IS NULL) = (valid_until IS NULL) AND (ciphertext IS NULL) = (refresh_after IS NULL)
-    ),
-    CONSTRAINT ck_guest_context_ready CHECK (state <> 'ready' OR ciphertext IS NOT NULL),
-    CONSTRAINT ck_guest_context_revocation CHECK (state <> 'revoked' OR ciphertext IS NULL),
-    CONSTRAINT ck_guest_context_lease CHECK (
-        (state IN ('preparing','refreshing') AND lease_owner IS NOT NULL AND lease_expires_at IS NOT NULL)
-        OR (state NOT IN ('preparing','refreshing') AND lease_owner IS NULL AND lease_expires_at IS NULL)
-    ),
-    CONSTRAINT ck_guest_context_retry CHECK ((state = 'cooling') = (retry_at IS NOT NULL))
-);
-CREATE INDEX IF NOT EXISTS ix_guest_context_maintenance
-    ON provider_guest_contexts (state, lease_expires_at, retry_at);
-
 COMMIT;
 
 -- Request audit metadata only. No FK: deleting an account/resource retains evidence.

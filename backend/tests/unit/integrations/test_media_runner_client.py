@@ -15,7 +15,6 @@ from app.services.downloads.errors import (
     MediaInspectionConfigurationMissing,
     MediaInspectionDurationLimitExceeded,
     MediaInspectionFailure,
-    MediaInspectionGuestContextRequired,
     MediaInspectionLinkUnavailable,
     MediaInspectionMediaUnsupported,
     MediaInspectionSessionNotReady,
@@ -242,58 +241,6 @@ async def test_operator_content_auth_requirement_stays_content_error(
     with pytest.raises(MediaInspectionAuthRequired):
         await client.inspect("https://www.youtube.com/watch?v=jNQXAC9IVRw")
 
-    await http.aclose()
-
-
-@pytest.mark.asyncio
-@pytest.mark.parametrize("context_ready", (False, True))
-async def test_guest_wait_only_applies_before_media_request(
-    monkeypatch: pytest.MonkeyPatch, context_ready: bool
-) -> None:
-    async def respond(_request: httpx.Request) -> httpx.Response:
-        return httpx.Response(
-            503,
-            json={
-                "error": {"code": "guest_context_required", "message": "unavailable"}
-            },
-        )
-
-    http = httpx.AsyncClient(
-        base_url="http://runner", transport=httpx.MockTransport(respond)
-    )
-    rejected = []
-
-    async def reject_guest(context: ProviderAccessContextRef) -> None:
-        rejected.append(context)
-
-    client = MediaRunnerHttpClient(
-        base_url="http://runner",
-        secret=b"s" * 32,
-        workspace_root=Path("."),
-        inspect_timeout_seconds=1,
-        download_timeout_seconds=1,
-        expected_access_mode=ProviderAccessMode.GUEST,
-        client=http,
-        reject_guest=reject_guest,
-    )
-
-    async def context(_url: str) -> ProviderAccessContextRef:
-        if not context_ready:
-            raise MediaRunnerClientError("guest_context_required", 503)
-        from dataclasses import replace
-
-        return replace(
-            _access_context(),
-            provider_key="douyin",
-            access_mode=ProviderAccessMode.GUEST,
-            credential_version_id="guest-1",
-        )
-
-    monkeypatch.setattr(client, "context", context)
-    with pytest.raises(MediaInspectionGuestContextRequired) as captured:
-        await client.inspect("https://www.douyin.com/video/123")
-    assert captured.value.before_media_io is not context_ready
-    assert len(rejected) == int(context_ready)
     await http.aclose()
 
 
@@ -566,69 +513,6 @@ async def test_inspect_classifies_runner_disconnect_as_dependency_unavailable() 
         await client.inspect("https://www.douyin.com/video/123")
 
     assert type(caught.value) is MediaInspectionTemporarilyUnavailable
-    await http.aclose()
-
-
-@pytest.mark.asyncio
-async def test_download_expires_guest_revision_rejected_by_runner(tmp_path) -> None:
-    async def respond(_request: httpx.Request) -> httpx.Response:
-        return httpx.Response(
-            503,
-            json={
-                "error": {"code": "guest_context_required", "message": "unavailable"}
-            },
-        )
-
-    rejected: list[ProviderAccessContextRef] = []
-
-    async def reject_guest(context: ProviderAccessContextRef) -> None:
-        rejected.append(context)
-
-    http = httpx.AsyncClient(
-        base_url="http://runner", transport=httpx.MockTransport(respond)
-    )
-    client = MediaRunnerHttpClient(
-        base_url="http://runner",
-        secret=b"s" * 32,
-        workspace_root=tmp_path,
-        inspect_timeout_seconds=1,
-        download_timeout_seconds=1,
-        expected_access_mode=ProviderAccessMode.GUEST,
-        client=http,
-        reject_guest=reject_guest,
-    )
-    context = replace(
-        _access_context(),
-        provider_key="douyin",
-        access_mode=ProviderAccessMode.GUEST,
-        credential_version_id="guest-1",
-    )
-
-    with pytest.raises(MediaRunnerClientError) as caught:
-        await client.download(
-            "job_123",
-            "https://www.douyin.com/video/123",
-            DownloadPlanContract.model_validate(
-                {
-                    "height": 720,
-                    "width": 1280,
-                    "fps_bucket": "fps_30",
-                    "dynamic_range": "sdr",
-                    "video_codec_family": "h264",
-                    "audio_codec_family": "aac",
-                    "audio_language": None,
-                    "container_preference": "mp4",
-                    "compatibility_profile": "balanced",
-                    "hints": {"video_id": "video-id", "audio_id": "a1"},
-                }
-            ).to_domain(),
-            expected_provider_media_id="123",
-            expected_extractor_key="Douyin",
-            access_context=context,
-        )
-
-    assert caught.value.code == "guest_context_required"
-    assert rejected == [context]
     await http.aclose()
 
 

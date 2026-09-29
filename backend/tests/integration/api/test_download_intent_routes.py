@@ -15,7 +15,7 @@ from app.repositories.downloads.intent_repository import IntentRepository
 from app.repositories.downloads.repository import SqlAlchemyDownloadRepository
 from app.services.download_execution.models import ExecutionDisposition
 from app.services.downloads.errors import (
-    MediaInspectionGuestContextRequired,
+    MediaInspectionSessionNotReady,
     MediaInspectionTemporarilyUnavailable,
 )
 from app.services.downloads.fingerprints import HmacRequestFingerprinter
@@ -36,9 +36,7 @@ NOW = datetime(2026, 9, 22, tzinfo=UTC)
 URL = "https://www.youtube.com/watch?v=BaW_jenozKc"
 
 
-def components(
-    engine, runner=None, *, guest_providers=frozenset(), operator_providers=frozenset()
-):
+def components(engine, runner=None, *, operator_providers=frozenset()):
     sessions = async_sessionmaker(engine, expire_on_commit=False)
     repo = IntentRepository(sessions)
     cipher = FernetUrlEnvelope(URLCipher(Fernet.generate_key()), key_id="test")
@@ -49,8 +47,6 @@ def components(
         key = provider_profile(url).key
         if key in operator_providers:
             return ProviderAccessPolicy.OPERATOR_PUBLIC
-        if key in guest_providers:
-            return ProviderAccessPolicy.PUBLIC_SESSION
         return ProviderAccessPolicy.PUBLIC
 
     service = IntentService(
@@ -84,23 +80,6 @@ def components(
     return service, repo, executor, clock, sessions
 
 
-async def test_public_intent_selects_guest_without_account_escalation(postgres_engine):
-    from app.services.provider_access import ProviderAccessPolicy
-
-    service, _, _, _, _ = components(
-        postgres_engine, guest_providers=frozenset({"douyin"})
-    )
-    url = "https://www.douyin.com/video/7674644830270473609"
-    first = await service.create(url, TEST_USER.owner_hash, "guest")
-    assert first.access_policy is ProviderAccessPolicy.PUBLIC_SESSION
-    # Deployment configuration changes do not create another intent on replay.
-    anonymous, _, _, _, _ = components(postgres_engine)
-    replay = await anonymous.create(url, TEST_USER.owner_hash, "guest")
-    assert replay.id == first.id and replay.access_policy == first.access_policy
-    other = await service.create(URL, TEST_USER.owner_hash, "other")
-    assert other.access_policy is ProviderAccessPolicy.PUBLIC
-
-
 async def test_configured_operator_policy_is_frozen_on_idempotent_replay(
     postgres_engine,
 ):
@@ -115,7 +94,7 @@ async def test_configured_operator_policy_is_frozen_on_idempotent_replay(
     assert replay.access_policy is ProviderAccessPolicy.OPERATOR_PUBLIC
 
 
-class PreparingGuestRunner(FakeRunner):
+class PreparingSessionRunner(FakeRunner):
     def __init__(self) -> None:
         super().__init__(runner_result())
         self.waits = 0
@@ -123,21 +102,21 @@ class PreparingGuestRunner(FakeRunner):
     async def inspect(self, url, *, access_policy):
         if self.waits < 4:
             self.waits += 1
-            raise MediaInspectionGuestContextRequired(before_media_io=True)
+            raise MediaInspectionSessionNotReady(before_media_io=True)
         return await super().inspect(url, access_policy=access_policy)
 
 
-async def test_guest_preparation_wait_keeps_original_intent_and_attempt_budget(
+async def test_session_preparation_wait_keeps_original_intent_and_attempt_budget(
     postgres_engine,
 ):
-    runner = PreparingGuestRunner()
+    runner = PreparingSessionRunner()
     service, repo, executor, clock, _ = components(
-        postgres_engine, runner, guest_providers=frozenset({"douyin"})
+        postgres_engine, runner, operator_providers=frozenset({"douyin"})
     )
     intent = await service.create(
         "https://www.douyin.com/video/7674644830270473609",
         TEST_USER.owner_hash,
-        "cold-guest",
+        "cold-session",
     )
     for _ in range(4):
         assert await executor.execute(intent.id) is ExecutionDisposition.ACK

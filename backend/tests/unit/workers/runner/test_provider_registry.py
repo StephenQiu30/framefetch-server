@@ -174,7 +174,6 @@ def test_remaining_provider_profiles_record_verified_access_boundaries() -> None
     assert douyin.access_modes == (
         ProviderAccessMode.ANONYMOUS,
         ProviderAccessMode.OPERATOR_MANAGED,
-        ProviderAccessMode.GUEST,
     )
     assert tiktok.support_status is ProviderSupportStatus.VERIFIED
     assert tiktok.version == "tiktok-public-player"

@@ -497,24 +497,3 @@ def test_environment_file_stays_at_repository_root_after_module_move() -> None:
     repository = Path(__file__).resolve().parents[3]
     assert REPOSITORY_ROOT == repository
     assert Settings.model_config["env_file"] == repository / ".env"
-
-
-def test_guest_endpoints_are_explicit_and_isolated():
-    from cryptography.fernet import Fernet
-
-    settings = Settings(
-        app_env="production",
-        service_role="provider-guest",
-        database_url="postgresql+asyncpg://guest:configured@db/video",
-        url_encryption_key=Fernet.generate_key().decode(),
-    )
-    assert settings.service_role == "provider-guest"
-    for endpoint in ("http://media-runner:19100", "http://account:19100"):
-        with pytest.raises(ValueError, match="isolated"):
-            Settings(
-                runner_base_url="http://media-runner:19100",
-                session_runner_base_url="http://account:19100",
-                runner_guest_base_urls={"douyin": endpoint},
-            )
-    with pytest.raises(ValueError, match="does not allow guest"):
-        Settings(runner_guest_base_urls={"youtube": "http://guest:19100"})

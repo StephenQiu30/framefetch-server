@@ -89,8 +89,6 @@ class ProviderStatusView:
         if self.status is ProviderSupportStatus.UNSUPPORTED:
             return ProviderAccessState.UNSUPPORTED
         if self.status is ProviderSupportStatus.ACCESS_REQUIRED:
-            if access_mode is ProviderAccessMode.GUEST:
-                return ProviderAccessState.GUEST_PROBE
             return ProviderAccessState.AUTHORIZATION_REQUIRED
         if self.status is ProviderSupportStatus.BLOCKED:
             return ProviderAccessState.BLOCKED
@@ -109,10 +107,6 @@ class ProviderStatusView:
             if ready:
                 return ProviderAccessState.OPERATOR_READY
             return ProviderAccessState.OPERATOR_PROBE
-        if access_mode is ProviderAccessMode.GUEST:
-            if ready:
-                return ProviderAccessState.GUEST_READY
-            return ProviderAccessState.GUEST_PROBE
         if ready:
             return ProviderAccessState.PUBLIC_READY
         return ProviderAccessState.PUBLIC_PROBE
@@ -130,7 +124,6 @@ class ProviderStatusView:
                 return default_mode
         for mode in (
             ProviderAccessMode.ANONYMOUS,
-            ProviderAccessMode.GUEST,
             ProviderAccessMode.OPERATOR_MANAGED,
         ):
             if mode in self.access_modes:

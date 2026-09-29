@@ -137,38 +137,6 @@ describe('provider status page', () => {
     ).toHaveAttribute('data-variant', 'secondary');
   });
 
-  it('shows the configured guest route and its media evidence', async () => {
-    const base = statuses().items[0];
-    runtime.listProviders.mockResolvedValue({
-      items: [
-        {
-          ...base,
-          key: 'douyin',
-          display_name: '抖音',
-          access_modes: ['anonymous', 'guest'],
-          default_access_policy_id: 'public_session',
-          access_state: 'guest_ready',
-          status: 'verified',
-          download_available: true,
-          last_media_verified_at: '2026-08-29T03:33:50Z',
-        },
-      ],
-    });
-    render(<ProviderStatusView />);
-
-    const row = (await screen.findByRole('heading', { name: '抖音' })).closest(
-      'tr',
-    );
-    expect(row).not.toBeNull();
-    fireEvent.click(
-      within(row as HTMLElement).getByRole('button', { name: '验证详情' }),
-    );
-    const details = screen
-      .getByText('匿名公开内容 + 自动准备的游客线路 · 默认：游客线路')
-      .closest('tr');
-    expect(details).toHaveTextContent('游客线路样本下载：可用');
-  });
-
   it('keeps media sample evidence separate from current route availability', async () => {
     const base = statuses().items[0];
     runtime.listProviders.mockResolvedValue({
@@ -178,7 +146,7 @@ describe('provider status page', () => {
           key: 'douyin',
           display_name: '抖音',
           status: 'unknown',
-          access_state: 'guest_probe',
+          access_state: 'operator_probe',
           download_available: true,
         },
         {
@@ -197,7 +165,7 @@ describe('provider status page', () => {
       await screen.findByRole('heading', { name: '抖音' })
     ).closest('tr');
     expect(douyin).toHaveTextContent('近期媒体样本通过');
-    expect(douyin).toHaveTextContent('游客线路待验证');
+    expect(douyin).toHaveTextContent('受控线路待验证');
     expect(
       within(douyin as HTMLElement).getByText('近期媒体样本通过'),
     ).toHaveAttribute('data-variant', 'secondary');

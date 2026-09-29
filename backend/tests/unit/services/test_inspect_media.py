@@ -10,7 +10,6 @@ from app.services.downloads.errors import (
     ApplicationErrorCode,
     MediaInspectionAuthRequired,
     MediaInspectionDurationLimitExceeded,
-    MediaInspectionGuestContextRequired,
     MediaInspectionLinkUnavailable,
     MediaInspectionUnsupported,
 )
@@ -273,18 +272,6 @@ async def test_provider_access_requirement_is_reported_explicitly() -> None:
 
 
 @pytest.mark.asyncio
-async def test_guest_context_requirement_never_becomes_account_authorization() -> None:
-    repository = FakeRepository()
-    inspect, runner, _ = use_case(repository, runner_result())
-    runner.inspect = _raise_guest_context_required  # type: ignore[method-assign]
-
-    with pytest.raises(ApplicationError) as caught:
-        await inspect(URL, OWNER, "guest-context")
-
-    assert caught.value.code is ApplicationErrorCode.PROVIDER_GUEST_CONTEXT_REQUIRED
-
-
-@pytest.mark.asyncio
 async def test_unavailable_provider_link_is_reported_explicitly() -> None:
     repository = FakeRepository()
     inspect, runner, _ = use_case(repository, runner_result())
@@ -312,12 +299,6 @@ async def _raise_provider_access(
     _: str, *, access_policy: ProviderAccessPolicy
 ) -> RunnerInspection:
     raise MediaInspectionAuthRequired
-
-
-async def _raise_guest_context_required(
-    _: str, *, access_policy: ProviderAccessPolicy
-) -> RunnerInspection:
-    raise MediaInspectionGuestContextRequired
 
 
 async def _raise_provider_link_unavailable(

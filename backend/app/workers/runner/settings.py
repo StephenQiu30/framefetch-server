@@ -5,7 +5,7 @@ from hashlib import sha256
 from pathlib import Path
 from urllib.parse import urlsplit
 
-from app.services.provider_types import ProviderAccessMode, ProviderKey
+from app.services.provider_types import ProviderAccessMode
 from app.workers.runner.provider_instances import validated_instance_hosts
 from app.workers.runner.version import (
     YOUTUBE_POT_PROVIDER_ATTESTATION,
@@ -62,8 +62,6 @@ class RunnerSettings(ProviderEgressSettings):
     runner_workspace_root: Path = Path("/var/lib/video-runner")
     runner_access_mode: ProviderAccessMode = ProviderAccessMode.ANONYMOUS
     runner_provider_session_temp_root: Path = Path("/run/provider-session")
-    runner_guest_provider: ProviderKey | None = None
-    runner_guest_cookie_file: Path | None = None
     # Site session runner (046): per-task leases come from the session broker.
     runner_session_broker_url: str | None = None
     runner_session_rpc_secret: SecretStr | None = None
@@ -139,12 +137,6 @@ class RunnerSettings(ProviderEgressSettings):
     def resolve_workspace(cls, value: Path) -> Path:
         return value.expanduser().resolve()
 
-    @field_validator("runner_guest_cookie_file")
-    @classmethod
-    def normalize_cookie_file(cls, value: Path | None) -> Path | None:
-        # Preserve the final component so O_NOFOLLOW can reject symlink sources.
-        return None if value is None else value.expanduser().absolute()
-
     @field_validator("runner_ytdlp_commit", "runner_youtube_pot_provider_version")
     @classmethod
     def validate_version_reference(cls, value: str) -> str:
@@ -170,28 +162,6 @@ class RunnerSettings(ProviderEgressSettings):
         ):
             raise ValueError("provider session temp root cannot be in the workspace")
         operator = self.runner_access_mode is ProviderAccessMode.OPERATOR_MANAGED
-        guest = self.runner_access_mode is ProviderAccessMode.GUEST
-        if guest:
-            if (
-                self.runner_guest_provider is not ProviderKey.DOUYIN
-                or self.runner_guest_cookie_file is None
-            ):
-                raise ValueError(
-                    "guest runner requires a supported provider and read-only lease"
-                )
-            if self.runner_guest_cookie_file.resolve().is_relative_to(
-                self.runner_workspace_root
-            ):
-                raise ValueError("guest lease cannot be in the workspace")
-            if self.runner_max_active_tasks != 1:
-                raise ValueError("guest runner concurrency must be one")
-            if not self.runner_credential_lease_redis_url:
-                raise ValueError("guest runner requires distributed execution leases")
-        elif (
-            self.runner_guest_provider is not None
-            or self.runner_guest_cookie_file is not None
-        ):
-            raise ValueError("only a guest runner may read guest material")
         if operator:
             secret = self.runner_session_rpc_secret
             if (
@@ -204,11 +174,6 @@ class RunnerSettings(ProviderEgressSettings):
                 raise ValueError("session runner requires distributed execution leases")
         elif self.runner_session_broker_url or self.runner_session_rpc_secret:
             raise ValueError("only the session runner may reach the session broker")
-        if (
-            self.runner_youtube_pot_base_url is not None
-            and self.runner_access_mode is ProviderAccessMode.GUEST
-        ):
-            raise ValueError("POT provider is not used by guest runners")
         return self
 
     @field_validator(

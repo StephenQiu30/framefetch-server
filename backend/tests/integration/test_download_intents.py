@@ -282,19 +282,19 @@ async def test_guest_media_failures_still_consume_three_attempts(
     assert failed.status == "failed" and failed.attempt == 3
 
 
-async def test_guest_preparation_wait_preserves_cancellation_and_deadline(
+async def test_session_preparation_wait_preserves_cancellation_and_deadline(
     postgres_engine: AsyncEngine,
 ) -> None:
     repo = repository(postgres_engine)
     waiting = await repo.accept(
-        replace(command(), access_policy=ProviderAccessPolicy.PUBLIC_SESSION), now=NOW
+        replace(command(), access_policy=ProviderAccessPolicy.OPERATOR_PUBLIC), now=NOW
     )
     lease = await repo.claim(waiting.id, "worker", now=NOW, lease_for=LEASE)
     assert lease is not None
     deferred = await repo.fail(
         lease.intent,
         now=NOW,
-        reason_code="provider_guest_context_required",
+        reason_code="provider_session_not_ready",
         retry_at=NOW + timedelta(seconds=15),
         preparation_wait=True,
     )
@@ -312,9 +312,9 @@ async def test_guest_preparation_wait_preserves_cancellation_and_deadline(
     expired = await repo.accept(
         replace(
             command(),
-            idempotency_key="expires-during-guest-wait",
+            idempotency_key="expires-during-session-wait",
             id=uuid4(),
-            access_policy=ProviderAccessPolicy.PUBLIC_SESSION,
+            access_policy=ProviderAccessPolicy.OPERATOR_PUBLIC,
         ),
         now=NOW,
     )
@@ -323,7 +323,7 @@ async def test_guest_preparation_wait_preserves_cancellation_and_deadline(
     await repo.fail(
         lease.intent,
         now=NOW,
-        reason_code="provider_guest_context_required",
+        reason_code="provider_session_not_ready",
         retry_at=NOW + timedelta(seconds=15),
         preparation_wait=True,
     )

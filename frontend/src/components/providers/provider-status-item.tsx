@@ -165,8 +165,6 @@ function accessStateLabel(state: API.ProviderAccessState): string {
   const labels: Record<API.ProviderAccessState, string> = {
     [ProviderAccessStateCode.PublicProbe]: '公开线路待验证',
     [ProviderAccessStateCode.PublicReady]: '公开线路可用',
-    [ProviderAccessStateCode.GuestProbe]: '游客线路待验证',
-    [ProviderAccessStateCode.GuestReady]: '游客线路可用',
     [ProviderAccessStateCode.AuthorizationRequired]: '需要授权或平台验证',
     [ProviderAccessStateCode.OperatorProbe]: '受控线路待验证',
     [ProviderAccessStateCode.OperatorReady]: '受控线路可用',
@@ -220,28 +218,24 @@ function accessDescription(
   provider: API.ProviderListResponse['items'][number],
 ): string {
   const anonymous = provider.access_modes.includes('anonymous');
-  const guest = provider.access_modes.includes('guest');
   const operatorManaged = provider.access_modes.includes('operator_managed');
-  if (!guest && provider.default_access_policy_id === null) {
+  if (provider.default_access_policy_id === null) {
     if (operatorManaged && !anonymous) return '服务端受控线路已配置';
     if (operatorManaged) return '匿名公开内容 + 服务端受控线路';
     if (anonymous) return '仅匿名公开内容';
   }
   const routes = [
     anonymous && '匿名公开内容',
-    guest && '自动准备的游客线路',
     operatorManaged && '服务端受控线路',
   ].filter(Boolean);
   if (routes.length === 0) return '当前未开放';
   const defaultRoute =
-    provider.default_access_policy_id === 'public_session'
-      ? '游客线路'
-      : provider.default_access_policy_id === 'public'
-        ? '匿名公开线路'
-        : provider.default_access_policy_id === 'operator_public' ||
-            provider.default_access_policy_id === 'personal_entitled'
-          ? '服务端受控线路'
-          : null;
+    provider.default_access_policy_id === 'public'
+      ? '匿名公开线路'
+      : provider.default_access_policy_id === 'operator_public' ||
+          provider.default_access_policy_id === 'personal_entitled'
+        ? '服务端受控线路'
+        : null;
   return `${routes.join(' + ')}${
     defaultRoute ? ` · 默认：${defaultRoute}` : ''
   }`;
@@ -263,17 +257,15 @@ function mediaVerificationDescription(
   if (!provider.last_media_verified_at) return '真实下载：暂无当前版本证据';
   if (provider.download_available) {
     const sample =
-      provider.default_access_policy_id === 'public_session'
-        ? '游客线路样本'
-        : provider.default_access_policy_id === 'operator_public' ||
-            provider.default_access_policy_id === 'personal_entitled'
+      provider.default_access_policy_id === 'operator_public' ||
+      provider.default_access_policy_id === 'personal_entitled'
+        ? '受控线路样本'
+        : provider.access_modes.includes('operator_managed') &&
+            !provider.access_modes.includes('anonymous')
           ? '受控线路样本'
-          : provider.access_modes.includes('operator_managed') &&
-              !provider.access_modes.includes('anonymous')
-            ? '受控线路样本'
-            : provider.access_modes.includes('anonymous')
-              ? '公开样本'
-              : '样本';
+          : provider.access_modes.includes('anonymous')
+            ? '公开样本'
+            : '样本';
     return `${sample}下载：可用 · ${formatDate(
       provider.last_media_verified_at,
     )}`;

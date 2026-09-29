@@ -2,13 +2,11 @@
 
 from __future__ import annotations
 
-from collections.abc import Awaitable, Callable
-
 from app.core.config import Settings
 from app.integrations.media_inspection_pipeline import SessionPolicyReader
 from app.integrations.media_runner import MediaRunnerHttpClient, MediaRunnerRouter
 from app.services.provider_route_admission import ProviderRouteAdmission
-from app.services.provider_types import ProviderAccessContextRef, ProviderAccessMode
+from app.services.provider_types import ProviderAccessMode
 from app.services.site_sessions import known_session_provider_keys
 
 
@@ -49,7 +47,6 @@ def _media_runner(
     base_url: str,
     admission: ProviderRouteAdmission | None,
     access_mode: ProviderAccessMode,
-    reject_guest: Callable[[ProviderAccessContextRef], Awaitable[None]] | None = None,
 ) -> MediaRunnerHttpClient:
     return MediaRunnerHttpClient(
         base_url=base_url,
@@ -59,5 +56,4 @@ def _media_runner(
         download_timeout_seconds=settings.download_timeout_seconds,
         admission=admission,
         expected_access_mode=access_mode,
-        reject_guest=reject_guest,
     )
