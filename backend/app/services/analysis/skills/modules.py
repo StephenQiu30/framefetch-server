@@ -91,18 +91,29 @@ def compile_source_module(module_id: str, root: Path) -> str:
     )
 
 
-def _select_sections(text: str, headings: tuple[str, ...], path: Path) -> str:
-    lines = text.splitlines()
+def markdown_sections(text: str) -> dict[str, list[str]]:
+    """Split Markdown on level-2 headings, ignoring lines inside code fences."""
     blocks: dict[str, list[str]] = {}
     current: str | None = None
-    for line in lines:
-        if line.startswith("## "):
+    fenced = False
+    for line in text.splitlines():
+        if line.lstrip().startswith(("```", "~~~")):
+            fenced = not fenced
+        if not fenced and line.startswith("## "):
             current = line[3:].strip()
             if current in blocks:
-                raise ValueError(f"duplicate analysis source section: {path}")
+                raise ValueError(f"duplicate Markdown section: {current}")
             blocks[current] = [line]
         elif current is not None:
             blocks[current].append(line)
+    return blocks
+
+
+def _select_sections(text: str, headings: tuple[str, ...], path: Path) -> str:
+    try:
+        blocks = markdown_sections(text)
+    except ValueError as exc:
+        raise ValueError(f"duplicate analysis source section: {path}") from exc
     if len(set(headings)) != len(headings) or any(
         item not in blocks for item in headings
     ):

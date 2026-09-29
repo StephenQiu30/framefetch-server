@@ -224,3 +224,12 @@ def test_manifest_loader_rejects_non_allowlisted_licenses(tmp_path: Path) -> Non
     )
     with pytest.raises(ValueError, match="invalid analysis source module"):
         load_manifest(path)
+
+
+def test_headings_inside_code_fences_are_not_sections() -> None:
+    from app.services.analysis.skills.modules import markdown_sections
+
+    text = "## Template\n\n```markdown\n## Video: [Title]\n```\n\n## Next\n\nx\n"
+    blocks = markdown_sections(text)
+    assert list(blocks) == ["Template", "Next"]
+    assert "## Video: [Title]" in "\n".join(blocks["Template"])

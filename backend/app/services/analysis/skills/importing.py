@@ -17,7 +17,7 @@ from datetime import date
 from pathlib import Path, PurePosixPath
 
 from app.services.analysis.skills.frontmatter import load_frontmatter
-from app.services.analysis.skills.modules import LICENSE_ALLOWLIST
+from app.services.analysis.skills.modules import LICENSE_ALLOWLIST, markdown_sections
 
 MAX_MARKDOWN_BYTES = 64_000
 _LICENSE_FILES = ("LICENSE", "LICENSE.md", "LICENSE.txt", "COPYING")
@@ -288,9 +288,10 @@ def _module_id(source: str, destination: str) -> str:
 
 
 def _headings(text: str) -> tuple[str, ...]:
-    return tuple(
-        line[3:].strip() for line in text.splitlines() if line.startswith("## ")
-    )
+    try:
+        return tuple(markdown_sections(text))
+    except ValueError as exc:
+        raise SkillImportRejected(str(exc)) from None
 
 
 def _notice_entry(plan: ImportPlan, today: date, registered: list[str]) -> str:
