@@ -58,7 +58,7 @@ class FakeCredentialLease:
         self.held: list[tuple[str, str]] = []
 
     @asynccontextmanager
-    async def hold(self, provider: str, version: str):
+    async def hold(self, provider: str, version: str, *, wait_seconds: float = 0):
         self.held.append((provider, version))
         yield
 

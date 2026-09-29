@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import secrets
+import time
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from typing import Any
@@ -12,6 +13,7 @@ from app.workers.runner.errors import RunnerFailure
 from redis.asyncio import Redis
 
 _KEY_PREFIX = "video:provider-credential-lease:"
+_POLL_SECONDS = 0.25
 
 _RENEW_SCRIPT = """
 if redis.call('GET', KEYS[1]) == ARGV[1] then
@@ -58,20 +60,32 @@ class ProviderCredentialLeaseCoordinator:
         self,
         provider: str,
         credential_version: str,
+        *,
+        wait_seconds: float = 0,
     ) -> AsyncIterator[None]:
+        """Hold one credential; ``wait_seconds`` queues behind the current holder.
+
+        Maintenance passes 0 and skips a busy site; request paths wait so a
+        keepalive or a sibling operation is not reported as a failure.
+        """
         key = lease_key(provider, credential_version)
         token = secrets.token_urlsafe(32)
-        try:
-            acquired = await self._client.set(
-                key,
-                token,
-                nx=True,
-                px=self._ttl_ms,
-            )
-        except Exception as exc:
-            raise RunnerFailure("provider_session_unavailable", status=503) from exc
-        if not acquired:
-            raise RunnerFailure("provider_session_unavailable", status=503)
+        deadline = time.monotonic() + max(0.0, wait_seconds)
+        while True:
+            try:
+                acquired = await self._client.set(
+                    key,
+                    token,
+                    nx=True,
+                    px=self._ttl_ms,
+                )
+            except Exception as exc:
+                raise RunnerFailure("provider_session_unavailable", status=503) from exc
+            if acquired:
+                break
+            if time.monotonic() >= deadline:
+                raise RunnerFailure("provider_session_unavailable", status=503)
+            await asyncio.sleep(_POLL_SECONDS)
 
         owner = asyncio.current_task()
         heartbeat = asyncio.create_task(self._heartbeat(key, token, owner))

@@ -182,10 +182,19 @@ class SessionBroker:
 
     @asynccontextmanager
     async def _lock(self, site: str) -> AsyncIterator[None]:
-        self._verified = {key for key in self._verified if key[0] != site}
+        # Admission survives a healthy maintenance pass: clearing it up front made
+        # every site unusable for the length of each keepalive. It is withdrawn
+        # only when the pass fails or ends without a fresh verification.
         async with self._locks.setdefault(site, asyncio.Lock()):
             async with self._coordinator.hold(site, "session"):
-                yield
+                try:
+                    yield
+                except BaseException:
+                    self._withdraw(site)
+                    raise
+
+    def _withdraw(self, site: str) -> None:
+        self._verified = {key for key in self._verified if key[0] != site}
 
     # Browser maintenance ----------------------------------------------------
 
@@ -232,6 +241,7 @@ class SessionBroker:
                 return
             if report.outcome is BrowserOutcome.PROFILE_MISSING:
                 # A lost browser volume is rebuilt from the latest stored jar.
+                self._withdraw(site)
                 await self._load_into_browser(secret)
                 return
             await self._absorb(secret, self._decrypt(secret), report)
@@ -378,6 +388,14 @@ class SessionBroker:
             )
         except ValueError:
             return None
+
+    async def warming_up(self) -> bool:
+        """True while a session stored as ready has not been verified live yet."""
+        return any(
+            status.state is SiteSessionState.READY
+            and (status.site, status.seed_revision) not in self._verified
+            for status in await self._states.list()
+        )
 
     # Runner RPC -------------------------------------------------------------
 

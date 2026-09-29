@@ -468,3 +468,92 @@ async def test_rotation_cannot_publish_after_reimport(world):
             task_id="late", site=SITE, seed_revision=1, sealed_jar=sealed
         )
     assert await stored_jar(w) == b"new-import"
+
+
+async def test_admission_survives_a_healthy_keepalive(world):
+    w = world
+    await w.seed()
+    w.browser.bootstrap_reports.append(BrowserReport(O.VERIFIED, jar=b"v1"))
+    await w.broker.scan()
+
+    seen: list[int] = []
+    original = w.browser.keepalive
+
+    async def observing_keepalive(site, seed_revision):
+        # A request arriving mid-maintenance must still be admitted.
+        seen.append(await w.broker.ready_revision(site))
+        return await original(site, seed_revision)
+
+    w.browser.keepalive = observing_keepalive
+    w.clock.now += timedelta(seconds=1801)
+    w.browser.keepalive_reports.append(BrowserReport(O.VERIFIED, jar=b"v1"))
+    await w.broker.scan()
+    assert seen == [1]
+    assert await w.broker.ready_revision(SITE) == 1
+
+
+async def test_admission_is_withdrawn_when_maintenance_cannot_verify(world):
+    w = world
+    await w.seed()
+    w.browser.bootstrap_reports.append(BrowserReport(O.VERIFIED, jar=b"v1"))
+    await w.broker.scan()
+
+    # Lost browser profile: nothing proves the login until the rebuild verifies it.
+    w.clock.now += timedelta(seconds=1801)
+    w.browser.keepalive_reports.append(BrowserReport(O.PROFILE_MISSING))
+    w.browser.bootstrap_reports.append(BrowserReport(O.TEMPORARY_FAILURE))
+    await w.broker.scan()
+    with pytest.raises(SessionNotReady):
+        await w.broker.ready_revision(SITE)
+
+
+async def test_admission_is_withdrawn_when_a_pass_raises(world):
+    w = world
+    await w.seed()
+    w.browser.bootstrap_reports.append(BrowserReport(O.VERIFIED, jar=b"v1"))
+    await w.broker.scan()
+
+    w.clock.now += timedelta(seconds=1801)
+    w.browser.keepalive_reports.append(RuntimeError("boom"))
+    await w.broker.scan()  # the scan isolates one site's failure
+    with pytest.raises(SessionNotReady):
+        await w.broker.ready_revision(SITE)
+
+
+async def test_unconfirmable_login_asks_the_source_for_a_fresh_one(world):
+    w = world
+    await w.seed()
+    w.browser.bootstrap_reports.append(
+        BrowserReport(O.TEMPORARY_FAILURE, error_code="login_probe_inconclusive")
+    )
+    await w.broker.scan()
+    status = await w.states.get(SITE)
+    assert status.state is S.DEGRADED
+
+    w.clock.now = datetime.now(UTC) + timedelta(minutes=31)
+    await w.broker.scan()
+    status = await w.states.get(SITE)
+    assert (
+        status.state is S.RESEED_REQUIRED
+        and status.last_error_code == "login_probe_unconfirmed"
+    )
+
+
+async def test_warming_up_until_stored_ready_sessions_verify_live(world):
+    w = world
+    await w.seed()
+    w.browser.bootstrap_reports.append(BrowserReport(O.VERIFIED, jar=b"v1"))
+    await w.broker.scan()
+    assert not await w.broker.warming_up()
+    restarted = SessionBroker(
+        states=w.states,
+        secrets=w.secrets,
+        cipher=w.cipher,
+        browser=w.browser,
+        coordinator=FakeCoordinator(),
+        clock=w.clock,
+    )
+    assert await restarted.warming_up()
+    w.browser.keepalive_reports.append(BrowserReport(O.VERIFIED, jar=b"v1"))
+    await restarted.scan()
+    assert not await restarted.warming_up()

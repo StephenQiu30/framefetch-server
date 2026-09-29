@@ -50,10 +50,15 @@ type BrokerFactory = Callable[[], AbstractAsyncContextManager[SessionBroker]]
 
 
 def create_app(
-    *, broker_factory: BrokerFactory, rpc_secret: bytes, scan_seconds: float
+    *,
+    broker_factory: BrokerFactory,
+    rpc_secret: bytes,
+    scan_seconds: float,
+    warmup_seconds: float = 60,
 ) -> FastAPI:
     verifier = authenticator(rpc_secret)
-    health = {"scanned_at": 0.0}
+    health = {"scanned_at": 0.0, "warm": False}
+    started = time.monotonic()
 
     async def scan_forever(broker: SessionBroker) -> None:
         while True:
@@ -150,9 +155,24 @@ def create_app(
         return {"status": "ok"}
 
     @app.get("/health/ready")
-    async def ready() -> Response:
+    async def ready(request: Request) -> Response:
         fresh = time.monotonic() - health["scanned_at"] <= 180 + scan_seconds * 3
-        return Response(status_code=200 if health["scanned_at"] and fresh else 503)
+        if not (health["scanned_at"] and fresh):
+            return Response(status_code=503)
+        # After a cold start, report ready only once sessions stored as ready are
+        # verified live, so ``compose up --wait`` means "platforms are usable".
+        # Bounded and latched: a session that never verifies must not keep the
+        # broker (and everything waiting on it) unhealthy forever.
+        if not health["warm"]:
+            broker: SessionBroker = request.app.state.broker
+            try:
+                warming = await broker.warming_up()
+            except Exception:
+                warming = False
+            if warming and time.monotonic() - started < warmup_seconds:
+                return Response(status_code=503)
+            health["warm"] = True
+        return Response(status_code=200)
 
     return app
 

@@ -38,6 +38,9 @@ from app.workers.runner.site_sessions import (
     parse_context_version,
 )
 
+# A keepalive or sibling operation on the same site is queued, not failed.
+_SESSION_LOCK_WAIT_SECONDS = 30.0
+
 
 class ProviderSessionStore:
     """Freeze an access context, then hand out one tmpfs Cookie jar per operation."""
@@ -202,7 +205,9 @@ class ProviderSessionStore:
         site, revision = parse_context_version(context.credential_version_id)
         assert self._site_sessions is not None
         # One operation per site identity across every Runner replica.
-        async with self._credential_lease.hold(site, "session"):
+        async with self._credential_lease.hold(
+            site, "session", wait_seconds=_SESSION_LOCK_WAIT_SECONDS
+        ):
             operation = await self._site_sessions.lease(site, revision)
             with operation_cookie(
                 operation.payload, self._temp_root, context.provider_key

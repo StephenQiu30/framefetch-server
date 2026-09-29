@@ -132,3 +132,37 @@ async def test_heartbeat_keeps_long_operation_owned(redis_url: str) -> None:
                 raise AssertionError("heartbeat did not preserve the lease")
     await first.close()
     await second.close()
+
+
+@pytest.mark.asyncio
+async def test_waiting_holder_queues_behind_the_current_holder(
+    redis_url: str,
+) -> None:
+    first = ProviderCredentialLeaseCoordinator(
+        redis_url, ttl_seconds=3, heartbeat_seconds=1
+    )
+    second = ProviderCredentialLeaseCoordinator(
+        redis_url, ttl_seconds=3, heartbeat_seconds=1
+    )
+    entered = asyncio.Event()
+
+    async def hold_briefly() -> None:
+        async with first.hold("youtube", "session"):
+            entered.set()
+            await asyncio.sleep(0.6)
+
+    task = asyncio.create_task(hold_briefly())
+    await entered.wait()
+    started = time.monotonic()
+    async with second.hold("youtube", "session", wait_seconds=5):
+        assert time.monotonic() - started >= 0.4
+    await task
+
+    async with first.hold("youtube", "session"):
+        started = time.monotonic()
+        with pytest.raises(RunnerFailure):
+            async with second.hold("youtube", "session", wait_seconds=0.5):
+                raise AssertionError("the busy credential was acquired")
+        assert 0.4 <= time.monotonic() - started < 2
+    await first.close()
+    await second.close()

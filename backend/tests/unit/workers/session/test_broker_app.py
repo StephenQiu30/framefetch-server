@@ -25,8 +25,13 @@ class StubBroker:
         self.scans = 0
         self.failures: list[dict] = []
 
+    warming = False
+
     async def scan(self) -> None:
         self.scans += 1
+
+    async def warming_up(self) -> bool:
+        return self.warming
 
     async def lease(self, *, task_id, site, seed_revision, runner_key):
         if site == "busy.com":
@@ -130,3 +135,41 @@ def test_broker_refuses_to_start_without_its_secrets():
 
     with pytest.raises(SystemExit):
         settings_factory(Settings(_env_file=None, service_role="session-broker"))
+
+
+async def _ready_status(broker: StubBroker, warmup_seconds: float) -> list[int]:
+    @asynccontextmanager
+    async def factory():
+        yield broker
+
+    app = create_app(
+        broker_factory=factory,
+        rpc_secret=SECRET,
+        scan_seconds=0.01,
+        warmup_seconds=warmup_seconds,
+    )
+    codes = []
+    async with app.router.lifespan_context(app):
+        await asyncio.sleep(0.05)
+        transport = httpx.ASGITransport(app=app)
+        async with httpx.AsyncClient(transport=transport, base_url="http://b") as raw:
+            codes.append((await raw.get("/health/ready")).status_code)
+            broker.warming = False
+            codes.append((await raw.get("/health/ready")).status_code)
+            broker.warming = (
+                True  # latched: a later maintenance pass is not a cold start
+            )
+            codes.append((await raw.get("/health/ready")).status_code)
+    return codes
+
+
+async def test_ready_waits_for_live_verification_then_latches():
+    broker = StubBroker()
+    broker.warming = True
+    assert await _ready_status(broker, warmup_seconds=60) == [503, 200, 200]
+
+
+async def test_warmup_is_bounded_so_a_stuck_session_cannot_block_startup():
+    broker = StubBroker()
+    broker.warming = True
+    assert await _ready_status(broker, warmup_seconds=0) == [200, 200, 200]

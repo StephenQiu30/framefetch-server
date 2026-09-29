@@ -10,6 +10,10 @@ from app.services.site_sessions import SiteSessionState, SiteSessionStatus
 
 MAX_CONSECUTIVE_FAILURES = 3
 DEGRADED_DEADLINE = timedelta(hours=24)
+# A probe that cannot tell logged in from logged out (e.g. an expired token the
+# page has not yet turned into "logged out") is unlikely to fix itself; ask the
+# source for the login it currently holds instead of waiting a day.
+INCONCLUSIVE_DEADLINE = timedelta(minutes=30)
 
 _LIVE = frozenset(
     {
@@ -106,15 +110,21 @@ def decide(
 
 def expire(status: SiteSessionStatus, *, now: datetime) -> SessionTransition | None:
     """Stop retrying a session that has been degraded for too long."""
-    if (
-        status.state is SiteSessionState.DEGRADED
-        and status.last_error_code in _AUTH_FAILURE_CODES
-        and now - status.state_changed_at >= DEGRADED_DEADLINE
+    if status.state is not SiteSessionState.DEGRADED:
+        return None
+    age = now - status.state_changed_at
+    if status.last_error_code in _AUTH_FAILURE_CODES and age >= DEGRADED_DEADLINE:
+        code = "degraded_timeout"
+    elif (
+        status.last_error_code == "login_probe_inconclusive"
+        and age >= INCONCLUSIVE_DEADLINE
     ):
-        return SessionTransition(
-            frozenset({SiteSessionState.DEGRADED}),
-            SiteSessionState.RESEED_REQUIRED,
-            status.consecutive_failures,
-            "degraded_timeout",
-        )
-    return None
+        code = "login_probe_unconfirmed"
+    else:
+        return None
+    return SessionTransition(
+        frozenset({SiteSessionState.DEGRADED}),
+        SiteSessionState.RESEED_REQUIRED,
+        status.consecutive_failures,
+        code,
+    )
