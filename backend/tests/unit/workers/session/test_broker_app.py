@@ -3,8 +3,12 @@ from contextlib import asynccontextmanager
 
 import httpx
 import pytest
-from app.workers.session.broker import LeaseGrant, SessionNotReady
 from app.workers.session.broker_app import create_app, settings_factory
+from app.workers.session.chrome_broker import (
+    LeaseGrant,
+    SessionLoginRequired,
+    SessionNotReady,
+)
 from app.workers.session.contracts import (
     FAILURE_PATH,
     LEASE_PATH,
@@ -36,6 +40,8 @@ class StubBroker:
     async def lease(self, *, task_id, site, seed_revision, runner_key):
         if site == "busy.com":
             raise SessionNotReady(site)
+        if site == "loggedout.com":
+            raise SessionLoginRequired(site)
         return LeaseGrant(
             site,
             seed_revision,
@@ -87,6 +93,15 @@ async def test_lease_failure_and_health_endpoints():
             "provider_session_not_ready",
             409,
         )
+        with pytest.raises(RpcError) as error:
+            await signed.post(
+                LEASE_PATH,
+                LeaseRequest(
+                    task_id="t1", site="loggedout.com", seed_revision=1, public_key=KEY
+                ),
+                LeaseResponse,
+            )
+        assert (error.value.code, error.value.status) == ("credential_required", 409)
         with pytest.raises(RpcError) as error:
             await signed.post(
                 LEASE_PATH,

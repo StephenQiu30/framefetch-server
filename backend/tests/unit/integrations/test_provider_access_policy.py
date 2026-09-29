@@ -5,10 +5,8 @@ import pytest
 from app.integrations.media_runner import MediaRunnerRouter
 from app.integrations.site_session_catalog import SiteSessionRoutes
 from app.services.downloads.errors import (
-    MediaInspectionConfigurationMissing,
     MediaInspectionFailure,
     MediaInspectionPolicyNotAllowed,
-    MediaInspectionSessionNotReady,
 )
 from app.services.provider_access import ProviderAccessPolicy as Policy
 from app.services.provider_types import ProviderAccessMode as Mode
@@ -27,23 +25,15 @@ class States:
 
 
 @pytest.mark.parametrize("state", [None, *State])
-async def test_no_state_can_fall_back_to_anonymous(state):
+async def test_session_sites_always_use_the_session_route(state):
+    # Login state is read live from Chrome by the Runner; stored rows no longer
+    # gate dispatch, and a session site never falls back to anonymous.
     client = FakeClient(context(Mode.OPERATOR_MANAGED))
     routes = SiteSessionRoutes(States(state))
     router = MediaRunnerRouter(client, session_routes=routes)
     assert await router.resolve_access_policy(URL) is Policy.OPERATOR_PUBLIC
-    if state is State.READY:
-        await router.inspect(URL)
-        assert client.inspected == [URL]
-    else:
-        error = (
-            MediaInspectionConfigurationMissing
-            if state in {None, State.REVOKED, State.RESEED_REQUIRED}
-            else MediaInspectionSessionNotReady
-        )
-        with pytest.raises(error):
-            await router.inspect(URL)
-        assert client.inspected == []
+    await router.inspect(URL)
+    assert client.inspected == [URL]
 
 
 @pytest.mark.parametrize(

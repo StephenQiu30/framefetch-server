@@ -36,9 +36,14 @@
 
 ## 最新动态
 
+**未发布 · 登录态改为现读本机 Chrome**
+
+- 移除 `./start`、会话数据库副本、`session-browser` 与保活状态机：每次解析时从你自己的 Chrome 现读登录态。
+- 新增 `migrate` 容器应用数据库结构，冷启动只需 `docker compose up -d --wait`。
+- TikTok 改走 yt-dlp 官方维护的提取器；金丝雀默认探测仓库自带的公开样例。
+
 **[v0.2.0](https://github.com/StephenQiu30/video-server/releases/tag/v0.2.0) · 容器自持平台会话**
 
-- `./start` 一条命令完成：应用数据库结构、发现本机 Chrome 已登录的平台会话、加密登记并由容器验证，随后启动全部业务容器。
 - 平台会话由 `session-broker` 与容器会话浏览器自持：冷启动恢复、保活、失效检测与自动轮换，普通用户只需粘贴链接。
 - 在线解析统一走站点会话路线，移除匿名与访客执行路线，结果以真实文件验收为准。
 - Web 体验：头像上传与个人资料、统一的解析结果双栏卡片、可恢复错误提示与 shadcn 组件整理。
@@ -125,7 +130,7 @@ Web 实例提供公开页面：`/guide/` 使用指南、`/self-hosting/` 自托�
 - 本机已运行 PostgreSQL、RabbitMQ、Redis 和 MinIO，已有配置直接复用
 - 用于生产部署时，需要自行提供强随机密钥和公开访问地址
 
-### 本机自动启动（macOS）
+### 本机启动（macOS，单人自用）
 
 ```bash
 git clone https://github.com/StephenQiu30/video-server.git
@@ -134,14 +139,11 @@ test -f .env || cp .env.example .env
 
 # 确认 .env 连接本机已运行的 PostgreSQL、RabbitMQ、Redis 与 MinIO
 
-# 首次使用空项目数据库时，先以该库的 DDL 账号加载唯一当前态结构。
-# 以下连接参数只是 .env.example 的本机示例；已有库按实际连接信息替换。
-# -W 交互读取密码，避免放进命令行历史。已有库升级前先备份。
-psql -X -v ON_ERROR_STOP=1 -W -h 127.0.0.1 -U video -d video \
-  -f backend/sql/schema.sql
+# 一次性：安装 Chrome 登录态服务（开机自启、崩溃自动重启）
+cd backend && uv run python -m app.workers.session.chrome_agent install && cd ..
 
-# 自动准备平台连接、安装后台接入服务、构建并启动业务容器
-./start
+# 启动：migrate 容器先应用幂等的 backend/sql/schema.sql，其余服务随后启动
+docker compose up -d --build --wait
 ```
 
 全新空库还没有登录账号时，在部署机终端执行一次首管理员初始化（需使用可连接 PostgreSQL 的 `DATABASE_URL`，密码交互输入，不进入命令行历史）：
@@ -151,15 +153,17 @@ uv run --project backend python -m app.workers.bootstrap_admin \
   --env-file .env --username your-admin --email you@example.com
 ```
 
-命令只在用户表为空时创建管理员；已有任何用户时拒绝，不开放 HTTP 初始化接口。之后登录 Web；本机启动入口自动准备已在 Chrome 登录的 YouTube、抖音会话。若要让其他用户自行注册，先在 `.env` 配置真实 SMTP 并启用 `SMTP_ENABLED=true`；默认关闭时注册验证码不可发送，现有账号仍可登录。生产部署还应替换示例密钥。健康检查只证明服务可运行，不证明首账号已创建或每个平台有真实媒体证据。
+命令只在用户表为空时创建管理员；已有任何用户时拒绝，不开放 HTTP 初始化接口。若要让其他用户自行注册，先在 `.env` 配置真实 SMTP 并启用 `SMTP_ENABLED=true`。健康检查只证明服务可运行，不证明每个平台有真实媒体证据。
 
-### 站点会话（需要登录态的平台）
+### 平台登录态（需要登录的平台）
 
-`./start` 自动应用当前数据库结构、发现已启用平台的 Chrome 登录态、加密登记并等待容器实际验证，同时安装当前用户的 macOS LaunchAgent。默认启用 YouTube、抖音；后台每 60 秒检查缺失或确认失效的会话。健康会话不反复导入，重启直接恢复数据库与持久 Profile。首次系统授权、平台扫码或验证码仍由部署者完成；在 Chrome 重新登录后，系统自动接入，无需再执行导入命令。
+帧取是单人自用工具，**你日常使用的 Chrome 就是唯一的登录态来源**：每次解析前现读对应站点的 Cookie，用完即丢，不另存副本、不另开浏览器保活。平台失效时只需在 Chrome 里重新登录，下一次解析立即生效。
 
-多个 Profile 均已登录时，在 `.env` 的 `SITE_SESSION_SOURCE_PROFILES` 一次性指定来源；首次选定后绑定该 Profile，避免自动切换账号。撤销的会话不会被后台恢复。支持范围、状态检查和退出后台服务见[平台会话设计](docs/design/08-平台会话.md)。其他平台须具备登录探针并通过真实文件验收，不能仅凭 Cookie 宣布可用。
+- 首次安装后运行 `uv run python -m app.workers.session.chrome_agent check` 查看各站点是否已登录；它会打印需要在“系统设置 → 隐私与安全性 → 完全磁盘访问权限”中添加的程序路径，并在钥匙串弹窗中对“Chrome Safe Storage”选择“始终允许”。
+- 多个 Chrome Profile 登录了同一平台时，在 `.env` 的 `SITE_SESSION_SOURCE_PROFILES` 指定一个。
+- 卸载：`uv run python -m app.workers.session.chrome_agent uninstall`。设计见[平台会话](docs/design/08-平台会话.md)。
 
-纯容器生产部署使用以下入口（恢复已有加密会话；不会自动读取远端 Mac 的浏览器）：
+生产配置使用独立的环境文件与 Compose 文件，同样需要本机 Chrome 登录态服务：
 
 ```bash
 docker compose --env-file .env.prod -f docker-compose-prod.yml up -d --build --wait
@@ -237,7 +241,7 @@ flowchart LR
 
 - 只处理你拥有相应权利的内容，并遵守内容来源、所在地和部署环境适用的法律与平台规则。
 - Provider 只接受公开、免费、非 DRM 的 HTTP(S) 内容；私网 URL、任意 yt-dlp 参数和 shell 输入始终禁止。
-- 普通业务请求不接收原始 Cookie。站点会话以密文保存在 PostgreSQL，只有 `session-broker` 持有密钥；每次操作的明文副本只进入 `session-runner` 的 tmpfs，结束后销毁，不进入普通日志或其他 Worker。见[平台会话设计](docs/design/08-平台会话.md)。
+- 普通业务请求不接收原始 Cookie。登录态只从本机 Chrome 按次读取，经密封信道交给 `session-runner`，明文只进入其 tmpfs，操作结束即销毁，不落库、不进入日志或其他 Worker。见[平台会话设计](docs/design/08-平台会话.md)。
 - Edge Agent 只能传输用户已合法取得并明确选择的明文文件，不能读取平台会话、拦截流量、提取密钥或转换受保护媒体。
 - 外部媒体访问必须经过阻断私网的出口代理；入口 URL 校验不能替代网络隔离。
 

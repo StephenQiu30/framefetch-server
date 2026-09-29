@@ -35,6 +35,12 @@ FrameFetch is not designed to circumvent platform restrictions. By default it on
 
 ## What's new
 
+**Unreleased · Login state read live from your Chrome**
+
+- `./start`, the stored session copy, `session-browser` and the keep-alive state machine are gone: each parse reads the site's cookies from your own Chrome.
+- A `migrate` container applies the schema, so `docker compose up -d --wait` is the whole cold start.
+- TikTok now uses yt-dlp's maintained extractor; the provider canary probes the bundled public samples by default.
+
 **[v0.2.0](https://github.com/StephenQiu30/video-server/releases/tag/v0.2.0) · Container-owned platform sessions**
 
 - One command, `./start`, applies the schema, discovers platform logins from your local Chrome, registers them encrypted, has the containers verify them and starts every business service.
@@ -126,16 +132,11 @@ test -f .env || cp .env.example .env
 
 # Configure .env to reuse existing PostgreSQL, RabbitMQ, Redis and MinIO
 
-# Initialize an empty project database with the current schema first.
-# These connection parameters are examples from .env.example; use the actual
-# DDL account for your database and back up an existing one before upgrading.
-# -W reads the password interactively.
-psql -X -v ON_ERROR_STOP=1 -W -h 127.0.0.1 -U video -d video \
-  -f backend/sql/schema.sql
+# Once: install the Chrome login-state agent (starts at login, restarts on crash)
+cd backend && uv run python -m app.workers.session.chrome_agent install && cd ..
 
-# Prepare platform sessions, install the background session source,
-# then build and start the business containers
-./start
+# Start: the migrate container applies the idempotent backend/sql/schema.sql first
+docker compose up -d --build --wait
 ```
 
 For an empty user table, create the first administrator on the deployment host. The command prompts for a password, refuses to run once any user exists, and does not expose a remote bootstrap endpoint:
@@ -145,15 +146,15 @@ uv run --project backend python -m app.workers.bootstrap_admin \
   --env-file .env --username your-admin --email you@example.com
 ```
 
-Then sign in to the Web app. The default registration flow needs a real SMTP server (`SMTP_ENABLED=true`) before other users can self-register; existing accounts can always sign in. Replace every example secret in a public deployment.
+### Platform login state
 
-### Site sessions
+FrameFetch is a single-user tool: **the Chrome you use every day is the only source of platform login state.** Each parse reads the site's cookies live and discards them afterwards; no copy is stored and no second browser keeps it alive. When a platform logs you out, sign in again in Chrome and the next parse works.
 
-`./start` applies the current database schema, discovers Chrome logins for enabled platforms, registers them encrypted, waits for the containers to verify them, and installs a per-user macOS LaunchAgent. YouTube and Douyin are enabled by default. The agent checks every 60 seconds for missing or confirmed-invalid sessions; healthy sessions are not re-imported, and restarts restore from the database and persistent profile. The first system permission, QR scan or verification code is still completed by the operator; after you sign in again in Chrome, the session is picked up automatically without running any import command.
+- After installing, run `uv run python -m app.workers.session.chrome_agent check` to see which sites are signed in. It prints the binary to add under System Settings → Privacy & Security → Full Disk Access; choose "Always Allow" for "Chrome Safe Storage" in the keychain prompt.
+- If several Chrome profiles are signed in to one platform, pin one with `SITE_SESSION_SOURCE_PROFILES` in `.env`.
+- Uninstall with `uv run python -m app.workers.session.chrome_agent uninstall`. See the [platform session design](docs/design/08-平台会话.md) (Chinese).
 
-If several Chrome profiles are signed in, pin the source once with `SITE_SESSION_SOURCE_PROFILES` in `.env`. Revoked sessions are never restored in the background. See the [platform session design](docs/design/08-平台会话.md) (Chinese) for scope, status checks and uninstalling the background source. Other platforms need a login probe and real-file acceptance before they are considered available.
-
-Container-only production deployments restore existing encrypted sessions and never read a remote Mac's browser:
+The production configuration uses its own env and Compose files and needs the same Chrome agent:
 
 ```bash
 docker compose --env-file .env.prod -f docker-compose-prod.yml up -d --build --wait
@@ -229,7 +230,7 @@ See [docs/design/README.md](docs/design/README.md) for the maintained system des
 
 - Process only content you are legally authorized to download or analyze.
 - Providers accept only public, free and non-DRM HTTP(S) content. Private-network URLs, arbitrary yt-dlp arguments and shell input are always rejected.
-- Normal API requests never accept raw cookies. Site sessions are stored encrypted in PostgreSQL and only `session-broker` holds the key; each operation's plaintext copy lives only in the `session-runner` tmpfs and is destroyed afterwards, never reaching ordinary logs or other workers.
+- Normal API requests never accept raw cookies. Login state is read per operation from the local Chrome and handed to `session-runner` over a sealed channel; the clear copy lives only in its tmpfs and is destroyed when the operation ends. See the [platform session design](docs/design/08-平台会话.md).
 - An edge agent may transfer only a clear file the user has legally obtained and explicitly selected. It must not inspect platform sessions, intercept traffic, extract content keys or transform protected media.
 - External media access must pass through an egress proxy that blocks private networks; input validation is not a substitute for network isolation.
 

@@ -7,16 +7,13 @@ from typing import Protocol
 from urllib.parse import urlsplit
 
 from app.services.downloads.errors import (
-    MediaInspectionConfigurationMissing,
     MediaInspectionPolicyNotAllowed,
-    MediaInspectionSessionNotReady,
 )
 from app.services.provider_access import NATIVE_PUBLIC_PROVIDERS, ProviderAccessPolicy
 from app.services.site_sessions import (
     InvalidSessionSite,
     SessionEntitlement,
     SiteSessionPolicy,
-    SiteSessionState,
     SiteSessionStatus,
     known_site_policy,
     registrable_site,
@@ -96,14 +93,8 @@ class SiteSessionRoutes:
         return ProviderAccessPolicy.OPERATOR_PUBLIC
 
     async def ensure_ready(self, url: str) -> None:
+        """Login state lives in the operator's Chrome and is read per operation
+        by the Runner, so there is no stored state to gate on here."""
         if provider_profile(url).key in NATIVE_PUBLIC_PROVIDERS:
             return
-        target = site_target_for_url(url)
-        status = await self._states.get(target.site)
-        if status is None or status.state in {
-            SiteSessionState.REVOKED,
-            SiteSessionState.RESEED_REQUIRED,
-        }:
-            raise MediaInspectionConfigurationMissing
-        if status.state is not SiteSessionState.READY:
-            raise MediaInspectionSessionNotReady(before_media_io=True)
+        site_target_for_url(url)

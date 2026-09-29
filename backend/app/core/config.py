@@ -138,12 +138,10 @@ class Settings(BaseSettings):
     site_session_encryption_key: SecretStr | None = None
     # Runner -> broker and broker -> browser use independent HMAC secrets.
     site_session_rpc_secret: SecretStr | None = None
-    site_session_browser_secret: SecretStr | None = None
-    site_session_browser_url: str = "http://session-browser:19300"
+    # Host agent that reads the operator's live Chrome (single-user deployment).
+    site_session_agent_url: str = "http://host.docker.internal:19250"
+    site_session_agent_secret: SecretStr | None = None
     site_session_scan_seconds: int = Field(default=15, ge=5, le=60)
-    site_session_keepalive_seconds: int = Field(default=1800, ge=600, le=6 * 3600)
-    site_session_keepalive_jitter_seconds: int = Field(default=300, ge=0, le=1800)
-    site_session_coordination_url: str = "redis://provider-lease-redis:6379/0"
     site_session_lease_seconds: int = Field(default=600, ge=60, le=3600)
     site_session_source_sites: tuple[str, ...] = Field(
         default_factory=known_session_sites
@@ -157,7 +155,6 @@ class Settings(BaseSettings):
             raise ValueError("source sites must be registered session sites")
         return tuple(dict.fromkeys(value))
 
-    site_session_source_interval_seconds: int = Field(default=60, ge=30, le=3600)
 
     @field_validator("site_session_source_profiles")
     @classmethod
@@ -634,7 +631,7 @@ class Settings(BaseSettings):
         "request_fingerprint_secret",
         "runner_hmac_secret",
         "site_session_rpc_secret",
-        "site_session_browser_secret",
+        "site_session_agent_secret",
     )
     @classmethod
     def validate_signing_secret(cls, value: SecretStr | None) -> SecretStr | None:

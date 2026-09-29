@@ -196,6 +196,9 @@ class SiteSessionClient:
 
 
 def _failure(error: RpcError) -> RunnerFailure:
+    if error.code == "credential_required":
+        # The operator is not logged in to this site in Chrome.
+        return RunnerFailure("credential_required", status=422)
     if error.code == "provider_session_not_ready":
         return RunnerFailure("provider_session_not_ready", status=503)
     return RunnerFailure("provider_session_unavailable", status=503)

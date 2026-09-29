@@ -14,17 +14,11 @@ from contextlib import AbstractAsyncContextManager, asynccontextmanager, suppres
 import httpx
 import uvicorn
 from app.core.config import Settings
-from app.core.db import create_engine, create_session_factory
-from app.core.security.site_session_cipher import SiteSessionCipher
-from app.repositories.providers.site_sessions import (
-    SiteSessionSecrets,
-    SiteSessionStates,
+from app.workers.session.chrome_broker import (
+    ChromeSessionBroker,
+    SessionLoginRequired,
+    SessionNotReady,
 )
-from app.workers.runner.provider_credential_lease import (
-    ProviderCredentialLeaseCoordinator,
-)
-from app.workers.session.broker import SessionBroker, SessionNotReady
-from app.workers.session.browser_client import HttpSessionBrowser
 from app.workers.session.contracts import (
     FAILURE_PATH,
     LEASE_PATH,
@@ -42,11 +36,11 @@ from app.workers.session.sealing import SealError, decode, decode_public_key, en
 from fastapi import FastAPI, HTTPException, Request, Response
 
 BROKER_PORT = 19200
-# Bootstrap waits for a real page load in the browser (60 s budget there).
-_BROWSER_TIMEOUT_SECONDS = 90
+# Reading Chrome's Cookie store and keychain takes well under a second.
+_AGENT_TIMEOUT_SECONDS = 30
 _logger = logging.getLogger(__name__)
 
-type BrokerFactory = Callable[[], AbstractAsyncContextManager[SessionBroker]]
+type BrokerFactory = Callable[[], AbstractAsyncContextManager[ChromeSessionBroker]]
 
 
 def create_app(
@@ -60,7 +54,7 @@ def create_app(
     health = {"scanned_at": 0.0, "warm": False}
     started = time.monotonic()
 
-    async def scan_forever(broker: SessionBroker) -> None:
+    async def scan_forever(broker: ChromeSessionBroker) -> None:
         while True:
             try:
                 health["scanned_at"] = time.monotonic()
@@ -94,9 +88,11 @@ def create_app(
     @app.post(STATUS_PATH, response_model=StatusResponse)
     async def status(request: Request) -> StatusResponse:
         body = await verified_model(request, verifier, StatusRequest)
-        broker: SessionBroker = request.app.state.broker
+        broker: ChromeSessionBroker = request.app.state.broker
         try:
             revision = await broker.ready_revision(body.site)
+        except SessionLoginRequired:
+            raise HTTPException(409, "credential_required") from None
         except SessionNotReady:
             raise HTTPException(409, "provider_session_not_ready") from None
         return StatusResponse(site=body.site, seed_revision=revision)
@@ -104,7 +100,7 @@ def create_app(
     @app.post(LEASE_PATH, response_model=LeaseResponse)
     async def lease(request: Request) -> LeaseResponse:
         body = await verified_model(request, verifier, LeaseRequest)
-        broker: SessionBroker = request.app.state.broker
+        broker: ChromeSessionBroker = request.app.state.broker
         try:
             grant = await broker.lease(
                 task_id=body.task_id,
@@ -112,6 +108,8 @@ def create_app(
                 seed_revision=body.seed_revision,
                 runner_key=decode_public_key(body.public_key),
             )
+        except SessionLoginRequired:
+            raise HTTPException(409, "credential_required") from None
         except SessionNotReady:
             raise HTTPException(409, "provider_session_not_ready") from None
         except (SealError, ValueError):
@@ -129,7 +127,7 @@ def create_app(
     @app.post(ROTATION_PATH, status_code=204)
     async def rotation(request: Request) -> Response:
         body = await verified_model(request, verifier, RotationReport)
-        broker: SessionBroker = request.app.state.broker
+        broker: ChromeSessionBroker = request.app.state.broker
         try:
             await broker.absorb_rotation(
                 task_id=body.task_id,
@@ -144,7 +142,7 @@ def create_app(
     @app.post(FAILURE_PATH, status_code=204)
     async def failure(request: Request) -> Response:
         body = await verified_model(request, verifier, FailureReport)
-        broker: SessionBroker = request.app.state.broker
+        broker: ChromeSessionBroker = request.app.state.broker
         await broker.report_failure(
             site=body.site, seed_revision=body.seed_revision, error_code=body.error_code
         )
@@ -164,7 +162,7 @@ def create_app(
         # Bounded and latched: a session that never verifies must not keep the
         # broker (and everything waiting on it) unhealthy forever.
         if not health["warm"]:
-            broker: SessionBroker = request.app.state.broker
+            broker: ChromeSessionBroker = request.app.state.broker
             try:
                 warming = await broker.warming_up()
             except Exception:
@@ -178,41 +176,20 @@ def create_app(
 
 
 def settings_factory(settings: Settings) -> BrokerFactory:
-    key = settings.site_session_encryption_key
-    browser_secret = settings.site_session_browser_secret
-    if key is None or browser_secret is None:
-        raise SystemExit(
-            "session broker requires SITE_SESSION_ENCRYPTION_KEY and "
-            "SITE_SESSION_BROWSER_SECRET"
-        )
+    secret = settings.site_session_agent_secret
+    if secret is None:
+        raise SystemExit("session broker requires SITE_SESSION_AGENT_SECRET")
 
     @asynccontextmanager
-    async def factory() -> AsyncIterator[SessionBroker]:
-        engine = create_engine(settings.database_url)
-        sessions = create_session_factory(engine)
-        coordinator = ProviderCredentialLeaseCoordinator(
-            settings.site_session_coordination_url
-        )
+    async def factory() -> AsyncIterator[ChromeSessionBroker]:
         async with httpx.AsyncClient(
-            base_url=settings.site_session_browser_url,
-            timeout=_BROWSER_TIMEOUT_SECONDS,
+            base_url=settings.site_session_agent_url,
+            timeout=_AGENT_TIMEOUT_SECONDS,
         ) as client:
-            try:
-                yield SessionBroker(
-                    states=SiteSessionStates(sessions),
-                    coordinator=coordinator,
-                    secrets=SiteSessionSecrets(sessions),
-                    cipher=SiteSessionCipher(key.get_secret_value()),
-                    browser=HttpSessionBrowser(
-                        SignedClient(client, browser_secret.get_secret_value().encode())
-                    ),
-                    lease_seconds=settings.site_session_lease_seconds,
-                    keepalive_seconds=settings.site_session_keepalive_seconds,
-                    keepalive_jitter_seconds=settings.site_session_keepalive_jitter_seconds,
-                )
-            finally:
-                await coordinator.close()
-                await engine.dispose()
+            yield ChromeSessionBroker(
+                SignedClient(client, secret.get_secret_value().encode()),
+                lease_seconds=settings.site_session_lease_seconds,
+            )
 
     return factory
 

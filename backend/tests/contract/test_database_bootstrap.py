@@ -407,7 +407,7 @@ def test_compose_isolates_media_dependencies_and_preserves_api_readiness() -> No
 def test_project_documents_container_and_complete_local_entrypoints() -> None:
     root_readme = ROOT_README_PATH.read_text(encoding="utf-8")
     frontend_readme = FRONTEND_README_PATH.read_text(encoding="utf-8")
-    startup_entrypoint = "./start"
+    startup_entrypoint = "docker compose up -d --build --wait"
 
     assert not STARTUP_SCRIPT_PATH.exists()
     assert not (ROOT.parent / "scripts/run-local-backend.py").exists()
@@ -415,9 +415,10 @@ def test_project_documents_container_and_complete_local_entrypoints() -> None:
     assert not (ROOT.parent / "scripts/analysis-worker.sh").exists()
     assert not (ROOT / "app/workers/analysis/launchd.py").exists()
     assert startup_entrypoint in root_readme
-    assert (ROOT.parent / "start").is_file()
-    assert "app.workers.session.startup up" in (ROOT.parent / "start").read_text()
-    # Host acquisition is supervised; normal maintenance stays in containers.
+    # One Compose command starts everything; the only host process is the
+    # Chrome login-state agent, installed once.
+    assert not (ROOT.parent / "start").exists()
+    assert "uv run python -m app.workers.session.chrome_agent install" in root_readme
     assert not (ROOT / "app/workers/runner/provider_startup.py").exists()
     assert "provider_startup" not in root_readme
     assert "run-local-backend.py" not in root_readme
@@ -447,36 +448,26 @@ def test_compose_pins_shared_runner_workspace_to_the_mounted_container_path() ->
         assert "runner_work:/work" in service_config["volumes"]
 
 
-_SESSION_SERVICES = ("session-runner", "session-broker", "session-browser")
+_SESSION_SERVICES = ("session-runner", "session-broker")
 
 
-def test_site_session_services_split_the_key_the_browser_and_execution() -> None:
+def test_site_session_services_relay_live_chrome_without_storing_it() -> None:
     for path in (COMPOSE_PATH, PROD_COMPOSE_PATH):
         compose = yaml.safe_load(path.read_text(encoding="utf-8"))
         services = compose["services"]
         broker = services["session-broker"]
-        browser = services["session-browser"]
         runner = services["session-runner"]
 
-        # Only the broker can decrypt stored sessions, and it cannot reach out.
-        holders = {
-            name
-            for name, config in services.items()
-            if "SITE_SESSION_ENCRYPTION_KEY" in config.get("environment", {})
-        }
-        assert holders == {"session-broker"}
-        assert set(broker["networks"]) == {"app_net", "session_net", "runner_rpc_net"}
-        assert "DATABASE_URL" in broker["environment"]
-
-        # The browser renders third-party pages: no database, key or Runner RPC.
-        assert set(browser["networks"]) == {"session_net", "runner_egress_net"}
-        assert browser["volumes"] == ["site_session_profiles:/profiles"]
-        for secret in (
-            "DATABASE_URL",
-            "SITE_SESSION_ENCRYPTION_KEY",
-            "SITE_SESSION_RPC_SECRET",
-        ):
-            assert secret not in browser["environment"]
+        # No stored copy and no second browser: login state is read from the
+        # operator's Chrome by the host agent on each operation.
+        assert "session-browser" not in services
+        for config in services.values():
+            assert "SITE_SESSION_ENCRYPTION_KEY" not in config.get("environment", {})
+        assert set(broker["networks"]) == {"app_net", "runner_rpc_net"}
+        assert "DATABASE_URL" not in broker["environment"]
+        assert broker["environment"]["SITE_SESSION_AGENT_URL"].endswith(
+            "host.docker.internal:19250}"
+        )
 
         # The Runner only ever receives one sealed lease per operation.
         environment = runner["environment"]
@@ -488,13 +479,12 @@ def test_site_session_services_split_the_key_the_browser_and_execution() -> None
         assert runner["volumes"] == ["runner_work:/work"]
         assert environment["RUNNER_SESSION_BROKER_URL"] == "http://session-broker:19200"
         assert "DATABASE_URL" not in environment
-        assert "SITE_SESSION_BROWSER_SECRET" not in environment
+        assert "SITE_SESSION_AGENT_SECRET" not in environment
         assert any("/run/provider-session" in item for item in runner["tmpfs"])
 
         for name in _SESSION_SERVICES:
             assert "ports" not in services[name]
             assert services[name]["read_only"] is not False
-        assert compose["networks"]["session_net"]["internal"] is True
         for config in services.values():
             assert "Library/Caches" not in str(config)
             assert "provider-cookie-agent" not in str(config)
@@ -505,8 +495,7 @@ def test_production_requires_explicit_site_session_secrets() -> None:
     services = compose["services"]
     for name, key in (
         ("session-broker", "SITE_SESSION_RPC_SECRET"),
-        ("session-broker", "SITE_SESSION_BROWSER_SECRET"),
-        ("session-browser", "SITE_SESSION_BROWSER_SECRET"),
+        ("session-broker", "SITE_SESSION_AGENT_SECRET"),
         ("session-runner", "RUNNER_SESSION_RPC_SECRET"),
     ):
         assert ":?" in services[name]["environment"][key], (name, key)

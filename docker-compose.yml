@@ -66,10 +66,30 @@ x-provider-session-environment: &provider-session-environment
   PEERTUBE_ALLOWED_INSTANCES: "${PEERTUBE_ALLOWED_INSTANCES:-[]}"
 
 services:
+  # Applies backend/sql/schema.sql (idempotent) before any service starts.
+  migrate:
+    build: *backend-build
+    image: video-server:local
+    container_name: video-migrate
+    restart: "no"
+    read_only: true
+    tmpfs: ["/tmp:rw,noexec,nosuid,size=16m"]
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    networks: [app_net]
+    extra_hosts: ["host.docker.internal:host-gateway"]
+    environment:
+      APP_ENV: "${APP_ENV:-development}"
+      DATABASE_URL: "postgresql+asyncpg://${POSTGRES_USER:-video}:${POSTGRES_PASSWORD:-video}@${POSTGRES_HOST:-host.docker.internal}:${POSTGRES_PORT:-5432}/${POSTGRES_DB:-video}"
+    command: ["python", "-m", "app.workers.migrate"]
+
   api:
     build: *backend-build
     image: video-server:local
     container_name: video-api
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
     restart: unless-stopped
     environment:
       ANALYSIS_ENABLED: '${ANALYSIS_ENABLED:-false}'
@@ -253,6 +273,9 @@ services:
     build: *backend-build
     image: video-server:local
     container_name: video-outbox
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
     restart: unless-stopped
     environment:
       ANALYSIS_QUEUE: '${ANALYSIS_QUEUE:-video.analysis}'
@@ -347,6 +370,8 @@ services:
     volumes:
       - runner_work:/work
     depends_on:
+      migrate:
+        condition: service_completed_successfully
       workspace-init:
         condition: service_completed_successfully
     command: ["python", "-m", "app.workers.download.main"]
@@ -355,6 +380,9 @@ services:
     build: *backend-build
     image: video-server:local
     container_name: video-worker-import
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
     restart: unless-stopped
     environment:
       ANALYSIS_QUEUE: '${ANALYSIS_QUEUE:-video.analysis}'
@@ -419,6 +447,9 @@ services:
     build: *backend-build
     image: video-server:local
     container_name: video-worker-report
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
     restart: unless-stopped
     environment:
       ANALYSIS_QUEUE: '${ANALYSIS_QUEUE:-video.analysis}'
@@ -500,6 +531,8 @@ services:
     volumes:
       - runner_work:/work
     depends_on:
+      migrate:
+        condition: service_completed_successfully
       workspace-init:
         condition: service_completed_successfully
     command: ["python", "-m", "app.workers.canary.main"]
@@ -567,8 +600,9 @@ services:
       retries: 12
       start_period: 3s
 
-  # 046: the broker is the only holder of SITE_SESSION_ENCRYPTION_KEY; it never
-  # reaches the Internet. The browser owns per-site profiles and has no database.
+  # Single-user deployment: the broker relays the operator's live Chrome login
+  # state from the host agent (app.workers.session.chrome_agent) to Runners as
+  # sealed one-task leases. Nothing is stored and nothing is kept alive here.
   session-broker:
     build: *backend-build
     image: video-server:local
@@ -577,20 +611,15 @@ services:
     read_only: true
     cap_drop: [ALL]
     security_opt: ["no-new-privileges:true"]
-    networks: [app_net, session_net, runner_rpc_net]
+    networks: [app_net, runner_rpc_net]
     extra_hosts: ["host.docker.internal:host-gateway"]
     tmpfs: ["/tmp:rw,noexec,nosuid,size=16m"]
     environment:
       APP_ENV: "${APP_ENV:-development}"
       SERVICE_ROLE: session-broker
-      DATABASE_URL: "postgresql+asyncpg://${POSTGRES_USER:-video}:${POSTGRES_PASSWORD:-video}@${POSTGRES_HOST:-host.docker.internal}:${POSTGRES_PORT:-5432}/${POSTGRES_DB:-video}"
-      SITE_SESSION_ENCRYPTION_KEY: "${SITE_SESSION_ENCRYPTION_KEY:-}"
       SITE_SESSION_RPC_SECRET: "${SITE_SESSION_RPC_SECRET:-development-site-session-rpc-secret-change-me}"
-      SITE_SESSION_BROWSER_SECRET: "${SITE_SESSION_BROWSER_SECRET:-development-site-session-browser-secret-change-me}"
-      SITE_SESSION_BROWSER_URL: http://session-browser:19300
-    depends_on:
-      session-browser:
-        condition: service_healthy
+      SITE_SESSION_AGENT_URL: "${SITE_SESSION_AGENT_URL:-http://host.docker.internal:19250}"
+      SITE_SESSION_AGENT_SECRET: "${SITE_SESSION_AGENT_SECRET:-development-site-session-agent-secret-change-me}"
     command: ["python", "-m", "app.workers.session.broker_app"]
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:19200/health/ready', timeout=3)"]
@@ -598,38 +627,6 @@ services:
       timeout: 5s
       retries: 6
       start_period: 30s
-
-  session-browser:
-    build:
-      context: ./backend
-      dockerfile: Dockerfile
-      target: session-browser
-    image: video-session-browser:local
-    container_name: session-browser
-    restart: unless-stopped
-    read_only: true
-    cap_drop: [ALL]
-    security_opt: ["no-new-privileges:true"]
-    shm_size: 512m
-    networks: [session_net, runner_egress_net]
-    tmpfs:
-      - /tmp:rw,nosuid,size=256m
-      - /home/appuser:rw,nosuid,size=64m,uid=10001,gid=10001
-    environment:
-      SITE_SESSION_BROWSER_SECRET: "${SITE_SESSION_BROWSER_SECRET:-development-site-session-browser-secret-change-me}"
-      SITE_SESSION_EGRESS_PROXY: http://egress-proxy:3128
-      RUNNER_PROVIDER_EGRESS_PROXIES: "${RUNNER_PROVIDER_EGRESS_PROXIES:-{}}"
-    volumes:
-      - site_session_profiles:/profiles
-    depends_on:
-      egress-proxy:
-        condition: service_healthy
-    healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:19300/health/live', timeout=3)"]
-      interval: 10s
-      timeout: 5s
-      retries: 6
-      start_period: 15s
 
   workspace-init:
     build: *backend-build
@@ -709,7 +706,6 @@ services:
       - no-new-privileges:true
 
 volumes:
-  site_session_profiles:
   runner_work:
 
 networks:
@@ -721,8 +717,6 @@ networks:
   runner_rpc_net:
     internal: true
   runner_egress_net:
-    internal: true
-  session_net:
     internal: true
   youtube_pot_net:
     internal: true
