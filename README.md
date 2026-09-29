@@ -220,7 +220,7 @@ curl --fail http://127.0.0.1:8111/health/ready
 curl --fail --head http://127.0.0.1:8101/
 ```
 
-只需要下载与剧本文档导入时，可在 `.env` 中设置 `ANALYSIS_ENABLED=false`。完整的启动、停止、已有基础环境复用和故障恢复方式见[可靠性与运行](docs/design/13-可靠性与运行.md)。更新代码时先执行 `git pull --ff-only`，再重新运行上面的统一启动命令；`docker compose restart` 不会重新评估 Provider 来源，也不会应用新镜像或环境配置。
+只需要下载与剧本文档导入时，可在 `.env` 中设置 `ANALYSIS_ENABLED=false`。完整的启动、停止、已有基础环境复用和故障恢复方式见[可靠性与运行](docs/design/13-可靠性与运行.md)。更新代码时先执行 `git pull --ff-only`，再按上面的命令更新专用浏览器来源并构建启动 Compose；`docker compose restart` 不会应用新代码、镜像或环境配置。
 
 ### 启用 AI 分析
 

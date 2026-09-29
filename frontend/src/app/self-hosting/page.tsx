@@ -12,7 +12,7 @@ export const metadata = publicMetadata(title, description, '/self-hosting/');
 const requirements = [
   'Docker Engine 与 Docker Compose。',
   '部署者已有的 PostgreSQL、RabbitMQ、Redis 与 MinIO；Compose 只管理帧取自身的业务服务并复用这些基础环境。',
-  '运行统一启动器所需的 uv（Python 3.12 项目环境）。',
+  'macOS 平台登录来源需要 uv（Python 3.12）与 Playwright Chromium。',
   '生产部署需要强随机密钥、稳定的 HTTPS 访问地址和规划好的对象存储容量。',
 ];
 
@@ -34,10 +34,11 @@ test -f .env || cp .env.example .env`,
   },
   {
     id: 'start',
-    title: '使用统一启动器启动服务',
-    text: '启动器先校验 Provider 来源，再启动 Web、API、Worker、可用 Runner 与受控出口代理。生产环境使用 .env.prod 与 docker-compose-prod.yml。',
-    code: `uv run --project backend python -m app.workers.runner.provider_startup start \\
-  --env-file .env --compose-file docker-compose.yml`,
+    title: '安装登录来源并启动业务服务',
+    text: 'macOS 上安装平台专用浏览器来源；Compose 启动 Web、API、Worker、Runner 与出口代理。公开平台不依赖登录，账号平台首次使用时在专用窗口登录。生产配置见 README。',
+    code: `uv run --project backend --group browser playwright install chromium
+uv run --project backend python -m app.workers.session.source_cli install --env-file .env
+docker compose up -d --build --wait --remove-orphans`,
   },
   {
     id: 'admin',
@@ -61,7 +62,7 @@ const productionChecklist = [
   '外部媒体访问必须经过阻断私网的出口代理；入口 URL 校验不能替代网络隔离。',
   '为 MinIO 规划容量、备份与显式清理策略；预签名链接过期不会删除最终文件。',
   '只在计划公开介绍项目的网站设置 SITE_INDEXABLE=true，并把 SITE_URL 设为稳定的 HTTPS 域名。',
-  '更新代码后执行 git pull --ff-only 并重新运行统一启动命令；docker compose restart 不会应用新镜像或环境配置。',
+  '更新代码后执行 git pull --ff-only 并按 README 重新安装来源并执行 Compose 构建启动；docker compose restart 不会应用新镜像或环境配置。',
 ];
 
 export default function SelfHostingPage() {
@@ -100,8 +101,8 @@ export default function SelfHostingPage() {
       />
       <PageHeader title="自托管部署指南" description={description} />
       <p className="mt-6 max-w-3xl text-sm leading-7 text-muted-foreground">
-        本页摘录当前部署流程。命令与配置以仓库 README 和运行手册为准；Provider
-        来源登记、换机与故障恢复请阅读对应手册。
+        本页摘录当前部署流程。命令与配置以仓库 README
+        为准；平台登录、换机与故障恢复请阅读对应设计文档。
       </p>
 
       <section
@@ -197,7 +198,7 @@ export default function SelfHostingPage() {
           className="focus-ring text-sm underline underline-offset-4"
           href={`${siteConfig.repositoryUrl}/blob/main/docs/design/README.md`}
         >
-          运行手册
+          系统设计
         </a>
         <a
           className="focus-ring text-sm underline underline-offset-4"
