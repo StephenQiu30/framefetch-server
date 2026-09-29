@@ -142,3 +142,29 @@ async def test_cancelled_login_closes_browser_and_releases_capacity(
         await login
     assert context.closed == 1
     assert not source._logins and not source._login_timers
+
+
+def test_reinstall_retries_launchd_teardown_without_changing_material(
+    tmp_path, monkeypatch
+):
+    import subprocess
+
+    from app.workers.session import source_cli
+
+    monkeypatch.setattr(source_cli.Path, "home", lambda: tmp_path)
+    monkeypatch.setattr(source_cli.time, "sleep", lambda _: None)
+    bootstraps = []
+
+    def launchctl(*args, **kwargs):
+        if args[0] == "bootstrap":
+            bootstraps.append(args)
+            if len(bootstraps) == 1:
+                raise subprocess.CalledProcessError(5, args)
+
+    monkeypatch.setattr(source_cli, "launchctl", launchctl)
+    config = SourceConfig(b"s" * 32, tmp_path / "profiles", "http://127.0.0.1:13128")
+    source_cli.install(config)
+    assert len(bootstraps) == 2
+    assert not config.root.exists()
+    plist = tmp_path / "Library/LaunchAgents/com.framefetch.browser-source.plist"
+    assert plist.stat().st_mode & 0o777 == 0o600

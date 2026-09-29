@@ -9,6 +9,7 @@ import plistlib
 import subprocess
 import sys
 import tempfile
+import time
 from dataclasses import dataclass, field
 from pathlib import Path
 from urllib.parse import urlsplit
@@ -130,7 +131,19 @@ def install(config: SourceConfig) -> None:
         temporary = Path(stream.name)
     temporary.chmod(0o600)
     temporary.replace(destination)
-    launchctl("bootstrap", f"gui/{os.getuid()}", str(destination))
+    # bootout may return before launchd has fully detached the previous job.
+    # Retry only the transient bootstrap EIO; never rewrite profiles or keys.
+    for attempt in range(4):
+        try:
+            launchctl("bootstrap", f"gui/{os.getuid()}", str(destination))
+            break
+        except subprocess.CalledProcessError as error:
+            if error.returncode != 5 or attempt == 3:
+                raise SystemExit(
+                    "Browser source installation failed; "
+                    "launchd did not accept the service"
+                ) from None
+            time.sleep(0.5 * (attempt + 1))
 
 
 def uninstall() -> None:
