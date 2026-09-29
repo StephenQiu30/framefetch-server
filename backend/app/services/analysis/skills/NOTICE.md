@@ -93,7 +93,7 @@ Most built-in analysis skills are original, project-specific rewrites. The scree
 - License: MIT; copyright 2026 Terry Jia.
 - Local use: `screenplay-analysis`, `screenplay-character-review`, `screenplay-scene-review`, `screenplay-dialogue-review`, and `screenplay-structure-review` compile named diagnostic sections directly from the four vendored upstream `SKILL.md` files. Their fixed page counts, required beat shapes, authoring exercises, examples, and other Skill links are reference material, not product acceptance criteria or executable workflow.
 
-Both repositories' original MIT licenses are included beside their vendored files. `modules.py` pins each source file SHA-256, and `loader.py` embeds only explicitly named sections in each task's immutable instruction snapshot. A source change requires a deliberate hash and section review; no runtime GitHub fetch occurs.
+Both repositories' original MIT licenses are included beside their vendored files. `modules/manifest.json` pins each source file SHA-256 and license, and `loader.py` embeds only explicitly named sections in each task's immutable instruction snapshot. A source change requires a deliberate hash and section review; no runtime GitHub fetch occurs.
 
 ## video-shotcraft
 

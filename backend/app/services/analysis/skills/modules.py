@@ -1,106 +1,70 @@
 from __future__ import annotations
 
 import hashlib
+import json
+import re
 from dataclasses import dataclass
-from pathlib import Path
+from pathlib import Path, PurePosixPath
+
+LICENSE_ALLOWLIST = frozenset(
+    {"MIT", "Apache-2.0", "BSD-2-Clause", "BSD-3-Clause", "CC-BY-4.0"}
+)
+_MANIFEST = Path(__file__).resolve().parent / "modules" / "manifest.json"
+_MODULE_ID = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
+_SHA256 = re.compile(r"^[0-9a-f]{64}$")
 
 
 @dataclass(frozen=True, slots=True)
 class SourceModule:
     path: str
     sha256: str
+    license: str
     source_url: str
     sections: tuple[str, ...]
 
 
-SOURCE_MODULES: dict[str, SourceModule] = {
-    "drama-review-method": SourceModule(
-        path="drama-skills/review-method.md",
-        sha256="832cc8ac66920d485d3dc6495de363dba72e5c58f7d03b3caffab143bc08915c",
-        source_url="https://github.com/zenstory-ai/drama-skills/blob/b71cb3ca9343eaf6c0375725ccc9261a4e79021e/skills/short-drama-review/references/review-method.md",
-        sections=(
-            "Rule classification",
-            "Mechanical before taste",
-            "Finding anatomy",
-            "Anti-template review",
-        ),
-    ),
-    "drama-story-script": SourceModule(
-        path="drama-skills/rubric-story-script.md",
-        sha256="4394c080da47ae6bbb45e0a8ada29ea71dc41721bab333befd3a2db227177338",
-        source_url="https://github.com/zenstory-ai/drama-skills/blob/b71cb3ca9343eaf6c0375725ccc9261a4e79021e/skills/short-drama-review/references/rubric-story-script.md",
-        sections=(
-            "Story promise and engine",
-            "Entry, character, and serial memory",
-            "Scene test",
-            "Dialogue",
-        ),
-    ),
-    "drama-anti-template": SourceModule(
-        path="drama-skills/anti-template-repair.md",
-        sha256="c357d622db275494589199d3cde90460471250724288f0c6be642cc9411bf1f9",
-        source_url="https://github.com/zenstory-ai/drama-skills/blob/b71cb3ca9343eaf6c0375725ccc9261a4e79021e/skills/short-drama-review/references/anti-template-repair.md",
-        sections=("1. 诊断四层", "3. 误报反例"),
-    ),
-    "sw-scene-craft": SourceModule(
-        path="screenwriting-skills/sw-scene-craft-SKILL.md",
-        sha256="8e17bd548c7b27e7c88d8bceb498cf7d61e545d567085efecb1e4818f4e0e902",
-        source_url="https://github.com/jtydhr88/screenwriting-skills/blob/357d1348ccaa1ab75f2f51ef7c90a7f00a686c76/plugins/screenwriting/skills/sw-scene-craft/SKILL.md",
-        sections=(
-            "一、场景是什么",
-            "二、场景设计五步（麦基）",
-            "三、进出与节奏",
-            "四、动作优于对白（沃尔特/汉森/希克斯）",
-            "五、意趣要足：悬念、延宕、情趣（陆军）",
-            "六、细节要妙（陆军）",
-            "七、道具要精（陆军）",
-            "八、场景要当（陆军）",
-            "九、诊断清单",
-        ),
-    ),
-    "sw-character-conflict": SourceModule(
-        path="screenwriting-skills/sw-character-conflict-SKILL.md",
-        sha256="eec1ede6394ae995137e819d33775df5598851aed03734d45e02693f5fcfedaf",
-        source_url="https://github.com/jtydhr88/screenwriting-skills/blob/357d1348ccaa1ab75f2f51ef7c90a7f00a686c76/plugins/screenwriting/skills/sw-character-conflict/SKILL.md",
-        sections=(
-            "一、人物是什么",
-            "二、主人公",
-            "三、对手",
-            "四、人物编排与对立统一（埃格里）",
-            "五、冲突的类型与运动（埃格里）",
-            "七、人物的成长与弧光",
-            "八、诊断清单",
-        ),
-    ),
-    "sw-dialogue": SourceModule(
-        path="screenwriting-skills/sw-dialogue-SKILL.md",
-        sha256="c9f93e9d78dd137b1e8617289df947e54996ce82dad5db8f0f1936264ef95299",
-        source_url="https://github.com/jtydhr88/screenwriting-skills/blob/357d1348ccaa1ab75f2f51ef7c90a7f00a686c76/plugins/screenwriting/skills/sw-dialogue/SKILL.md",
-        sections=(
-            "一、对白是什么",
-            "二、解说：演出来、当武器、留秘密",
-            "三、六项任务与四类瑕疵（麦基）",
-            "四、技巧：修辞、句法设计、简约、停顿、静默",
-            "五、角色专属对白",
-            "七、喜剧对白",
-            "八、场景中的对白：节拍分析法（麦基）",
-            "九、诊断清单",
-        ),
-    ),
-    "sw-story-structure": SourceModule(
-        path="screenwriting-skills/sw-story-structure-SKILL.md",
-        sha256="342aeeabd58cd40446d46673ca7ca8b7fadc38fe0ed8de518469ef8e87faa64a",
-        source_url="https://github.com/jtydhr88/screenwriting-skills/blob/357d1348ccaa1ab75f2f51ef7c90a7f00a686c76/plugins/screenwriting/skills/sw-story-structure/SKILL.md",
-        sections=(
-            "一、结构的层级（麦基）",
-            "四、九节拍（霍克斯特）与线性发展表",
-            "六、中国小戏的结构手法（陆军）",
-            "七、激励事件与进展纠葛（麦基）",
-            "八、危机、高潮、结局（麦基）",
-            "九、非线性、多线与群像",
-        ),
-    ),
-}
+def load_manifest(path: Path = _MANIFEST) -> dict[str, SourceModule]:
+    """Read the pinned upstream module manifest written by skill import."""
+    document = json.loads(path.read_text(encoding="utf-8"))
+    if not isinstance(document, dict) or set(document) != {"modules"}:
+        raise ValueError(f"invalid analysis source manifest: {path}")
+    raw_modules = document["modules"]
+    if not isinstance(raw_modules, dict):
+        raise ValueError(f"invalid analysis source manifest: {path}")
+    modules: dict[str, SourceModule] = {}
+    for module_id, raw in raw_modules.items():
+        if (
+            _MODULE_ID.fullmatch(module_id) is None
+            or not isinstance(raw, dict)
+            or set(raw) != {"path", "sha256", "license", "source_url", "sections"}
+        ):
+            raise ValueError(f"invalid analysis source module: {module_id}")
+        relative = PurePosixPath(str(raw["path"]))
+        sections = raw["sections"]
+        if (
+            relative.is_absolute()
+            or len(relative.parts) != 2
+            or ".." in relative.parts
+            or not relative.name.endswith(".md")
+            or _SHA256.fullmatch(str(raw["sha256"])) is None
+            or raw["license"] not in LICENSE_ALLOWLIST
+            or not str(raw["source_url"]).startswith("https://github.com/")
+            or not isinstance(sections, list)
+            or not sections
+            or not all(isinstance(item, str) and item for item in sections)
+        ):
+            raise ValueError(f"invalid analysis source module: {module_id}")
+        modules[module_id] = SourceModule(
+            path=str(relative),
+            sha256=str(raw["sha256"]),
+            license=str(raw["license"]),
+            source_url=str(raw["source_url"]),
+            sections=tuple(sections),
+        )
+    return modules
+
+
+SOURCE_MODULES: dict[str, SourceModule] = load_manifest()
 
 
 def compile_source_module(module_id: str, root: Path) -> str:
