@@ -56,12 +56,13 @@ const intentStatusPresentation = {
     terminal: false,
   },
   [IntentStatusCode.ActionRequired]: {
-    title: '此内容需要额外权限',
-    description: () => '当前内容需要额外访问权限。',
-    historyActionLabel: '查看详情',
+    title: '等待处理平台登录',
+    description: () =>
+      '请完成平台登录，然后继续此任务。等待期间不会占用解析执行资源。',
+    historyActionLabel: '继续处理',
     variant: 'outline',
-    active: false,
-    terminal: true,
+    active: true,
+    terminal: false,
   },
   [IntentStatusCode.Ready]: {
     title: '解析完成',
@@ -120,6 +121,8 @@ export function intentTitle(status?: API.IntentStatus): string {
 }
 
 export function intentDescription(intent: API.IntentResponse): string {
+  if (intent.status === IntentStatusCode.ActionRequired)
+    return intentStatusPresentation[intent.status].description();
   if (intent.reason_code) {
     const reason = localizedErrorMessage(intent.reason_code);
     if (reason) return reason;

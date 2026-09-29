@@ -264,6 +264,24 @@ class IntentRepository:
                 raise RepositoryNotFound("intent does not exist")
             return _snapshot(row)
 
+    async def expire_wait(
+        self, intent_id: UUID, generation: int, authorization_id: UUID, *, now: datetime
+    ) -> IntentSnapshot:
+        async with self._sessions() as session, session.begin():
+            row = await session.get(DownloadIntentRow, intent_id, with_for_update=True)
+            if row is None:
+                raise RepositoryNotFound("intent does not exist")
+            if (
+                row.generation == generation
+                and row.authorization_id == authorization_id
+                and row.status == IntentStatus.ACTION_REQUIRED.value
+                and row.authorization_deadline is not None
+                and row.authorization_deadline <= now
+            ):
+                _transition(row, IntentStatus.EXPIRED, now, "resource_expired")
+                row.fence += 1
+            return _snapshot(row)
+
     async def fail_generation(
         self, intent_id: UUID, generation: int, *, now: datetime
     ) -> IntentSnapshot:
@@ -279,6 +297,33 @@ class IntentRepository:
             }:
                 row.fence += 1
                 _transition(row, IntentStatus.FAILED, now, "inspection_timeout")
+            return _snapshot(row)
+
+    async def resume(
+        self, intent_id: UUID, owner_hash: str, authorization_id: UUID, *, now: datetime
+    ) -> IntentSnapshot:
+        """Accept one resume command for the current wait, atomically with outbox."""
+        validate_now(now)
+        async with self._sessions() as session, session.begin():
+            row = await self._owned(session, intent_id, owner_hash, lock=True)
+            if row.authorization_id != authorization_id:
+                raise RepositoryConflict("wait has been superseded")
+            if row.status != IntentStatus.ACTION_REQUIRED.value:
+                return _snapshot(row)  # Same command redelivered after acceptance.
+            if row.authorization_deadline is None or now >= row.authorization_deadline:
+                _transition(row, IntentStatus.EXPIRED, now, "resource_expired")
+                row.fence += 1
+                return _snapshot(row)
+            row.deadline = min(
+                now + timedelta(milliseconds=row.remaining_budget_ms),
+                row.authorization_deadline,
+            )
+            _transition(row, IntentStatus.QUEUED, now)
+            row.fence += 1
+            event = _requested(row, now)
+            event.event_type = "download.intent.resumed"
+            event.payload = {**event.payload, "wait_id": str(authorization_id)}
+            session.add(event)
             return _snapshot(row)
 
     async def refresh(
@@ -368,7 +413,6 @@ class IntentRepository:
         now: datetime,
         reason_code: str,
         retry_at: datetime | None = None,
-        preparation_wait: bool = False,
     ) -> IntentSnapshot:
         validate_now(now)
         if not reason_code or len(reason_code) > 64:
@@ -384,19 +428,23 @@ class IntentRepository:
             if _remaining(row, now) == 0:
                 _expire(row, now)
                 return _snapshot(row)
-            if preparation_wait:
-                if (row.access_policy, reason_code) not in {
-                    (
-                        ProviderAccessPolicy.OPERATOR_PUBLIC.value,
-                        "provider_session_not_ready",
-                    ),
-                    (
-                        ProviderAccessPolicy.PERSONAL_ENTITLED.value,
-                        "provider_session_not_ready",
-                    ),
-                } or row.attempt < 1:
-                    raise ValueError("invalid session preparation wait")
-                row.attempt -= 1
+            if row.access_policy in {
+                ProviderAccessPolicy.OPERATOR_PUBLIC.value,
+                ProviderAccessPolicy.PERSONAL_ENTITLED.value,
+            } and reason_code in {
+                "provider_auth_required",
+                "provider_session_expired",
+                "provider_session_not_ready",
+            }:
+                _transition(row, IntentStatus.ACTION_REQUIRED, now, reason_code)
+                row.attempt = max(0, row.attempt - 1)
+                row.authorization_id = uuid4()
+                # One total user-wait deadline; repeated clicks never extend it.
+                if row.authorization_deadline is None:
+                    row.authorization_deadline = now + timedelta(hours=24)
+                if row.authorization_deadline <= now:
+                    _transition(row, IntentStatus.EXPIRED, now, "resource_expired")
+                return _snapshot(row)
             if (
                 retry_at is not None
                 and row.attempt < row.max_attempts
@@ -466,12 +514,17 @@ def _transition(
     now: datetime,
     reason: str | None = None,
 ) -> None:
+    remaining = (
+        row.remaining_budget_ms
+        if row.status == IntentStatus.ACTION_REQUIRED.value
+        else _remaining(row, now)
+    )
     row.status = status.value
     row.version += 1
     row.operation_id = None
     row.retry_at = None
     row.reason_code = reason
-    row.remaining_budget_ms = _remaining(row, now)
+    row.remaining_budget_ms = remaining
     row.updated_at = now
 
 
@@ -508,4 +561,6 @@ def _snapshot(row: DownloadIntentRow) -> IntentSnapshot:
         reason_code=row.reason_code,
         created_at=row.created_at,
         updated_at=row.updated_at,
+        authorization_id=row.authorization_id,
+        authorization_deadline=row.authorization_deadline,
     )

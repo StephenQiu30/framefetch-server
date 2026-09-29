@@ -22,7 +22,11 @@ from app.workers.analysis.workflows import SKILL_TASK_QUEUE, SkillCommand, Skill
 from app.workers.download.workflows import InspectionCommand, InspectionWorkflow
 from app.workers.outbox.loop import EventPublisher
 
-_INSPECTION_EVENTS = {"download.intent.requested", "download.intent.cancelled"}
+_INSPECTION_EVENTS = {
+    "download.intent.requested",
+    "download.intent.cancelled",
+    "download.intent.resumed",
+}
 _ACTIVE_ANALYSIS_STATUSES = {"queued", "running", "retry_wait"}
 _RPC_TIMEOUT = timedelta(seconds=5)
 
@@ -57,9 +61,13 @@ class CommandPublisher:
             await self._fallback.publish(envelope)
 
     async def _inspection(self, envelope: EventEnvelope) -> None:
+        resume = envelope.event_type == "download.intent.resumed"
+        expected_fields = {"intent_id", "generation"} | (
+            {"wait_id"} if resume else set()
+        )
         generation = envelope.payload.get("generation")
         if (
-            set(envelope.payload) != {"intent_id", "generation"}
+            set(envelope.payload) != expected_fields
             or envelope.payload["intent_id"] != str(envelope.aggregate_id)
             or type(generation) is not int
             or generation < 0
@@ -69,11 +77,34 @@ class CommandPublisher:
         state = await self._intents.execution_state(envelope.aggregate_id)
         if state.generation != generation:
             return
+        if resume:
+            authorization_id = envelope.payload.get("wait_id")
+            if not isinstance(authorization_id, str):
+                raise EventEnvelopeError("invalid inspection resume")
+            try:
+                requested_wait = UUID(authorization_id)
+            except ValueError:
+                raise EventEnvelopeError("invalid inspection resume") from None
+            if state.authorization_id != requested_wait:
+                return
         cancel = envelope.event_type == "download.intent.cancelled"
         if not cancel and state.status not in ACTIVE_INTENT_STATUSES:
             return  # Also protects against redelivery after Temporal history retention.
         client = await self._connect()
         handle = client.get_workflow_handle(command.workflow_id)
+        if resume:
+            await _require_binding(
+                handle,
+                {"intent_id": command.intent_id, "generation": command.generation},
+                "inspection",
+            )
+            await handle.execute_update(
+                InspectionWorkflow.resume,
+                str(state.authorization_id),
+                id=str(envelope.event_id),
+                rpc_timeout=_RPC_TIMEOUT,
+            )
+            return
         if cancel:
             try:
                 await handle.cancel(rpc_timeout=_RPC_TIMEOUT)

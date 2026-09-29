@@ -31,7 +31,6 @@ from app.integrations.media_runner_models import (
 from app.schemas.engine_catalog import EngineCatalogResponse
 from app.services.downloads.errors import (
     MediaInspectionAuthRequired,
-    MediaInspectionConfigurationMissing,
     MediaInspectionContentRestricted,
     MediaInspectionDrmProtected,
     MediaInspectionDurationLimitExceeded,
@@ -230,11 +229,6 @@ class MediaRunnerHttpClient:
             if exc.code == "duration_limit_exceeded":
                 raise MediaInspectionDurationLimitExceeded from exc
             if exc.code == "credential_required":
-                if (
-                    self._expected_access_mode is ProviderAccessMode.OPERATOR_MANAGED
-                    and not context_ready
-                ):
-                    raise MediaInspectionConfigurationMissing from exc
                 raise MediaInspectionAuthRequired from exc
             if exc.code == "provider_session_not_allowed":
                 raise MediaInspectionPolicyNotAllowed from exc

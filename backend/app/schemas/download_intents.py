@@ -20,12 +20,18 @@ class IntentRequest(StrictModel):
     )
 
 
+class IntentResumeRequest(StrictModel):
+    authorization_id: UUID
+
+
 class IntentResponse(StrictModel):
     id: UUID
     version: int
     status: IntentStatus
     reason_code: str | None
-    next_action: Literal["none"] = "none"
+    next_action: Literal["none", "login"] = "none"
+    authorization_id: UUID | None = None
+    authorization_deadline: datetime | None = None
     retry_at: datetime | None
     deadline: datetime
     inspection_id: UUID | None
@@ -38,6 +44,11 @@ class IntentResponse(StrictModel):
             version=value.version,
             status=value.status,
             reason_code=value.reason_code,
+            next_action="login"
+            if value.status is IntentStatus.ACTION_REQUIRED
+            else "none",
+            authorization_id=value.authorization_id,
+            authorization_deadline=value.authorization_deadline,
             retry_at=value.retry_at,
             deadline=value.deadline,
             inspection_id=value.inspection_id,

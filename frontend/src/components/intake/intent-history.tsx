@@ -330,8 +330,9 @@ export function IntentHistory({
                         size="sm"
                         onClick={(event) => {
                           if (
-                            item.status === IntentStatusCode.Ready &&
-                            item.inspection_id
+                            (item.status === IntentStatusCode.Ready &&
+                              item.inspection_id) ||
+                            item.status === IntentStatusCode.ActionRequired
                           ) {
                             onViewResult(item);
                             return;

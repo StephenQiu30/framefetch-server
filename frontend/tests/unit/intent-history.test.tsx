@@ -7,6 +7,10 @@ import { httpRequests, mockHttpResponses } from '../helpers/http';
 import { render } from '../helpers/query-render';
 
 const push = vi.fn();
+vi.mock('@/components/auth/auth-provider', async (importOriginal) => ({
+  ...(await importOriginal()),
+  useAuth: () => ({ user: { id: 'history-test-owner', role: 'user' } }),
+}));
 vi.mock('@/components/analysis/use-analysis-skills', () => ({
   useAnalysisSkills: () => ({ skills: [] }),
 }));

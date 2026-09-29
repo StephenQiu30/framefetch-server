@@ -112,17 +112,19 @@ export default function DownloadWorkspace() {
       ? '正在更新解析结果，请稍候。'
       : intent.resultExpired
         ? '更新后请重新确认下载规格，无需再次粘贴原链接。'
-        : snapshot?.reason_code
-          ? localizedErrorMessage(snapshot.reason_code)
-          : !snapshot
-            ? '正在确认接单，请稍候，无需重复提交。'
-            : intent.pending
-              ? '后台处理中，可继续浏览。'
-              : snapshot.status === IntentStatusCode.Ready
-                ? intent.inspection
-                  ? '解析已完成，正在打开结果页。'
-                  : '正在读取解析结果，请稍候。'
-                : '本次解析已结束。');
+        : snapshot?.status === IntentStatusCode.ActionRequired
+          ? '请处理平台登录后继续原任务。任务最多保留 24 小时，等待期间不占用解析执行资源。'
+          : snapshot?.reason_code
+            ? localizedErrorMessage(snapshot.reason_code)
+            : !snapshot
+              ? '正在确认接单，请稍候，无需重复提交。'
+              : intent.pending
+                ? '后台处理中，可继续浏览。'
+                : snapshot.status === IntentStatusCode.Ready
+                  ? intent.inspection
+                    ? '解析已完成，正在打开结果页。'
+                    : '正在读取解析结果，请稍候。'
+                  : '本次解析已结束。');
   const cancelFromToast = useEffectEvent(() => {
     void intent.cancel();
   });
@@ -407,6 +409,15 @@ export default function DownloadWorkspace() {
               (intent.pending ||
                 snapshot.status === IntentStatusCode.ActionRequired)) ? (
               <>
+                {snapshot?.status === IntentStatusCode.ActionRequired ? (
+                  <Button
+                    disabled={intent.cancelling || !!intent.attempt?.submitting}
+                    onClick={() => void intent.resume()}
+                    size="sm"
+                  >
+                    已处理，继续解析
+                  </Button>
+                ) : null}
                 {intent.resultExpired && !intent.pending ? (
                   <Button
                     onClick={() => void intent.refresh()}

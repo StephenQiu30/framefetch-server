@@ -52,6 +52,9 @@ class IntentPersistence(Protocol):
     async def cancel(
         self, intent_id: UUID, owner_hash: str, *, now: datetime
     ) -> IntentSnapshot: ...
+    async def resume(
+        self, intent_id: UUID, owner_hash: str, authorization_id: UUID, *, now: datetime
+    ) -> IntentSnapshot: ...
 
 
 class IntentService:
@@ -123,6 +126,18 @@ class IntentService:
     async def cancel(self, intent_id: UUID, owner_hash: str) -> IntentSnapshot:
         try:
             return await self._repository.cancel(intent_id, owner_hash, now=self._now())
+        except PersistenceNotFound as exc:
+            raise ApplicationError(ApplicationErrorCode.NOT_FOUND) from exc
+        except PersistenceConflict as exc:
+            raise ApplicationError(ApplicationErrorCode.INVALID_STATE) from exc
+
+    async def resume(
+        self, intent_id: UUID, owner_hash: str, authorization_id: UUID
+    ) -> IntentSnapshot:
+        try:
+            return await self._repository.resume(
+                intent_id, owner_hash, authorization_id, now=self._now()
+            )
         except PersistenceNotFound as exc:
             raise ApplicationError(ApplicationErrorCode.NOT_FOUND) from exc
         except PersistenceConflict as exc:

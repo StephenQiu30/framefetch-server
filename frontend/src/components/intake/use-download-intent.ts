@@ -8,6 +8,7 @@ import {
   findDownloadIntent,
   getDownloadIntent,
   refreshDownloadIntent,
+  resumeDownloadIntent,
 } from '@/api/downloadIntents';
 import { getInspection } from '@/api/inspections';
 import { useAuth } from '@/components/auth/auth-provider';
@@ -114,7 +115,12 @@ export function useDownloadIntent() {
       query.state.error ||
       (query.state.data &&
         (isTerminalIntentStatus(query.state.data.status) ||
-          Date.parse(query.state.data.deadline) <= Date.now()))
+          Date.parse(
+            query.state.data.status === IntentStatusCode.ActionRequired
+              ? (query.state.data.authorization_deadline ??
+                  query.state.data.deadline)
+              : query.state.data.deadline,
+          ) <= Date.now()))
         ? false
         : 2_000,
     refetchOnWindowFocus: true,
@@ -211,7 +217,7 @@ export function useDownloadIntent() {
     }
   }
 
-  async function refresh() {
+  async function refresh(resume = false) {
     if (
       !intent.data ||
       !attempt ||
@@ -227,7 +233,13 @@ export function useDownloadIntent() {
     let accepted = false;
     try {
       await queries.cancelQueries({ queryKey: intentRoot });
-      const result = await refreshDownloadIntent({ intent_id: intent.data.id });
+      const result =
+        resume && intent.data.authorization_id
+          ? await resumeDownloadIntent(
+              { intent_id: intent.data.id },
+              { authorization_id: intent.data.authorization_id },
+            )
+          : await refreshDownloadIntent({ intent_id: intent.data.id });
       queries.setQueryData(key, remember(result));
       accepted = true;
     } catch (error) {
@@ -287,6 +299,7 @@ export function useDownloadIntent() {
     submit,
     cancel,
     refresh,
+    resume: () => refresh(true),
     clear,
     error:
       operationError ??
@@ -300,7 +313,11 @@ export function useDownloadIntent() {
           ? displayError(inspection.error)
           : intent.data &&
               pending &&
-              Date.parse(intent.data.deadline) <= Date.now()
+              Date.parse(
+                intent.data.status === IntentStatusCode.ActionRequired
+                  ? (intent.data.authorization_deadline ?? intent.data.deadline)
+                  : intent.data.deadline,
+              ) <= Date.now()
             ? '等待时间已到，请查询后台任务的最终状态。'
             : null),
     retry: async () => {

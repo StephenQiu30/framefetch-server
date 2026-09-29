@@ -12,7 +12,6 @@ from app.integrations.media_runner import MediaRunnerHttpClient, _retry_after
 from app.integrations.media_runner_models import MediaRunnerClientError
 from app.services.downloads.errors import (
     MediaInspectionAuthRequired,
-    MediaInspectionConfigurationMissing,
     MediaInspectionDurationLimitExceeded,
     MediaInspectionFailure,
     MediaInspectionLinkUnavailable,
@@ -187,7 +186,7 @@ async def test_inspect_exposes_provider_access_requirement() -> None:
 
 
 @pytest.mark.asyncio
-async def test_operator_source_missing_is_deployment_configuration(
+async def test_operator_source_missing_requires_user_login(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     async def context(_url: str) -> ProviderAccessContextRef:
@@ -205,7 +204,7 @@ async def test_operator_source_missing_is_deployment_configuration(
     )
     monkeypatch.setattr(client, "context", context)
 
-    with pytest.raises(MediaInspectionConfigurationMissing):
+    with pytest.raises(MediaInspectionAuthRequired):
         await client.inspect("https://www.youtube.com/watch?v=jNQXAC9IVRw")
 
     await http.aclose()

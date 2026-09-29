@@ -29,7 +29,11 @@ def worker(client, activities):
         client,
         task_queue="ff-inspect",
         workflows=[InspectionWorkflow],
-        activities=[activities.inspect_media, activities.finish_inspection],
+        activities=[
+            activities.inspect_media,
+            activities.finish_inspection,
+            activities.expire_inspection_wait,
+        ],
         max_concurrent_activities=2,
         graceful_shutdown_timeout=timedelta(seconds=1),
         max_heartbeat_throttle_interval=timedelta(milliseconds=100),
@@ -130,4 +134,63 @@ async def test_cancel_outbox_interrupts_running_activity(
         assert (
             await session.scalar(select(func.count()).select_from(MediaInspectionRow))
             == 0
+        )
+
+
+async def test_login_wait_survives_worker_restart_and_durable_resume(
+    postgres_engine, temporal_client
+):
+    from datetime import UTC, datetime
+
+    from tests.integration.api.test_download_intent_routes import PreparingSessionRunner
+
+    runner = PreparingSessionRunner()
+    runner.waits = 3  # One unavailable source response, then a real pipeline result.
+    service, repo, activities, clock, sessions = components(
+        postgres_engine, runner, operator_providers=frozenset({"youtube"})
+    )
+    clock[0] = datetime.now(UTC)
+    intent = await service.create(URL, TEST_USER.owner_hash, "login-wait")
+    loop = dispatch(repo, sessions, clock, temporal_client)
+    handle = temporal_client.get_workflow_handle(
+        InspectionCommand(str(intent.id), 0).workflow_id
+    )
+    async with worker(temporal_client, activities):
+        assert await loop.run_once() == 1
+        async with asyncio.timeout(15):
+            while True:
+                waiting = await repo.get(intent.id, TEST_USER.owner_hash)
+                if waiting.status == "action_required":
+                    break
+                await asyncio.sleep(0.05)
+        assert waiting.operation_id is None and waiting.attempt == 0
+    # User acts while the worker is offline. PG/outbox commits without waiting
+    # for a Workflow Update response, and no new workflow/generation is created.
+    clock[0] = datetime.now(UTC)
+    await service.resume(intent.id, TEST_USER.owner_hash, waiting.authorization_id)
+    async with worker(temporal_client, activities):
+        assert await loop.run_once() == 1
+        result = await asyncio.wait_for(handle.result(), 15)
+    assert result["status"] == "ready"
+    state = await repo.get(intent.id, TEST_USER.owner_hash)
+    assert state.attempt == 1 and state.generation == 0
+    assert await runner_result_count(sessions) == 1
+    await Replayer(workflows=[InspectionWorkflow]).replay_workflow(
+        await handle.fetch_history()
+    )
+    # Redelivery after the workflow closed is a no-op, not a new execution.
+    async with sessions() as session, session.begin():
+        event = await session.scalar(
+            select(OutboxEventRow).where(
+                OutboxEventRow.event_type == "download.intent.resumed"
+            )
+        )
+        event.published_at = None
+    assert await loop.run_once() == 1
+
+
+async def runner_result_count(sessions):
+    async with sessions() as session:
+        return await session.scalar(
+            select(func.count()).select_from(MediaInspectionRow)
         )

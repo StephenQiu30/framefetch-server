@@ -70,6 +70,8 @@ class IntentSnapshot:
     reason_code: str | None
     created_at: datetime
     updated_at: datetime
+    authorization_id: UUID | None = None
+    authorization_deadline: datetime | None = None
 
 
 @dataclass(frozen=True, slots=True)

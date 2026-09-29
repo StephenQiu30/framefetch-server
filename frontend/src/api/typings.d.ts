@@ -1483,7 +1483,11 @@ declare namespace API {
     /** Reason Code */
     reason_code: string | null;
     /** Next Action */
-    next_action?: "none";
+    next_action?: "none" | "login";
+    /** Authorization Id */
+    authorization_id?: string | null;
+    /** Authorization Deadline */
+    authorization_deadline?: string | null;
     /** Retry At */
     retry_at: string | null;
     /** Deadline */
@@ -1519,7 +1523,11 @@ declare namespace API {
     /** Reason Code */
     reason_code: string | null;
     /** Next Action */
-    next_action?: "none";
+    next_action?: "none" | "login";
+    /** Authorization Id */
+    authorization_id?: string | null;
+    /** Authorization Deadline */
+    authorization_deadline?: string | null;
     /** Retry At */
     retry_at: string | null;
     /** Deadline */
@@ -1528,6 +1536,11 @@ declare namespace API {
     inspection_id: string | null;
     /** Job Id */
     job_id: string | null;
+  };
+
+  type IntentResumeRequest = {
+    /** Authorization Id */
+    authorization_id: string;
   };
 
   type IntentStatus =
@@ -1781,7 +1794,11 @@ declare namespace API {
     /** Reason Code */
     reason_code: string | null;
     /** Next Action */
-    next_action?: "none";
+    next_action?: "none" | "login";
+    /** Authorization Id */
+    authorization_id?: string | null;
+    /** Authorization Deadline */
+    authorization_deadline?: string | null;
     /** Retry At */
     retry_at: string | null;
     /** Deadline */
@@ -2034,6 +2051,10 @@ declare namespace API {
   type RegistrationCodeVerificationResponse = {
     /** Verified */
     verified?: boolean;
+  };
+
+  type resumeDownloadIntentParams = {
+    intent_id: string;
   };
 
   type retryAnalysisParams = {

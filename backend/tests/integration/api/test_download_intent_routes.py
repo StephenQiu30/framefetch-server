@@ -119,13 +119,14 @@ async def test_session_preparation_wait_keeps_original_intent_and_attempt_budget
     for _ in range(4):
         await executor.execute(InspectionCommand(str(intent.id), 0), str(uuid4()))
         waiting = await repo.get(intent.id, TEST_USER.owner_hash)
-        assert waiting.status == "retry_wait"
+        assert waiting.status == "action_required"
         assert waiting.attempt == 0
         clock[0] += timedelta(seconds=15)
+        await service.resume(intent.id, TEST_USER.owner_hash, waiting.authorization_id)
     await executor.execute(InspectionCommand(str(intent.id), 0), str(uuid4()))
     ready = await repo.get(intent.id, TEST_USER.owner_hash)
     assert ready.status == "ready" and ready.attempt == 1
-    assert ready.id == intent.id and ready.deadline == intent.deadline
+    assert ready.id == intent.id and ready.remaining_budget_ms == 180000
 
 
 async def test_api_accepts_before_parse_and_recovers_same_result(postgres_engine):

@@ -105,6 +105,7 @@ def test_swagger_ui_and_openapi_contract_are_available(tmp_path: Path) -> None:
         "getAnalysisHistoryRecord",
         "listAnalysisRuns",
         "refreshDownloadIntent",
+        "resumeDownloadIntent",
         "getDownloadIntent",
         "cancelDownloadIntent",
         "getInspection",

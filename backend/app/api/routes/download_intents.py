@@ -17,6 +17,7 @@ from app.schemas.download_intents import (
     IntentHistoryResponse,
     IntentRequest,
     IntentResponse,
+    IntentResumeRequest,
 )
 from app.schemas.history_records import HistoryRecordPageResponse
 from app.services.analysis.rules.enums import AnalysisResultContract
@@ -235,4 +236,25 @@ async def cancel_intent(
     response.headers["Cache-Control"] = "no-store"
     return IntentResponse.from_snapshot(
         await service.cancel(intent_id, user.owner_hash)
+    )
+
+
+@router.post(
+    "/{intent_id}/resume",
+    status_code=202,
+    response_model=IntentResponse,
+    operation_id="resumeDownloadIntent",
+    dependencies=[Depends(RateLimitAdmission("inspect"))],
+    summary="完成登录后继续原解析任务并重新验证来源",
+)
+async def resume_intent(
+    intent_id: UUID,
+    body: IntentResumeRequest,
+    user: User,
+    service: Service,
+    response: Response,
+) -> IntentResponse:
+    response.headers["Cache-Control"] = "no-store"
+    return IntentResponse.from_snapshot(
+        await service.resume(intent_id, user.owner_hash, body.authorization_id)
     )

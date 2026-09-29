@@ -207,3 +207,55 @@ it('shows parse failures once in Sonner without an inline status panel', async (
     'https://youtu.be/owned',
   );
 });
+
+it('restores a login wait after the execution deadline and resumes the original intent', async () => {
+  const waiting = intentFixture({
+    status: 'action_required',
+    inspection_id: null,
+    next_action: 'login',
+    reason_code: 'provider_session_not_ready',
+    deadline: new Date(Date.now() - 10000).toISOString(),
+    authorization_id: '55555555-5555-4555-8555-555555555555',
+    authorization_deadline: new Date(Date.now() + 3600000).toISOString(),
+  });
+  sessionStorage.setItem(
+    'framefetch-active-intent',
+    JSON.stringify({ owner: 'intent-test-owner', id: waiting.id }),
+  );
+  mockHttpResponses(
+    waiting,
+    intentFixture({ status: 'queued', inspection_id: null }),
+  );
+  renderEntry();
+  const resume = await screen.findByRole('button', {
+    name: '已处理，继续解析',
+  });
+  expect(document.getElementById('parse-intent-status')).toHaveTextContent(
+    '等待处理平台登录',
+  );
+  expect(
+    screen.queryByText('等待时间已到，请查询后台任务的最终状态。'),
+  ).toBeNull();
+  await waitFor(() =>
+    expect(
+      document.querySelector(
+        '[data-sonner-toast][data-type="loading"]:not([data-removed="true"])',
+      ),
+    ).toBeNull(),
+  );
+  fireEvent.click(resume);
+  await waitFor(() =>
+    expect(httpRequests()).toContainEqual(
+      expect.objectContaining({
+        method: 'POST',
+        url: `/api/download-intents/${waiting.id}/resume`,
+        data: { authorization_id: waiting.authorization_id },
+      }),
+    ),
+  );
+  expect(
+    httpRequests().filter(
+      (r) => r.url === '/api/download-intents' && r.method === 'POST',
+    ),
+  ).toHaveLength(0);
+});
