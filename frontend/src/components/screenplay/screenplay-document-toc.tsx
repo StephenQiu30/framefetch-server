@@ -67,7 +67,7 @@ export function ScreenplayDocumentToc({
   return (
     <NavigationMenu
       aria-labelledby="screenplay-toc-title"
-      className="block max-w-none flex-none lg:grid lg:h-full lg:min-h-0 lg:grid-rows-[auto_minmax(0,1fr)] lg:overflow-hidden"
+      className="block max-w-none flex-none lg:grid lg:h-full lg:min-h-0 lg:items-stretch lg:justify-stretch lg:grid-rows-[auto_minmax(0,1fr)] lg:overflow-hidden"
       orientation="vertical"
       viewport={false}
     >
@@ -90,25 +90,27 @@ export function ScreenplayDocumentToc({
       </div>
 
       {headings.length ? (
-        <NavigationMenuList className="mt-3 flex w-full flex-none flex-col gap-0.5 lg:h-auto lg:min-h-0 lg:overflow-y-auto lg:overscroll-contain lg:scrollbar-thin">
-          {headings.map((heading) => (
-            <NavigationMenuItem key={heading.id}>
-              <NavigationMenuLink
-                asChild
-                className={cn(
-                  'block rounded-md py-1.5 text-sm leading-5 text-muted-foreground transition-colors hover:bg-muted/60 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
-                  heading.level === 1
-                    ? 'px-3'
-                    : heading.level === 2
-                      ? 'pr-3 pl-6 text-[13px]'
-                      : 'pr-3 pl-9 text-xs',
-                )}
-              >
-                <Link href={`#${heading.id}`}>{heading.text}</Link>
-              </NavigationMenuLink>
-            </NavigationMenuItem>
-          ))}
-        </NavigationMenuList>
+        <div className="mt-3 min-h-0 overflow-y-auto overscroll-contain scrollbar-thin">
+          <NavigationMenuList className="w-full flex-none flex-col items-stretch justify-start gap-0.5">
+            {headings.map((heading) => (
+              <NavigationMenuItem key={heading.id}>
+                <NavigationMenuLink
+                  asChild
+                  className={cn(
+                    'block rounded-md py-1.5 text-sm leading-5 text-muted-foreground transition-colors hover:bg-muted/60 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+                    heading.level === 1
+                      ? 'px-3'
+                      : heading.level === 2
+                        ? 'pr-3 pl-6 text-[13px]'
+                        : 'pr-3 pl-9 text-xs',
+                  )}
+                >
+                  <Link href={`#${heading.id}`}>{heading.text}</Link>
+                </NavigationMenuLink>
+              </NavigationMenuItem>
+            ))}
+          </NavigationMenuList>
+        </div>
       ) : (
         <p className="mt-4 text-sm leading-6 text-muted-foreground">
           当前文档没有可用的标题目录。

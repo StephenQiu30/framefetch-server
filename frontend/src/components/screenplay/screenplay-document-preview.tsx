@@ -65,7 +65,7 @@ export function ScreenplayDocumentPreview({
         <>
           <article
             aria-label="规范化剧本 Markdown 预览"
-            className="mt-4 h-[clamp(28rem,72vh,56rem)] overflow-y-auto overscroll-contain bg-surface px-5 py-6 text-[15px] leading-7 text-foreground scrollbar-thin sm:px-8 sm:py-8 lg:h-auto lg:min-h-0"
+            className="mt-4 max-h-dvh overflow-y-auto overscroll-contain bg-surface px-5 py-6 text-[15px] leading-7 text-foreground scrollbar-thin sm:px-8 sm:py-8 lg:min-h-0"
             data-testid="screenplay-markdown-reader"
           >
             <ReactMarkdown

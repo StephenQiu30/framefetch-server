@@ -3,6 +3,7 @@
 import type { ReactNode } from 'react';
 
 import { PageHeader } from '@/components/layout/page-header';
+import { SplitLayout } from '@/components/layout/split-layout';
 import {
   Field,
   FieldDescription,
@@ -25,8 +26,9 @@ export function AuthPageFrame({
   titleId,
 }: AuthPageFrameProps) {
   return (
-    <div
-      className="grid flex-1 gap-12 lg:grid-cols-[minmax(0,1.15fr)_minmax(320px,0.85fr)] lg:gap-24"
+    <SplitLayout
+      className="flex-1 gap-12 lg:gap-24"
+      columns="primary"
       data-slot="auth-frame"
     >
       <div className="hidden flex-col justify-center py-20 lg:flex">
@@ -37,7 +39,7 @@ export function AuthPageFrame({
         </p>
       </div>
       <div className="flex items-center justify-center py-12 lg:justify-start lg:py-20">
-        <div className="w-full max-w-[440px]">
+        <div className="w-full max-w-md">
           <PageHeader
             description={description}
             title={title}
@@ -46,7 +48,7 @@ export function AuthPageFrame({
           <div className="pt-8">{children}</div>
         </div>
       </div>
-    </div>
+    </SplitLayout>
   );
 }
 

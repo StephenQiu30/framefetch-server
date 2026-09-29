@@ -1,33 +1,16 @@
 import { Suspense } from 'react';
 import { ProtectedRoute } from '@/components/auth/protected-route';
-import { PageNavigation } from '@/components/layout/page-navigation';
+import { DocumentDetailSkeleton } from '@/components/screenplay/screenplay-document-detail-view';
 import ScreenplayDocumentRoute from '@/components/screenplay/screenplay-document-route';
-import { Skeleton } from '@/components/ui/skeleton';
 
 export const metadata = { title: '剧本文档详情' };
 
 export default function DocumentDetailPage() {
   return (
     <ProtectedRoute>
-      <Suspense fallback={<RouteFallback />}>
+      <Suspense fallback={<DocumentDetailSkeleton />}>
         <ScreenplayDocumentRoute />
       </Suspense>
     </ProtectedRoute>
-  );
-}
-
-function RouteFallback() {
-  return (
-    <div className="inner-page" role="status">
-      <span className="sr-only">正在读取剧本文档</span>
-      <PageNavigation fallbackHref="/documents" />
-      <Skeleton className="h-6 w-24" />
-      <Skeleton className="mt-4 h-12 w-2/5" />
-      <Skeleton className="mt-3 h-4 w-1/3" />
-      <div className="mt-12 grid gap-12 lg:grid-cols-[minmax(0,1fr)_320px] lg:gap-0">
-        <Skeleton className="h-[28rem] rounded-none lg:mr-12" />
-        <Skeleton className="h-80 rounded-none lg:ml-12" />
-      </div>
-    </div>
   );
 }

@@ -12,19 +12,24 @@ import {
 } from '@/components/ui/navigation-menu';
 import { siteConfig } from '@/lib/site';
 
-const desktopFooterQuery = '(min-width: 1024px)';
+function desktopViewport() {
+  const breakpoint = getComputedStyle(document.documentElement)
+    .getPropertyValue('--breakpoint-lg')
+    .trim();
+  return breakpoint && typeof window.matchMedia === 'function'
+    ? window.matchMedia(`(min-width: ${breakpoint})`)
+    : null;
+}
 
 function subscribeToDesktopViewport(onChange: () => void) {
-  if (typeof window.matchMedia !== 'function') return () => undefined;
-  const media = window.matchMedia(desktopFooterQuery);
+  const media = desktopViewport();
+  if (!media) return () => undefined;
   media.addEventListener('change', onChange);
   return () => media.removeEventListener('change', onChange);
 }
 
 function isDesktopViewport() {
-  return typeof window.matchMedia !== 'function'
-    ? true
-    : window.matchMedia(desktopFooterQuery).matches;
+  return desktopViewport()?.matches ?? false;
 }
 
 export function SiteFooter({ className }: { className?: string }) {

@@ -46,6 +46,7 @@ vi.mock('next/navigation', () => ({
 
 describe('BasicLayout', () => {
   beforeEach(() => {
+    document.documentElement.style.setProperty('--breakpoint-lg', '64rem');
     runtime.loading = false;
     runtime.status = undefined;
     runtime.pathname = '/';
@@ -87,6 +88,38 @@ describe('BasicLayout', () => {
     expect(
       screen.queryByRole('option', { name: /解析链接/ }),
     ).not.toBeInTheDocument();
+  });
+
+  it('keeps only the brand and authorization note in the mobile footer', () => {
+    vi.stubGlobal('matchMedia', () => ({
+      matches: false,
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+    }));
+
+    try {
+      render(
+        <BasicLayout>
+          <div>页面内容</div>
+        </BasicLayout>,
+      );
+
+      const footer = screen.getByRole('contentinfo');
+      expect(
+        within(footer).getByRole('link', { name: '帧取 · FrameFetch' }),
+      ).toBeInTheDocument();
+      expect(
+        within(footer).getByText(/请仅处理已获授权内容/),
+      ).toBeInTheDocument();
+      expect(
+        within(footer).queryByRole('button', { name: '快捷操作' }),
+      ).not.toBeInTheDocument();
+      expect(
+        within(footer).queryByRole('navigation', { name: '项目链接' }),
+      ).not.toBeInTheDocument();
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 
   it('renders the shared accessible navigation on application routes', () => {

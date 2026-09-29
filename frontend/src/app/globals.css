@@ -4,6 +4,11 @@
 
 @custom-variant dark (&:where(.dark, .dark *));
 
+@theme static {
+  --breakpoint-lg: 64rem;
+  --spacing-control-xl: 3.5rem;
+}
+
 @theme inline {
   --font-sans:
     "Geist", "Geist Fallback", "PingFang SC", "Hiragino Sans GB",

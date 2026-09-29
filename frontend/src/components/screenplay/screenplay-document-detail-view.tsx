@@ -9,6 +9,7 @@ import { deleteDocument as deleteScreenplayDocument } from '@/api/documents';
 import { FeedbackNotice } from '@/components/layout/feedback-notice';
 import { PageErrorNotice } from '@/components/layout/page-error-notice';
 import { PageNavigation } from '@/components/layout/page-navigation';
+import { SplitLayout } from '@/components/layout/split-layout';
 import ScreenplayAnalysisPanel from '@/components/screenplay/screenplay-analysis-panel';
 import { ScreenplayDocumentDeleteDialog } from '@/components/screenplay/screenplay-document-delete-dialog';
 import {
@@ -51,8 +52,7 @@ const tocSkeletonKeys = [
   'toc-6',
 ] as const;
 
-const workspaceClassName =
-  'mt-10 grid min-w-0 gap-10 lg:mt-12 lg:h-[clamp(34rem,72vh,56rem)] lg:min-h-0 lg:grid-cols-[minmax(0,1fr)_280px] lg:grid-rows-[minmax(0,1fr)] lg:gap-14 lg:overflow-hidden';
+const workspaceClassName = 'mt-10 lg:mt-12';
 const previewColumnClassName = 'min-w-0 lg:min-h-0 lg:overflow-hidden';
 const tocColumnClassName =
   'order-first min-w-0 lg:order-none lg:min-h-0 lg:overflow-hidden';
@@ -173,8 +173,10 @@ export default function ScreenplayDocumentDetailView({
             </Button>
           </div>
           <ScreenplayDocumentMetadata document={state.document} />
-          <div
+          <SplitLayout
             className={workspaceClassName}
+            columns="sidebar-end"
+            scrollable
             data-testid="screenplay-document-workspace"
           >
             <div className={previewColumnClassName}>
@@ -186,7 +188,7 @@ export default function ScreenplayDocumentDetailView({
             <div className={tocColumnClassName}>
               <ScreenplayDocumentToc headings={headings} />
             </div>
-          </div>
+          </SplitLayout>
           {state.document.status === ImportStatusCode.Ready ? (
             <ScreenplayAnalysisPanel
               documentId={documentId}
@@ -200,7 +202,7 @@ export default function ScreenplayDocumentDetailView({
   );
 }
 
-function DocumentDetailSkeleton() {
+export function DocumentDetailSkeleton() {
   return (
     <div aria-busy className="inner-page">
       <span className="sr-only" role="status">
@@ -223,7 +225,7 @@ function DocumentDetailSkeleton() {
           ))}
         </div>
       </div>
-      <div className={workspaceClassName}>
+      <SplitLayout className={workspaceClassName} columns="sidebar-end">
         <div
           className={`${previewColumnClassName} flex flex-col gap-4 lg:h-full`}
         >
@@ -231,7 +233,7 @@ function DocumentDetailSkeleton() {
             <Skeleton className="h-6 w-28" />
             <Skeleton className="h-4 w-20" />
           </div>
-          <Skeleton className="min-h-0 w-full flex-1" />
+          <Skeleton className="aspect-video min-h-0 w-full flex-1" />
         </div>
         <div className={`${tocColumnClassName} flex flex-col gap-4`}>
           <Skeleton className="h-5 w-16" />
@@ -241,7 +243,7 @@ function DocumentDetailSkeleton() {
             ))}
           </div>
         </div>
-      </div>
+      </SplitLayout>
     </div>
   );
 }

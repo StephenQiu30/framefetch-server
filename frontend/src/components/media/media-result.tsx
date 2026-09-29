@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react';
+import { SplitLayout } from '@/components/layout/split-layout';
 import { mediaFrameAspectRatio } from '@/components/media/media-cover';
 import { AspectRatio } from '@/components/ui/aspect-ratio';
 import {
@@ -13,8 +14,6 @@ import { Skeleton } from '@/components/ui/skeleton';
 
 // The media column and frame position stay the same from inspection through
 // download and playback. Only the content inside the 16:9 frame changes.
-export const mediaResultGridClassName =
-  'grid items-start gap-10 lg:grid-cols-[minmax(0,1.55fr)_minmax(320px,1fr)] lg:items-stretch lg:gap-14';
 const borderlessCardClassName =
   'min-w-0 gap-0 overflow-visible rounded-none bg-transparent py-0 ring-0';
 
@@ -41,7 +40,7 @@ export function MediaResult({
   );
 
   return (
-    <div className={mediaResultGridClassName} data-slot="media-result">
+    <SplitLayout columns="primary" data-slot="media-result">
       <Card
         className={borderlessCardClassName}
         data-media-result-column="media"
@@ -85,7 +84,7 @@ export function MediaResult({
           </CardFooter>
         ) : null}
       </Card>
-    </div>
+    </SplitLayout>
   );
 }
 
@@ -97,7 +96,7 @@ export function MediaResultSkeleton({
   selectionPanel?: boolean;
 }) {
   return (
-    <div aria-label={label} className={mediaResultGridClassName} role="status">
+    <SplitLayout aria-label={label} columns="primary" role="status">
       <Card className={borderlessCardClassName}>
         <CardContent className="px-0">
           <AspectRatio ratio={mediaFrameAspectRatio}>
@@ -146,6 +145,6 @@ export function MediaResultSkeleton({
           </CardFooter>
         ) : null}
       </Card>
-    </div>
+    </SplitLayout>
   );
 }

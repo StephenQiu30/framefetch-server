@@ -12,6 +12,7 @@ import {
 } from '@/components/intake/public-home-details';
 import { PublicHomeFaq } from '@/components/intake/public-home-faq';
 import { EditorialIntro } from '@/components/layout/editorial-intro';
+import { SplitLayout } from '@/components/layout/split-layout';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { siteConfig } from '@/lib/site';
@@ -51,8 +52,9 @@ const safeguards = [
 export function PublicHome() {
   return (
     <div className="flex flex-col pb-6" data-home-view-root="public">
-      <div
-        className="grid gap-12 pb-12 pt-10 sm:pt-12 lg:grid-cols-[minmax(0,1.15fr)_minmax(320px,0.85fr)] lg:gap-24 lg:pb-16 lg:pt-14"
+      <SplitLayout
+        className="gap-12 pb-12 pt-10 sm:pt-12 lg:gap-24 lg:pb-16 lg:pt-14"
+        columns="primary"
         data-slot="borderless-section"
       >
         <EditorialIntro
@@ -87,7 +89,7 @@ export function PublicHome() {
           </div>
         </EditorialIntro>
 
-        <div className="self-end lg:pb-1">
+        <div>
           <Badge className="w-fit" variant="secondary">
             工作流
           </Badge>
@@ -104,7 +106,7 @@ export function PublicHome() {
             <PublicHomeWorkflow items={workflow} />
           </div>
         </div>
-      </div>
+      </SplitLayout>
 
       <div
         className="scroll-mt-24 py-12 lg:py-16"
@@ -121,8 +123,8 @@ export function PublicHome() {
         <PublicHomeCapabilities items={capabilities} />
       </div>
 
-      <div
-        className="grid scroll-mt-24 gap-12 py-12 lg:grid-cols-2 lg:gap-24 lg:py-16"
+      <SplitLayout
+        className="scroll-mt-24 gap-12 py-12 lg:gap-24 lg:py-16"
         data-slot="borderless-section"
         id="architecture"
       >
@@ -133,7 +135,7 @@ export function PublicHome() {
           title="开源，不交出数据控制权"
           titleId="architecture-title"
         />
-        <div className="h-fit lg:pt-10">
+        <div>
           <Badge className="w-fit" variant="secondary">
             安全边界
           </Badge>
@@ -147,7 +149,7 @@ export function PublicHome() {
             <PublicHomeSafeguards items={safeguards} />
           </div>
         </div>
-      </div>
+      </SplitLayout>
 
       <PublicHomeFaq />
 

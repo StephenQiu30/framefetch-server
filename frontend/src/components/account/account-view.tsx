@@ -21,6 +21,7 @@ import { FeedbackNotice } from '@/components/layout/feedback-notice';
 import { PageErrorNotice } from '@/components/layout/page-error-notice';
 import { PageHeader } from '@/components/layout/page-header';
 import { PageNavigation } from '@/components/layout/page-navigation';
+import { SplitLayout } from '@/components/layout/split-layout';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -177,14 +178,14 @@ export function AccountView() {
       >
         <Skeleton className="h-3 w-32" />
         <Skeleton className="h-24 w-full max-w-2xl" />
-        <div className="grid gap-10 pt-4 lg:grid-cols-[minmax(280px,360px)_minmax(0,1fr)] lg:gap-12 xl:gap-16">
-          <Skeleton className="h-80 w-full" />
+        <SplitLayout className="pt-4" columns="sidebar-start">
+          <Skeleton className="w-full aspect-square" />
           <div className="flex flex-col gap-6">
             <Skeleton className="h-20 w-full" />
             <Skeleton className="h-20 w-full" />
             <Skeleton className="h-20 w-full" />
           </div>
-        </div>
+        </SplitLayout>
       </div>
     );
   }
@@ -213,28 +214,22 @@ export function AccountView() {
         title="个人资料"
       />
 
-      <Form
-        className="mt-14 grid gap-10 sm:mt-16 lg:grid-cols-[minmax(280px,360px)_minmax(0,1fr)] lg:gap-12 xl:gap-16"
-        onSubmit={submit}
-      >
-        <Card className="self-start ring-0">
-          <CardHeader className="justify-items-center gap-3 text-center">
-            <Avatar aria-hidden className="size-24">
-              <AvatarImage alt="" src={avatarUrl(user)} />
-              <AvatarFallback>{initials}</AvatarFallback>
-            </Avatar>
-            <CardTitle>
-              <h2>{user.username}</h2>
-            </CardTitle>
-            <CardDescription>{user.email}</CardDescription>
-            <Badge variant="secondary">{role}</Badge>
-          </CardHeader>
-          <CardContent>
-            <Field
-              className="items-center text-center"
-              data-invalid={avatarError ? true : undefined}
-            >
-              <Input
+      <Form className="mt-14 sm:mt-16" onSubmit={submit}>
+        <SplitLayout columns="sidebar-start">
+          <Card className="ring-0">
+            <CardHeader className="justify-items-center gap-3 text-center">
+              <Avatar aria-hidden className="size-24">
+                <AvatarImage alt="" src={avatarUrl(user)} />
+                <AvatarFallback>{initials}</AvatarFallback>
+              </Avatar>
+              <CardTitle>
+                <h2>{user.username}</h2>
+              </CardTitle>
+              <CardDescription>{user.email}</CardDescription>
+              <Badge variant="secondary">{role}</Badge>
+            </CardHeader>
+            <CardContent>
+              <input
                 accept="image/jpeg,image/png,image/webp"
                 aria-describedby={
                   avatarError ? 'avatar-help avatar-error' : 'avatar-help'
@@ -250,138 +245,146 @@ export function AccountView() {
                 tabIndex={-1}
                 type="file"
               />
-              <FieldGroup className="flex-row flex-wrap justify-center gap-2">
-                <Button
-                  aria-describedby={
-                    avatarError ? 'avatar-help avatar-error' : 'avatar-help'
-                  }
-                  disabled={avatarBusy}
-                  onClick={() => avatarInput.current?.click()}
-                  type="button"
-                  variant="outline"
-                >
-                  {avatarBusy ? (
-                    <Spinner aria-hidden data-icon="inline-start" />
-                  ) : (
-                    <UploadSimpleIcon aria-hidden data-icon="inline-start" />
-                  )}
-                  {avatarBusy ? '正在处理头像' : '上传头像'}
-                </Button>
-                {user.avatar_version ? (
+              <Field
+                className="items-center text-center"
+                data-invalid={avatarError ? true : undefined}
+              >
+                <FieldGroup className="flex-row flex-wrap justify-center gap-2">
                   <Button
+                    aria-describedby={
+                      avatarError ? 'avatar-help avatar-error' : 'avatar-help'
+                    }
                     disabled={avatarBusy}
-                    onClick={() => void deleteAvatar()}
+                    onClick={() => avatarInput.current?.click()}
                     type="button"
-                    variant="ghost"
+                    variant="outline"
                   >
-                    <XIcon aria-hidden data-icon="inline-start" />
-                    移除头像
+                    {avatarBusy ? (
+                      <Spinner aria-hidden data-icon="inline-start" />
+                    ) : (
+                      <UploadSimpleIcon aria-hidden data-icon="inline-start" />
+                    )}
+                    {avatarBusy ? '正在处理头像' : '上传头像'}
                   </Button>
+                  {user.avatar_version ? (
+                    <Button
+                      disabled={avatarBusy}
+                      onClick={() => void deleteAvatar()}
+                      type="button"
+                      variant="ghost"
+                    >
+                      <XIcon aria-hidden data-icon="inline-start" />
+                      移除头像
+                    </Button>
+                  ) : null}
+                </FieldGroup>
+                <FieldDescription
+                  aria-live="polite"
+                  className="text-center"
+                  id="avatar-help"
+                >
+                  JPEG、PNG 或 WebP，最大 4 MB。上传后自动裁切为方形。
+                </FieldDescription>
+                {avatarError ? (
+                  <FieldError id="avatar-error">{avatarError}</FieldError>
                 ) : null}
-              </FieldGroup>
-              <FieldDescription
-                aria-live="polite"
-                className="text-center"
-                id="avatar-help"
-              >
-                JPEG、PNG 或 WebP，最大 4 MB。上传后自动裁切为方形。
-              </FieldDescription>
-              {avatarError ? (
-                <FieldError id="avatar-error">{avatarError}</FieldError>
-              ) : null}
-            </Field>
-          </CardContent>
-        </Card>
+              </Field>
+            </CardContent>
+          </Card>
 
-        <FieldSet className="min-w-0 gap-6">
-          <FieldLegend variant="label">资料字段</FieldLegend>
-          <FieldGroup className="grid auto-rows-fr gap-6">
-            <Field>
-              <FieldLabel className="w-full justify-between" htmlFor="username">
-                用户名
-                <span
-                  aria-hidden="true"
-                  className="text-xs text-muted-foreground tabular-nums"
+          <FieldSet className="min-w-0 gap-6">
+            <FieldLegend variant="label">资料字段</FieldLegend>
+            <FieldGroup className="grid auto-rows-fr gap-6">
+              <Field>
+                <FieldLabel
+                  className="w-full justify-between"
+                  htmlFor="username"
                 >
-                  {usernameLength(username)}/32
-                </span>
-              </FieldLabel>
-              <Input
-                aria-describedby="username-help"
-                id="username"
-                onChange={(event) => {
-                  setUsername(event.target.value);
-                  setNotice(null);
-                }}
-                required
-                value={username}
+                  用户名
+                  <span
+                    aria-hidden="true"
+                    className="text-xs text-muted-foreground tabular-nums"
+                  >
+                    {usernameLength(username)}/32
+                  </span>
+                </FieldLabel>
+                <Input
+                  aria-describedby="username-help"
+                  id="username"
+                  onChange={(event) => {
+                    setUsername(event.target.value);
+                    setNotice(null);
+                  }}
+                  required
+                  value={username}
+                />
+                <FieldDescription id="username-help">
+                  {USERNAME_HELP} 将显示在导航和任务记录中。
+                </FieldDescription>
+              </Field>
+              <ReadOnlyField
+                description="用于登录账户，暂不支持在此修改。"
+                id="email"
+                label="登录邮箱"
+                value={user.email}
               />
-              <FieldDescription id="username-help">
-                {USERNAME_HELP} 将显示在导航和任务记录中。
-              </FieldDescription>
-            </Field>
-            <ReadOnlyField
-              description="用于登录账户，暂不支持在此修改。"
-              id="email"
-              label="登录邮箱"
-              value={user.email}
-            />
-            <Field data-disabled={user.role !== 'admin' ? true : undefined}>
-              <FieldLabel htmlFor="role">账户身份</FieldLabel>
-              <Select
-                disabled={user.role !== 'admin' || saving}
-                onValueChange={(value) => {
-                  setSelectedRole(value as API.UserRole);
-                  setNotice(null);
-                }}
-                value={selectedRole}
-              >
-                <SelectTrigger
-                  aria-describedby="role-help"
-                  className="w-full"
-                  id="role"
+              <Field data-disabled={user.role !== 'admin' ? true : undefined}>
+                <FieldLabel htmlFor="role">账户身份</FieldLabel>
+                <Select
+                  disabled={user.role !== 'admin' || saving}
+                  onValueChange={(value) => {
+                    setSelectedRole(value as API.UserRole);
+                    setNotice(null);
+                  }}
+                  value={selectedRole}
                 >
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectGroup>
-                    <SelectItem value="admin">管理员</SelectItem>
-                    <SelectItem value="user">普通用户</SelectItem>
-                  </SelectGroup>
-                </SelectContent>
-              </Select>
-              <FieldDescription id="role-help">
-                {user.role === 'admin'
-                  ? '更改为普通用户前，必须保留另一位启用的管理员。'
-                  : '仅管理员可以修改账户身份。'}
-              </FieldDescription>
-            </Field>
-          </FieldGroup>
-          {notice ? (
-            <FeedbackNotice
-              presentation="toast"
-              description={notice.text}
-              title="资料保存失败"
-              tone="error"
-            />
-          ) : null}
-          <Button
-            className="mt-3 self-start"
-            disabled={saving || unchanged}
-            type="submit"
-          >
-            {saving ? (
-              <Spinner
-                aria-hidden
-                data-icon="inline-start"
-                role="presentation"
+                  <SelectTrigger
+                    aria-describedby="role-help"
+                    className="w-full"
+                    id="role"
+                  >
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectGroup>
+                      <SelectItem value="admin">管理员</SelectItem>
+                      <SelectItem value="user">普通用户</SelectItem>
+                    </SelectGroup>
+                  </SelectContent>
+                </Select>
+                <FieldDescription id="role-help">
+                  {user.role === 'admin'
+                    ? '更改为普通用户前，必须保留另一位启用的管理员。'
+                    : '仅管理员可以修改账户身份。'}
+                </FieldDescription>
+              </Field>
+            </FieldGroup>
+            {notice ? (
+              <FeedbackNotice
+                presentation="toast"
+                description={notice.text}
+                title="资料保存失败"
+                tone="error"
               />
-            ) : (
-              <FloppyDisk aria-hidden data-icon="inline-start" />
-            )}
-            {saving ? '正在保存' : '保存资料'}
-          </Button>
-        </FieldSet>
+            ) : null}
+            <Button
+              className="mt-3 self-start"
+              disabled={saving || unchanged}
+              type="submit"
+            >
+              {saving ? (
+                <Spinner
+                  aria-hidden
+                  data-icon="inline-start"
+                  role="presentation"
+                />
+              ) : (
+                <FloppyDisk aria-hidden data-icon="inline-start" />
+              )}
+              {saving ? '正在保存' : '保存资料'}
+            </Button>
+          </FieldSet>
+        </SplitLayout>
       </Form>
     </>
   );
