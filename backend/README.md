@@ -56,7 +56,7 @@ Media Runner 通过 `app/workers/runner/plugins/yt_dlp_plugins/` 加载随项目
 
 在线解析使用平台固定路线：原生公开接口不携带账号，其余平台按操作从宿主机来源领取临时会话；来源缺失或平台拒绝时明确报错，不切换路线。接入与恢复边界见[平台会话设计](../docs/design/08-平台会话.md)。
 
-持久解析入口为 `POST /api/download-intents`，接单提交后返回 202；查询和取消使用同一资源 ID。API 不等待上游解析。下载 Worker 的独立解析消费槽通过 `download.intent.requested` 事件执行，失联租约和重试由同一恢复循环收敛；解析总预算 180 秒、最多三次执行。用户取消后 Worker 停止 HTTP 操作，Runner 断连处理终止实际子进程。新入口和双客户端切换状态见 [044 Plan](../docs/design/README.md)。解析按每日任务计量、零下载字节，同幂等键重放不重复计量。Worker 与 API 使用相同 `REQUEST_FINGERPRINT_SECRET`，生产环境禁止开发默认值。
+持久解析入口为 `POST /api/download-intents`，接单提交后返回 202；查询和取消使用同一资源 ID。API 不等待上游解析。Outbox 将 `download.intent.requested` 投递为 `InspectionWorkflow`，同一个下载 Worker 进程中的 `ff-inspect` 队列保留 2 个解析 Activity 槽。Temporal 接管持久投递、重试、心跳、取消和恢复；业务库只保存 generation／operation／fence 与结果，解析总预算仍为 180 秒、最多三次执行。用户取消后 Worker 停止 HTTP 操作，Runner 断连处理终止实际子进程。迁移范围见[工作流设计](../docs/design/15-工作流与平台下载目标.md)。解析按每日任务计量、零下载字节，同幂等键重放不重复计量。Worker 与 API 使用相同 `REQUEST_FINGERPRINT_SECRET`，生产环境禁止开发默认值。
 
 高成本路由显式声明速率策略，PostgreSQL 在资源/run/outbox 创建事务内统一检查账户及全局配额。配置入口为 `RATE_LIMIT_POLICIES` 与 `QUOTA_LIMITS`；幂等重放不重复扣减，取消释放活跃名额，物理清理完成后释放保留存储。报告超限是可见的终态失败；取消后迟到的报告只进入清理流程。完整计量口径和生产边界见 [上线准入设计](../docs/design/README.md)。
 
@@ -136,3 +136,6 @@ Web JSON 响应及全局异常统一遵循 [PROJECT.md §3.1](../PROJECT.md#31-�
 ## 系统操作日志
 
 管理员日志入口、记录范围、故障语义和部署验证见[系统操作日志运行说明](../docs/design/README.md)。
+
+
+Temporal 回归默认通过 SDK 启动固定版本 CLI 隔离测试服务；本机安装 `temporal` 时复用该二进制，CI 自动下载 CLI v1.8.2。要在已有持久服务上测试，执行 `TEST_TEMPORAL_ADDRESS=127.0.0.1:17233 uv run pytest tests/integration/test_intent_messaging.py`，测试只使用 `framefetch-test` 命名空间和 PostgreSQL 隔离 schema，不消费业务命名空间。测试覆盖确认丢失、Worker 重启、取消和 History replay，不替代真实平台验收。

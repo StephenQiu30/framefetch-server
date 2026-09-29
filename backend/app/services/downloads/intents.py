@@ -1,7 +1,7 @@
 """Persist a validated public parsing request before any upstream operation."""
 
 from collections.abc import Awaitable, Callable
-from datetime import datetime, timedelta
+from datetime import datetime
 from typing import Protocol
 from uuid import UUID
 
@@ -12,11 +12,9 @@ from app.services.downloads.errors import (
     PersistenceIdempotencyConflict,
     PersistenceNotFound,
 )
-from app.services.downloads.inspection_models import InspectionCreate
 from app.services.downloads.intent_models import (
     IntentCreate,
     IntentHistoryPage,
-    IntentLease,
     IntentSnapshot,
 )
 from app.services.downloads.ports import RequestFingerprinter, UrlCipher, UrlValidator
@@ -54,31 +52,6 @@ class IntentPersistence(Protocol):
     async def cancel(
         self, intent_id: UUID, owner_hash: str, *, now: datetime
     ) -> IntentSnapshot: ...
-    async def claim(
-        self, intent_id: UUID, worker_id: str, *, now: datetime, lease_for: timedelta
-    ) -> IntentLease | None: ...
-    async def heartbeat(
-        self, lease: IntentSnapshot, *, now: datetime, lease_for: timedelta
-    ) -> bool: ...
-    async def complete(
-        self, lease: IntentSnapshot, result: InspectionCreate, *, now: datetime
-    ) -> IntentSnapshot: ...
-    async def fail(
-        self,
-        lease: IntentSnapshot,
-        *,
-        now: datetime,
-        reason_code: str,
-        retry_at: datetime | None = None,
-        preparation_wait: bool = False,
-    ) -> IntentSnapshot: ...
-    async def recover(
-        self,
-        *,
-        now: datetime,
-        limit: int = 100,
-        queued_stale_for: timedelta = timedelta(seconds=30),
-    ) -> int: ...
 
 
 class IntentService:

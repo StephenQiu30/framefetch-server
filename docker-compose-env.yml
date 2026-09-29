@@ -125,22 +125,18 @@ services:
         declare_exchange video.events
         declare_exchange video.events.dead
         declare_queue video.download
-        declare_queue video.download-intent
         declare_queue video.analysis
         declare_queue video.analysis-report
         declare_queue video.import
         declare_dead_queue video.download.dead
-        declare_dead_queue video.download-intent.dead
         declare_dead_queue video.analysis.dead
         declare_dead_queue video.analysis-report.dead
         declare_dead_queue video.import.dead
         declare_binding video.events video.download download.requested
-        declare_binding video.events video.download-intent download.intent.requested
         declare_binding video.events video.analysis analysis.requested
         declare_binding video.events video.analysis-report analysis.report.publish.requested
         declare_binding video.events video.import content.import.verify.requested
         declare_binding video.events.dead video.download.dead video.download.dead
-        declare_binding video.events.dead video.download-intent.dead video.download-intent.dead
         declare_binding video.events.dead video.analysis.dead video.analysis.dead
         declare_binding video.events.dead video.analysis-report.dead video.analysis-report.dead
         declare_binding video.events.dead video.import.dead video.import.dead

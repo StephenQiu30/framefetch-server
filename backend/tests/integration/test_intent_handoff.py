@@ -15,7 +15,6 @@ from app.services.downloads.download_models import DownloadCreate
 from sqlalchemy import event, func, select
 from sqlalchemy.ext.asyncio import async_sessionmaker
 from tests.integration.test_download_intents import (
-    LEASE,
     NOW,
     OWNER,
     command,
@@ -28,7 +27,12 @@ async def ready(engine):
     intents = IntentRepository(sessions)
     downloads = SqlAlchemyDownloadRepository(sessions)
     accepted = await intents.accept(command(), now=NOW)
-    lease = await intents.claim(accepted.id, "test", now=NOW, lease_for=LEASE)
+    lease = await intents.begin_attempt(
+        accepted.id,
+        (await intents.execution_state(accepted.id)).generation,
+        str(uuid4()),
+        now=NOW,
+    )
     result = inspection(lease.intent)
     saved = await intents.complete(lease.intent, result, now=NOW)
     create = DownloadCreate(

@@ -1210,8 +1210,8 @@ CREATE TABLE IF NOT EXISTS download_intents (
     max_attempts INTEGER NOT NULL DEFAULT 3,
     remaining_budget_ms INTEGER NOT NULL DEFAULT 180000,
     deadline TIMESTAMPTZ NOT NULL,
-    lease_owner VARCHAR(128),
-    lease_expires_at TIMESTAMPTZ,
+    generation INTEGER NOT NULL DEFAULT 0,
+    operation_id VARCHAR(128),
     retry_at TIMESTAMPTZ,
     authorization_id UUID,
     authorization_deadline TIMESTAMPTZ,
@@ -1235,9 +1235,9 @@ CREATE TABLE IF NOT EXISTS download_intents (
         attempt >= 0 AND attempt <= max_attempts AND max_attempts BETWEEN 1 AND 3
     ),
     CONSTRAINT ck_download_intents_budget CHECK (remaining_budget_ms BETWEEN 0 AND 180000),
-    CONSTRAINT ck_download_intents_lease CHECK (
-        (status IN ('preparing','resolving') AND lease_owner IS NOT NULL AND lease_expires_at IS NOT NULL)
-        OR (status NOT IN ('preparing','resolving') AND lease_owner IS NULL AND lease_expires_at IS NULL)
+    CONSTRAINT ck_download_intents_generation CHECK (generation >= 0),
+    CONSTRAINT ck_download_intents_operation CHECK (
+        (status IN ('preparing','resolving')) = (operation_id IS NOT NULL)
     ),
     CONSTRAINT ck_download_intents_retry CHECK ((status = 'retry_wait') = (retry_at IS NOT NULL)),
     CONSTRAINT ck_download_intents_result CHECK (status <> 'ready' OR inspection_id IS NOT NULL),
@@ -1248,8 +1248,27 @@ CREATE TABLE IF NOT EXISTS download_intents (
 );
 CREATE INDEX IF NOT EXISTS ix_download_intents_owner_created
     ON download_intents (owner_hash, created_at);
-CREATE INDEX IF NOT EXISTS ix_download_intents_recovery
-    ON download_intents (status, lease_expires_at, retry_at);
+-- Cut over only after the old intent consumer is drained. Never erase in-flight work.
+DO $$ BEGIN
+    IF EXISTS (SELECT 1 FROM information_schema.columns
+               WHERE table_schema = current_schema() AND table_name = 'download_intents'
+               AND column_name = 'lease_owner')
+       AND EXISTS (SELECT 1 FROM download_intents
+                   WHERE status IN ('queued','preparing','resolving','retry_wait','action_required')) THEN
+        RAISE EXCEPTION 'drain intent executions before Temporal cutover';
+    END IF;
+END $$;
+ALTER TABLE download_intents ADD COLUMN IF NOT EXISTS generation INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE download_intents ADD COLUMN IF NOT EXISTS operation_id VARCHAR(128);
+ALTER TABLE download_intents DROP COLUMN IF EXISTS lease_owner;
+ALTER TABLE download_intents DROP COLUMN IF EXISTS lease_expires_at;
+DROP INDEX IF EXISTS ix_download_intents_recovery;
+ALTER TABLE download_intents DROP CONSTRAINT IF EXISTS ck_download_intents_operation;
+ALTER TABLE download_intents ADD CONSTRAINT ck_download_intents_operation CHECK (
+    (status IN ('preparing','resolving')) = (operation_id IS NOT NULL)
+);
+ALTER TABLE download_intents DROP CONSTRAINT IF EXISTS ck_download_intents_generation;
+ALTER TABLE download_intents ADD CONSTRAINT ck_download_intents_generation CHECK (generation >= 0);
 CREATE INDEX IF NOT EXISTS ix_download_intents_deadline
     ON download_intents (status, deadline);
 CREATE UNIQUE INDEX IF NOT EXISTS uq_download_intents_inspection

@@ -8,7 +8,6 @@ from datetime import datetime, timedelta
 from typing import Protocol
 from uuid import UUID
 
-from app.services.downloads.intents import IntentPersistence
 from app.workers.download.workspace import SharedWorkspaceCleaner
 
 _log = logging.getLogger(__name__)
@@ -58,22 +57,16 @@ class DownloadRecoverySweeper:
         clock: Callable[[], datetime],
         settings: RecoverySettings | None = None,
         workspace_cleaner: SharedWorkspaceCleaner | None = None,
-        intents: IntentPersistence | None = None,
     ) -> None:
         self._repository = repository
         self._clock = clock
         self._settings = settings or RecoverySettings()
         self._workspace_cleaner = workspace_cleaner
-        self._intents = intents
 
     async def tick(
         self,
     ) -> tuple[tuple[UUID, ...], tuple[UUID, ...], tuple[UUID, ...]]:
         now = self._clock()
-        if self._intents is not None:
-            await self._intents.recover(
-                now=now, limit=min(self._settings.batch_size, 200)
-            )
         queued = await self._repository.recover_stale_queued(
             now,
             now - self._settings.queued_stale_after,

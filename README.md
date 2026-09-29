@@ -157,6 +157,23 @@ uv run --project backend python -m app.workers.bootstrap_admin \
 
 命令只在用户表为空时创建管理员；已有任何用户时拒绝，不开放 HTTP 初始化接口。若要让其他用户自行注册，先在 `.env` 配置真实 SMTP 并启用 `SMTP_ENABLED=true`。健康检查只证明服务可运行，不证明每个平台有真实媒体证据。
 
+### Temporal 首次配置与重启
+
+解析调度使用固定版本的单节点 Temporal Server，复用现有 PostgreSQL 实例中的 `framefetch_temporal` 和 `framefetch_temporal_visibility` 两个专用库。首次安装时由数据库管理员创建 `framefetch_temporal` 登录角色、交互设置强密码，再建立两个同属该角色的库；已存在时直接复用，不重置密码或重建库：
+
+```bash
+psql -d postgres -c 'CREATE ROLE framefetch_temporal LOGIN'
+psql -d postgres -c '\password framefetch_temporal'
+createdb -O framefetch_temporal framefetch_temporal
+createdb -O framefetch_temporal framefetch_temporal_visibility
+```
+
+将同一个密码保存到部署环境文件的 `TEMPORAL_POSTGRES_PASSWORD`，文件权限设为 `0600`。`TEMPORAL_POSTGRES_USER` 默认 `framefetch_temporal`；容器使用已有的 `POSTGRES_HOST/PORT`。`temporal-schema` 使用对应版本官方工具幂等初始化，工作进程首次连接时幂等创建 `framefetch` 命名空间。普通 `docker compose up -d --build --wait` 重启复用配置与数据库，不重新生成密码。CLI／宿主 Worker 地址默认为 `127.0.0.1:17233`，容器内部为 `temporal:7233`；不会占用其他项目默认 7233 端口。
+
+首次切换前停止 API 接单并排空解析任务，再配套发布 API、Outbox、下载 Worker 和 `migrate` 容器。`schema.sql` 检测到旧解析在途记录会拒绝移除旧租约列；切勿通过删记录绕过。更新使用 `up --build`，不能只 `start` 旧版已退出的迁移容器。回退也需先排空新执行并恢复匹配的结构备份，不允许两套解析执行者并存。
+
+备份业务库时同步备份两个 Temporal 库，稳定环境密钥单独保管。该服务不设置公共访问，单节点停机期间任务暂停；端口健康不等于平台可以下载。下载、分析、导入及报告仍保留既有 RabbitMQ 链路，迁移边界见[工作流设计](docs/design/15-工作流与平台下载目标.md)。
+
 ### 平台登录态（需要登录的平台）
 
 帧取是单人自用工具，**你日常使用的 Chrome 就是唯一的登录态来源**：每次解析前现读对应站点的 Cookie，用完即丢，不另存副本、不另开浏览器保活。重新登录后，agent 会在 20 秒内存缓存过期后读取新状态；平台是否接受该状态仍由实际解析与下载验证。broker 只负责按需中继，不扫描、预热或保存回写结果。

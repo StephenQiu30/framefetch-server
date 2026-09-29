@@ -13,11 +13,13 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncEngine
 
 
-async def _drop_execution_column(engine: AsyncEngine) -> None:
+async def _drop_execution_column(
+    engine: AsyncEngine,
+    table: str = "download_jobs",
+    column: str = "execution_access_context",
+) -> None:
     async with engine.begin() as connection:
-        await connection.execute(
-            text("ALTER TABLE download_jobs DROP COLUMN execution_access_context")
-        )
+        await connection.execute(text(f"ALTER TABLE {table} DROP COLUMN {column}"))
 
 
 async def test_api_refuses_to_start_realtime_before_schema_migration(
@@ -39,16 +41,27 @@ async def test_api_refuses_to_start_realtime_before_schema_migration(
     realtime.start.assert_not_awaited()
 
 
+@pytest.mark.parametrize(
+    "table,column",
+    [
+        ("download_jobs", "execution_access_context"),
+        ("download_intents", "generation"),
+        ("download_intents", "operation_id"),
+    ],
+)
 async def test_download_worker_refuses_to_consume_before_schema_migration(
     postgres_engine: AsyncEngine,
+    table: str,
+    column: str,
 ) -> None:
-    await _drop_execution_column(postgres_engine)
+    await _drop_execution_column(postgres_engine, table, column)
     consumer = AsyncMock()
-    intent_consumer = AsyncMock()
     sweeper = AsyncMock()
     runtime = DownloadWorkerRuntime(
         consumer=cast(Any, consumer),
-        intent_consumer=cast(Any, intent_consumer),
+        inspection_activities=cast(Any, None),
+        temporal_address="127.0.0.1:1",
+        temporal_namespace="test",
         sweeper=cast(Any, sweeper),
         storage=cast(Any, None),
         runner=cast(Any, None),
@@ -59,5 +72,4 @@ async def test_download_worker_refuses_to_consume_before_schema_migration(
         await _serve(runtime, asyncio.Event())
 
     consumer.run.assert_not_awaited()
-    intent_consumer.run.assert_not_awaited()
     sweeper.run.assert_not_awaited()

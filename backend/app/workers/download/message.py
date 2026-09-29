@@ -44,20 +44,3 @@ def parse_download_requested(body: bytes) -> DownloadRequested:
     ):
         raise DownloadMessageError("download payload values are invalid")
     return DownloadRequested(job_id, attempt, version)
-
-
-def parse_intent_requested(body: bytes) -> UUID:
-    try:
-        envelope = EventEnvelope.from_bytes(body)
-    except EventEnvelopeError as exc:
-        raise DownloadMessageError("invalid intent envelope") from exc
-    if envelope.event_type != "download.intent.requested" or set(envelope.payload) != {
-        "intent_id",
-        "version",
-    }:
-        raise DownloadMessageError("invalid intent event")
-    value = envelope.payload["intent_id"]
-    version = envelope.payload["version"]
-    if value != str(envelope.aggregate_id) or type(version) is not int or version < 0:
-        raise DownloadMessageError("invalid intent payload")
-    return envelope.aggregate_id

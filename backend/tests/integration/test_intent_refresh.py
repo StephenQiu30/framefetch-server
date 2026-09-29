@@ -13,7 +13,6 @@ from app.services.downloads.queries import GetInspection
 from app.services.quotas import QuotaExceeded, UserQuota
 from sqlalchemy import func, select
 from tests.integration.test_download_intents import (
-    LEASE,
     NOW,
     OWNER,
     command,
@@ -26,7 +25,9 @@ from tests.integration.test_intent_handoff import ready
 async def resolved(engine):
     repo = repository(engine)
     item = await repo.accept(command(), now=NOW)
-    lease = await repo.claim(item.id, "worker", now=NOW, lease_for=LEASE)
+    lease = await repo.begin_attempt(
+        item.id, (await repo.execution_state(item.id)).generation, str(uuid4()), now=NOW
+    )
     saved = await repo.complete(
         lease.intent, inspection(lease.intent), now=NOW + timedelta(seconds=5)
     )
@@ -59,7 +60,12 @@ async def test_concurrent_refresh_preserves_remaining_budget_and_one_outbox(
     assert resumed.remaining_budget_ms == original.remaining_budget_ms == 175000
     assert resumed.deadline == now + timedelta(seconds=175)
     assert resumed.attempt == original.attempt == 1
-    lease = await repo.claim(original.id, "worker-2", now=now, lease_for=LEASE)
+    lease = await repo.begin_attempt(
+        original.id,
+        (await repo.execution_state(original.id)).generation,
+        str(uuid4()),
+        now=now,
+    )
     assert lease.intent.fence > original.fence
     result = refreshed_result(lease, now)
     completed = await repo.complete(
@@ -107,7 +113,13 @@ async def test_refresh_has_owner_isolation_and_cancellation_wins(postgres_engine
     with pytest.raises(RepositoryConflict):
         await repo.refresh(original.id, OWNER, now=now)
     assert (
-        await repo.claim(original.id, "late-worker", now=now, lease_for=LEASE) is None
+        await repo.begin_attempt(
+            original.id,
+            (await repo.execution_state(original.id)).generation,
+            str(uuid4()),
+            now=now,
+        )
+        is None
     )
 
 
@@ -136,7 +148,12 @@ async def test_changed_source_cannot_replace_the_original_result(
     repo, original = await resolved(postgres_engine)
     now = NOW + timedelta(hours=2)
     await repo.refresh(original.id, OWNER, now=now)
-    lease = await repo.claim(original.id, "worker", now=now, lease_for=LEASE)
+    lease = await repo.begin_attempt(
+        original.id,
+        (await repo.execution_state(original.id)).generation,
+        str(uuid4()),
+        now=now,
+    )
     result = refreshed_result(lease, now)
     result = replace(
         result,
@@ -157,7 +174,12 @@ async def test_refresh_never_resets_the_total_attempt_limit(postgres_engine):
     for attempt in (2, 3):
         now = NOW + timedelta(hours=attempt * 2)
         await repo.refresh(item.id, OWNER, now=now)
-        lease = await repo.claim(item.id, "worker", now=now, lease_for=LEASE)
+        lease = await repo.begin_attempt(
+            item.id,
+            (await repo.execution_state(item.id)).generation,
+            str(uuid4()),
+            now=now,
+        )
         item = await repo.complete(
             lease.intent, refreshed_result(lease, now), now=now + timedelta(seconds=1)
         )

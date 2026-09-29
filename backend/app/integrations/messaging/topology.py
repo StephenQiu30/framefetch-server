@@ -39,8 +39,6 @@ class RabbitMqTopology:
     max_length: int = 10_000
     import_queue: str = "video.import"
     import_routing_key: str = "content.import.verify.requested"
-    intent_queue: str = "video.download-intent"
-    intent_routing_key: str = "download.intent.requested"
 
     def __post_init__(self) -> None:
         names = (
@@ -53,8 +51,6 @@ class RabbitMqTopology:
             self.report_routing_key,
             self.import_queue,
             self.import_routing_key,
-            self.intent_queue,
-            self.intent_routing_key,
         )
         if any(not value or value != value.strip() for value in names):
             raise ValueError("RabbitMQ topology names cannot be blank")
@@ -100,12 +96,6 @@ class RabbitMqTopology:
                 self.message_ttl_ms,
                 self.max_length,
             ),
-            DurableQueueTopology(
-                self.intent_queue,
-                self.intent_routing_key,
-                self.message_ttl_ms,
-                self.max_length,
-            ),
         )
 
     @property
@@ -123,7 +113,3 @@ class RabbitMqTopology:
     @property
     def imports(self) -> DurableQueueTopology:
         return self.durable_queues[3]
-
-    @property
-    def intents(self) -> DurableQueueTopology:
-        return self.durable_queues[4]

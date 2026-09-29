@@ -57,14 +57,11 @@ class DownloadIntentRow(Base):
             name="ck_download_intents_budget",
         ),
         CheckConstraint(
-            f"(status IN ({_RUNNING_INTENT_STATUS_SQL_VALUES}) "
-            "AND lease_owner IS NOT NULL "
-            "AND lease_expires_at IS NOT NULL) OR "
-            f"(status NOT IN ({_RUNNING_INTENT_STATUS_SQL_VALUES}) "
-            "AND lease_owner IS NULL "
-            "AND lease_expires_at IS NULL)",
-            name="ck_download_intents_lease",
+            f"(status IN ({_RUNNING_INTENT_STATUS_SQL_VALUES})) = "
+            "(operation_id IS NOT NULL)",
+            name="ck_download_intents_operation",
         ),
+        CheckConstraint("generation >= 0", name="ck_download_intents_generation"),
         CheckConstraint(
             f"(status = '{IntentStatus.RETRY_WAIT.value}') = (retry_at IS NOT NULL)",
             name="ck_download_intents_retry",
@@ -84,7 +81,6 @@ class DownloadIntentRow(Base):
             name="ck_download_intents_action",
         ),
         Index("ix_download_intents_owner_created", "owner_hash", "created_at"),
-        Index("ix_download_intents_recovery", "status", "lease_expires_at", "retry_at"),
         Index("ix_download_intents_deadline", "status", "deadline"),
         Index("uq_download_intents_inspection", "inspection_id", unique=True),
     )
@@ -109,8 +105,8 @@ class DownloadIntentRow(Base):
         Integer, nullable=False, default=180000
     )
     deadline: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
-    lease_owner: Mapped[str | None] = mapped_column(String(128))
-    lease_expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    generation: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    operation_id: Mapped[str | None] = mapped_column(String(128))
     retry_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     authorization_id: Mapped[UUID | None] = mapped_column(Uuid)
     authorization_deadline: Mapped[datetime | None] = mapped_column(

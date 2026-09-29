@@ -62,8 +62,8 @@ class IntentSnapshot:
     max_attempts: int
     remaining_budget_ms: int
     deadline: datetime
-    lease_owner: str | None
-    lease_expires_at: datetime | None
+    generation: int
+    operation_id: str | None
     retry_at: datetime | None
     inspection_id: UUID | None
     job_id: UUID | None
@@ -73,7 +73,7 @@ class IntentSnapshot:
 
 
 @dataclass(frozen=True, slots=True)
-class IntentLease:
+class IntentOperation:
     intent: IntentSnapshot
     url: EncryptedUrl = field(repr=False)
 

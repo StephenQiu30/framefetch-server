@@ -12,6 +12,8 @@ from datetime import UTC, datetime, timedelta
 from app.core.config import get_settings_for_role
 from app.core.db import create_engine, create_session_factory
 from app.integrations.messaging import RabbitMqPublisher, RabbitMqTopology
+from app.integrations.temporal_client import CommandPublisher
+from app.repositories.downloads.intent_repository import IntentRepository
 from app.repositories.operation_logs import OperationLogStore
 from app.repositories.outbox_repository import SqlAlchemyOutboxRepository
 from app.workers.outbox.loop import OutboxLoopSettings, OutboxPublisherLoop
@@ -49,7 +51,12 @@ async def run() -> None:
     )
     publisher_loop = OutboxPublisherLoop(
         repository=repository,
-        publisher=publisher,
+        publisher=CommandPublisher(
+            publisher,
+            IntentRepository(sessions),
+            address=settings.temporal_address,
+            namespace=settings.temporal_namespace,
+        ),
         publisher_id=_publisher_id(),
         clock=lambda: datetime.now(UTC),
         settings=OutboxLoopSettings(

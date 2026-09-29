@@ -32,7 +32,7 @@ _DOWNLOAD_EXECUTION_COLUMNS_QUERY = text(
     SELECT column_name, data_type
     FROM information_schema.columns
     WHERE table_schema = current_schema()
-      AND table_name = 'download_jobs'
+      AND table_name = :table_name
       AND column_name IN :expected_columns
     """
 ).bindparams(bindparam("expected_columns", expanding=True))
@@ -45,12 +45,19 @@ async def assert_download_execution_schema(engine: AsyncEngine) -> None:
 
 
 async def _assert_download_execution_columns(connection: AsyncConnection) -> None:
-    columns = await connection.execute(
-        _DOWNLOAD_EXECUTION_COLUMNS_QUERY,
-        {"expected_columns": tuple(_DOWNLOAD_EXECUTION_COLUMNS)},
-    )
-    if dict(columns.tuples().all()) != _DOWNLOAD_EXECUTION_COLUMNS:
-        raise RuntimeError("database download execution schema is incompatible")
+    for table, expected in (
+        ("download_jobs", _DOWNLOAD_EXECUTION_COLUMNS),
+        (
+            "download_intents",
+            {"generation": "integer", "operation_id": "character varying"},
+        ),
+    ):
+        columns = await connection.execute(
+            _DOWNLOAD_EXECUTION_COLUMNS_QUERY,
+            {"expected_columns": tuple(expected), "table_name": table},
+        )
+        if dict(columns.tuples().all()) != expected:
+            raise RuntimeError("database download execution schema is incompatible")
 
 
 class RuntimeReadiness:

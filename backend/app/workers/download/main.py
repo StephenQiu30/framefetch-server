@@ -20,6 +20,7 @@ from app.integrations.messaging import RabbitMqTopology
 from app.integrations.object_storage import MinioObjectStorage
 from app.integrations.readiness import assert_download_execution_schema
 from app.integrations.site_session_catalog import SiteSessionRoutes
+from app.integrations.temporal_client import connect_temporal
 from app.integrations.thumbnail_storage import MinioThumbnailStorage
 from app.integrations.url_security import FernetUrlEnvelope, MediaUrlValidator
 from app.repositories.downloads.execution import DownloadExecutionRepository
@@ -30,15 +31,17 @@ from app.services.download_execution.models import DownloadExecutionSettings
 from app.services.download_execution.service import DownloadExecution
 from app.services.downloads.fingerprints import HmacRequestFingerprinter
 from app.services.downloads.inspect_media import InspectMedia
-from app.services.downloads.intent_execution import IntentExecution
 from app.services.downloads.thumbnail_use_cases import PersistThumbnail
 from app.services.provider_route_admission import ProviderRouteAdmission
+from app.workers.download.activities import InspectionActivities
 from app.workers.download.consumer import RabbitMqDownloadConsumer
 from app.workers.download.sweeper import DownloadRecoverySweeper, RecoverySettings
 from app.workers.download.thumbnail import ArtifactThumbnailRecovery
+from app.workers.download.workflows import InspectionWorkflow
 from app.workers.download.workspace import SharedWorkspaceCleaner
 from app.workers.runner.provider_registry import configure_provider_instances
 from sqlalchemy.ext.asyncio import AsyncEngine
+from temporalio.worker import Worker
 
 
 @dataclass(slots=True)
@@ -48,11 +51,13 @@ class DownloadWorkerRuntime:
     storage: MinioObjectStorage
     runner: MediaRunnerRouter
     engine: AsyncEngine
-    intent_consumer: RabbitMqDownloadConsumer
+    inspection_activities: InspectionActivities
+    temporal_address: str
+    temporal_namespace: str
 
     async def close(self) -> None:
         try:
-            await asyncio.gather(self.consumer.close(), self.intent_consumer.close())
+            await self.consumer.close()
         finally:
             try:
                 await self.runner.close()
@@ -116,7 +121,7 @@ def build_runtime(settings: Settings) -> DownloadWorkerRuntime:
         URLCipher(settings.url_encryption_key.get_secret_value().encode()),
         key_id=settings.url_encryption_key_id,
     )
-    intent_execution = IntentExecution(
+    inspection_activities = InspectionActivities(
         intents,
         InspectMedia(
             repository=raw_repository,
@@ -132,21 +137,12 @@ def build_runtime(settings: Settings) -> DownloadWorkerRuntime:
             max_duration_seconds=settings.max_video_duration_seconds,
         ),
         envelope,
-        worker_id=_worker_id(),
         clock=_utc_now,
     )
     return DownloadWorkerRuntime(
-        intent_consumer=RabbitMqDownloadConsumer(
-            settings.rabbitmq_url,
-            topology,
-            intent_execution,
-            prefetch=2,
-            workers=2,
-            intent=True,
-            connection_timeout=settings.rabbitmq_connection_timeout_seconds,
-            heartbeat=settings.rabbitmq_heartbeat_seconds,
-            reconnect_interval=settings.rabbitmq_reconnect_interval_seconds,
-        ),
+        inspection_activities=inspection_activities,
+        temporal_address=settings.temporal_address,
+        temporal_namespace=settings.temporal_namespace,
         consumer=RabbitMqDownloadConsumer(
             settings.rabbitmq_url,
             topology,
@@ -171,7 +167,6 @@ def build_runtime(settings: Settings) -> DownloadWorkerRuntime:
                 ),
             ),
             workspace_cleaner,
-            intents,
         ),
         storage=storage,
         runner=runner,
@@ -192,18 +187,33 @@ async def run() -> None:
 
 async def _serve(runtime: DownloadWorkerRuntime, stop: asyncio.Event) -> None:
     await assert_download_execution_schema(runtime.engine)
+    client = await connect_temporal(
+        runtime.temporal_address, runtime.temporal_namespace
+    )
+    inspection_worker = Worker(
+        client,
+        task_queue="ff-inspect",
+        workflows=[InspectionWorkflow],
+        activities=[
+            runtime.inspection_activities.inspect_media,
+            runtime.inspection_activities.finish_inspection,
+        ],
+        max_concurrent_activities=2,
+        graceful_shutdown_timeout=timedelta(seconds=30),
+        max_heartbeat_throttle_interval=timedelta(seconds=5),
+    )
     consumer = asyncio.create_task(runtime.consumer.run(stop))
-    intent_consumer = asyncio.create_task(runtime.intent_consumer.run(stop))
+    intent_worker = asyncio.create_task(inspection_worker.run())
     sweeper = asyncio.create_task(runtime.sweeper.run(stop))
     stop_wait = asyncio.create_task(stop.wait())
-    tasks = (consumer, intent_consumer, sweeper)
+    tasks = (consumer, intent_worker, sweeper)
     try:
         await asyncio.wait(
             {*tasks, stop_wait},
             return_when=asyncio.FIRST_COMPLETED,
         )
         stop.set()
-        await asyncio.gather(runtime.consumer.close(), runtime.intent_consumer.close())
+        await asyncio.gather(runtime.consumer.close(), inspection_worker.shutdown())
         await asyncio.gather(*tasks, return_exceptions=True)
         for task in tasks:
             if task.cancelled():

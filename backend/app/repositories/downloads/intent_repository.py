@@ -1,6 +1,7 @@
-"""Short PostgreSQL transactions own intent acceptance, execution and recovery.
+"""Short PostgreSQL transactions own intent acceptance, fenced result commits.
 
-Network work happens after claim and before completion, never under a row lock.
+Network work happens between beginning and completing an operation,
+never under a row lock.
 """
 
 from datetime import datetime, timedelta
@@ -18,7 +19,6 @@ from app.repositories.downloads.access_repository import cancel_job_row
 from app.repositories.downloads.media_repository import insert_inspection
 from app.repositories.errors import (
     IdempotencyConflict,
-    LeaseConflict,
     RepositoryConflict,
     RepositoryNotFound,
 )
@@ -34,7 +34,7 @@ from app.services.downloads.intent_models import (
     IntentCreate,
     IntentHistoryEntry,
     IntentHistoryPage,
-    IntentLease,
+    IntentOperation,
     IntentSnapshot,
     IntentStatus,
 )
@@ -166,6 +166,10 @@ class IntentRepository:
                 _transition(row, IntentStatus.CANCELLED, now, "cancelled")
             if IntentStatus(row.status) not in TERMINAL_INTENT_STATUSES:
                 _transition(row, IntentStatus.CANCELLED, now, "cancelled")
+                row.fence += 1
+                event = _requested(row, now)
+                event.event_type = "download.intent.cancelled"
+                session.add(event)
             return _snapshot(row)
 
     async def history(
@@ -211,35 +215,71 @@ class IntentRepository:
                 items, items[-1].intent.id if len(rows) > limit else None
             )
 
-    async def claim(
-        self, intent_id: UUID, worker_id: str, *, now: datetime, lease_for: timedelta
-    ) -> IntentLease | None:
+    async def begin_attempt(
+        self, intent_id: UUID, generation: int, operation_id: str, *, now: datetime
+    ) -> IntentOperation | None:
+        """Temporal owns retries; this transaction only fences external effects."""
         validate_now(now)
-        if not worker_id.strip() or len(worker_id) > 128 or lease_for <= timedelta(0):
-            raise ValueError("invalid intent lease")
+        if not operation_id or len(operation_id) > 128 or generation < 0:
+            raise ValueError("invalid intent operation")
         async with self._sessions() as session, session.begin():
             row = await session.scalar(
                 select(DownloadIntentRow)
-                .where(
-                    DownloadIntentRow.id == intent_id,
-                    DownloadIntentRow.status == IntentStatus.QUEUED.value,
-                )
+                .where(DownloadIntentRow.id == intent_id)
                 .with_for_update()
             )
-            if row is None:
+            if (
+                row is None
+                or row.generation != generation
+                or row.status
+                not in {
+                    IntentStatus.QUEUED.value,
+                    IntentStatus.RETRY_WAIT.value,
+                    *_RUNNING,
+                }
+            ):
                 return None
-            if _exhausted(row, now):
+            if row.operation_id != operation_id:
+                if _exhausted(row, now):
+                    _expire(row, now)
+                    return None
+                if row.retry_at is not None and row.retry_at > now:
+                    raise RepositoryConflict("retry timer has not elapsed")
+                _transition(row, IntentStatus.RESOLVING, now)
+                row.attempt += 1
+                row.fence += 1
+                row.operation_id = operation_id
+            elif _remaining(row, now) == 0:
                 _expire(row, now)
                 return None
-            _transition(row, IntentStatus.RESOLVING, now)
-            row.attempt += 1
-            row.fence += 1
-            row.lease_owner = worker_id
-            row.lease_expires_at = min(row.deadline, now + lease_for)
-            return IntentLease(
+            return IntentOperation(
                 _snapshot(row),
                 EncryptedUrl(row.url_ciphertext, row.url_nonce, row.url_key_id),
             )
+
+    async def execution_state(self, intent_id: UUID) -> IntentSnapshot:
+        async with self._sessions() as session:
+            row = await session.get(DownloadIntentRow, intent_id)
+            if row is None:
+                raise RepositoryNotFound("intent does not exist")
+            return _snapshot(row)
+
+    async def fail_generation(
+        self, intent_id: UUID, generation: int, *, now: datetime
+    ) -> IntentSnapshot:
+        """Reconcile an exhausted Temporal execution without rerunning its work."""
+        async with self._sessions() as session, session.begin():
+            row = await session.get(DownloadIntentRow, intent_id, with_for_update=True)
+            if row is None:
+                raise RepositoryNotFound("intent does not exist")
+            if row.generation == generation and row.status in {
+                IntentStatus.QUEUED.value,
+                IntentStatus.RETRY_WAIT.value,
+                *_RUNNING,
+            }:
+                row.fence += 1
+                _transition(row, IntentStatus.FAILED, now, "inspection_timeout")
+            return _snapshot(row)
 
     async def refresh(
         self,
@@ -277,36 +317,24 @@ class IntentRepository:
                 await ensure_active_capacity(
                     session, quota.apply(self._quota_policy), owner_hash
                 )
+            row.generation += 1
             row.deadline = now + timedelta(milliseconds=row.remaining_budget_ms)
             _transition(row, IntentStatus.QUEUED, now)
             session.add(_requested(row, now))
             return _snapshot(row)
 
-    async def heartbeat(
-        self, lease: IntentSnapshot, *, now: datetime, lease_for: timedelta
-    ) -> bool:
-        validate_now(now)
-        if lease_for <= timedelta(0):
-            raise ValueError("invalid intent lease")
-        async with self._sessions() as session, session.begin():
-            row = await self._leased(session, lease, now)
-            if row is None:
-                return False
-            # Heartbeats do not change the execution version or fencing token.
-            row.lease_expires_at = min(row.deadline, now + lease_for)
-            row.updated_at = now
-            row.remaining_budget_ms = _remaining(row, now)
-            return True
-
     async def complete(
-        self, lease: IntentSnapshot, result: InspectionCreate, *, now: datetime
+        self, operation: IntentSnapshot, result: InspectionCreate, *, now: datetime
     ) -> IntentSnapshot:
         """Inspection, formats and ready status commit atomically behind fencing."""
         validate_now(now)
         async with self._sessions() as session, session.begin():
-            row = await self._leased(session, lease, now)
+            row = await self._executing(session, operation)
             if row is None:
-                raise LeaseConflict("intent execution ownership lost")
+                raise RepositoryConflict("intent execution superseded")
+            if _remaining(row, now) == 0:
+                _expire(row, now)
+                return _snapshot(row)
             if (
                 result.owner_hash != row.owner_hash
                 or result.metadata.get("access_policy_id") != row.access_policy
@@ -335,7 +363,7 @@ class IntentRepository:
 
     async def fail(
         self,
-        lease: IntentSnapshot,
+        operation: IntentSnapshot,
         *,
         now: datetime,
         reason_code: str,
@@ -350,9 +378,12 @@ class IntentRepository:
             if retry_at <= now:
                 raise ValueError("retry must be scheduled in the future")
         async with self._sessions() as session, session.begin():
-            row = await self._leased(session, lease, now)
+            row = await self._executing(session, operation)
             if row is None:
-                raise LeaseConflict("intent execution ownership lost")
+                raise RepositoryConflict("intent execution superseded")
+            if _remaining(row, now) == 0:
+                _expire(row, now)
+                return _snapshot(row)
             if preparation_wait:
                 if (row.access_policy, reason_code) not in {
                     (
@@ -377,62 +408,6 @@ class IntentRepository:
                 _transition(row, IntentStatus.FAILED, now, reason_code)
             return _snapshot(row)
 
-    async def recover(
-        self,
-        *,
-        now: datetime,
-        limit: int = 100,
-        queued_stale_for: timedelta = timedelta(seconds=30),
-    ) -> int:
-        """Recover lost deliveries/leases and due retries with bounded locked scans."""
-        validate_now(now)
-        if not 1 <= limit <= 200 or queued_stale_for <= timedelta(0):
-            raise ValueError("invalid intent recovery bounds")
-        async with self._sessions() as session, session.begin():
-            rows = (
-                await session.scalars(
-                    select(DownloadIntentRow)
-                    .where(
-                        DownloadIntentRow.status.in_(
-                            tuple(
-                                status.value
-                                for status in (
-                                    IntentStatus.QUEUED,
-                                    IntentStatus.RETRY_WAIT,
-                                    *RUNNING_INTENT_STATUSES,
-                                )
-                            )
-                        ),
-                        or_(
-                            DownloadIntentRow.deadline <= now,
-                            and_(
-                                DownloadIntentRow.status == IntentStatus.QUEUED.value,
-                                DownloadIntentRow.updated_at <= now - queued_stale_for,
-                            ),
-                            and_(
-                                DownloadIntentRow.status
-                                == IntentStatus.RETRY_WAIT.value,
-                                DownloadIntentRow.retry_at <= now,
-                            ),
-                            and_(
-                                DownloadIntentRow.status.in_(_RUNNING),
-                                DownloadIntentRow.lease_expires_at <= now,
-                            ),
-                        ),
-                    )
-                    .order_by(DownloadIntentRow.updated_at, DownloadIntentRow.id)
-                    .limit(limit)
-                    .with_for_update(skip_locked=True)
-                )
-            ).all()
-            for row in rows:
-                if _exhausted(row, now):
-                    _expire(row, now)
-                else:
-                    _transition(row, IntentStatus.QUEUED, now, row.reason_code)
-                    session.add(_requested(row, now))
-            return len(rows)
-
     @staticmethod
     async def _owned(
         session: AsyncSession, intent_id: UUID, owner_hash: str, *, lock: bool = False
@@ -447,19 +422,18 @@ class IntentRepository:
         return row
 
     @staticmethod
-    async def _leased(
-        session: AsyncSession, lease: IntentSnapshot, now: datetime
+    async def _executing(
+        session: AsyncSession, operation: IntentSnapshot
     ) -> DownloadIntentRow | None:
         row: DownloadIntentRow | None = await session.scalar(
             select(DownloadIntentRow)
             .where(
-                DownloadIntentRow.id == lease.id,
+                DownloadIntentRow.id == operation.id,
                 DownloadIntentRow.status.in_(_RUNNING),
-                DownloadIntentRow.lease_owner == lease.lease_owner,
-                DownloadIntentRow.fence == lease.fence,
-                DownloadIntentRow.version == lease.version,
-                DownloadIntentRow.lease_expires_at > now,
-                DownloadIntentRow.deadline > now,
+                DownloadIntentRow.operation_id == operation.operation_id,
+                DownloadIntentRow.generation == operation.generation,
+                DownloadIntentRow.fence == operation.fence,
+                DownloadIntentRow.version == operation.version,
             )
             .with_for_update()
         )
@@ -494,8 +468,7 @@ def _transition(
 ) -> None:
     row.status = status.value
     row.version += 1
-    row.lease_owner = None
-    row.lease_expires_at = None
+    row.operation_id = None
     row.retry_at = None
     row.reason_code = reason
     row.remaining_budget_ms = _remaining(row, now)
@@ -509,7 +482,7 @@ def _requested(row: DownloadIntentRow, now: datetime) -> OutboxEventRow:
         aggregate_id=row.id,
         aggregate_version=row.version,
         event_type="download.intent.requested",
-        payload={"intent_id": str(row.id), "version": row.version},
+        payload={"intent_id": str(row.id), "generation": row.generation},
         available_at=now,
         created_at=now,
     )
@@ -527,8 +500,8 @@ def _snapshot(row: DownloadIntentRow) -> IntentSnapshot:
         max_attempts=row.max_attempts,
         remaining_budget_ms=row.remaining_budget_ms,
         deadline=row.deadline,
-        lease_owner=row.lease_owner,
-        lease_expires_at=row.lease_expires_at,
+        generation=row.generation,
+        operation_id=row.operation_id,
         retry_at=row.retry_at,
         inspection_id=row.inspection_id,
         job_id=row.job_id,

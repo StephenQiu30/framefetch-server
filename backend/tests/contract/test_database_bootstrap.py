@@ -203,10 +203,10 @@ def test_download_queue_contract_declares_a_dlq_binding() -> None:
     compose = ENV_COMPOSE_PATH.read_text(encoding="utf-8")
 
     assert "declare_queue video.download" in compose
-    assert "declare_queue video.download-intent" in compose
+    assert "declare_queue video.download-intent" not in compose
     assert (
         "declare_binding video.events video.download-intent download.intent.requested"
-        in compose
+        not in compose
     )
     assert '"x-dead-letter-exchange":"video.events.dead"' in compose
     assert '"x-dead-letter-routing-key":"' in compose
