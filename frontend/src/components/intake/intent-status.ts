@@ -56,9 +56,9 @@ const intentStatusPresentation = {
     terminal: false,
   },
   [IntentStatusCode.ActionRequired]: {
-    title: '等待处理平台登录',
+    title: '需要处理平台会话',
     description: () =>
-      '请完成平台登录，然后继续此任务。等待期间不会占用解析执行资源。',
+      '请确认 Chrome 会话扩展已连接，并在日常 Chrome 中登录该平台，然后继续此任务。等待期间不会占用解析执行资源。',
     historyActionLabel: '继续处理',
     variant: 'outline',
     active: true,

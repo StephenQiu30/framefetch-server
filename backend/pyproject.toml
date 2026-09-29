@@ -35,10 +35,7 @@ dependencies = [
 ]
 
 [dependency-groups]
-# Dedicated host profiles and same-context page state use Playwright Chromium.
-browser = ["playwright==1.63.0"]
 dev = [
-  { include-group = "browser" },
   "botocore-stubs>=1.40,<2",
   "mypy>=1.15,<2",
   "pytest>=8.3,<9",

@@ -110,7 +110,7 @@ class SiteSessionRoutes:
         return profile.access_policy
 
     async def ensure_ready(self, url: str) -> None:
-        """Login state lives in the dedicated platform browser and is read per operation
+        """Login state lives in daily Chrome and is read per operation
         by the Runner, so there is no stored state to gate on here."""
         if await self.policy_for(url) is ProviderAccessPolicy.PUBLIC:
             return

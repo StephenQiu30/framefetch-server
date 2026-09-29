@@ -37,13 +37,13 @@ FrameFetch is not designed to circumvent platform restrictions. By default it on
 
 **Unreleased · Dedicated browsers and resumable login waits**
 
-- Daily Chrome database and keychain reads are replaced by dedicated persistent platform profiles. Login failures now retain the original task for user action.
+- Public-account providers try anonymously first and reuse daily Chrome sessions through the extension only after an explicit authentication failure. Tasks retain their identity while waiting for user action.
 - A `migrate` container applies the schema, so `docker compose up -d --wait` is the whole cold start.
 - TikTok now uses yt-dlp's maintained extractor; the provider canary probes the bundled public samples by default.
 
 **[v0.2.0](https://github.com/StephenQiu30/video-server/releases/tag/v0.2.0) · Container-owned platform sessions**
 
-- One command, `./start`, applies the schema, discovers platform logins from dedicated platform profiles, registers them encrypted, has the containers verify them and starts every business service.
+- Docker Compose runs the existing isolated services. Install the Python native messaging source and load the Chrome extension once to reuse daily Chrome login state.
 - Platform sessions are owned by `session-broker` and a containerized session browser: cold-start recovery, keep-alive, invalidation detection and automatic rotation. Users just paste a link.
 - Online parsing always uses the site-session route; the anonymous and guest execution routes were removed, and success is judged by a real downloaded file.
 - Web UX: avatar upload and profile page, unified two-column result cards, recoverable error notices and shadcn component clean-up.
@@ -114,12 +114,12 @@ The web application includes media inspection and download, job history and deta
 
 ## Quick start
 
-Use `docker-compose.yml` for local development and `docker-compose-prod.yml` for production. Fixed public platforms use their native public interfaces; every other platform uses the login state of dedicated platform profiles. When the dedicated browser is not signed in, FrameFetch asks you to sign in instead of silently switching routes. An installed extractor, an existing cookie or a healthy service does not prove that media can be downloaded; only a real file result does.
+Use `docker-compose.yml` locally and `docker-compose-prod.yml` in production. Public-account profiles start anonymously; only explicit authentication failures request the approved Chrome account session. Rate limits and network failures retain their actual reasons. A readable session does not establish real media availability.
 
 ### Requirements
 
 - Docker Engine and Docker Compose
-- For the macOS login source: `uv`, Playwright Chromium, and first login in the dedicated browser
+- For the macOS session source: `uv` (Python 3.12), Chrome, and the FrameFetch extension
 - Existing PostgreSQL, RabbitMQ, Redis and MinIO services; reuse their addresses and credentials
 - Strong random secrets and a public origin before any internet-facing deployment
 
@@ -132,8 +132,7 @@ test -f .env || cp .env.example .env
 
 # Configure .env to reuse existing PostgreSQL, RabbitMQ, Redis and MinIO
 
-# Once: install the dedicated browser source
-uv run --project backend --group browser playwright install chromium
+# Once: install the Chrome extension source
 uv run --project backend python -m app.workers.session.source_cli install --env-file .env
 
 # Start: the migrate container applies the idempotent backend/sql/schema.sql first
@@ -153,16 +152,15 @@ uv run --project backend python -m app.workers.bootstrap_admin \
 
 ### Platform login state
 
-Each supported account site has its own persistent Playwright Chromium profile. Select **Open platform login** on a waiting task, sign in in that dedicated browser, then continue the same task. No daily Chrome database or keychain access is needed. Waiting releases execution resources, lasts at most 24 hours, and is recoverable from history.
+Load the generated extension directory in your daily Chrome at `chrome://extensions` using developer mode and **Load unpacked**. Existing platform logins are reused without signing into another browser. Waiting tasks can open the registered platform login URL in Chrome and resume the same task, for at most 24 hours.
 
 ```bash
-uv run --project backend --group browser playwright install chromium
 uv run --project backend python -m app.workers.session.source_cli install --env-file .env
 uv run --project backend python -m app.workers.session.source_cli login --site youtube.com --env-file .env
 uv run --project backend python -m app.workers.session.source_cli check --env-file .env
 ```
 
-Profiles live in `~/Library/Application Support/FrameFetch/Browsers` (`SITE_SESSION_PROFILE_ROOT`). The dedicated browser uses `SITE_SESSION_BROWSER_PROXY`, defaulting to the existing local egress proxy at `http://127.0.0.1:13128`. Never point the root at your daily browser. `source_cli uninstall` removes only the service. Restarting the source invalidates old inspection contexts conservatively. A readable source does not prove download availability.
+The source directory defaults to `~/Library/Application Support/FrameFetch/Browsers` (`SITE_SESSION_PROFILE_ROOT`). It contains extension assets and private native messaging configuration, never persisted platform cookies. Keep Chrome running with the extension enabled. `source_cli uninstall` removes the service and native host registration; Chrome logins remain untouched. Reconnection or source restart invalidates prior account contexts. Real downloads require separate verification.
 
 Drain media operations before upgrading API, worker, Runner, relay and frontend together. Install the source with the matching environment file; installation retires the old Chrome source service. The relay forwards end-to-end sealed leases without decrypting them. For production:
 
@@ -241,7 +239,7 @@ See [docs/design/README.md](docs/design/README.md) for the maintained system des
 
 - Process only content you are legally authorized to download or analyze.
 - Providers accept only public, free and non-DRM HTTP(S) content. Private-network URLs, arbitrary yt-dlp arguments and shell input are always rejected.
-- Normal API requests never accept raw cookies. Login state is read per operation from dedicated platform profiles and handed to `session-runner` over a sealed channel; the clear copy lives only in its tmpfs and is destroyed when the operation ends. See the [platform session design](docs/design/08-平台会话.md).
+- Normal API requests never accept raw cookies. Login state is read per operation through the daily Chrome extension and handed to `session-runner` over a sealed channel; the clear copy lives only in its tmpfs and is destroyed when the operation ends. See the [platform session design](docs/design/08-平台会话.md).
 - An edge agent may transfer only a clear file the user has legally obtained and explicitly selected. It must not inspect platform sessions, intercept traffic, extract content keys or transform protected media.
 - External media access must pass through an egress proxy that blocks private networks; input validation is not a substitute for network isolation.
 

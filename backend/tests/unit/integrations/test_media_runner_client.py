@@ -199,7 +199,9 @@ async def test_inspect_exposes_provider_access_requirement() -> None:
 async def test_operator_source_missing_requires_user_login(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    async def context(_url: str) -> ProviderAccessContextRef:
+    async def context(
+        _url: str, *, access_mode: ProviderAccessMode | None = None
+    ) -> ProviderAccessContextRef:
         raise MediaRunnerClientError("credential_required", 422)
 
     http = httpx.AsyncClient(base_url="http://runner")
@@ -224,7 +226,9 @@ async def test_operator_source_missing_requires_user_login(
 async def test_operator_content_auth_requirement_stays_content_error(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    async def context(_url: str) -> ProviderAccessContextRef:
+    async def context(
+        _url: str, *, access_mode: ProviderAccessMode | None = None
+    ) -> ProviderAccessContextRef:
         return _access_context()
 
     async def respond(_request: httpx.Request) -> httpx.Response:
@@ -281,7 +285,9 @@ async def test_inspect_exposes_a_site_session_that_is_not_ready(
         expected_access_mode=ProviderAccessMode.OPERATOR_MANAGED,
     )
 
-    async def context(_url: str) -> ProviderAccessContextRef:
+    async def context(
+        _url: str, *, access_mode: ProviderAccessMode | None = None
+    ) -> ProviderAccessContextRef:
         if not context_ready:
             raise MediaRunnerClientError(code, 503)
         return _access_context()

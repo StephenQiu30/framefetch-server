@@ -103,7 +103,9 @@ async def test_one_declaration_drives_route_status_and_session_catalog(
     await SiteSessionRoutes().ensure_ready(url)
     status = configured_provider_statuses(frozenset({"example"}))[0]
     assert status.default_access_policy_id is policy
-    assert status.access_modes == (policy.access_mode,)
+    assert status.access_modes == tuple(
+        dict.fromkeys((profile.initial_access_mode, profile.execution_access_mode))
+    )
     assert registry.keys_for_policy(policy) == frozenset({"example"})
     assert known_session_provider_keys() == (
         frozenset({"example"}) if account else frozenset()

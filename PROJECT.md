@@ -20,7 +20,7 @@
 
 具体版本通过依赖清单与锁文件固定；禁止在本文维护另一份版本快照。新依赖必须承担明确职责，不因脚手架默认包含就保留。
 
-媒体获取重设计继续使用这些技术及已锁定的 Playwright browser 依赖组，不引入 SQLite 或新的任务存储。PostgreSQL 是业务事实来源，Temporal／RabbitMQ 各自拥有既定任务；执行进程不复制业务状态机。平台专用浏览器已接入来源，媒体执行保留容器隔离；宿主不建立第二份任务状态。
+媒体获取重设计继续使用现有技术栈；通过轻量 Chrome 扩展与现有 Python Native Messaging 来源按任务复用日常 Chrome 会话，删除 Playwright 专用浏览器依赖，不引入 SQLite 或新的任务存储。PostgreSQL 是业务事实来源，Temporal／RabbitMQ 各自拥有既定任务；执行进程不复制业务状态机。媒体执行保留容器隔离；宿主不建立第二份任务状态。
 
 ## 2. FastAPI 工程结构
 
@@ -84,7 +84,7 @@ backend/
 │       ├── report/                 报告发布组件
 │       ├── canary/                 平台探针组件
 │       ├── dlq/                    死信管理
-│       ├── session/                宿主机 Chrome 来源、密封租约与无状态中继
+│       ├── session/                Chrome Native Messaging 来源、密封租约与无状态中继
 │       └── runner/                 独立隔离的媒体执行进程与可信插件
 ├── sql/schema.sql                 当前态数据库结构
 ├── egress/                        Runner 出口代理配置

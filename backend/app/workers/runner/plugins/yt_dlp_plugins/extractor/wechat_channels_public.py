@@ -68,8 +68,8 @@ class WechatChannelsPublicIE(InfoExtractor):  # type: ignore[misc]
             cookies = self._get_cookies(_YUANBAO_HOME)
             if not {"hy_user", "hy_token"} <= set(cookies):
                 raise ExtractorError(
-                    "Fresh cookies are needed to resolve this public "
-                    "WeChat Channels video",
+                    "FrameFetch credential_required: this public WeChat Channels "
+                    "video needs the declared Yuanbao session",
                     expected=True,
                 )
             account_id = str(cookies["hy_user"].value)

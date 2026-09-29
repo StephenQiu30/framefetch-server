@@ -10,6 +10,7 @@ from app.services.downloads.errors import (
 )
 from app.services.downloads.inspection_models import RunnerInspection
 from app.services.provider_access import ProviderAccessPolicy
+from app.services.provider_types import ProviderAccessMode
 from app.workers.runner.provider_registry import provider_profile
 
 
@@ -44,9 +45,16 @@ class MediaInspectionPipeline:
         try:
             await self._session_routes.ensure_ready(url)
             result = await self._session.inspect(url)
+            profile = provider_profile(url)
+            allowed_modes = {selected.access_mode}
             if (
-                result.access_context.access_mode is not selected.access_mode
-                or result.access_context.provider_key != provider_profile(url).key
+                selected is ProviderAccessPolicy.OPERATOR_PUBLIC
+                and ProviderAccessMode.ANONYMOUS in profile.access_modes
+            ):
+                allowed_modes.add(ProviderAccessMode.ANONYMOUS)
+            if (
+                result.access_context.access_mode not in allowed_modes
+                or result.access_context.provider_key != profile.key
             ):
                 raise MediaInspectionFailure("runner policy context mismatch")
             return result

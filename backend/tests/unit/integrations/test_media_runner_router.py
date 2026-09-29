@@ -23,12 +23,12 @@ class FakeClient:
         self.downloaded: list[str] = []
         self.context_requests: list[tuple[str, ...]] = []
 
-    async def context(self, url: str) -> ProviderAccessContextRef:
+    async def context(self, url: str, *, access_mode=None) -> ProviderAccessContextRef:
         self.context_requests.append((url,))
         return self.frozen
 
     async def contexts_for_providers(
-        self, provider_keys: tuple[str, ...]
+        self, provider_keys: tuple[str, ...], *, access_mode=None
     ) -> tuple[ProviderAccessContextRef, ...]:
         self.context_requests.append(provider_keys)
         return (self.frozen,)
@@ -97,10 +97,8 @@ async def test_inspect_and_download_use_only_session():
     assert client.downloaded == ["task"]
 
 
-@pytest.mark.parametrize(
-    "mode", [ProviderAccessMode.ANONYMOUS, ProviderAccessMode.GUEST]
-)
-async def test_retired_contexts_are_rejected_without_execution(mode):
+@pytest.mark.parametrize("mode", [ProviderAccessMode.GUEST])
+async def test_retired_guest_context_is_rejected_without_execution(mode):
     client = FakeClient(context(ProviderAccessMode.OPERATOR_MANAGED))
     router = MediaRunnerRouter(client, session_routes=AlwaysSession())
     with pytest.raises(MediaRunnerClientError):
@@ -127,7 +125,7 @@ async def test_session_failure_is_authoritative_and_not_retried():
 
 async def test_context_batch_isolates_failed_sites():
     class Client(FakeClient):
-        async def contexts_for_providers(self, keys):
+        async def contexts_for_providers(self, keys, *, access_mode=None):
             if "youtube" in keys:
                 raise MediaRunnerClientError("provider_session_not_ready", 503)
             return tuple(replace(self.frozen, provider_key=key) for key in keys)
@@ -159,3 +157,24 @@ def context(
         engine_commit="5d6b8c8",
         runtime_revision="a" * 64,
     )
+
+
+async def test_anonymous_youtube_inspection_and_download_stay_anonymous():
+    frozen = replace(
+        context(ProviderAccessMode.ANONYMOUS),
+        provider_key="youtube",
+        profile_version="youtube",
+    )
+    client = FakeClient(frozen)
+    router = MediaRunnerRouter(client, session_routes=AlwaysSession())
+    inspected = await router.inspect("https://youtube.com/watch?v=owned")
+    assert inspected.access_context == frozen
+    await router.download(
+        "task",
+        "https://youtube.com/watch?v=owned",
+        None,
+        expected_provider_media_id="owned",
+        expected_extractor_key="Youtube",
+        access_context=frozen,
+    )
+    assert client.downloaded == ["task"]

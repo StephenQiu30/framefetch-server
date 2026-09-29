@@ -60,7 +60,7 @@ PROVIDER_FAILURE_RULES: tuple[FailureRule, ...] = (
         "credential_required",
         422,
         any_stderr=(b"framefetch credential_required",),
-        providers=frozenset({ProviderKey.QQVIDEO}),
+        providers=frozenset({ProviderKey.QQVIDEO, ProviderKey.WECHAT_CHANNELS}),
     ),
     *(
         FailureRule(
@@ -341,7 +341,7 @@ PROVIDER_FAILURE_RULES: tuple[FailureRule, ...] = (
         any_stderr=(b"no video formats found",),
         providers=frozenset({ProviderKey.INSTAGRAM}),
     ),
-    # A platform that asks for cookies needs the dedicated platform login.
+    # An ambiguous cookie request is not sufficient to upgrade an anonymous route.
     FailureRule(
         "provider_session_not_ready",
         503,

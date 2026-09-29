@@ -298,8 +298,8 @@ async def test_platform_challenge_enters_recoverable_authorization_state() -> No
 
     assert view.status is ProviderSupportStatus.ACCESS_REQUIRED
     assert view.access_state is ProviderAccessState.AUTHORIZATION_REQUIRED
-    assert "部署方已批准的单平台来源" in (view.user_action or "")
-    assert "客户端无需安装扩展" in (view.user_action or "")
+    assert "部署机器已连接的 Chrome 会话" in (view.user_action or "")
+    assert "Chrome 扩展已连接" in (view.user_action or "")
 
 
 def test_access_state_projection_uses_the_selected_route_not_all_capabilities() -> None:

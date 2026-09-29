@@ -23,7 +23,7 @@ def test_fixed_matrix_covers_every_registered_parser_and_its_fixed_route():
     assert set(grouped) == {p.key for p in current_provider_registry().profiles}
     for key, targets in grouped.items():
         assert {target.access_mode for target in targets} == {
-            provider_profile_for_key(key).execution_access_mode
+            provider_profile_for_key(key).initial_access_mode
         }
         assert {target.stage for target in targets} == {
             ProviderCanaryStage.METADATA,

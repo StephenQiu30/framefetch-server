@@ -76,10 +76,15 @@ async def _until_disconnect[ResultT](
 
 
 class RunnerService(Protocol):
-    async def context(self, url: str) -> ProviderAccessContextRef: ...
+    async def context(
+        self, url: str, *, access_mode: ProviderAccessMode | None = None
+    ) -> ProviderAccessContextRef: ...
 
     async def contexts_for_providers(
-        self, provider_keys: tuple[str, ...]
+        self,
+        provider_keys: tuple[str, ...],
+        *,
+        access_mode: ProviderAccessMode | None = None,
     ) -> tuple[ProviderAccessContextRef, ...]: ...
 
     async def inspect(
@@ -88,6 +93,7 @@ class RunnerService(Protocol):
         *,
         access_context: ProviderAccessContextRef | None = None,
         deadline_at: datetime | None = None,
+        allow_session_fallback: bool = True,
     ) -> InspectResponse: ...
 
     async def download(self, request: DownloadRequest) -> DownloadResponse: ...
@@ -222,6 +228,11 @@ def create_app(
                     else payload.access_context.to_domain()
                 ),
                 deadline_at=payload.deadline_at,
+                **(
+                    {"allow_session_fallback": False}
+                    if not payload.allow_session_fallback
+                    else {}
+                ),
             ),
         )
 
@@ -238,7 +249,14 @@ def create_app(
         payload = _parse(ProviderContextRequest, body)
         _require_pinned_engine(configured)
         return ProviderAccessContextContract.from_domain(
-            await runner.context(payload.url)
+            await runner.context(
+                payload.url,
+                **(
+                    {"access_mode": payload.access_mode}
+                    if payload.access_mode is not None
+                    else {}
+                ),
+            )
         )
 
     @app.post(
@@ -253,7 +271,14 @@ def create_app(
         )
         payload = _parse(ProviderContextsRequest, body)
         _require_pinned_engine(configured)
-        resolved = await runner.contexts_for_providers(tuple(payload.provider_keys))
+        resolved = await runner.contexts_for_providers(
+            tuple(payload.provider_keys),
+            **(
+                {"access_mode": payload.access_mode}
+                if payload.access_mode is not None
+                else {}
+            ),
+        )
         return ProviderContextsResponse(
             contexts=[
                 ProviderAccessContextContract.from_domain(context)

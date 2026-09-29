@@ -86,7 +86,7 @@ def test_public_share_without_direct_media_requires_the_declared_session(
     extractor, requests = configured_extractor(monkeypatch, [feed_payload()])
     monkeypatch.setattr(extractor, "_get_cookies", lambda _url: {})
 
-    with pytest.raises(ExtractorError, match="Fresh cookies are needed"):
+    with pytest.raises(ExtractorError, match="credential_required"):
         extractor._real_extract(SHARE_URL)
 
     assert requests == [
@@ -188,3 +188,19 @@ def test_plugin_registers_with_ytdlp() -> None:
 
     assert "WechatChannelsPublic" in result.stderr
     assert "Unsupported URL" not in result.stderr
+
+
+def test_missing_declared_session_is_an_explicit_auth_failure():
+    from app.workers.runner.provider_errors import (
+        ProviderFailureContext,
+        classify_provider_failure,
+    )
+
+    error = classify_provider_failure(
+        ProviderFailureContext("wechat_channels", SHARE_URL, False),
+        (
+            b"FrameFetch credential_required: this public WeChat Channels video "
+            b"needs the declared Yuanbao session"
+        ),
+    )
+    assert error == ("credential_required", 422)

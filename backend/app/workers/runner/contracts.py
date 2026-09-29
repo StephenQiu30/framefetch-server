@@ -170,12 +170,14 @@ class DownloadOption(ContractModel):
 
 
 class InspectRequest(ContractModel):
+    allow_session_fallback: bool = True
     url: str = Field(min_length=1, max_length=4096)
     access_context: ProviderAccessContextContract | None = None
     deadline_at: AwareDatetime | None = None
 
 
 class ProviderContextRequest(ContractModel):
+    access_mode: ProviderAccessMode | None = None
     # The URL, not the provider key: a site session is keyed by the URL's site.
     url: str = Field(min_length=1, max_length=4096)
 
@@ -189,6 +191,7 @@ class ProviderLoginRequest(ProviderContextRequest):
 
 
 class ProviderContextsRequest(ContractModel):
+    access_mode: ProviderAccessMode | None = None
     provider_keys: list[str] = Field(min_length=1, max_length=64)
 
     @field_validator("provider_keys")

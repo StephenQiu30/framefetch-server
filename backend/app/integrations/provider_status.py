@@ -55,11 +55,19 @@ def _configured_status(
     profile: ProviderProfile,
     enabled_operator_keys: Set[str],
 ) -> ProviderStatusView:
-    mode = profile.execution_access_mode
+    mode = profile.initial_access_mode
     configured = profile.support_status is not ProviderSupportStatus.DISABLED and (
         mode is ProviderAccessMode.ANONYMOUS or profile.key in enabled_operator_keys
     )
-    access_modes = (mode,) if configured else ()
+    access_modes = tuple(
+        dict.fromkeys(
+            (mode, profile.execution_access_mode)
+            if configured and profile.key in enabled_operator_keys
+            else (mode,)
+            if configured
+            else ()
+        )
+    )
     status = (
         profile.support_status
         if access_modes or profile.support_status is ProviderSupportStatus.DISABLED
@@ -71,7 +79,7 @@ def _configured_status(
         else (
             ProviderAccessPolicyView(
                 id=profile.access_policy,
-                configured=profile.execution_access_mode in access_modes,
+                configured=mode in access_modes,
             ),
         )
     )
@@ -94,7 +102,7 @@ def _configured_status(
         last_media_verified_at=None,
         last_verified_at=None,
         user_action=(
-            "平台会话尚未配置；请部署者导入登录状态。"
+            "平台会话尚未连接；请部署者连接 Chrome 扩展。"
             + (provider_user_action(status, profile.key) or "")
             if missing_default
             else provider_user_action(status, profile.key)

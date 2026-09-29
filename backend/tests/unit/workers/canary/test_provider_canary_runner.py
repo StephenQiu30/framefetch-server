@@ -24,7 +24,10 @@ class FakeClient:
         self.inspected: list[str] = []
         self.closed = False
 
-    async def inspect(self, url: str) -> RunnerInspection:
+    async def inspect(
+        self, url: str, *, access_mode: ProviderAccessMode | None = None
+    ) -> RunnerInspection:
+        assert access_mode is self.access_context.access_mode
         self.inspected.append(url)
         if self.error is not None:
             raise self.error
@@ -37,7 +40,10 @@ class FakeClient:
             access_context=self.access_context,
         )
 
-    async def context(self, _url: str) -> ProviderAccessContextRef:
+    async def context(
+        self, _url: str, *, access_mode: ProviderAccessMode | None = None
+    ) -> ProviderAccessContextRef:
+        assert access_mode is self.access_context.access_mode
         return self.access_context
 
     async def download(self, task_id: str, *_args, **_kwargs) -> RunnerArtifact:
@@ -64,9 +70,7 @@ class FakeClient:
         self.closed = True
 
 
-@pytest.mark.parametrize(
-    "mode", [ProviderAccessMode.ANONYMOUS, ProviderAccessMode.GUEST]
-)
+@pytest.mark.parametrize("mode", [ProviderAccessMode.GUEST])
 async def test_retired_modes_never_reach_canary_client(mode):
     client = FakeClient(ProviderAccessMode.OPERATOR_MANAGED)
     runner = ProviderCanaryRunner(client)
@@ -106,3 +110,20 @@ def context(
         engine_commit="5d6b8c8",
         runtime_revision="a" * 64,
     )
+
+
+async def test_anonymous_canary_keeps_its_route_for_context_inspection_and_download():
+    client = FakeClient(ProviderAccessMode.ANONYMOUS)
+    runner = ProviderCanaryRunner(client)
+    selected = await runner.context(URL, access_mode=ProviderAccessMode.ANONYMOUS)
+    inspection = await runner.inspect(URL, access_mode=ProviderAccessMode.ANONYMOUS)
+    assert inspection.access_context == selected
+    await runner.download(
+        "public",
+        URL,
+        None,
+        expected_provider_media_id="owned",
+        expected_extractor_key="Youtube",
+        access_context=selected,
+    )
+    assert client.downloaded == ["public"]

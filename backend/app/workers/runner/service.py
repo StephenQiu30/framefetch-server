@@ -9,6 +9,7 @@ from app.services.downloads.rules.enums import Container, MediaKind, StreamKind
 from app.services.downloads.rules.errors import FormatSelectionError
 from app.services.downloads.rules.formats import CandidateStream, ProviderHints
 from app.services.downloads.rules.selection import select_streams
+from app.services.provider_access import ProviderAccessPolicy
 from app.services.provider_types import ProviderAccessContextRef, ProviderAccessMode
 from app.workers.runner.active_tasks import ActiveTaskRegistry
 from app.workers.runner.collection import download_video_collection_zip
@@ -83,20 +84,29 @@ class MediaRunnerService:
         self._active = ActiveTaskRegistry(settings.runner_max_active_tasks)
         self._sessions = session_store or ProviderSessionStore(settings)
 
-    async def context(self, url: str) -> ProviderAccessContextRef:
+    async def context(
+        self, url: str, *, access_mode: ProviderAccessMode | None = None
+    ) -> ProviderAccessContextRef:
         safe_url = safe_media_url(url)
         source = provider_request(safe_url)
         await self._require_companion(source.profile.key)
-        return await self._sessions.context_for(source.profile, url=safe_url)
+        return await self._sessions.context_for(
+            source.profile, url=safe_url, access_mode=access_mode
+        )
 
     async def contexts_for_providers(
-        self, provider_keys: tuple[str, ...]
+        self,
+        provider_keys: tuple[str, ...],
+        *,
+        access_mode: ProviderAccessMode | None = None,
     ) -> tuple[ProviderAccessContextRef, ...]:
         if "youtube" in provider_keys:
             await self._require_companion("youtube")
         return tuple(
             [
-                await self._sessions.context_for(provider_profile_for_key(key))
+                await self._sessions.context_for(
+                    provider_profile_for_key(key), access_mode=access_mode
+                )
                 for key in provider_keys
             ]
         )
@@ -107,6 +117,7 @@ class MediaRunnerService:
         *,
         access_context: ProviderAccessContextRef | None = None,
         deadline_at: datetime | None = None,
+        allow_session_fallback: bool = True,
     ) -> InspectResponse:
         safe_url = safe_media_url(url)
         source = provider_request(safe_url)
@@ -128,12 +139,40 @@ class MediaRunnerService:
             try:
                 async with asyncio.timeout(timeout):
                     async with self._sessions.operation(context) as cookie_jar:
-                        inspection = await self._inspection.inspect(
-                            source,
-                            workspace,
-                            context=context,
-                            cookie_jar=cookie_jar,
-                        )
+                        try:
+                            inspection = await self._inspection.inspect(
+                                source,
+                                workspace,
+                                context=context,
+                                cookie_jar=cookie_jar,
+                            )
+                        except RunnerFailure as error:
+                            # Only an explicit authentication response can request
+                            # the already-approved public-account route. 429,
+                            # private content, network/attestation failures cannot.
+                            if (
+                                not allow_session_fallback
+                                or error.code != "credential_required"
+                                or context.access_mode
+                                is not ProviderAccessMode.ANONYMOUS
+                                or source.profile.access_policy
+                                is not ProviderAccessPolicy.OPERATOR_PUBLIC
+                                or ProviderAccessMode.OPERATOR_MANAGED
+                                not in source.profile.access_modes
+                            ):
+                                raise
+                            context = await self._sessions.context_for(
+                                source.profile,
+                                url=safe_url,
+                                access_mode=ProviderAccessMode.OPERATOR_MANAGED,
+                            )
+                            async with self._sessions.operation(context) as account_jar:
+                                inspection = await self._inspection.inspect(
+                                    source,
+                                    workspace,
+                                    context=context,
+                                    cookie_jar=account_jar,
+                                )
                         plans = (
                             build_download_options(
                                 inspection.streams,

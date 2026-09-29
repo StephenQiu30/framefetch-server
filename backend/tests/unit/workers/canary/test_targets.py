@@ -93,7 +93,7 @@ def test_operator_canary_target_requires_a_matching_runner_endpoint() -> None:
     validate_canary_target_routes(targets, frozenset({"youtube"}))
 
 
-@pytest.mark.parametrize("mode", ["anonymous", "guest"])
+@pytest.mark.parametrize("mode", ["guest"])
 def test_retired_canary_modes_are_rejected(mode):
     import json
 

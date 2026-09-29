@@ -4,6 +4,7 @@ import time
 
 import httpx
 import pytest
+from app.services.provider_types import ProviderAccessMode
 from app.workers.runner.errors import RunnerFailure
 from app.workers.runner.provider_credential_lease import ProviderCredentialLocks
 from app.workers.runner.provider_registry import provider_profile
@@ -86,7 +87,9 @@ async def leased_store(tmp_path):
 
 async def test_operation_finishes_without_contacting_broker_after_lease(leased_store):
     store, requests = leased_store
-    context = await store.context_for(provider_profile(URL), url=URL)
+    context = await store.context_for(
+        provider_profile(URL), url=URL, access_mode=ProviderAccessMode.OPERATOR_MANAGED
+    )
     async with store.operation(context) as jar:
         assert jar.read_bytes() == COOKIE
         # yt-dlp may update its working jar. This must not add a second
@@ -101,7 +104,9 @@ async def test_operation_finishes_without_contacting_broker_after_lease(leased_s
 
 async def test_operation_preserves_failure_and_cleans_material(leased_store):
     store, requests = leased_store
-    context = await store.context_for(provider_profile(URL), url=URL)
+    context = await store.context_for(
+        provider_profile(URL), url=URL, access_mode=ProviderAccessMode.OPERATOR_MANAGED
+    )
     failure = RunnerFailure("egress_challenged", status=409)
     with pytest.raises(RunnerFailure) as caught:
         async with store.operation(context) as jar:

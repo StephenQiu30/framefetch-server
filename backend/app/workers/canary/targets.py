@@ -79,7 +79,11 @@ def _validate_targets(targets: tuple[ProviderCanaryTarget, ...]) -> None:
             or parsed.username is not None
             or parsed.password is not None
             or resolved.profile.key != target.provider_key
-            or target.access_mode is not resolved.profile.execution_access_mode
+            or target.access_mode
+            not in {
+                resolved.profile.initial_access_mode,
+                resolved.profile.execution_access_mode,
+            }
             or target.access_mode not in resolved.profile.access_modes
         ):
             raise ValueError

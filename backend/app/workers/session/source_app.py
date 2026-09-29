@@ -6,7 +6,16 @@ import time
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
-from app.workers.session.browser_source import BrowserSource, SourceUnavailable
+from app.workers.session.chrome_source import (
+    CONNECT_PATH,
+    DISCONNECT_PATH,
+    POLL_PATH,
+    REPLY_PATH,
+    BrowserConnection,
+    BrowserReply,
+    ChromeSource,
+    SourceUnavailable,
+)
 from app.workers.session.contracts import (
     LEASE_PATH,
     LOGIN_PATH,
@@ -25,7 +34,7 @@ from fastapi import FastAPI, HTTPException, Request, Response
 
 
 def create_app(
-    *, source: BrowserSource, secret: bytes, lease_seconds: int = 600
+    *, source: ChromeSource, secret: bytes, lease_seconds: int = 600
 ) -> FastAPI:
     verifier = authenticator(secret)
     ready = False
@@ -51,6 +60,33 @@ def create_app(
             409 if error.code in {"credential_required", "credential_revoked"} else 503
         )
         return JSONResponse({"detail": error.code}, status_code=status)
+
+    @app.post(CONNECT_PATH)
+    async def connect(request: Request) -> BrowserConnection:
+        from pydantic import BaseModel, ConfigDict
+
+        class ConnectRequest(BaseModel):
+            model_config = ConfigDict(extra="forbid")
+
+        await verified_model(request, verifier, ConnectRequest)
+        return source.connect()
+
+    @app.post(DISCONNECT_PATH)
+    async def disconnect(request: Request) -> dict[str, bool]:
+        body = await verified_model(request, verifier, BrowserConnection)
+        source.disconnect(body.connection)
+        return {"accepted": True}
+
+    @app.post(POLL_PATH)
+    async def poll(request: Request) -> dict[str, object]:
+        body = await verified_model(request, verifier, BrowserConnection)
+        return await source.poll(body.connection)
+
+    @app.post(REPLY_PATH)
+    async def browser_reply(request: Request) -> dict[str, bool]:
+        body = await verified_model(request, verifier, BrowserReply)
+        source.reply(body)
+        return {"accepted": True}
 
     @app.post(STATUS_PATH, response_model=StatusResponse)
     async def status(request: Request) -> StatusResponse:

@@ -569,6 +569,10 @@ class OperatorCookieSupervisor(FixtureSupervisor):
     ) -> ProcessResult:
         command = tuple(argv)
         if command[0] == "yt-dlp":
+            if "--cookies" not in command:
+                return ProcessResult(
+                    1, b"", b"account authentication is required", False, False
+                )
             cookie_path = Path(command[command.index("--cookies") + 1])
             self.cookie_paths.append(cookie_path)
             content = cookie_path.read_bytes()
@@ -1386,3 +1390,94 @@ async def test_full_playlist_probes_clear_segment_and_preserves_duration(
     assert len(probes) == 1
     assert probes[0][-1].endswith("prefix.input")
     assert client.requests == [("GET", "https://cdn.example.com/first.ts")]
+
+
+@pytest.mark.parametrize(
+    "code,status",
+    [
+        ("provider_rate_limited", 429),
+        ("egress_challenged", 422),
+        ("content_private", 422),
+    ],
+)
+async def test_anonymous_failures_never_read_chrome_session(
+    tmp_path, monkeypatch, code, status
+):
+    configured = operator_settings(tmp_path)
+    sessions = operator_session_store(configured)
+    service = MediaRunnerService(
+        configured,
+        supervisor=FixtureSupervisor(split_media_info()),
+        session_store=sessions,
+    )
+    from unittest.mock import AsyncMock
+
+    service._inspection.inspect = AsyncMock(
+        side_effect=RunnerFailure(code, status=status)
+    )
+    sessions._site_sessions.ready_revision = AsyncMock(
+        side_effect=AssertionError("must not request Chrome")
+    )
+    with pytest.raises(RunnerFailure) as caught:
+        await service.inspect("https://www.youtube.com/watch?v=owned")
+    assert caught.value.code == code
+    sessions._site_sessions.ready_revision.assert_not_awaited()
+
+
+async def test_explicit_anonymous_canary_does_not_upgrade_on_auth_required(tmp_path):
+    from unittest.mock import AsyncMock
+
+    configured = operator_settings(tmp_path)
+    sessions = operator_session_store(configured)
+    service = MediaRunnerService(
+        configured,
+        supervisor=FixtureSupervisor(split_media_info()),
+        session_store=sessions,
+    )
+    service._inspection.inspect = AsyncMock(
+        side_effect=RunnerFailure("credential_required", status=422)
+    )
+    sessions._site_sessions.ready_revision = AsyncMock(
+        side_effect=AssertionError("must not request Chrome")
+    )
+    with pytest.raises(RunnerFailure) as caught:
+        await service.inspect(
+            "https://www.youtube.com/watch?v=owned", allow_session_fallback=False
+        )
+    assert caught.value.code == "credential_required"
+    sessions._site_sessions.ready_revision.assert_not_awaited()
+
+
+async def test_auth_failure_reads_chrome_once_and_freezes_final_account_route(tmp_path):
+    from unittest.mock import AsyncMock
+
+    from app.services.provider_types import ProviderAccessMode
+
+    configured = operator_settings(tmp_path)
+    sessions = operator_session_store(configured)
+    service = MediaRunnerService(
+        configured,
+        supervisor=FixtureSupervisor({**split_media_info(), "availability": "public"}),
+        session_store=sessions,
+    )
+    original = service._inspection.inspect
+    calls = []
+
+    async def inspect(source, workspace, *, context, cookie_jar):
+        calls.append((context.access_mode, cookie_jar is not None))
+        if len(calls) == 1:
+            raise RunnerFailure("credential_required", status=422)
+        return await original(source, workspace, context=context, cookie_jar=cookie_jar)
+
+    service._inspection.inspect = AsyncMock(side_effect=inspect)
+    response = await service.inspect("https://www.youtube.com/watch?v=owned")
+    assert calls == [
+        (ProviderAccessMode.ANONYMOUS, False),
+        (ProviderAccessMode.OPERATOR_MANAGED, True),
+    ]
+    assert response.access_context.access_mode is ProviderAccessMode.OPERATOR_MANAGED
+    assert sessions._site_sessions.leases == [("youtube.com", 3)]
+    assert not any(
+        path.is_file()
+        for path in configured.runner_provider_session_temp_root.rglob("*")
+    )

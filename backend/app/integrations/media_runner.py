@@ -98,13 +98,20 @@ class MediaRunnerClient(Protocol):
 
     async def engine_catalog(self) -> EngineCatalogResponse: ...
 
-    async def context(self, url: str) -> ProviderAccessContextRef: ...
+    async def context(
+        self, url: str, *, access_mode: ProviderAccessMode | None = None
+    ) -> ProviderAccessContextRef: ...
 
     async def contexts_for_providers(
-        self, provider_keys: tuple[str, ...]
+        self,
+        provider_keys: tuple[str, ...],
+        *,
+        access_mode: ProviderAccessMode | None = None,
     ) -> tuple[ProviderAccessContextRef, ...]: ...
 
-    async def inspect(self, url: str) -> RunnerInspection: ...
+    async def inspect(
+        self, url: str, *, access_mode: ProviderAccessMode | None = None
+    ) -> RunnerInspection: ...
 
     async def download(
         self,
@@ -164,19 +171,23 @@ class MediaRunnerHttpClient:
             timeout_code="engine_catalog_unavailable",
         )
 
-    async def context(self, url: str) -> ProviderAccessContextRef:
+    async def context(
+        self, url: str, *, access_mode: ProviderAccessMode | None = None
+    ) -> ProviderAccessContextRef:
         provider_key = provider_profile(url).key
         response = await self._request(
             "POST",
             "/internal/context",
-            ProviderContextRequest(url=url).model_dump_json().encode(),
+            ProviderContextRequest(url=url, access_mode=access_mode)
+            .model_dump_json(exclude_none=True)
+            .encode(),
             ProviderAccessContextContract,
             min(self._inspect_timeout, _CONTEXT_TIMEOUT_SECONDS),
             timeout_code="inspection_timeout",
         )
         context = _context_to_domain(response)
-        expected_mode = (
-            provider_profile_for_key(provider_key).execution_access_mode
+        expected_mode = access_mode or (
+            provider_profile_for_key(provider_key).initial_access_mode
             if self._expected_access_mode is ProviderAccessMode.OPERATOR_MANAGED
             else self._expected_access_mode
         )
@@ -187,13 +198,18 @@ class MediaRunnerHttpClient:
         return context
 
     async def contexts_for_providers(
-        self, provider_keys: tuple[str, ...]
+        self,
+        provider_keys: tuple[str, ...],
+        *,
+        access_mode: ProviderAccessMode | None = None,
     ) -> tuple[ProviderAccessContextRef, ...]:
         response = await self._request(
             "POST",
             "/internal/contexts",
-            ProviderContextsRequest(provider_keys=list(provider_keys))
-            .model_dump_json()
+            ProviderContextsRequest(
+                provider_keys=list(provider_keys), access_mode=access_mode
+            )
+            .model_dump_json(exclude_none=True)
             .encode(),
             ProviderContextsResponse,
             min(self._inspect_timeout, _STATUS_CONTEXT_TIMEOUT_SECONDS),
@@ -201,23 +217,34 @@ class MediaRunnerHttpClient:
         )
         return tuple(_context_to_domain(context) for context in response.contexts)
 
-    async def inspect(self, url: str) -> RunnerInspection:
+    async def inspect(
+        self, url: str, *, access_mode: ProviderAccessMode | None = None
+    ) -> RunnerInspection:
         context_ready = False
         context = None
         try:
             context = (
-                await self.context(url)
-                if self._admission is not None or self._expected_access_mode is not None
+                await self.context(url, access_mode=access_mode)
+                if self._admission is not None
+                or self._expected_access_mode is not None
+                or access_mode is not None
                 else None
             )
             context_ready = context is not None
             if self._admission is None:
-                response = await self._inspect_response(url, context)
+                response = await self._inspect_response(
+                    url, context, allow_session_fallback=access_mode is None
+                )
             else:
                 assert context is not None
                 response = await self._admission.run(
                     context,
-                    lambda deadline: self._inspect_response(url, context, deadline),
+                    lambda deadline: self._inspect_response(
+                        url,
+                        context,
+                        deadline,
+                        allow_session_fallback=access_mode is None,
+                    ),
                 )
         except RouteCoolingDown as exc:
             raise MediaInspectionRateLimited(retry_at=exc.retry_at) from exc
@@ -321,6 +348,8 @@ class MediaRunnerHttpClient:
         url: str,
         context: ProviderAccessContextRef | None = None,
         deadline_at: datetime | None = None,
+        *,
+        allow_session_fallback: bool = True,
     ) -> InspectResponse:
         response = await self._request(
             "POST",
@@ -333,6 +362,7 @@ class MediaRunnerHttpClient:
                     else ProviderAccessContextContract.from_domain(context)
                 ),
                 deadline_at=deadline_at,
+                allow_session_fallback=allow_session_fallback,
             )
             .model_dump_json()
             .encode(),
@@ -343,7 +373,31 @@ class MediaRunnerHttpClient:
         if context is not None:
             returned_context = _context_to_domain(response.access_context)
             if returned_context != context:
-                raise MediaRunnerClientError("client_context_mismatch", 422)
+                from dataclasses import replace
+
+                from app.services.provider_access import ProviderAccessPolicy
+                from app.workers.runner.release_identity import runtime_code_sha256
+
+                profile = provider_profile(url)
+                upgrade = (
+                    allow_session_fallback
+                    and profile.access_policy is ProviderAccessPolicy.OPERATOR_PUBLIC
+                    and context.access_mode is ProviderAccessMode.ANONYMOUS
+                    and returned_context.access_mode
+                    is ProviderAccessMode.OPERATOR_MANAGED
+                    and returned_context.credential_version_id is not None
+                    and replace(
+                        context,
+                        access_mode=returned_context.access_mode,
+                        credential_version_id=returned_context.credential_version_id,
+                        runtime_revision=runtime_code_sha256(
+                            profile.key, access_mode=returned_context.access_mode
+                        ),
+                    )
+                    == returned_context
+                )
+                if not upgrade:
+                    raise MediaRunnerClientError("client_context_mismatch", 422)
             if not response.options:
                 raise MediaRunnerClientError("format_unavailable", 422)
         return response
@@ -559,7 +613,7 @@ class MediaRunnerRouter:
         client = self._client_for_mode(provider_profile(url).key, access_mode)
         if client is None:
             raise MediaRunnerClientError("credential_required", 422)
-        context = await client.context(url)
+        context = await client.context(url, access_mode=access_mode)
         if context.access_mode is not access_mode:
             raise MediaRunnerClientError("client_context_mismatch", 502)
         return context
@@ -569,17 +623,18 @@ class MediaRunnerRouter:
         requested: Mapping[str, ProviderAccessMode],
     ) -> Mapping[str, ProviderAccessContextRef]:
         groups = [
-            (self._session, (key,))
+            (self._session, (key,), mode)
             for key, mode in requested.items()
-            if mode is provider_profile_for_key(key).execution_access_mode
+            if self._client_for_mode(key, mode) is not None
         ]
 
         async def resolve(
             client: MediaRunnerClient,
             keys: tuple[str, ...],
+            mode: ProviderAccessMode,
         ) -> tuple[ProviderAccessContextRef, ...]:
             try:
-                return await client.contexts_for_providers(keys)
+                return await client.contexts_for_providers(keys, access_mode=mode)
             except MediaRunnerClientError as exc:
                 # provider_session_not_ready is an expected, actionable state;
                 # anything else (timeouts, transport) deserves a trace.
@@ -594,7 +649,7 @@ class MediaRunnerRouter:
                 return ()
 
         batches = await asyncio.gather(
-            *(resolve(client, keys) for client, keys in groups)
+            *(resolve(client, keys, mode) for client, keys, mode in groups)
         )
         contexts = {
             context.provider_key: context
@@ -653,7 +708,10 @@ class MediaRunnerRouter:
         return (
             self._session
             if access_mode
-            is provider_profile_for_key(provider_key).execution_access_mode
+            in {
+                provider_profile_for_key(provider_key).initial_access_mode,
+                provider_profile_for_key(provider_key).execution_access_mode,
+            }
             else None
         )
 

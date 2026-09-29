@@ -466,7 +466,7 @@ services:
       retries: 12
       start_period: 5s
 
-  # Network-boundary bridge to the dedicated host browser source. Leases are
+  # Network-boundary bridge to the host Chrome session source. Leases are
   # sealed directly to Runner keys; this process never decrypts session data.
   session-broker:
     build: *backend-build

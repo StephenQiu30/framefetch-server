@@ -34,7 +34,7 @@ class ProviderCanaryRunner:
         if access_mode not in profile.access_modes:
             raise MediaInspectionAuthRequired(access_mode=access_mode)
         client = self._inspection_client(profile.key, access_mode)
-        return await client.context(url)
+        return await client.context(url, access_mode=access_mode)
 
     async def inspect(
         self,
@@ -47,7 +47,7 @@ class ProviderCanaryRunner:
             raise MediaInspectionAuthRequired(access_mode=access_mode)
         client = self._inspection_client(profile.key, access_mode)
         try:
-            return await client.inspect(url)
+            return await client.inspect(url, access_mode=access_mode)
         except MediaInspectionFailure as error:
             error.attributed_to(access_mode)
             raise
@@ -80,19 +80,19 @@ class ProviderCanaryRunner:
     def _inspection_client(
         self, provider_key: str, access_mode: ProviderAccessMode
     ) -> MediaRunnerClient:
-        if (
-            access_mode
-            is not provider_profile_for_key(provider_key).execution_access_mode
-        ):
+        if access_mode not in {
+            provider_profile_for_key(provider_key).initial_access_mode,
+            provider_profile_for_key(provider_key).execution_access_mode,
+        }:
             raise MediaInspectionAuthRequired(access_mode=access_mode)
         return self._session
 
     def _client_for_context(
         self, context: ProviderAccessContextRef
     ) -> MediaRunnerClient:
-        if (
-            context.access_mode
-            is not provider_profile_for_key(context.provider_key).execution_access_mode
-        ):
+        if context.access_mode not in {
+            provider_profile_for_key(context.provider_key).initial_access_mode,
+            provider_profile_for_key(context.provider_key).execution_access_mode,
+        }:
             raise MediaRunnerClientError("provider_session_not_allowed", 422)
         return self._session

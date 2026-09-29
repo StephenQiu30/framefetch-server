@@ -158,31 +158,45 @@ def test_session_root_must_be_memory_backed(
 async def test_session_context_freezes_site_and_ready_revision(tmp_path: Path) -> None:
     store, sessions, _ = session_store(tmp_path)
 
-    context = await store.context_for(provider_profile(YOUTUBE), url=YOUTUBE)
-    by_key = await store.context_for(provider_profile(YOUTUBE))
+    context = await store.context_for(
+        provider_profile(YOUTUBE),
+        url=YOUTUBE,
+        access_mode=ProviderAccessMode.OPERATOR_MANAGED,
+    )
+    by_key = await store.context_for(
+        provider_profile(YOUTUBE), access_mode=ProviderAccessMode.OPERATOR_MANAGED
+    )
 
     assert context.access_mode is ProviderAccessMode.OPERATOR_MANAGED
     assert context.credential_version_id == "youtube.com:3"
     assert by_key == context
-    # Unlisted sites use the same route, keyed by registrable domain.
+    # Unlisted public routes never receive account materials.
     unlisted = "https://media.example.co.uk/v/1"
     generic = await store.context_for(provider_profile(unlisted), url=unlisted)
     assert generic.provider_key == "generic"
-    assert generic.credential_version_id == "example.co.uk:1"
-
+    assert generic.access_mode is ProviderAccessMode.ANONYMOUS
+    with pytest.raises(RunnerFailure, match="provider session not allowed"):
+        await store.context_for(
+            provider_profile(unlisted),
+            url=unlisted,
+            access_mode=ProviderAccessMode.OPERATOR_MANAGED,
+        )
     sessions.revisions.pop("youtube.com")
     with pytest.raises(RunnerFailure) as caught:
-        await store.context_for(provider_profile(YOUTUBE), url=YOUTUBE)
+        await store.context_for(
+            provider_profile(YOUTUBE),
+            url=YOUTUBE,
+            access_mode=ProviderAccessMode.OPERATOR_MANAGED,
+        )
     assert caught.value.code == "provider_session_not_ready"
-    with pytest.raises(RunnerFailure) as caught:
-        await store.context_for(provider_profile(unlisted))
-    assert caught.value.code == "provider_session_not_allowed"
 
 
 async def test_reimport_makes_a_frozen_context_stale(tmp_path: Path) -> None:
     store, sessions, _ = session_store(tmp_path)
     profile = provider_profile(YOUTUBE)
-    context = await store.context_for(profile, url=YOUTUBE)
+    context = await store.context_for(
+        profile, url=YOUTUBE, access_mode=ProviderAccessMode.OPERATOR_MANAGED
+    )
 
     sessions.revisions["youtube.com"] = 4
     with pytest.raises(RunnerFailure) as caught:
@@ -196,7 +210,11 @@ async def test_operation_holds_the_site_lease_and_uses_a_private_tmpfs_file(
 ) -> None:
     store, sessions, lease = session_store(tmp_path)
     settings = session_settings(tmp_path)
-    context = await store.context_for(provider_profile(YOUTUBE), url=YOUTUBE)
+    context = await store.context_for(
+        provider_profile(YOUTUBE),
+        url=YOUTUBE,
+        access_mode=ProviderAccessMode.OPERATOR_MANAGED,
+    )
 
     async with store.operation(context) as jar:
         assert jar is not None
@@ -221,7 +239,11 @@ async def test_close_releases_the_session_client(tmp_path: Path) -> None:
 
 async def test_malformed_session_version_is_revoked(tmp_path: Path) -> None:
     store, _, _ = session_store(tmp_path)
-    context = await store.context_for(provider_profile(YOUTUBE), url=YOUTUBE)
+    context = await store.context_for(
+        provider_profile(YOUTUBE),
+        url=YOUTUBE,
+        access_mode=ProviderAccessMode.OPERATOR_MANAGED,
+    )
 
     with pytest.raises(RunnerFailure) as caught:
         async with store.operation(replace(context, credential_version_id="x")):
@@ -246,7 +268,22 @@ async def test_native_public_operation_uses_no_credentials_or_broker(tmp_path):
     async with store.operation(context) as jar:
         assert jar is None
     assert not broker.leases and not locks.held
-    forged = replace(context, provider_key="youtube")
+    forged = replace(context, provider_key="youku")
     with pytest.raises(RunnerFailure, match="provider session not allowed"):
         async with store.operation(forged):
-            pytest.fail("session platforms may never execute without a lease")
+            pytest.fail("personal entitlement routes require a lease")
+
+
+async def test_public_account_profile_starts_anonymously_and_keeps_frozen_mode(
+    tmp_path,
+):
+    store, sessions, locks = session_store(tmp_path)
+    profile = provider_profile(YOUTUBE)
+    sessions.revisions.clear()
+    context = await store.context_for(profile, url=YOUTUBE)
+    assert context.access_mode is ProviderAccessMode.ANONYMOUS
+    assert context.credential_version_id is None
+    assert await store.validate_context(profile, context, url=YOUTUBE) == context
+    async with store.operation(context) as jar:
+        assert jar is None
+    assert not sessions.leases and not locks.held

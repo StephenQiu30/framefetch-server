@@ -417,7 +417,9 @@ export default function DownloadWorkspace() {
                       size="sm"
                       variant="outline"
                     >
-                      {intent.openingLogin ? '正在打开…' : '打开平台登录'}
+                      {intent.openingLogin
+                        ? '正在打开…'
+                        : '在 Chrome 中打开平台'}
                     </Button>
                     <Button
                       disabled={

@@ -9,6 +9,7 @@ from dataclasses import dataclass, replace
 from datetime import datetime, timedelta
 from typing import Protocol
 
+from app.services.provider_access import ProviderAccessPolicy
 from app.services.provider_catalog import ProviderCatalogRepository
 from app.services.provider_route_admission import (
     ProviderRouteCooldownReader,
@@ -416,6 +417,11 @@ def _status_access_mode(
     baseline: ProviderStatusView,
 ) -> ProviderAccessMode | None:
     access_modes = baseline.access_modes
+    if (
+        baseline.default_access_policy_id is ProviderAccessPolicy.OPERATOR_PUBLIC
+        and ProviderAccessMode.ANONYMOUS in access_modes
+    ):
+        return ProviderAccessMode.ANONYMOUS
     if baseline.default_access_policy_id is not None:
         mode = baseline.default_access_policy_id.access_mode
         return mode if mode in access_modes else None

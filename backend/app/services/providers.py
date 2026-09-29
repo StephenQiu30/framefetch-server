@@ -118,6 +118,11 @@ class ProviderStatusView:
             and self.runtime_context.access_mode in self.access_modes
         ):
             return self.runtime_context.access_mode
+        if (
+            self.default_access_policy_id is ProviderAccessPolicy.OPERATOR_PUBLIC
+            and ProviderAccessMode.ANONYMOUS in self.access_modes
+        ):
+            return ProviderAccessMode.ANONYMOUS
         if self.default_access_policy_id is not None:
             default_mode = self.default_access_policy_id.access_mode
             if default_mode in self.access_modes:
@@ -171,8 +176,8 @@ def provider_user_action(
     if status is ProviderSupportStatus.ACCESS_REQUIRED:
         if access_mode is ProviderAccessMode.OPERATOR_MANAGED:
             return (
-                "当前托管线路需要平台授权或验证；服务端会复用部署方已批准的单平台来源，"
-                "客户端无需安装扩展或提供浏览器会话。"
+                "当前线路需要平台授权或验证；服务端会复用部署机器已连接的 Chrome 会话，"
+                "请确认 Chrome 扩展已连接，并在日常 Chrome 中处理该平台的登录或验证。"
             )
         return (
             "该平台当前要求额外授权或验证；请稍后重试，或上传你拥有或已获授权的文件。"

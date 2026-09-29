@@ -73,11 +73,23 @@ class ProviderSessionStore:
         await self._site_sessions.login(target.site, finish=finish)
 
     async def context_for(
-        self, profile: ProviderProfile, *, url: str | None = None
+        self,
+        profile: ProviderProfile,
+        *,
+        url: str | None = None,
+        access_mode: ProviderAccessMode | None = None,
     ) -> ProviderAccessContextRef:
         mode = self._settings.runner_access_mode
         if mode is ProviderAccessMode.OPERATOR_MANAGED:
-            mode = profile.execution_access_mode
+            mode = access_mode or profile.initial_access_mode
+        if access_mode is not None and (
+            access_mode not in profile.access_modes
+            or (
+                access_mode is ProviderAccessMode.OPERATOR_MANAGED
+                and profile.execution_access_mode is not access_mode
+            )
+        ):
+            raise RunnerFailure("provider_session_not_allowed", status=422)
         credential_version: str | None = None
         if mode is ProviderAccessMode.OPERATOR_MANAGED:
             # Any site with a deployment session is admitted by the broker, not
@@ -112,7 +124,9 @@ class ProviderSessionStore:
         *,
         url: str | None = None,
     ) -> ProviderAccessContextRef:
-        current = await self.context_for(profile, url=url)
+        current = await self.context_for(
+            profile, url=url, access_mode=expected.access_mode
+        )
         if (
             expected.runtime_revision != current.runtime_revision
             and replace(expected, runtime_revision=current.runtime_revision) == current
@@ -134,7 +148,10 @@ class ProviderSessionStore:
         if (
             self._settings.runner_access_mode is ProviderAccessMode.OPERATOR_MANAGED
             and context.access_mode
-            is not provider_profile_for_key(context.provider_key).execution_access_mode
+            not in {
+                provider_profile_for_key(context.provider_key).initial_access_mode,
+                provider_profile_for_key(context.provider_key).execution_access_mode,
+            }
         ):
             raise RunnerFailure("provider_session_not_allowed", status=422)
         if context.access_mode is ProviderAccessMode.ANONYMOUS:

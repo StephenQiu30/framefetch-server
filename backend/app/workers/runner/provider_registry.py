@@ -87,6 +87,15 @@ class ProviderProfile:
     def execution_access_mode(self) -> ProviderAccessMode:
         return self.access_policy.access_mode
 
+    @property
+    def initial_access_mode(self) -> ProviderAccessMode:
+        if (
+            self.access_policy is ProviderAccessPolicy.OPERATOR_PUBLIC
+            and ProviderAccessMode.ANONYMOUS in self.access_modes
+        ):
+            return ProviderAccessMode.ANONYMOUS
+        return self.execution_access_mode
+
     def request_url(self, url: str, parsed: SplitResult) -> str:
         return self.normalize_url(url, parsed)
 

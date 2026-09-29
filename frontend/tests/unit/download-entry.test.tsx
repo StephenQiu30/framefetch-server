@@ -232,7 +232,7 @@ it('restores a login wait after the execution deadline and resumes the original 
     name: '已处理，继续解析',
   });
   expect(document.getElementById('parse-intent-status')).toHaveTextContent(
-    '等待处理平台登录',
+    '需要处理平台会话',
   );
   expect(
     screen.queryByText('等待时间已到，请查询后台任务的最终状态。'),
@@ -244,7 +244,7 @@ it('restores a login wait after the execution deadline and resumes the original 
       ),
     ).toBeNull(),
   );
-  fireEvent.click(screen.getByRole('button', { name: '打开平台登录' }));
+  fireEvent.click(screen.getByRole('button', { name: '在 Chrome 中打开平台' }));
   await waitFor(() =>
     expect(httpRequests()).toContainEqual(
       expect.objectContaining({
@@ -255,7 +255,9 @@ it('restores a login wait after the execution deadline and resumes the original 
     ),
   );
   await waitFor(() =>
-    expect(screen.getByRole('button', { name: '打开平台登录' })).toBeEnabled(),
+    expect(
+      screen.getByRole('button', { name: '在 Chrome 中打开平台' }),
+    ).toBeEnabled(),
   );
   fireEvent.click(resume);
   await waitFor(() =>

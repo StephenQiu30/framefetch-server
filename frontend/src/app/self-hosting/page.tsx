@@ -12,7 +12,7 @@ export const metadata = publicMetadata(title, description, '/self-hosting/');
 const requirements = [
   'Docker Engine 与 Docker Compose。',
   '部署者已有的 PostgreSQL、RabbitMQ、Redis 与 MinIO；Compose 只管理帧取自身的业务服务并复用这些基础环境。',
-  'macOS 平台登录来源需要 uv（Python 3.12）与 Playwright Chromium。',
+  'macOS 平台会话来源需要 uv（Python 3.12）、日常 Chrome 与帧取扩展。',
   '生产部署需要强随机密钥、稳定的 HTTPS 访问地址和规划好的对象存储容量。',
 ];
 
@@ -35,9 +35,8 @@ test -f .env || cp .env.example .env`,
   {
     id: 'start',
     title: '安装登录来源并启动业务服务',
-    text: 'macOS 上安装平台专用浏览器来源；Compose 启动 Web、API、Worker、Runner 与出口代理。公开平台不依赖登录，账号平台首次使用时在专用窗口登录。生产配置见 README。',
-    code: `uv run --project backend --group browser playwright install chromium
-uv run --project backend python -m app.workers.session.source_cli install --env-file .env
+    text: 'macOS 上安装 Chrome 会话来源，并在 chrome://extensions 加载命令输出目录中的扩展。复用日常 Chrome 已有平台登录；Compose 启动 Web、API、Worker、Runner 与出口代理。公开链接优先匿名解析。生产配置见 README。',
+    code: `uv run --project backend python -m app.workers.session.source_cli install --env-file .env
 docker compose up -d --build --wait --remove-orphans`,
   },
   {
@@ -135,12 +134,19 @@ export default function SelfHostingPage() {
         </h2>
         <ol className="mt-5 grid max-w-3xl gap-10">
           {steps.map(({ id, title: stepTitle, text, code }, index) => (
-            <li className="scroll-mt-24" id={id} key={id}>
+            <li className="min-w-0 scroll-mt-24" id={id} key={id}>
               <h3 className="font-medium">
                 {index + 1}. {stepTitle}
               </h3>
-              <p className="mt-3 leading-8 text-muted-foreground">{text}</p>
-              <pre className="mt-4 overflow-x-auto rounded-md bg-muted p-4 font-mono text-xs leading-6">
+              <p className="mt-3 break-words leading-8 text-muted-foreground">
+                {text}
+              </p>
+              <pre
+                title={`${stepTitle}命令`}
+                className="mt-4 overflow-x-auto rounded-md bg-muted p-4 font-mono text-xs leading-6"
+                // biome-ignore lint/a11y/noNoninteractiveTabindex: Scrollable commands need keyboard access.
+                tabIndex={0}
+              >
                 <code>{code}</code>
               </pre>
             </li>

@@ -4,7 +4,7 @@ from dataclasses import replace
 import httpx
 import pytest
 from app.workers.session.broker_app import create_app as bridge_app
-from app.workers.session.browser_source import SourceSnapshot, SourceUnavailable
+from app.workers.session.chrome_source import SourceSnapshot, SourceUnavailable
 from app.workers.session.contracts import (
     LEASE_PATH,
     LOGIN_PATH,

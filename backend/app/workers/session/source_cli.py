@@ -1,23 +1,27 @@
-"""Install and operate the dedicated browser source on the local workstation."""
+"""Install the Chrome extension and its local Python native messaging source."""
 
 from __future__ import annotations
 
 import argparse
 import asyncio
+import base64
+import hashlib
+import json
 import os
 import plistlib
+import shlex
+import shutil
 import subprocess
 import sys
 import tempfile
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
-from urllib.parse import urlsplit
 
 import httpx
 import uvicorn
 from app.integrations.site_session_catalog import known_session_sites
-from app.workers.session.browser_source import BrowserSource
+from app.workers.session.chrome_source import ChromeSource
 from app.workers.session.contracts import (
     LOGIN_PATH,
     STATUS_PATH,
@@ -26,6 +30,7 @@ from app.workers.session.contracts import (
     StatusRequest,
     StatusResponse,
 )
+from app.workers.session.native_host import HOST_NAME
 from app.workers.session.rpc import RpcError, SignedClient
 from app.workers.session.source_app import create_app
 from dotenv import dotenv_values
@@ -39,7 +44,6 @@ SOURCE_LABEL = "com.framefetch.browser-source"
 class SourceConfig:
     secret: bytes = field(repr=False)
     root: Path
-    proxy: str
 
 
 def load_config(env_file: Path | None) -> SourceConfig:
@@ -61,26 +65,13 @@ def load_config(env_file: Path | None) -> SourceConfig:
         values.get("SITE_SESSION_PROFILE_ROOT")
         or str(Path.home() / "Library/Application Support/FrameFetch/Browsers")
     ).expanduser()
-    proxy = values.get("SITE_SESSION_BROWSER_PROXY") or "http://127.0.0.1:13128"
-    parsed = urlsplit(proxy)
-    if (
-        parsed.scheme != "http"
-        or parsed.hostname not in {"127.0.0.1", "localhost"}
-        or parsed.username
-        or parsed.password
-        or parsed.path
-        or parsed.query
-        or parsed.fragment
-        or not parsed.port
-    ):
-        raise SystemExit("SITE_SESSION_BROWSER_PROXY must name the local egress proxy")
     if not root.is_absolute():
         raise SystemExit("SITE_SESSION_PROFILE_ROOT must be absolute")
-    return SourceConfig(secret.encode(), root, proxy)
+    return SourceConfig(secret.encode(), root)
 
 
 def agent_spec(config: SourceConfig) -> dict[str, object]:
-    # The long-lived process and its browser receive only source configuration,
+    # The long-lived process receives only source configuration,
     # never the database, AI, object-store, queue, or application login secrets.
     return {
         "Label": SOURCE_LABEL,
@@ -94,7 +85,6 @@ def agent_spec(config: SourceConfig) -> dict[str, object]:
         "EnvironmentVariables": {
             "SITE_SESSION_AGENT_SECRET": config.secret.decode(),
             "SITE_SESSION_PROFILE_ROOT": str(config.root),
-            "SITE_SESSION_BROWSER_PROXY": config.proxy,
             "PATH": os.defpath,
         },
         "RunAtLoad": True,
@@ -131,14 +121,15 @@ def install(config: SourceConfig) -> None:
         temporary = Path(stream.name)
     temporary.chmod(0o600)
     temporary.replace(destination)
+    install_extension(config)
     # bootout may return before launchd has fully detached the previous job.
     # Retry only the transient bootstrap EIO; never rewrite profiles or keys.
-    for attempt in range(4):
+    for attempt in range(8):
         try:
             launchctl("bootstrap", f"gui/{os.getuid()}", str(destination))
             break
         except subprocess.CalledProcessError as error:
-            if error.returncode != 5 or attempt == 3:
+            if error.returncode != 5 or attempt == 7:
                 raise SystemExit(
                     "Browser source installation failed; "
                     "launchd did not accept the service"
@@ -146,7 +137,79 @@ def install(config: SourceConfig) -> None:
             time.sleep(0.5 * (attempt + 1))
 
 
+def install_extension(config: SourceConfig) -> None:
+    from urllib.parse import urlsplit
+
+    from app.integrations.site_session_catalog import site_target
+    from app.workers.runner.provider_session_files import prepare_private_root
+
+    prepare_private_root(config.root)
+    extension = config.root / "ChromeExtension"
+    prepare_private_root(extension)
+    assets = PROJECT_ROOT / "browser-extension"
+    manifest = json.loads((assets / "manifest.json").read_text())
+    domains: set[str] = set()
+    for site in known_session_sites():
+        target = site_target(site)
+        domains.update(d.lstrip(".") for d in target.cookie_domains)
+        host = urlsplit(target.policy.login_url).hostname
+        assert host is not None
+        domains.add(host)
+    manifest["host_permissions"] = [f"https://*.{d}/*" for d in sorted(domains)]
+    for name in ("background.js", "popup.html", "popup.js", "popup.css"):
+        shutil.copyfile(assets / name, extension / name)
+    (extension / "manifest.json").write_text(
+        json.dumps(manifest, ensure_ascii=False, indent=2)
+    )
+    digest = hashlib.sha256(base64.b64decode(manifest["key"])).hexdigest()[:32]
+    extension_id = "".join(chr(ord("a") + int(char, 16)) for char in digest)
+    origin = f"chrome-extension://{extension_id}/"
+    private_config = config.root / "native-config.json"
+    with tempfile.NamedTemporaryFile(dir=config.root, delete=False) as stream:
+        stream.write(
+            json.dumps({"secret": config.secret.decode(), "origin": origin}).encode()
+        )
+        temporary = Path(stream.name)
+    temporary.chmod(0o600)
+    temporary.replace(private_config)
+    launcher = config.root / "native-host"
+    launcher.write_text(
+        "#!/bin/sh\n"
+        + "cd "
+        + shlex.quote(str(PROJECT_ROOT / "backend"))
+        + " || exit 2\n"
+        + "exec "
+        + shlex.quote(sys.executable)
+        + " -m app.workers.session.native_host --config "
+        + shlex.quote(str(private_config))
+        + ' "$@"\n'
+    )
+    launcher.chmod(0o700)
+    host_manifest = {
+        "name": HOST_NAME,
+        "description": "FrameFetch Chrome session source",
+        "path": str(launcher),
+        "type": "stdio",
+        "allowed_origins": [origin],
+    }
+    for browser in ("Chrome", "ChromeForTesting"):
+        directory = (
+            Path.home()
+            / f"Library/Application Support/Google/{browser}/NativeMessagingHosts"
+        )
+        directory.mkdir(parents=True, exist_ok=True)
+        destination = directory / f"{HOST_NAME}.json"
+        destination.write_text(json.dumps(host_manifest))
+        destination.chmod(0o600)
+
+
 def uninstall() -> None:
+    for browser in ("Chrome", "ChromeForTesting"):
+        (
+            Path.home()
+            / f"Library/Application Support/Google/{browser}/NativeMessagingHosts"
+            / f"{HOST_NAME}.json"
+        ).unlink(missing_ok=True)
     launchctl("bootout", f"gui/{os.getuid()}/{SOURCE_LABEL}", check=False)
     (Path.home() / "Library/LaunchAgents" / f"{SOURCE_LABEL}.plist").unlink(
         missing_ok=True
@@ -180,7 +243,7 @@ async def control(config: SourceConfig, command: str, site: str | None) -> int:
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Dedicated platform login browser")
+    parser = argparse.ArgumentParser(description="Chrome platform session source")
     parser.add_argument(
         "command", choices=("serve", "install", "uninstall", "check", "login", "finish")
     )
@@ -195,18 +258,22 @@ def main() -> int:
         if sys.platform != "darwin":
             raise SystemExit("LaunchAgent installation requires macOS")
         install(config)
-        print("Browser source installed. Use login --site <site> for first login.")
+        print(
+            "Chrome source installed. Load the extension directory printed below in chrome://extensions."
+        )
+        print(config.root / "ChromeExtension")
         return 0
     if args.command in {"check", "login", "finish"}:
         if args.command != "check" and args.site is None:
             parser.error("login and finish require --site")
         return asyncio.run(control(config, args.command, args.site))
-    source = BrowserSource(config.root, proxy=config.proxy, secret=config.secret)
+    source = ChromeSource(secret=config.secret)
     uvicorn.run(
         create_app(source=source, secret=config.secret),
         host="127.0.0.1",
         port=SOURCE_PORT,
         access_log=False,
+        timeout_graceful_shutdown=5,
     )
     return 0
 
