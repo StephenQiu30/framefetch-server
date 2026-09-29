@@ -9,7 +9,6 @@ from app.workers.runner.plugins.yt_dlp_plugins.extractor.tiktok_player_payload i
     PLAYER_TEMPORARY,
     PLAYER_UNAVAILABLE,
     player_failure,
-    player_info,
 )
 from app.workers.runner.provider_normalizers import tiktok_url
 from yt_dlp.extractor.tiktok import (  # type: ignore[import-untyped]
@@ -22,32 +21,47 @@ from yt_dlp.networking.exceptions import (  # type: ignore[import-untyped]
 )
 from yt_dlp.utils import ExtractorError  # type: ignore[import-untyped]
 
-_PLAYER_API = "https://www.tiktok.com/player/api/v1/items"
 _PLAYER_URL = "https://www.tiktok.com/player/v1/{video_id}"
+_UNAVAILABLE_MARKERS = ("video not available", "log into an account", "requiring login")
+_REGRESSION_MARKERS = (
+    "unexpected response from webpage request",
+    "unable to extract challenge data",
+    "unable to solve js challenge",
+    "unable to extract universal data",
+    "unable to extract webpage",
+)
 
 
 class _TikTokPublicPlayerIE(TikTokIE, plugin_name="public_player"):  # type: ignore[misc, call-arg]
-    """Resolve public video metadata only through TikTok's first-party player."""
+    """Public TikTok videos through upstream yt-dlp's maintained web extractor.
+
+    TikTok's first-party player API now requires per-request signatures
+    (msToken/X-Bogus/X-Gnarly) and answers 403 without them, so it is no longer
+    a usable public source. Upstream yt-dlp tracks the public watch page
+    (browser-impersonated request plus its own challenge handling) and ships
+    fixes within days, so this class only maps its failures onto the stable
+    Runner error vocabulary and never adds credentials or private-content paths.
+    """
 
     def _real_extract(self, url: str) -> dict[str, Any]:
-        video_id, _ = self._match_valid_url(url).group("id", "user_id")
-        player_url = _PLAYER_URL.format(video_id=video_id)
+        video_id = self._match_valid_url(url).group("id")
         try:
-            payload = self._download_json(
-                _PLAYER_API,
-                video_id,
-                note="Downloading TikTok player metadata",
-                query={"item_ids": video_id},
-                headers={"Referer": player_url},
-            )
+            return cast(dict[str, Any], super()._real_extract(url))
         except ExtractorError as exc:
-            message = (
-                PLAYER_TEMPORARY
-                if isinstance(exc.cause, RequestError)
-                else PLAYER_SCHEMA_CHANGED
-            )
-            raise player_failure(message, video_id) from exc
-        return player_info(payload, video_id, player_url)
+            raise _mapped_failure(exc, video_id) from exc
+
+
+def _mapped_failure(exc: ExtractorError, video_id: str) -> ExtractorError:
+    message = (exc.orig_msg or str(exc)).casefold()
+    if "your ip address is blocked" in message:
+        return player_failure(str(exc.orig_msg or exc), video_id)
+    if isinstance(exc.cause, RequestError):
+        return player_failure(PLAYER_TEMPORARY, video_id)
+    if any(marker in message for marker in _UNAVAILABLE_MARKERS):
+        return player_failure(PLAYER_UNAVAILABLE, video_id)
+    if any(marker in message for marker in _REGRESSION_MARKERS):
+        return player_failure(PLAYER_SCHEMA_CHANGED, video_id)
+    return player_failure(PLAYER_TEMPORARY, video_id)
 
 
 class _TikTokPublicShortIE(TikTokVMIE, plugin_name="public_short"):  # type: ignore[misc, call-arg]

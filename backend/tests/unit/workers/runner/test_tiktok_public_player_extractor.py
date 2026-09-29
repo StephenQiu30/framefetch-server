@@ -78,198 +78,68 @@ def test_plugin_registers_as_the_builtin_tiktok_override() -> None:
     )
 
 
-def test_uses_first_party_player_metadata_without_webpage_challenge(
+def test_delegates_to_upstream_web_extractor_without_player_api(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     extractor = _TikTokPublicPlayerIE()
-    requests: list[tuple[str, dict[str, object]]] = []
+    upstream_calls: list[str] = []
 
-    def download_json(url: str, *_: object, **kwargs: object) -> object:
-        requests.append((url, kwargs))
-        return player_payload()
+    def upstream(_extractor: object, url: str) -> dict[str, object]:
+        upstream_calls.append(url)
+        return {"id": VIDEO_ID, "formats": []}
 
-    monkeypatch.setattr(extractor, "_download_json", download_json)
+    def forbidden(*_args: object, **_kwargs: object) -> object:
+        raise AssertionError("the signed-only player API must not be called")
 
-    info = extractor._real_extract(VIDEO_URL)
+    monkeypatch.setattr(extractor, "_download_json", forbidden)
+    monkeypatch.setattr(_TikTokPublicPlayerIE.__mro__[1], "_real_extract", upstream)
 
-    assert info["id"] == VIDEO_ID
-    assert info["duration"] == 13.1
-    assert info["availability"] == "public"
-    assert info["formats"][0]["url"] == MEDIA_URL
-    assert info["formats"][0]["vcodec"] == "h264"
-    assert info["formats"][0]["acodec"] == "aac"
-    assert info["formats"][0]["http_headers"]["Referer"] == (
-        f"https://www.tiktok.com/player/v1/{VIDEO_ID}"
-    )
-    assert len(requests) == 1
-    assert requests[0][0] == "https://www.tiktok.com/player/api/v1/items"
-    request = requests[0][1]
-    assert request["query"] == {"item_ids": VIDEO_ID}
-    assert request["headers"] == {
-        "Referer": f"https://www.tiktok.com/player/v1/{VIDEO_ID}"
-    }
-    assert "fatal" not in request
-    assert "impersonate" not in request
-    assert "cookies" not in request
+    assert extractor._real_extract(VIDEO_URL)["id"] == VIDEO_ID
+    assert upstream_calls == [VIDEO_URL]
 
 
 @pytest.mark.parametrize(
-    ("payload", "message"),
+    ("upstream_error", "message"),
     (
-        (None, "TikTok official player response structure changed"),
-        ({"status_code": "0", "items": []}, "response structure changed"),
-        ({"status_code": 0}, "response structure changed"),
         (
-            {
-                "status_code": 0,
-                "results": [{"code": "nil_core_data", "id": 123, "id_str": VIDEO_ID}],
-            },
+            ExtractorError("Video not available, status code 10204"),
             "TikTok video not available from the official player",
         ),
         (
-            {
-                "status_code": 0,
-                "results": [{"code": "api_busy", "id_str": VIDEO_ID}],
-            },
+            ExtractorError("TikTok is requiring login for access to this content"),
+            "TikTok video not available from the official player",
+        ),
+        (
+            ExtractorError("Unexpected response from webpage request"),
+            "TikTok official player response structure changed",
+        ),
+        (
+            ExtractorError("Unable to solve JS challenge"),
+            "TikTok official player response structure changed",
+        ),
+        (
+            ExtractorError("Unable to download webpage", cause=TransportError("reset")),
             "TikTok official player API temporarily unavailable",
         ),
         (
-            {
-                "status_code": 0,
-                "results": [{"code": "ok", "id_str": VIDEO_ID}],
-            },
-            "response structure changed",
-        ),
-        (
-            {"status_code": 0, "items": [{"id_str": "987654321"}]},
-            "response structure changed",
-        ),
-        (
-            {"status_code": 1, "status_msg": "Service unavailable", "items": None},
-            "TikTok official player API temporarily unavailable",
-        ),
-        (
-            {"status_code": 5, "status_msg": "Invalid parameters", "items": None},
-            "TikTok video not available from the official player",
-        ),
-        (
-            {"status_code": 0, "items": None},
-            "TikTok video not available from the official player",
-        ),
-        (
-            {
-                "status_code": 0,
-                "items": None,
-                "results": [{"code": "api_busy", "id_str": VIDEO_ID}],
-            },
-            "TikTok official player API temporarily unavailable",
-        ),
-        (
-            {
-                "status_code": 0,
-                "items": None,
-                "results": [{"code": "ok", "id_str": VIDEO_ID}],
-            },
-            "response structure changed",
-        ),
-        (
-            {"status_code": 0, "items": []},
-            "TikTok video not available from the official player",
-        ),
-        (
-            {
-                "status_code": 0,
-                "items": [{"id_str": VIDEO_ID, "video_info": {"profiles": {}}}],
-            },
-            "response structure changed",
-        ),
-        (
-            {
-                "status_code": 0,
-                "items": [
-                    {
-                        "id_str": VIDEO_ID,
-                        "video_info": {
-                            "profiles": [
-                                {
-                                    "play_addr": {
-                                        "url_list": ["http://cdn.test/video.mp4"]
-                                    }
-                                }
-                            ]
-                        },
-                    }
-                ],
-            },
-            "TikTok video not available from the official player",
+            ExtractorError("Your IP address is blocked from accessing this post"),
+            "Your IP address is blocked from accessing this post",
         ),
     ),
 )
-def test_player_response_facts_have_distinct_stable_failures_without_fallback(
+def test_upstream_failures_map_to_stable_runner_errors(
     monkeypatch: pytest.MonkeyPatch,
-    payload: object,
+    upstream_error: ExtractorError,
     message: str,
 ) -> None:
     extractor = _TikTokPublicPlayerIE()
-    fallback_calls: list[str] = []
 
-    def upstream_fallback(_extractor: object, url: str) -> dict[str, object]:
-        fallback_calls.append(url)
-        return {"id": VIDEO_ID}
+    def fail(_extractor: object, _url: str) -> object:
+        raise upstream_error
 
-    monkeypatch.setattr(extractor, "_download_json", lambda *_args, **_kwargs: payload)
-    monkeypatch.setattr(
-        _TikTokPublicPlayerIE.__mro__[1],
-        "_real_extract",
-        upstream_fallback,
-    )
+    monkeypatch.setattr(_TikTokPublicPlayerIE.__mro__[1], "_real_extract", fail)
 
-    with pytest.raises(
-        ExtractorError,
-        match=message,
-    ) as captured:
-        extractor._real_extract(VIDEO_URL)
-
-    assert captured.value.expected is True
-    assert fallback_calls == []
-
-
-def test_player_transport_failure_is_not_folded_into_missing_item(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    extractor = _TikTokPublicPlayerIE()
-
-    def fail_transport(*_args: object, **_kwargs: object) -> object:
-        raise ExtractorError(
-            "Unable to download JSON metadata",
-            cause=TransportError("connection reset"),
-        )
-
-    monkeypatch.setattr(extractor, "_download_json", fail_transport)
-
-    with pytest.raises(
-        ExtractorError,
-        match="TikTok official player API temporarily unavailable",
-    ) as captured:
-        extractor._real_extract(VIDEO_URL)
-
-    assert captured.value.expected is True
-
-
-def test_invalid_player_json_is_an_extractor_regression(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    extractor = _TikTokPublicPlayerIE()
-
-    def fail_json(*_args: object, **_kwargs: object) -> object:
-        raise ExtractorError("Failed to parse JSON", cause=ValueError("invalid JSON"))
-
-    monkeypatch.setattr(extractor, "_download_json", fail_json)
-
-    with pytest.raises(
-        ExtractorError,
-        match="TikTok official player response structure changed",
-    ) as captured:
+    with pytest.raises(ExtractorError, match=message) as captured:
         extractor._real_extract(VIDEO_URL)
 
     assert captured.value.expected is True
