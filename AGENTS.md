@@ -94,6 +94,6 @@ pnpm build
 
 API 使用 `runtime.py` 定义类型化的 `ApiServices`，在 `app.state.services` 中只挂载一次，通过 FastAPI 依赖函数读取；`lifespan.py` 管理资源所有权和释放，不逐项复制服务到动态 State。外部注入的运行时由调用方管理。
 
-API readiness 检查业务核心依赖，不把单个平台 Runner 的健康作为全局可用条件。API、下载 Worker 和 Canary 的启动不得等待所有 Provider 健康；Worker/Canary 仍等待共享工作目录初始化。站点会话服务的健康不代表平台接受会话，会话可用性以 broker 状态和真实任务为准（046）。下载 Worker 与 Runner 的容器停止宽限必须覆盖 Worker 有限排空预算。对应设计和目标环境验收见 030 四件套。
+API readiness 检查业务核心依赖，不把单个平台 Runner 的健康作为全局可用条件。API、下载 Worker 和 Canary 的启动不得等待所有 Provider 健康；Worker/Canary 仍等待共享工作目录初始化。broker readiness 只表示中继资源已初始化；来源可读和平台接受会话分别由按需查询与真实任务验证，不通过空转扫描、预热或无人消费的上报实现就绪。下载 Worker 与 Runner 的容器停止宽限必须覆盖 Worker 有限排空预算。当前设计见 docs/design/08-平台会话.md 与 docs/design/13-可靠性与运行.md。
 
 前端目录职责以 PROJECT.md“前端目录与文件规则”为准。接口类型直接使用生成的 API.*，不新增 services、utils、types 聚合目录或纯转发文件。

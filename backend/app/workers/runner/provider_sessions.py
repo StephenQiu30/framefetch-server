@@ -35,7 +35,7 @@ from app.workers.runner.site_sessions import (
     parse_context_version,
 )
 
-# A keepalive or sibling operation on the same site is queued, not failed.
+# A sibling operation on the same site is queued, not failed.
 _SESSION_LOCK_WAIT_SECONDS = 30.0
 
 
@@ -162,27 +162,11 @@ class ProviderSessionStore:
         async with self._credential_lease.hold(
             site, "session", wait_seconds=_SESSION_LOCK_WAIT_SECONDS
         ):
-            operation = await self._site_sessions.lease(site, revision)
+            payload = await self._site_sessions.lease(site, revision)
             with operation_cookie(
-                operation.payload, self._temp_root, context.provider_key
+                payload, self._temp_root, context.provider_key
             ) as jar:
                 yield jar
-                if jar.stat().st_size > 2_000_000:
-                    raise RunnerFailure("provider_session_unavailable", status=503)
-                await self._site_sessions.rotate(operation, jar.read_bytes())
-
-    async def report_failure(
-        self, context: ProviderAccessContextRef, error_code: str
-    ) -> None:
-        if context.access_mode is not ProviderAccessMode.OPERATOR_MANAGED:
-            return
-        if self._site_sessions is None:
-            return
-        try:
-            site, revision = parse_context_version(context.credential_version_id)
-        except RunnerFailure:
-            return
-        await self._site_sessions.report(site, revision, error_code)
 
     def _site_for(self, profile: ProviderProfile, url: str | None) -> str:
         try:

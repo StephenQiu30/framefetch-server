@@ -81,6 +81,7 @@ backend/
 │       ├── report/                 报告 Worker
 │       ├── canary/                 平台探针
 │       ├── dlq/                    死信管理
+│       ├── session/                宿主机 Chrome 来源、密封租约与无状态中继
 │       └── runner/                 独立隔离的媒体执行进程与可信插件
 ├── sql/schema.sql                 当前态数据库结构
 ├── egress/                        Runner 出口代理配置
@@ -89,9 +90,9 @@ backend/
 
 `workers/runner/` 内部按实际边界就近组织，不保留空文件或兼容转发层：
 
-- `provider_cookie_*` 负责凭据租约、跨进程队列、浏览器代理和安全文件传输；通用私有文件原语集中在 `_secure_file.py`，Netscape Cookie 解析与序列化集中在 `netscape_cookie.py`。
-- `provider_session_*` 负责会话策略、来源加载、临时会话文件、发布和维护；会话业务直接依赖上述凭据模块，不复制文件安全或 Cookie 解析实现。
-- `provider_cookie_boundary.py`、`provider_cookie_process.py` 与 `provider_credential_lease.py` 分别维护跨进程边界、子进程终止语义和分布式凭据租约，不能退化为重导出模块。
+- `site_sessions.py` 负责向 broker 按需查询并解封单次租约；`provider_sessions.py` 管理操作期间的凭据使用与执行租约，不回写 Cookie 或发送失败上报。
+- `provider_session_files.py` 与 `_secure_file.py` 管理私有临时文件，`provider_session_headers.py` 校验受控请求头；`netscape_cookie.py` 统一解析与序列化 Cookie。
+- 宿主机来源和 RPC 契约位于 `workers/session/`；broker 不保存会话副本，不运行扫描或保活状态机。
 
 所有 Python 包有 `__init__.py`；该文件默认不重导出业务符号。调用方直接从定义模块导入，避免用数百行导出清单再建一层公共接口。models 的导入注册用于建立完整 SQLAlchemy metadata，属于必要的初始化行为。
 

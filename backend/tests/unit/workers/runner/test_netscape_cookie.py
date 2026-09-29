@@ -83,25 +83,12 @@ def test_serializer_preserves_netscape_shape_and_http_only_marker() -> None:
     assert not has_safe_cookie_fields(cookie)
 
 
-def test_rotation_discards_response_cookies_outside_the_site_allowlist():
+def test_parse_rejects_mixed_cookie_domains() -> None:
     payload = (
         b"# Netscape HTTP Cookie File\n"
         b".douyin.com\tTRUE\t/\tTRUE\t0\tsessionid\tfixture\n"
         b"aweme.snssdk.com\tFALSE\t/\tTRUE\t0\tresponse\tfixture\n"
     )
-    allowed = frozenset({"douyin.com"})
-    with pytest.raises(RunnerFailure):
-        parse_cookie_payload(payload, allowed)
-    cookies = parse_cookie_payload(payload, allowed, discard_unrelated=True)
-    assert len(cookies) == 1
-    assert cookies[0].name == "sessionid"
-    with pytest.raises(RunnerFailure):
-        parse_cookie_payload(
-            payload.replace(b"\t0\tresponse", b"\tinvalid\tresponse"),
-            allowed,
-            discard_unrelated=True,
-        )
-    with pytest.raises(RunnerFailure):
-        parse_cookie_payload(
-            payload, frozenset({"example.com"}), discard_unrelated=True
-        )
+    with pytest.raises(RunnerFailure) as caught:
+        parse_cookie_payload(payload, frozenset({"douyin.com"}))
+    assert caught.value.code == "credential_rejected"

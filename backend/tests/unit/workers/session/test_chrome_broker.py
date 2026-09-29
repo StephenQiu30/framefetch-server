@@ -13,7 +13,6 @@ from app.workers.session.chrome_broker import (
 from app.workers.session.contracts import lease_associated_data
 from app.workers.session.rpc import RpcError
 from app.workers.session.sealing import (
-    decode,
     decode_public_key,
     encode,
     open_sealed,
@@ -91,7 +90,7 @@ async def test_agent_failures_split_login_from_transient(code, expected):
         await broker.ready_revision("youtube.com")
 
 
-async def test_stale_revision_is_rejected_and_rotation_is_ignored():
+async def test_stale_revision_is_rejected():
     broker = ChromeSessionBroker(Agent(), lease_seconds=600)
     with pytest.raises(SessionNotReady):
         await broker.lease(
@@ -100,8 +99,6 @@ async def test_stale_revision_is_rejected_and_rotation_is_ignored():
             seed_revision=7,
             runner_key=public_key(X25519PrivateKey.generate()),
         )
-    assert await broker.absorb_rotation(task_id="t1") is None
-    assert decode(encode(b"x")) == b"x"
 
 
 async def test_page_headers_are_resealed_as_a_separate_lease_part():

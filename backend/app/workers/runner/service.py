@@ -157,9 +157,6 @@ class MediaRunnerService:
                             access_context=context,
                             thumbnail_data_url=thumbnail_data_url,
                         )
-            except RunnerFailure as exc:
-                await self._sessions.report_failure(context, exc.code)
-                raise
             except TimeoutError as exc:
                 raise RunnerFailure("inspection_timeout", status=504) from exc
         finally:
@@ -198,11 +195,6 @@ class MediaRunnerService:
             raise RunnerFailure("download_timeout", status=504) from exc
         except WorkspaceViolation as exc:
             raise RunnerFailure("workspace_limit_exceeded", status=413) from exc
-        except RunnerFailure as exc:
-            await self._sessions.report_failure(
-                request.access_context.to_domain(), exc.code
-            )
-            raise
         finally:
             self._active.discard(request.task_id, task)
             if workspace is not None and not succeeded:

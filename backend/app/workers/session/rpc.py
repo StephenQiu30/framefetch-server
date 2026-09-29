@@ -1,7 +1,7 @@
-"""HMAC-authenticated JSON RPC shared by the session broker and browser.
+"""HMAC-authenticated JSON RPC shared by the session broker and host agent.
 
 Two independent secrets keep the channels apart: Runners can ask the broker for
-leases but can never impersonate the broker towards the browser.
+leases but cannot use their RPC secret to authenticate to the host agent.
 """
 
 from __future__ import annotations
@@ -87,9 +87,6 @@ class SignedClient:
             return response.model_validate_json(raw)
         except ValidationError:
             raise RpcError("invalid_response", 502) from None
-
-    async def post_empty(self, path: str, body: BaseModel) -> None:
-        await self._send("POST", path, body.model_dump_json().encode())
 
     async def _send(self, method: str, path: str, body: bytes) -> bytes:
         timestamp, nonce = int(time.time()), secrets.token_urlsafe(24)

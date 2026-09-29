@@ -1,9 +1,7 @@
 """Container broker that relays the operator's live Chrome login state.
 
-The Runner contract (status, sealed one-task leases, rotation, failures) is
-unchanged. Instead of a database copy kept alive by a second browser, every
-lease is read fresh from the host Chrome agent, so the platform only ever sees
-one client for the session and there is nothing to keep alive or re-import.
+The broker reads the host source on demand and seals one-task leases for
+Runners. It does not own persistent sessions or accept Cookie writeback.
 """
 
 from __future__ import annotations
@@ -34,7 +32,7 @@ from app.workers.session.sealing import (
 )
 from cryptography.hazmat.primitives.asymmetric.x25519 import X25519PrivateKey
 
-# Chrome is the only session; its identity never changes under a Runner.
+# Transport revision for the live source, not proof of account identity.
 LIVE_REVISION = 1
 
 
@@ -50,23 +48,15 @@ class SessionLoginRequired(Exception):
 class LeaseGrant:
     site: str
     seed_revision: int
-    jar_version: int
     expires_at: int
     jar: bytes
     headers: bytes | None
-    rotation_key: bytes
 
 
 class ChromeSessionBroker:
     def __init__(self, agent: SignedClient, *, lease_seconds: int) -> None:
         self._agent = agent
         self._lease_seconds = lease_seconds
-
-    async def scan(self) -> None:
-        """Nothing to keep alive: the operator's Chrome does that."""
-
-    async def warming_up(self) -> bool:
-        return False
 
     async def ready_revision(self, site: str) -> int:
         await self._read(site, include_headers=False)
@@ -89,23 +79,13 @@ class ChromeSessionBroker:
                 ),
             )
 
-        # Runner-side rotations are dropped: Chrome stays the source of truth.
-        discard = public_key(X25519PrivateKey.generate())
         return LeaseGrant(
             site,
             seed_revision,
-            0,
             expires_at,
             sealed("jar", payload),
             None if headers is None else sealed("headers", headers),
-            discard,
         )
-
-    async def absorb_rotation(self, **_: object) -> None:
-        return None
-
-    async def report_failure(self, **_: object) -> None:
-        return None
 
     async def _read(
         self, site: str, *, include_headers: bool

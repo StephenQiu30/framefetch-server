@@ -13,7 +13,6 @@ from app.workers.runner.errors import RunnerFailure
 from app.workers.runner.provider_registry import provider_profile
 from app.workers.runner.provider_sessions import ProviderSessionStore
 from app.workers.runner.settings import RunnerSettings
-from app.workers.runner.site_sessions import OperationSession
 from pydantic import ValidationError
 
 SECRET = "runner-shared-secret-material-at-least-32-bytes"
@@ -28,26 +27,16 @@ class FakeSiteSessions:
     def __init__(self) -> None:
         self.revisions: dict[str, int] = {"youtube.com": 3, "example.co.uk": 1}
         self.leases: list[tuple[str, int]] = []
-        self.reports: list[tuple[str, int, str]] = []
         self.closed = False
-        self.rotations = []
 
     async def ready_revision(self, site: str) -> int:
         if site not in self.revisions:
             raise RunnerFailure("provider_session_not_ready", status=503)
         return self.revisions[site]
 
-    async def lease(self, site: str, seed_revision: int) -> OperationSession:
+    async def lease(self, site: str, seed_revision: int) -> bytes:
         self.leases.append((site, seed_revision))
-        return OperationSession(
-            "operation", site, seed_revision, 2147483647, "unused", COOKIE
-        )
-
-    async def rotate(self, operation, payload):
-        self.rotations.append((operation, payload))
-
-    async def report(self, site: str, seed_revision: int, error_code: str) -> None:
-        self.reports.append((site, seed_revision, error_code))
+        return COOKIE
 
     async def close(self) -> None:
         self.closed = True
@@ -235,22 +224,8 @@ async def test_operation_holds_the_site_lease_and_uses_a_private_tmpfs_file(
     assert list(settings.runner_provider_session_temp_root.iterdir()) == []
 
 
-async def test_failures_are_reported_to_the_broker_for_session_contexts_only(
-    tmp_path: Path,
-) -> None:
+async def test_close_releases_the_session_client(tmp_path: Path) -> None:
     store, sessions, _ = session_store(tmp_path)
-    context = await store.context_for(provider_profile(YOUTUBE), url=YOUTUBE)
-
-    await store.report_failure(context, "egress_challenged")
-    await store.report_failure(
-        replace(context, credential_version_id="malformed"), "egress_challenged"
-    )
-    anonymous = await ProviderSessionStore(anonymous_settings(tmp_path)).context_for(
-        provider_profile(YOUTUBE)
-    )
-    await store.report_failure(anonymous, "egress_challenged")
-
-    assert sessions.reports == [("youtube.com", 3, "egress_challenged")]
     await store.close()
     assert sessions.closed
 

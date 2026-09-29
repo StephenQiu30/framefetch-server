@@ -133,11 +133,13 @@ test -f .env || cp .env.example .env
 # Configure .env to reuse existing PostgreSQL, RabbitMQ, Redis and MinIO
 
 # Once: install the Chrome login-state agent (starts at login, restarts on crash)
-cd backend && uv run python -m app.workers.session.chrome_agent install && cd ..
+uv run --project backend python -m app.workers.session.chrome_agent install --env-file .env
 
 # Start: the migrate container applies the idempotent backend/sql/schema.sql first
 docker compose up -d --build --wait
 ```
+
+Agent installation also runs a source check. Missing site logins may produce a nonzero check result even after the system service was installed. Fixed public platforms do not require Chrome login state; configure permissions and sign in for the platforms that do.
 
 For an empty user table, create the first administrator on the deployment host. The command prompts for a password, refuses to run once any user exists, and does not expose a remote bootstrap endpoint:
 
@@ -148,15 +150,16 @@ uv run --project backend python -m app.workers.bootstrap_admin \
 
 ### Platform login state
 
-FrameFetch is a single-user tool: **the Chrome you use every day is the only source of platform login state.** Each parse reads the site's cookies live and discards them afterwards; no copy is stored and no second browser keeps it alive. When a platform logs you out, sign in again in Chrome and the next parse works.
+FrameFetch is a single-user tool: **the Chrome you use every day is the only source of platform login state.** Each parse reads the site's cookies live and discards them afterwards; no copy is stored and no second browser keeps it alive. After signing in again, the agent reads the new state once its 20-second memory cache expires; an actual parse or download must still verify that the platform accepts it. The broker relays requests on demand, without background scans, warmup timers or cookie writeback.
 
-- After installing, run `uv run python -m app.workers.session.chrome_agent check` to see which sites are signed in. It prints the binary to add under System Settings → Privacy & Security → Full Disk Access; choose "Always Allow" for "Chrome Safe Storage" in the keychain prompt.
+- After installing, run `uv run --project backend python -m app.workers.session.chrome_agent check --env-file .env` to see which sites are signed in. It prints the binary to add under System Settings → Privacy & Security → Full Disk Access; choose "Always Allow" for "Chrome Safe Storage" in the keychain prompt.
 - If several Chrome profiles are signed in to one platform, pin one with `SITE_SESSION_SOURCE_PROFILES` in `.env`.
-- Uninstall with `uv run python -m app.workers.session.chrome_agent uninstall`. See the [platform session design](docs/design/08-平台会话.md) (Chinese).
+- Uninstall with `uv run --project backend python -m app.workers.session.chrome_agent uninstall`. See the [platform session design](docs/design/08-平台会话.md) (Chinese).
 
 The production configuration uses its own env and Compose files and needs the same Chrome agent:
 
 ```bash
+uv run --project backend python -m app.workers.session.chrome_agent install --env-file .env.prod
 docker compose --env-file .env.prod -f docker-compose-prod.yml up -d --build --wait
 ```
 

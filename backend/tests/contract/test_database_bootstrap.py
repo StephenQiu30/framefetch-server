@@ -415,10 +415,13 @@ def test_project_documents_container_and_complete_local_entrypoints() -> None:
     assert not (ROOT.parent / "scripts/analysis-worker.sh").exists()
     assert not (ROOT / "app/workers/analysis/launchd.py").exists()
     assert startup_entrypoint in root_readme
-    # One Compose command starts everything; the only host process is the
-    # Chrome login-state agent, installed once.
+    # Compose starts the business containers; host agents have explicit
+    # installation commands and share the selected deployment environment.
     assert not (ROOT.parent / "start").exists()
-    assert "uv run python -m app.workers.session.chrome_agent install" in root_readme
+    assert (
+        "uv run --project backend python -m app.workers.session.chrome_agent "
+        "install --env-file .env" in root_readme
+    )
     assert not (ROOT / "app/workers/runner/provider_startup.py").exists()
     assert "provider_startup" not in root_readme
     assert "run-local-backend.py" not in root_readme

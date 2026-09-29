@@ -4,15 +4,11 @@ FastAPI API、下载/分析领域逻辑、异步 Worker、当前态数据库 SQL
 
 所有 Python 与 `uv` 命令都应从 `backend/` 执行。数据库当前结构定义在可重复执行的 `sql/schema.sql`；由部署者按需在已有项目数据库中幂等加载；业务启动不创建基础服务，也不重复初始化已有环境。项目不维护迁移历史或旧 schema 兼容路径。本目录 `Dockerfile` 构建 API、Worker 与 Runner 镜像；前端使用 frontend/Dockerfile 独立构建。
 
-## 站点会话（046）
+## 平台会话
 
-需要登录态的平台统一为“站点会话”：项目根目录 `./start` 自动读取已启用站点的 Chrome Cookie、以 `SITE_SESSION_ENCRYPTION_KEY` 加密写入 PostgreSQL `site_sessions`。之后全部在容器内运行：
+当前登录态按需从宿主机 Chrome 读取，经无状态 broker 密封交给 Runner；Runner 只在单次操作期间保留 tmpfs 工作文件，结束即清理。broker 不连接会话数据库、不运行保活或扫描，也不接收 Cookie 回写与失败上报。来源读取失败与平台拒绝会话分别返回错误。
 
-- `session-broker`（`app/workers/session/broker_app.py`）唯一持有密钥，维护状态机、调度保活，并为每个 Runner 任务签发绑定任务与站点的一次性加密租约。
-- `session-browser`（`app/workers/session/browser_app.py`，Dockerfile `session-browser` 目标）为每个站点保存持久 Chromium Profile，验证登录、保活并采集平台轮换后的 Cookie；没有数据库与密钥。
-- `session-runner`（`RUNNER_ACCESS_MODE=operator_managed`）只在 tmpfs 中为单次操作写入 `0600` Cookie jar，操作结束即删除。
-
-账号平台固定使用经过验证的会话，失败不切换到公开路线。密钥必须稳定并与数据库备份分开保管；丢失后需要重新导入。运维步骤见 [站点会话运行手册](../docs/design/README.md)。
+接入与安装命令统一见[根 README](../README.md)，职责、错误与尚未解决的限制见[平台会话设计](../docs/design/08-平台会话.md)。
 
 ## 目录约定
 
@@ -58,7 +54,7 @@ Media Runner 通过 `app/workers/runner/plugins/yt_dlp_plugins/` 加载随项目
 
 ## 资源准入
 
-在线解析使用平台固定路线：原生公开接口不携带账号，其余平台使用容器自持站点会话；会话未配置或撤销时明确拒绝，不切换路线。导入、自动维护、重启恢复和人工重新登录边界见 [站点会话运行手册](../docs/design/README.md)。
+在线解析使用平台固定路线：原生公开接口不携带账号，其余平台按操作从宿主机来源领取临时会话；来源缺失或平台拒绝时明确报错，不切换路线。接入与恢复边界见[平台会话设计](../docs/design/08-平台会话.md)。
 
 持久解析入口为 `POST /api/download-intents`，接单提交后返回 202；查询和取消使用同一资源 ID。API 不等待上游解析。下载 Worker 的独立解析消费槽通过 `download.intent.requested` 事件执行，失联租约和重试由同一恢复循环收敛；解析总预算 180 秒、最多三次执行。用户取消后 Worker 停止 HTTP 操作，Runner 断连处理终止实际子进程。新入口和双客户端切换状态见 [044 Plan](../docs/design/README.md)。解析按每日任务计量、零下载字节，同幂等键重放不重复计量。Worker 与 API 使用相同 `REQUEST_FINGERPRINT_SECRET`，生产环境禁止开发默认值。
 
@@ -68,24 +64,7 @@ Media Runner 通过 `app/workers/runner/plugins/yt_dlp_plugins/` 加载随项目
 
 ## 运行与就绪
 
-本机必须先提供 PostgreSQL、RabbitMQ、Redis 和 MinIO，并预置数据库 schema、消息拓扑、对象存储身份与 bucket。随后从仓库根目录启动前端、API 和业务 Worker；业务 Compose 只连接已有基础设施，沿用当前 `.env`，不再启动另一套环境：
-
-```bash
-docker compose --env-file .env -f docker-compose.yml up -d --build --wait
-docker compose --env-file .env -f docker-compose.yml ps --all
-```
-
-本机 macOS 统一从仓库根目录执行 `./start`，自动接入平台并启动下述 Compose 服务；纯容器入口只能恢复已保存会话。站点会话暂不可用只影响对应站点，不阻断核心 API。
-更新代码时先独立执行 `git pull --ff-only`，再重复该命令；不要使用不会应用镜像或配置变化的
-`docker compose restart`。`./start` 包含公开平台的解析探测；完整文件与播放仍是独立验收步骤。
-
-本地开发复用 Homebrew 的 PostgreSQL、RabbitMQ、Redis 和 MinIO，业务进程仍只通过根 Compose 启动。根目录 `.env` 应分别使用标准端口 `5432`、`5672`、`6379` 和 `9000`。确认 `brew services list` 中四项均为 `started` 后，从根目录执行：
-
-```bash
-docker compose --env-file .env -f docker-compose.yml up -d --build --wait
-```
-
-该入口启动前端、API、Media Runner、Outbox、下载/导入/报告 Worker、Provider Canary 与站点会话服务；所有进程读取根目录 `.env`。只启动 API 时，HTTP 查询仍可用，但 Outbox 不会发布、异步任务不会被消费，平台状态也无法取得 Runner 上下文。
+完整启动与更新统一使用[根 README](../README.md)的入口，复用已有 PostgreSQL、RabbitMQ、Redis、MinIO 和环境配置。Chrome 登录态 agent 与 AI Worker 为宿主机组件，业务 Compose 不负责安装它们；容器健康不能代替宿主机来源与真实任务验证。
 
 只调试无异步依赖的 API 路由时，才使用 Python 模块入口：
 
@@ -96,10 +75,10 @@ uv run python -m app.main
 
 该命令是后端模块调试入口，不替代完整本地拓扑中的 Worker、Runner 与前端构建。
 
-API readiness 与媒体 Runner 健康隔离。在线解析复用 `session-runner`；固定公开平台不携带账号，其余平台未导入或未验证会话时明确拒绝执行。API、
+API readiness 与媒体 Runner 健康隔离。在线解析复用 `session-runner`；固定公开平台不携带账号，其余平台在来源缺失或不可读时明确拒绝执行。API、
 下载 Worker 与 Canary 不等待平台健康；Worker/Canary 仅等待共享工作目录初始化。
 站点会话的可用性由 broker 状态、探针和真实任务证明，容器健康不代表平台接受会话。
-开发环境只需启用 `.env` 实际声明的平台 Profile。腾讯与优酷的实验个人线路仅在生产 Compose 提供，接入范围和未完成验证见 [设计文档](../docs/design/README.md)。
+接入范围和未完成验证见[平台与 Provider 体系](../docs/design/07-平台与Provider.md)。
 
 固定 Provider 诊断矩阵和真实媒体探针命令见 [设计文档](../docs/design/README.md) 与 `backend/app/workers/canary/`。
 

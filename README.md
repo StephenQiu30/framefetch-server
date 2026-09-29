@@ -139,12 +139,14 @@ test -f .env || cp .env.example .env
 
 # 确认 .env 连接本机已运行的 PostgreSQL、RabbitMQ、Redis 与 MinIO
 
-# 一次性：安装 Chrome 登录态服务（开机自启、崩溃自动重启）
-cd backend && uv run python -m app.workers.session.chrome_agent install && cd ..
+# 一次性：安装 Chrome 登录态服务（用户登录后自启、崩溃自动重启）
+uv run --project backend python -m app.workers.session.chrome_agent install --env-file .env
 
 # 启动：migrate 容器先应用幂等的 backend/sql/schema.sql，其余服务随后启动
 docker compose up -d --build --wait
 ```
+
+agent 安装后会执行来源检查；未登录站点可能让检查返回非零，这不等于系统服务安装失败。公开平台不依赖 Chrome 登录态；需要登录的平台按检查结果完成授权与登录。
 
 全新空库还没有登录账号时，在部署机终端执行一次首管理员初始化（需使用可连接 PostgreSQL 的 `DATABASE_URL`，密码交互输入，不进入命令行历史）：
 
@@ -157,15 +159,16 @@ uv run --project backend python -m app.workers.bootstrap_admin \
 
 ### 平台登录态（需要登录的平台）
 
-帧取是单人自用工具，**你日常使用的 Chrome 就是唯一的登录态来源**：每次解析前现读对应站点的 Cookie，用完即丢，不另存副本、不另开浏览器保活。平台失效时只需在 Chrome 里重新登录，下一次解析立即生效。
+帧取是单人自用工具，**你日常使用的 Chrome 就是唯一的登录态来源**：每次解析前现读对应站点的 Cookie，用完即丢，不另存副本、不另开浏览器保活。重新登录后，agent 会在 20 秒内存缓存过期后读取新状态；平台是否接受该状态仍由实际解析与下载验证。broker 只负责按需中继，不扫描、预热或保存回写结果。
 
-- 首次安装后运行 `uv run python -m app.workers.session.chrome_agent check` 查看各站点是否已登录；它会打印需要在“系统设置 → 隐私与安全性 → 完全磁盘访问权限”中添加的程序路径，并在钥匙串弹窗中对“Chrome Safe Storage”选择“始终允许”。
+- 首次安装后运行 `uv run --project backend python -m app.workers.session.chrome_agent check --env-file .env` 查看各站点是否已登录；它会打印需要在“系统设置 → 隐私与安全性 → 完全磁盘访问权限”中添加的程序路径，并在钥匙串弹窗中对“Chrome Safe Storage”选择“始终允许”。
 - 多个 Chrome Profile 登录了同一平台时，在 `.env` 的 `SITE_SESSION_SOURCE_PROFILES` 指定一个。
-- 卸载：`uv run python -m app.workers.session.chrome_agent uninstall`。设计见[平台会话](docs/design/08-平台会话.md)。
+- 卸载：`uv run --project backend python -m app.workers.session.chrome_agent uninstall`。设计见[平台会话](docs/design/08-平台会话.md)。
 
 生产配置使用独立的环境文件与 Compose 文件，同样需要本机 Chrome 登录态服务：
 
 ```bash
+uv run --project backend python -m app.workers.session.chrome_agent install --env-file .env.prod
 docker compose --env-file .env.prod -f docker-compose-prod.yml up -d --build --wait
 ```
 

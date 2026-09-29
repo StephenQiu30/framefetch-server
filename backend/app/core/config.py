@@ -139,7 +139,6 @@ class Settings(BaseSettings):
     # Host agent that reads the operator's live Chrome (single-user deployment).
     site_session_agent_url: str = "http://host.docker.internal:19250"
     site_session_agent_secret: SecretStr | None = None
-    site_session_scan_seconds: int = Field(default=15, ge=5, le=60)
     site_session_lease_seconds: int = Field(default=600, ge=60, le=3600)
     site_session_source_sites: tuple[str, ...] = Field(
         default_factory=known_session_sites

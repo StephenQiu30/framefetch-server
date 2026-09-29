@@ -5,23 +5,18 @@ from __future__ import annotations
 import json
 import secrets
 import time
-from dataclasses import dataclass
 
 import httpx
 from app.integrations.site_session_catalog import site_target
 from app.workers.runner.errors import RunnerFailure
-from app.workers.runner.netscape_cookie import parse_cookie_payload, serialize_cookies
+from app.workers.runner.netscape_cookie import serialize_cookies
 from app.workers.runner.provider_session_files import validated_cookie_payload
 from app.workers.runner.provider_session_headers import yuanbao_session_cookie_jar
 from app.workers.session.contracts import (
-    FAILURE_PATH,
     LEASE_PATH,
-    ROTATION_PATH,
     STATUS_PATH,
-    FailureReport,
     LeaseRequest,
     LeaseResponse,
-    RotationReport,
     StatusRequest,
     StatusResponse,
     lease_associated_data,
@@ -30,11 +25,9 @@ from app.workers.session.rpc import RpcError, SignedClient
 from app.workers.session.sealing import (
     SealError,
     decode,
-    decode_public_key,
     encode,
     open_sealed,
     public_key,
-    seal,
 )
 from cryptography.hazmat.primitives.asymmetric.x25519 import X25519PrivateKey
 
@@ -52,16 +45,6 @@ def parse_context_version(value: str | None) -> tuple[str, int]:
     return site, int(revision)
 
 
-@dataclass(frozen=True, slots=True)
-class OperationSession:
-    task_id: str
-    site: str
-    seed_revision: int
-    expires_at: int
-    rotation_key: str
-    payload: bytes
-
-
 class SiteSessionClient:
     def __init__(self, base_url: str, secret: bytes) -> None:
         self._http = httpx.AsyncClient(base_url=base_url, timeout=_TIMEOUT_SECONDS)
@@ -76,7 +59,7 @@ class SiteSessionClient:
             raise _failure(exc) from exc
         return response.seed_revision
 
-    async def lease(self, site: str, seed_revision: int) -> OperationSession:
+    async def lease(self, site: str, seed_revision: int) -> bytes:
         """Return a validated Netscape payload for one operation only."""
         key = X25519PrivateKey.generate()
         task_id = secrets.token_urlsafe(16)
@@ -115,14 +98,7 @@ class SiteSessionClient:
         target = site_target(site)
         payload = validated_cookie_payload(jar, target.cookie_domains)
         if headers is None:
-            return OperationSession(
-                task_id,
-                site,
-                seed_revision,
-                grant.expires_at,
-                grant.rotation_key,
-                payload,
-            )
+            return payload
         # WeChat Channels: page identity and request headers travel as private
         # Cookie entries the extractor already understands.
         try:
@@ -132,64 +108,7 @@ class SiteSessionClient:
         if not isinstance(auth, dict):
             raise RunnerFailure("provider_session_not_ready", status=503)
         extra = serialize_cookies(yuanbao_session_cookie_jar(auth))
-        return OperationSession(
-            task_id,
-            site,
-            seed_revision,
-            grant.expires_at,
-            grant.rotation_key,
-            payload + extra.split(b"\n", 1)[1],
-        )
-
-    async def rotate(self, operation: OperationSession, payload: bytes) -> None:
-        if payload == operation.payload:
-            return
-        # Extractors also visit media/API domains. Retain only this session's
-        # allowlisted cookies; those response cookies are not login failures.
-        target = site_target(operation.site)
-        cookies = parse_cookie_payload(
-            payload, target.cookie_domains, discard_unrelated=True
-        )
-        payload = (
-            b"# Netscape HTTP Cookie File\n"
-            + b"\n".join(item.line for item in cookies)
-            + b"\n"
-        )
-        try:
-            sealed = seal(
-                payload,
-                decode_public_key(operation.rotation_key),
-                associated_data=lease_associated_data(
-                    "rotation",
-                    operation.task_id,
-                    operation.site,
-                    operation.seed_revision,
-                    operation.expires_at,
-                ),
-            )
-            await self._client.post_empty(
-                ROTATION_PATH,
-                RotationReport(
-                    task_id=operation.task_id,
-                    site=operation.site,
-                    seed_revision=operation.seed_revision,
-                    jar=encode(sealed),
-                ),
-            )
-        except (RpcError, SealError) as exc:
-            raise RunnerFailure("provider_session_unavailable", status=503) from exc
-
-    async def report(self, site: str, seed_revision: int, error_code: str) -> None:
-        """Best effort: a lost report only delays the broker's own keepalive."""
-        try:
-            await self._client.post_empty(
-                FAILURE_PATH,
-                FailureReport(
-                    site=site, seed_revision=seed_revision, error_code=error_code
-                ),
-            )
-        except (RpcError, ValueError):
-            pass
+        return payload + extra.split(b"\n", 1)[1]
 
     async def close(self) -> None:
         await self._http.aclose()
