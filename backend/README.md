@@ -12,7 +12,7 @@ FastAPI API、下载/分析领域逻辑、异步 Worker、当前态数据库 SQL
 - `session-browser`（`app/workers/session/browser_app.py`，Dockerfile `session-browser` 目标）为每个站点保存持久 Chromium Profile，验证登录、保活并采集平台轮换后的 Cookie；没有数据库与密钥。
 - `session-runner`（`RUNNER_ACCESS_MODE=operator_managed`）只在 tmpfs 中为单次操作写入 `0600` Cookie jar，操作结束即删除。
 
-账号平台固定使用经过验证的会话，失败不切换到公开路线。密钥必须稳定并与数据库备份分开保管；丢失后需要重新导入。运维步骤见 [站点会话运行手册](../docs/operations/011-站点会话运行手册.md)。
+账号平台固定使用经过验证的会话，失败不切换到公开路线。密钥必须稳定并与数据库备份分开保管；丢失后需要重新导入。运维步骤见 [站点会话运行手册](../docs/design/README.md)。
 
 ## 目录约定
 
@@ -42,7 +42,7 @@ Web 登录、注册、退出和 Cookie 写操作都校验精确 Origin（缺失�
 
 浏览器登录、注册和退出通过同源 Web Locks 串行写 Cookie，避免另一标签页迟到的响应覆盖新身份。等待最多 30 秒；等待期间身份变化则取消这次操作，普通读取不占锁。Web 入口须使用 HTTPS（本地开发可用 localhost／回环地址）和支持 Web Locks 的现代浏览器；不支持时明确提示，不降级成无协调的凭据写入。
 
-此次 Web 协议需要前后端配套发布：先执行当前 `backend/sql/schema.sql`，再同时替换 API 和 Web 镜像；旧 Web 会话需重新登录一次，原有用户、任务、App 协议保留。普通服务重启复用 PostgreSQL 会话事实。回滚优先回到仍支持不透明会话的已验证镜像；不得只降级某一端，或把旧双 JWT Web 重新接入现有会话。若必须退回切换前版本，应停写并明确重新登录、旧凭据失效与 App 受影响范围，不能承诺透明回滚。完整执行证据与尚未完成的验收见 [P9.11](../docs/plan/044-开源部署无感解析Plan.md#p9-11)。
+此次 Web 协议需要前后端配套发布：先执行当前 `backend/sql/schema.sql`，再同时替换 API 和 Web 镜像；旧 Web 会话需重新登录一次，原有用户、任务、App 协议保留。普通服务重启复用 PostgreSQL 会话事实。回滚优先回到仍支持不透明会话的已验证镜像；不得只降级某一端，或把旧双 JWT Web 重新接入现有会话。若必须退回切换前版本，应停写并明确重新登录、旧凭据失效与 App 受影响范围，不能承诺透明回滚。完整执行证据与尚未完成的验收见 [P9.11](../docs/design/README.md)。
 
 Media Runner 通过 `app/workers/runner/plugins/yt_dlp_plugins/` 加载随项目交付的可信站点提取器。MediaTrack 适配仅处理无需登录的公开审片视频和 API 明确授权的播放转码；抖音适配用数字视频 ID 构造固定公开分享页并修正 landscape 下载规格的短边尺寸语义，TikTok 适配只使用其第一方嵌入播放器 item API 和 yt-dlp 默认客户端，明确无 item/HTTPS 格式、API 临时故障与响应结构漂移分别返回链接不可用、临时不可用和提取器回归，不回退网页挑战；快手适配把公开作品规范化到第一方移动分享页并限制短链重定向域，Tumblr 适配优先读取当前 `www.tumblr.com` 公开页而不强制改写到旧 blog 子域。小红书适配识别第一方 `300031` 笔记失效和 `300012` 平台验证边界，避免把失效内容误报成提取器故障。视频号适配只接受公开 `weixin.qq.com/sph/...` 单视频，读取第一方公开信息，并可在受控线路使用专用元宝会话解析；只接受批准腾讯媒体域上的非加密媒体，保护材料直接拒绝。所有适配都继续经过受控代理、作品身份校验、大小/时长限制、重新 inspect、FFmpeg 和 ffprobe 校验，不支持图集截断、账号内容、无水印承诺或原文件权限绕过。
 
@@ -50,7 +50,7 @@ Media Runner 通过 `app/workers/runner/plugins/yt_dlp_plugins/` 加载随项目
 
 管理员可通过只读接口 `GET /api/admin/provider-runtime/engine-catalog` 查询 `session-runner` 实际安装的提取器及项目插件，获取安装版本、固定依赖是否匹配和清单摘要；extractor 数量不代表可下载的平台数。首次读取在独立子进程中有界枚举，后续复用当前进程快照，更新镜像后重新生成；不访问平台、不读取账号材料。API 或 Runner 缺失时返回服务不可用，不改变本站身份。平台策略、部署就绪和真实下载证据仍分别由 Profile、管理员运行诊断 API 与实际下载验证决定。
 
-微博公开单视频支持普通帖子、移动端 status/detail、`video.weibo.com` 视频页和 `t.cn` 分享短链。短链插件在取得有效微博视频地址后立即交给微博提取器，避免通用网页跳转进入访客页面；使用无账号凭据的受控 Runner，容器重启后重新解析即可。分阶段接入设计见 [017 设计](../docs/design/017-其他短视频平台分阶段接入设计.md)。
+微博公开单视频支持普通帖子、移动端 status/detail、`video.weibo.com` 视频页和 `t.cn` 分享短链。短链插件在取得有效微博视频地址后立即交给微博提取器，避免通用网页跳转进入访客页面；使用无账号凭据的受控 Runner，容器重启后重新解析即可。分阶段接入设计见 [017 设计](../docs/design/README.md)。
 
 视觉分析默认通过宿主机 Codex App Server stdio 协议运行，也支持 `claude -p` adapter 和 Web 管理的 DeepSeek/LangChain 视觉 API，以及 OpenRouter / OpenAI 兼容 Chat Completions API；各适配器统一实现 `VideoAnalyzer` 端口并返回唯一当前态结果契约。每个 Codex 调用创建独立 ephemeral thread，完成后关闭进程，不依赖长期连接。DeepSeek 由 Worker 使用 FFmpeg 均匀生成最多 64 张、总原始证据不超过 24 MiB 的顺序 JPEG，以 base64 内联图片调用视觉模型，不暴露对象地址或客户端文件路径。分析能力由 `app/services/analysis/skills/*/SKILL.md` 注册；不运行 ASR。第三方 Endpoint、模型与 Key 只通过管理员 Web Profile 配置，Key 使用 Fernet 加密后存入 PostgreSQL 并仅在 Worker 内存中解密，不使用第三方 AI `.env`。报告以 Markdown 为唯一内容源，可安全预览和导出 Markdown/DOCX。Worker 必须在可访问 FFmpeg、队列和对象存储的宿主机运行；默认 Codex 路径还要求同一系统用户已完成官方登录。
 
@@ -58,11 +58,11 @@ Media Runner 通过 `app/workers/runner/plugins/yt_dlp_plugins/` 加载随项目
 
 ## 资源准入
 
-在线解析使用平台固定路线：原生公开接口不携带账号，其余平台使用容器自持站点会话；会话未配置或撤销时明确拒绝，不切换路线。导入、自动维护、重启恢复和人工重新登录边界见 [站点会话运行手册](../docs/operations/011-站点会话运行手册.md)。
+在线解析使用平台固定路线：原生公开接口不携带账号，其余平台使用容器自持站点会话；会话未配置或撤销时明确拒绝，不切换路线。导入、自动维护、重启恢复和人工重新登录边界见 [站点会话运行手册](../docs/design/README.md)。
 
-持久解析入口为 `POST /api/download-intents`，接单提交后返回 202；查询和取消使用同一资源 ID。API 不等待上游解析。下载 Worker 的独立解析消费槽通过 `download.intent.requested` 事件执行，失联租约和重试由同一恢复循环收敛；解析总预算 180 秒、最多三次执行。用户取消后 Worker 停止 HTTP 操作，Runner 断连处理终止实际子进程。新入口和双客户端切换状态见 [044 Plan](../docs/plan/044-开源部署无感解析Plan.md#p9-02)。解析按每日任务计量、零下载字节，同幂等键重放不重复计量。Worker 与 API 使用相同 `REQUEST_FINGERPRINT_SECRET`，生产环境禁止开发默认值。
+持久解析入口为 `POST /api/download-intents`，接单提交后返回 202；查询和取消使用同一资源 ID。API 不等待上游解析。下载 Worker 的独立解析消费槽通过 `download.intent.requested` 事件执行，失联租约和重试由同一恢复循环收敛；解析总预算 180 秒、最多三次执行。用户取消后 Worker 停止 HTTP 操作，Runner 断连处理终止实际子进程。新入口和双客户端切换状态见 [044 Plan](../docs/design/README.md)。解析按每日任务计量、零下载字节，同幂等键重放不重复计量。Worker 与 API 使用相同 `REQUEST_FINGERPRINT_SECRET`，生产环境禁止开发默认值。
 
-高成本路由显式声明速率策略，PostgreSQL 在资源/run/outbox 创建事务内统一检查账户及全局配额。配置入口为 `RATE_LIMIT_POLICIES` 与 `QUOTA_LIMITS`；幂等重放不重复扣减，取消释放活跃名额，物理清理完成后释放保留存储。报告超限是可见的终态失败；取消后迟到的报告只进入清理流程。完整计量口径和生产边界见 [上线准入设计](../docs/design/006-上线产品能力补全设计.md)。
+高成本路由显式声明速率策略，PostgreSQL 在资源/run/outbox 创建事务内统一检查账户及全局配额。配置入口为 `RATE_LIMIT_POLICIES` 与 `QUOTA_LIMITS`；幂等重放不重复扣减，取消释放活跃名额，物理清理完成后释放保留存储。报告超限是可见的终态失败；取消后迟到的报告只进入清理流程。完整计量口径和生产边界见 [上线准入设计](../docs/design/README.md)。
 
 分片上传使用 AWS SDK 的 SigV4 查询签名绑定每片精确长度，MinIO 在接收时拒绝长度不匹配；Next.js 上传代理保留 `Content-Length`。可用隔离 MinIO 运行 `TEST_MINIO_ENDPOINT=... TEST_MINIO_ACCESS_KEY=... TEST_MINIO_SECRET_KEY=... uv run pytest tests/integration/test_upload_size_boundary.py`；设置 `TEST_NEXT_UPLOAD_ORIGIN` 可一并验证独立前端代理。
 
@@ -99,10 +99,9 @@ uv run python -m app.main
 API readiness 与媒体 Runner 健康隔离。在线解析复用 `session-runner`；固定公开平台不携带账号，其余平台未导入或未验证会话时明确拒绝执行。API、
 下载 Worker 与 Canary 不等待平台健康；Worker/Canary 仅等待共享工作目录初始化。
 站点会话的可用性由 broker 状态、探针和真实任务证明，容器健康不代表平台接受会话。
-开发环境只需启用 `.env` 实际声明的平台 Profile。腾讯与优酷的实验个人线路仅在生产 Compose 提供，接入范围和未完成验证见 [032 设计](../docs/design/032-腾讯视频与优酷个人下载设计.md)。
+开发环境只需启用 `.env` 实际声明的平台 Profile。腾讯与优酷的实验个人线路仅在生产 Compose 提供，接入范围和未完成验证见 [设计文档](../docs/design/README.md)。
 
-固定 Provider 诊断矩阵和真实媒体探针命令见
-`docs/operations/007-固定Provider探针运行手册.md`。
+固定 Provider 诊断矩阵和真实媒体探针命令见 [设计文档](../docs/design/README.md) 与 `backend/app/workers/canary/`。
 
 `GET /api/providers` 将 Registry 发布验收基线、近期固定探针和已经生成完整制品的
 真实下载合并展示。长期无人使用或未配置探针不会撤销已验收能力；近期重复失败仍会
@@ -151,10 +150,10 @@ API 使用 `runtime.py` 定义类型化的 `ApiServices`，在 `app.state.servic
 
 ## 统一 AI API 接入
 
-管理员可在 AI 服务中选择 OpenRouter 或 OpenAI 兼容 API。OpenRouter 使用官方固定 Base URL，读取公开模型目录后选择模型；视频要求图像输入与结构化输出。通用兼容线路自行填写模型、Base URL 和 Key，服务须支持图像与 JSON 输出。API 线路无需 CLI，但现有宿主分析 Worker、FFmpeg 与基础服务仍需运行。修改服务地址或引擎时必须重新提供 Key。设计、能力边界及验收见 [037](../docs/design/037-统一AI执行与OpenRouter接入设计.md)。
+管理员可在 AI 服务中选择 OpenRouter 或 OpenAI 兼容 API。OpenRouter 使用官方固定 Base URL，读取公开模型目录后选择模型；视频要求图像输入与结构化输出。通用兼容线路自行填写模型、Base URL 和 Key，服务须支持图像与 JSON 输出。API 线路无需 CLI，但现有宿主分析 Worker、FFmpeg 与基础服务仍需运行。修改服务地址或引擎时必须重新提供 Key。设计、能力边界及验收见 [037](../docs/design/README.md)。
 
 Web JSON 响应及全局异常统一遵循 [PROJECT.md §3.1](../PROJECT.md#31-全局响应与异常)。持久化代码在 repositories 内按业务聚合；业务路由使用 ApiResponseRoute，生成契约随注解自动更新。
 
 ## 系统操作日志
 
-管理员日志入口、记录范围、故障语义和部署验证见[系统操作日志运行说明](../docs/operations/system-operation-logs.md)。
+管理员日志入口、记录范围、故障语义和部署验证见[系统操作日志运行说明](../docs/design/README.md)。

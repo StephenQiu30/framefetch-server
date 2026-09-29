@@ -73,11 +73,11 @@ Vitest 覆盖认证恢复、生成请求、上传、下载、分析和页面交�
 
 ## 公开页面与 SEO
 
-匿名首页与 `/guide/` 在服务端输出可阅读正文；存在会话 Cookie 的首页继续恢复工作区并禁止索引。`SITE_INDEXABLE` 默认 false，正式公开网站需明确设置 true，并使构建/运行时 `SITE_URL` 一致。调整后重建前端镜像。公开页面使用统一 canonical、OpenGraph 与 robots，sitemap 不包含私有路由。部署检查和 GEO 内容规则见 [SEO 与 GEO 运行手册](../docs/operations/010-SEO与GEO运行手册.md)。
+匿名首页与 `/guide/` 在服务端输出可阅读正文；存在会话 Cookie 的首页继续恢复工作区并禁止索引。`SITE_INDEXABLE` 默认 false，正式公开网站需明确设置 true，并使构建/运行时 `SITE_URL` 一致。调整后重建前端镜像。公开页面使用统一 canonical、OpenGraph 与 robots，sitemap 不包含私有路由。部署检查和 GEO 内容规则见 [SEO 与 GEO 运行手册](../docs/design/README.md)。
 
 ## 系统操作日志
 
-管理员日志入口、记录范围、故障语义和部署验证见[系统操作日志运行说明](../docs/operations/system-operation-logs.md)。
+管理员日志入口、记录范围、故障语义和部署验证见[系统操作日志运行说明](../docs/design/README.md)。
 
 ### 全站快捷操作
 

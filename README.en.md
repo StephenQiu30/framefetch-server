@@ -23,7 +23,7 @@
 
 ![FrameFetch open-source self-hosted video workflow public landing page](docs/images/landing.png)
 
-> The screenshots were captured from a local preview instance with `agent-browser`. Media-bearing views use the repository's visual-regression fixture; none contains real user data, credentials, or third-party hotlinks. See [`docs/images/README.md`](docs/images/README.md) for capture provenance.
+> The screenshots were captured from a local preview instance with `agent-browser`. Media-bearing views use the repository's visual-regression fixture; none contains real user data, credentials, or third-party hotlinks.
 
 ## What is FrameFetch?
 
@@ -46,7 +46,7 @@ FrameFetch is not designed to circumvent platform restrictions. Anonymous provid
 3. Run an available video, scene, shot or screenplay analysis and review its timeline and keyframe evidence against the source.
 4. Export a Markdown or DOCX report for content research, creative planning or team review.
 
-The Web instance exposes public Chinese pages — `/guide/` (usage guide), `/self-hosting/` (deployment guide) and `/about/` (scope and boundaries) — plus an English `/llms.txt` summary for generative search engines. See the capability table below and [project documentation](docs/README.md) for implementation and configuration. Available outputs depend on the configured analysis capabilities and AI service.
+The Web instance exposes public Chinese pages — `/guide/` (usage guide), `/self-hosting/` (deployment guide) and `/about/` (scope and boundaries) — plus an English `/llms.txt` summary for generative search engines. See the capability table below and [project documentation](docs/design/README.md) for implementation and configuration. Available outputs depend on the configured analysis capabilities and AI service.
 
 ### Frequently asked questions
 
@@ -136,7 +136,7 @@ uv run python -m app.workers.session.seed import --site youtube.com
 uv run python -m app.workers.session.seed status
 ```
 
-See the [site session runbook](docs/operations/011-站点会话运行手册.md).
+See the [site session runbook](docs/design/README.md).
 
 Log in to the Web app with that account, then paste a public link. The default registration flow needs SMTP for email verification, so set up SMTP before inviting users to self-register. Do not reuse the example development secrets in a public deployment.
 
@@ -162,7 +162,7 @@ curl --fail http://127.0.0.1:8111/health/ready
 curl --fail --head http://127.0.0.1:8101/
 ```
 
-Set `ANALYSIS_ENABLED=false` in `.env` when you only need downloads and screenplay imports. See the [root Compose operations guide](docs/operations/001-root-compose运行手册.md) for startup, shutdown, external infrastructure and recovery procedures.
+Set `ANALYSIS_ENABLED=false` in `.env` when you only need downloads and screenplay imports. See the [root Compose operations guide](docs/design/README.md) for startup, shutdown, external infrastructure and recovery procedures.
 Re-run the same provider startup command after updating code: `docker compose restart` does not apply a new image, configuration or source plan. An existing database requires a backup and the documented schema upgrade sequence before a behavior-version upgrade. A fresh host still requires provisioned infrastructure and a real end-to-end media check; the CI infrastructure fixture is not a production installer.
 
 ### Optional AI worker
@@ -208,7 +208,7 @@ flowchart LR
 | Storage | MinIO object storage with short-lived presigned access URLs |
 | Contract | OpenAPI is the single contract shared by the web, Flutter and server code |
 
-See the [documentation index](docs/README.md) for maintained product, design, research, acceptance and operations facts.
+See [docs/design/README.md](docs/design/README.md) for the maintained system design.
 
 ## Security and content boundaries
 
@@ -248,7 +248,7 @@ npm run build
 
 ## Contributing
 
-Contributions to provider adapters, reliability, web and mobile UX, AI reports, tests and documentation are welcome. Before opening a pull request, read the [Contributing Guide](CONTRIBUTING.md), [Code of Conduct](CODE_OF_CONDUCT.md), [repository rules](AGENTS.md), [documentation index](docs/README.md), and [Security Policy](SECURITY.md).
+Contributions to provider adapters, reliability, web and mobile UX, AI reports, tests and documentation are welcome. Before opening a pull request, read the [Contributing Guide](CONTRIBUTING.md), [Code of Conduct](CODE_OF_CONDUCT.md), [repository rules](AGENTS.md), [documentation index](docs/design/README.md), and [Security Policy](SECURITY.md).
 
 Keep implementation, OpenAPI contracts, tests, operations documentation and acceptance evidence aligned. Prefer small, independently verifiable changes.
 
@@ -260,4 +260,4 @@ To cite FrameFetch in papers, reports or course material, use “Cite this repos
 
 FrameFetch is available under the [MIT License](LICENSE). The software license does not grant rights to download, copy or analyze third-party media.
 
-For public-site indexing and generative-search visibility, see the [SEO/GEO operations guide](docs/operations/010-SEO与GEO运行手册.md) (Chinese). Private self-hosted instances default to noindex; intentionally public sites must opt in with `SITE_INDEXABLE=true` and a stable `SITE_URL` at build and runtime.
+For public-site indexing and generative-search visibility, see the [SEO/GEO operations guide](docs/design/README.md) (Chinese). Private self-hosted instances default to noindex; intentionally public sites must opt in with `SITE_INDEXABLE=true` and a stable `SITE_URL` at build and runtime.

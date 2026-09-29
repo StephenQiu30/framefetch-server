@@ -24,7 +24,7 @@
 
 ![帧取 FrameFetch 开源自托管视频工作流公开落地页](docs/images/landing.png)
 
-> 截图由 `agent-browser` 在本地预览环境中采集；涉及媒体的界面使用仓库自带视觉回归素材，所有图片均不包含真实用户数据、凭据或第三方图片热链。采集说明见 [`docs/images/README.md`](docs/images/README.md)。
+> 截图由 `agent-browser` 在本地预览环境中采集；涉及媒体的界面使用仓库自带视觉回归素材，所有图片均不包含真实用户数据、凭据或第三方图片热链。
 
 ## 帧取是什么
 
@@ -49,7 +49,7 @@
 3. 按需执行视频分镜、场景或剧本文档分析，结合时间轴与关键帧证据复核结果。
 4. 导出 Markdown / DOCX 报告，用于内容研究、创作整理与团队审阅。
 
-Web 实例提供公开页面：`/guide/` 使用指南、`/self-hosting/` 自托管部署指南、`/about/` 项目定位与边界，以及面向生成式搜索的 `/llms.txt`；完整实现与配置见下方能力表和[项目文档](docs/README.md)。模型可用性与输出内容取决于已配置的分析能力和 AI 服务。
+Web 实例提供公开页面：`/guide/` 使用指南、`/self-hosting/` 自托管部署指南、`/about/` 项目定位与边界，以及面向生成式搜索的 `/llms.txt`；完整实现与配置见下方能力表和[项目文档](docs/design/README.md)。模型可用性与输出内容取决于已配置的分析能力和 AI 服务。
 
 ### 常见问题
 
@@ -144,7 +144,7 @@ uv run --project backend python -m app.workers.bootstrap_admin \
 
 `./start` 自动应用当前数据库结构、发现已启用平台的 Chrome 登录态、加密登记并等待容器实际验证，同时安装当前用户的 macOS LaunchAgent。默认启用 YouTube、抖音；后台每 60 秒检查缺失或确认失效的会话。健康会话不反复导入，重启直接恢复数据库与持久 Profile。首次系统授权、平台扫码或验证码仍由部署者完成；在 Chrome 重新登录后，系统自动接入，无需再执行导入命令。
 
-多个 Profile 均已登录时，在 `.env` 的 `SITE_SESSION_SOURCE_PROFILES` 一次性指定来源；首次选定后绑定该 Profile，避免自动切换账号。撤销的会话不会被后台恢复。支持范围、状态检查和退出后台服务见[站点会话运行手册](docs/operations/011-站点会话运行手册.md)。其他平台须具备登录探针并通过真实文件验收，不能仅凭 Cookie 宣布可用。
+多个 Profile 均已登录时，在 `.env` 的 `SITE_SESSION_SOURCE_PROFILES` 一次性指定来源；首次选定后绑定该 Profile，避免自动切换账号。撤销的会话不会被后台恢复。支持范围、状态检查和退出后台服务见[站点会话运行手册](docs/design/README.md)。其他平台须具备登录探针并通过真实文件验收，不能仅凭 Cookie 宣布可用。
 
 纯容器生产部署使用以下入口（恢复已有加密会话；不会自动读取远端 Mac 的浏览器）：
 
@@ -166,7 +166,7 @@ curl --fail http://127.0.0.1:8111/health/ready
 curl --fail --head http://127.0.0.1:8101/
 ```
 
-只需要下载与剧本文档导入时，可在 `.env` 中设置 `ANALYSIS_ENABLED=false`。完整的启动、停止、已有基础环境复用和故障恢复方式见 [Compose 运行手册](docs/operations/001-root-compose运行手册.md)。更新代码时先执行 `git pull --ff-only`，再重新运行上面的统一启动命令；`docker compose restart` 不会重新评估 Provider 来源，也不会应用新镜像或环境配置。
+只需要下载与剧本文档导入时，可在 `.env` 中设置 `ANALYSIS_ENABLED=false`。完整的启动、停止、已有基础环境复用和故障恢复方式见 [Compose 运行手册](docs/design/README.md)。更新代码时先执行 `git pull --ff-only`，再重新运行上面的统一启动命令；`docker compose restart` 不会重新评估 Provider 来源，也不会应用新镜像或环境配置。
 
 ### 启用 AI 分析
 
@@ -218,13 +218,13 @@ flowchart LR
 | Storage | MinIO 对象存储与短时预签名访问地址 |
 | Contract | OpenAPI 是 Web、Flutter 与服务端之间的唯一接口契约 |
 
-详细的产品、设计、研究、验收和运维事实收录在 [文档索引](docs/README.md)。
+完整的系统设计收录在 [docs/design/README.md](docs/design/README.md)。
 
 ## 安全与合规边界
 
 - 只处理你拥有相应权利的内容，并遵守内容来源、所在地和部署环境适用的法律与平台规则。
 - 匿名 Provider 只接受公开、免费、非 DRM 的 HTTP(S) 内容；私网 URL、任意 yt-dlp 参数和 shell 输入始终禁止。
-- 普通业务请求不接收原始 Cookie。站点会话以密文保存在 PostgreSQL，只有 `session-broker` 持有密钥；每次操作的明文副本只进入 `session-runner` 的 tmpfs，结束后销毁，不进入普通日志或其他 Worker。见[站点会话运行手册](docs/operations/011-站点会话运行手册.md)。
+- 普通业务请求不接收原始 Cookie。站点会话以密文保存在 PostgreSQL，只有 `session-broker` 持有密钥；每次操作的明文副本只进入 `session-runner` 的 tmpfs，结束后销毁，不进入普通日志或其他 Worker。见[站点会话运行手册](docs/design/README.md)。
 - Edge Agent 只能传输用户已合法取得并明确选择的明文文件，不能读取平台会话、拦截流量、提取密钥或转换受保护媒体。
 - 外部媒体访问必须经过阻断私网的出口代理；入口 URL 校验不能替代网络隔离。
 
@@ -232,7 +232,7 @@ flowchart LR
 
 ## 当前限制
 
-- 腾讯视频与优酷已增加可选个人会话下载路径，仅尝试获取账号可访问的完整非 DRM 内容；完整 VIP 下载尚待真实样本验证，参见 [032 设计](docs/design/032-腾讯视频与优酷个人下载设计.md)与[站点会话运行手册](docs/operations/011-站点会话运行手册.md)。
+- 腾讯视频与优酷已增加可选个人会话下载路径，仅尝试获取账号可访问的完整非 DRM 内容；完整 VIP 下载尚待真实样本验证，参见 [032 设计](docs/design/README.md)与[站点会话运行手册](docs/design/README.md)。
 
 - 项目仍在持续演进，目前提供自托管源码和 Compose 运行方式，不承诺官方 SaaS、公共演示站或服务可用性 SLA。
 - Provider 能力受来源页面和平台变化影响；平台名称不代表对所有内容、地区或账户权益都可用。
@@ -263,7 +263,7 @@ pnpm build
 ```text
 backend/                 FastAPI、领域逻辑、Worker、Runner 与当前态 SQL
 frontend/                Next.js App Router、业务组件、Hooks 与 OpenAPI 客户端
-docs/                    设计、需求、计划、验收、研究和运维事实
+docs/                    系统设计文档与 README 截图资源
 backend/Dockerfile       API、Worker、Runner 镜像
 frontend/Dockerfile      Next.js 独立镜像
 docker-compose-env.yml   GitHub CI 隔离测试夹具，不用于本机启动
@@ -278,7 +278,7 @@ docker-compose-prod.yml  生产业务差异
 - [贡献指南](CONTRIBUTING.md)
 - [社区行为准则](CODE_OF_CONDUCT.md)
 - [仓库协作规范](AGENTS.md)
-- [文档索引](docs/README.md)
+- [文档索引](docs/design/README.md)
 - [安全策略](SECURITY.md)
 
 提交变更时，请保持实现、OpenAPI 契约、测试、运行手册和验收证据一致，并只提交小而完整、可独立验证的改动。
@@ -291,4 +291,4 @@ docker-compose-prod.yml  生产业务差异
 
 FrameFetch 基于 [MIT License](LICENSE) 开源。MIT 许可证授予软件使用、修改和分发权，不代表授予任何第三方媒体内容的下载、复制或分析权。
 
-公开网站的索引配置、生成式搜索可发现性与上线核查见 [SEO 与 GEO 运行手册](docs/operations/010-SEO与GEO运行手册.md)。个人自托管实例默认不开放索引。
+公开网站的索引配置、生成式搜索可发现性与上线核查见 [SEO 与 GEO 运行手册](docs/design/README.md)。个人自托管实例默认不开放索引。

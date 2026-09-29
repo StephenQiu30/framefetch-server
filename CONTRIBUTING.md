@@ -9,14 +9,14 @@
 - `docs/`：当前产品和架构事实。
 - 根 `Dockerfile`、`docker-compose-env.yml`、`docker-compose.yml` 与 `docker-compose-prod.yml`：维护业务运行与 CI 验证，不建立独立部署目录。业务与生产 Compose 只启动应用容器；环境 Compose 仅供 GitHub CI 使用。
 
-功能交付遵循 `Design → PRD → Plan → Acceptance`，并保持测试、契约、文档和实际运行方式一致。具体目录、依赖、安全、配置和测试规则以 `AGENTS.md` 为准。提交前分别运行后端与前端质量门禁；涉及运行时变更时还需验证环境 Compose、业务 Compose、生产 Compose 和统一镜像构建。
+功能交付先更新 `docs/design/README.md`，并保持测试、契约、文档和实际运行方式一致。具体目录、依赖、安全、配置和测试规则以 `AGENTS.md` 为准。提交前分别运行后端与前端质量门禁；涉及运行时变更时还需验证环境 Compose、业务 Compose、生产 Compose 和统一镜像构建。
 
 ## Docker 使用规范
 
 - 本机直接复用已有基础服务和环境配置；`docker-compose-env.yml` 仅用于 GitHub CI，`docker-compose.yml` 只启动业务服务；`docker-compose-prod.yml` 只启动生产业务服务。
 - 业务服务通过 `.env` 的 `POSTGRES_HOST/PORT`、`RABBITMQ_HOST/PORT`、`REDIS_HOST/PORT`、`MINIO_HOST/PORT` 连接基础服务。填写宿主机可达地址和实际端口，容器默认使用 `host.docker.internal`。
 - 不得覆盖已有 `.env`，也不为本机验证启动基础服务。MinIO 只使用一组共享的 `MINIO_ACCESS_KEY` 与 `MINIO_SECRET_KEY`。
-- GitHub CI 使用隔离夹具；本地验证复用正在运行的基础服务，不创建新的环境或启动脚本。详细启动、停止和故障恢复规则见 [根目录 Compose 运行手册](docs/operations/001-root-compose运行手册.md)。
+- GitHub CI 使用隔离夹具；本地验证复用正在运行的基础服务，不创建新的环境或启动脚本。详细启动、停止和故障恢复规则见 [根目录 Compose 运行手册](docs/design/README.md)。
 
 安全边界和漏洞报告方式见 `SECURITY.md`；任何下载能力变更都必须保留公开、授权、非 DRM 的产品边界。
 
