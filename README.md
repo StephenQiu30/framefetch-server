@@ -6,12 +6,14 @@
   <p>
     <a href="https://github.com/StephenQiu30/video-server/actions/workflows/ci.yml"><img src="https://github.com/StephenQiu30/video-server/actions/workflows/ci.yml/badge.svg" alt="CI 状态" /></a>
     <a href="https://github.com/StephenQiu30/video-server/releases"><img src="https://img.shields.io/github/v/release/StephenQiu30/video-server?color=111111" alt="Latest release" /></a>
+    <a href="https://github.com/StephenQiu30/video-server/stargazers"><img src="https://img.shields.io/github/stars/StephenQiu30/video-server?style=flat&color=111111" alt="GitHub stars" /></a>
     <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-111111.svg" alt="MIT License" /></a>
     <img src="https://img.shields.io/badge/Python-3.12-3776AB.svg" alt="Python 3.12" />
     <img src="https://img.shields.io/badge/Next.js-16-000000.svg" alt="Next.js 16" />
     <img src="https://img.shields.io/badge/Docker-Compose-2496ED.svg" alt="Docker Compose" />
   </p>
   <p>
+    <a href="#最新动态">最新动态</a> ·
     <a href="#快速开始">快速开始</a> ·
     <a href="#适用场景">适用场景</a> ·
     <a href="#产品能力">产品能力</a> ·
@@ -32,6 +34,17 @@
 
 项目不是规避平台限制的下载脚本。默认能力只处理用户有权使用、公开、免费且非 DRM 的 HTTP(S) 内容；受保护、会员、私密、购买或地域限制内容不属于项目目标。
 
+## 最新动态
+
+**[v0.2.0](https://github.com/StephenQiu30/video-server/releases/tag/v0.2.0) · 容器自持平台会话**
+
+- `./start` 一条命令完成：应用数据库结构、发现本机 Chrome 已登录的平台会话、加密登记并由容器验证，随后启动全部业务容器。
+- 平台会话由 `session-broker` 与容器会话浏览器自持：冷启动恢复、保活、失效检测与自动轮换，普通用户只需粘贴链接。
+- 在线解析统一走站点会话路线，移除匿名与访客执行路线，结果以真实文件验收为准。
+- Web 体验：头像上传与个人资料、统一的解析结果双栏卡片、可恢复错误提示与 shadcn 组件整理。
+
+从 v0.1.0 升级前请先阅读 [Release 说明](https://github.com/StephenQiu30/video-server/releases/tag/v0.2.0)中的不兼容变更。
+
 ## 适用场景
 
 - **短视频与影视拆解**：导入自己的成片或已获授权的公开视频，生成分镜、场景时间轴与关键帧证据，复盘镜头节奏与叙事结构。
@@ -49,7 +62,7 @@
 3. 按需执行视频分镜、场景或剧本文档分析，结合时间轴与关键帧证据复核结果。
 4. 导出 Markdown / DOCX 报告，用于内容研究、创作整理与团队审阅。
 
-Web 实例提供公开页面：`/guide/` 使用指南、`/self-hosting/` 自托管部署指南、`/about/` 项目定位与边界，以及面向生成式搜索的 `/llms.txt`；完整实现与配置见下方能力表和[项目文档](docs/design/README.md)。模型可用性与输出内容取决于已配置的分析能力和 AI 服务。
+Web 实例提供公开页面：`/guide/` 使用指南、`/self-hosting/` 自托管部署指南、`/about/` 项目定位与边界，以及面向生成式搜索的 `/llms.txt`；完整实现与配置见下方能力表和[设计文档索引](docs/design/README.md)。模型可用性与输出内容取决于已配置的分析能力和 AI 服务。
 
 ### 常见问题
 
@@ -144,7 +157,7 @@ uv run --project backend python -m app.workers.bootstrap_admin \
 
 `./start` 自动应用当前数据库结构、发现已启用平台的 Chrome 登录态、加密登记并等待容器实际验证，同时安装当前用户的 macOS LaunchAgent。默认启用 YouTube、抖音；后台每 60 秒检查缺失或确认失效的会话。健康会话不反复导入，重启直接恢复数据库与持久 Profile。首次系统授权、平台扫码或验证码仍由部署者完成；在 Chrome 重新登录后，系统自动接入，无需再执行导入命令。
 
-多个 Profile 均已登录时，在 `.env` 的 `SITE_SESSION_SOURCE_PROFILES` 一次性指定来源；首次选定后绑定该 Profile，避免自动切换账号。撤销的会话不会被后台恢复。支持范围、状态检查和退出后台服务见[站点会话运行手册](docs/design/README.md)。其他平台须具备登录探针并通过真实文件验收，不能仅凭 Cookie 宣布可用。
+多个 Profile 均已登录时，在 `.env` 的 `SITE_SESSION_SOURCE_PROFILES` 一次性指定来源；首次选定后绑定该 Profile，避免自动切换账号。撤销的会话不会被后台恢复。支持范围、状态检查和退出后台服务见[平台会话设计](docs/design/08-平台会话.md)。其他平台须具备登录探针并通过真实文件验收，不能仅凭 Cookie 宣布可用。
 
 纯容器生产部署使用以下入口（恢复已有加密会话；不会自动读取远端 Mac 的浏览器）：
 
@@ -166,7 +179,7 @@ curl --fail http://127.0.0.1:8111/health/ready
 curl --fail --head http://127.0.0.1:8101/
 ```
 
-只需要下载与剧本文档导入时，可在 `.env` 中设置 `ANALYSIS_ENABLED=false`。完整的启动、停止、已有基础环境复用和故障恢复方式见 [Compose 运行手册](docs/design/README.md)。更新代码时先执行 `git pull --ff-only`，再重新运行上面的统一启动命令；`docker compose restart` 不会重新评估 Provider 来源，也不会应用新镜像或环境配置。
+只需要下载与剧本文档导入时，可在 `.env` 中设置 `ANALYSIS_ENABLED=false`。完整的启动、停止、已有基础环境复用和故障恢复方式见[可靠性与运行](docs/design/13-可靠性与运行.md)。更新代码时先执行 `git pull --ff-only`，再重新运行上面的统一启动命令；`docker compose restart` 不会重新评估 Provider 来源，也不会应用新镜像或环境配置。
 
 ### 启用 AI 分析
 
@@ -223,8 +236,8 @@ flowchart LR
 ## 安全与合规边界
 
 - 只处理你拥有相应权利的内容，并遵守内容来源、所在地和部署环境适用的法律与平台规则。
-- 匿名 Provider 只接受公开、免费、非 DRM 的 HTTP(S) 内容；私网 URL、任意 yt-dlp 参数和 shell 输入始终禁止。
-- 普通业务请求不接收原始 Cookie。站点会话以密文保存在 PostgreSQL，只有 `session-broker` 持有密钥；每次操作的明文副本只进入 `session-runner` 的 tmpfs，结束后销毁，不进入普通日志或其他 Worker。见[站点会话运行手册](docs/design/README.md)。
+- Provider 只接受公开、免费、非 DRM 的 HTTP(S) 内容；私网 URL、任意 yt-dlp 参数和 shell 输入始终禁止。
+- 普通业务请求不接收原始 Cookie。站点会话以密文保存在 PostgreSQL，只有 `session-broker` 持有密钥；每次操作的明文副本只进入 `session-runner` 的 tmpfs，结束后销毁，不进入普通日志或其他 Worker。见[平台会话设计](docs/design/08-平台会话.md)。
 - Edge Agent 只能传输用户已合法取得并明确选择的明文文件，不能读取平台会话、拦截流量、提取密钥或转换受保护媒体。
 - 外部媒体访问必须经过阻断私网的出口代理；入口 URL 校验不能替代网络隔离。
 
@@ -232,8 +245,7 @@ flowchart LR
 
 ## 当前限制
 
-- 腾讯视频与优酷已增加可选个人会话下载路径，仅尝试获取账号可访问的完整非 DRM 内容；完整 VIP 下载尚待真实样本验证，参见 [032 设计](docs/design/README.md)与[站点会话运行手册](docs/design/README.md)。
-
+- 腾讯视频与优酷已增加可选个人会话下载路径，仅尝试获取账号可访问的完整非 DRM 内容；完整 VIP 下载尚待真实样本验证，参见[平台与 Provider 体系](docs/design/07-平台与Provider.md)与[平台会话设计](docs/design/08-平台会话.md)。
 - 项目仍在持续演进，目前提供自托管源码和 Compose 运行方式，不承诺官方 SaaS、公共演示站或服务可用性 SLA。
 - Provider 能力受来源页面和平台变化影响；平台名称不代表对所有内容、地区或账户权益都可用。
 - AI 分析依赖独立宿主机 Agent 或部署方配置的模型服务，关闭 AI 不影响下载和文档导入。
@@ -271,6 +283,10 @@ docker-compose.yml       Web、API、Worker、Runner 与出口代理
 docker-compose-prod.yml  生产业务差异
 ```
 
+## 路线图
+
+各领域的实现状态与技术债统一维护在[状态与待办](docs/design/14-状态与待办.md)，规划中的创作与发布流程见[内容创作与发布](docs/design/11-内容创作与发布.md)。欢迎在 [Issues](https://github.com/StephenQiu30/video-server/issues) 中讨论优先级，带有 `good first issue` / `help wanted` 标签的任务适合首次参与。
+
 ## 参与贡献
 
 欢迎通过 Issue 或 Pull Request 参与 Provider 适配、可靠性、前端与移动端体验、AI 报告、测试和文档建设。开始前请阅读：
@@ -283,6 +299,8 @@ docker-compose-prod.yml  生产业务差异
 
 提交变更时，请保持实现、OpenAPI 契约、测试、运行手册和验收证据一致，并只提交小而完整、可独立验证的改动。
 
+如果帧取对你的创作、研究或自托管实践有帮助，欢迎点亮 **Star**，并关注 [Releases](https://github.com/StephenQiu30/video-server/releases) 获取版本更新；这也是项目持续维护的最大动力。
+
 ## 引用
 
 在论文、报告或课程材料中使用帧取时，可点击仓库侧栏的 “Cite this repository”，或直接使用根目录的 [`CITATION.cff`](CITATION.cff)。版本变更见 [Releases](https://github.com/StephenQiu30/video-server/releases)。
@@ -291,4 +309,4 @@ docker-compose-prod.yml  生产业务差异
 
 FrameFetch 基于 [MIT License](LICENSE) 开源。MIT 许可证授予软件使用、修改和分发权，不代表授予任何第三方媒体内容的下载、复制或分析权。
 
-公开网站的索引配置、生成式搜索可发现性与上线核查见 [SEO 与 GEO 运行手册](docs/design/README.md)。个人自托管实例默认不开放索引。
+公开网站的索引配置、生成式搜索可发现性与上线核查见 [Web 体验与 SEO](docs/design/12-Web体验.md)。个人自托管实例默认不开放索引。

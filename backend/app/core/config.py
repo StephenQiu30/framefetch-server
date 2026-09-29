@@ -120,7 +120,7 @@ class Settings(BaseSettings):
     ] = "api"
     app_host: str = "0.0.0.0"
     app_port: int = Field(default=8111, ge=1, le=65535)
-    app_version: str = "0.1.0"
+    app_version: str = "0.2.0"
     readiness_timeout_seconds: float = Field(default=2.0, ge=0.1, le=10)
     request_max_bytes: int = Field(default=256 * 1024, ge=1024, le=4 * 1024 * 1024)
     request_timeout_seconds: float = Field(default=180, ge=1, le=300)

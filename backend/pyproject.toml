@@ -1,6 +1,6 @@
 [project]
 name = "video-server-backend"
-version = "0.1.0"
+version = "0.2.0"
 description = "Backend runtime for the universal video downloader"
 requires-python = ">=3.12,<3.13"
 readme = "README.md"

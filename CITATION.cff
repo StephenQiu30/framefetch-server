@@ -7,6 +7,8 @@ abstract: >-
   with Markdown and DOCX reports, built on FastAPI, Next.js, PostgreSQL,
   RabbitMQ and MinIO.
 type: software
+version: 0.2.0
+date-released: "2026-09-29"
 authors:
   - alias: StephenQiu30
 repository-code: "https://github.com/StephenQiu30/video-server"
@@ -18,3 +20,5 @@ keywords:
   - media-processing
   - fastapi
   - nextjs
+  - video-downloader
+  - llm

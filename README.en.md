@@ -5,12 +5,14 @@
   <p>
     <a href="https://github.com/StephenQiu30/video-server/actions/workflows/ci.yml"><img src="https://github.com/StephenQiu30/video-server/actions/workflows/ci.yml/badge.svg" alt="CI status" /></a>
     <a href="https://github.com/StephenQiu30/video-server/releases"><img src="https://img.shields.io/github/v/release/StephenQiu30/video-server?color=111111" alt="Latest release" /></a>
+    <a href="https://github.com/StephenQiu30/video-server/stargazers"><img src="https://img.shields.io/github/stars/StephenQiu30/video-server?style=flat&color=111111" alt="GitHub stars" /></a>
     <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-111111.svg" alt="MIT License" /></a>
     <img src="https://img.shields.io/badge/Python-3.12-3776AB.svg" alt="Python 3.12" />
     <img src="https://img.shields.io/badge/Next.js-16-000000.svg" alt="Next.js 16" />
     <img src="https://img.shields.io/badge/Docker-Compose-2496ED.svg" alt="Docker Compose" />
   </p>
   <p>
+    <a href="#whats-new">What's new</a> ·
     <a href="#quick-start">Quick start</a> ·
     <a href="#use-cases">Use cases</a> ·
     <a href="#capabilities">Capabilities</a> ·
@@ -29,7 +31,18 @@
 
 FrameFetch is an open-source, self-hosted video downloader and media workflow for creators, content researchers and developers. It turns an authorized public-media URL, local video or screenplay into an observable, recoverable job: inspect the source, select a real format, download and verify it in an isolated runner, persist the artifact, and optionally produce a structured AI analysis report.
 
-FrameFetch is not designed to circumvent platform restrictions. Anonymous providers only handle content that can be positively identified as public, free and non-DRM. Membership, private, purchased, region-restricted and protected playback rights are outside the project's scope.
+FrameFetch is not designed to circumvent platform restrictions. By default it only handles HTTP(S) content the user is entitled to use and that is public, free and non-DRM. Membership, private, purchased, region-restricted and protected playback rights are outside the project's scope.
+
+## What's new
+
+**[v0.2.0](https://github.com/StephenQiu30/video-server/releases/tag/v0.2.0) · Container-owned platform sessions**
+
+- One command, `./start`, applies the schema, discovers platform logins from your local Chrome, registers them encrypted, has the containers verify them and starts every business service.
+- Platform sessions are owned by `session-broker` and a containerized session browser: cold-start recovery, keep-alive, invalidation detection and automatic rotation. Users just paste a link.
+- Online parsing always uses the site-session route; the anonymous and guest execution routes were removed, and success is judged by a real downloaded file.
+- Web UX: avatar upload and profile page, unified two-column result cards, recoverable error notices and shadcn component clean-up.
+
+Read the breaking changes in the [release notes](https://github.com/StephenQiu30/video-server/releases/tag/v0.2.0) before upgrading from v0.1.0.
 
 ## Use cases
 
@@ -46,7 +59,7 @@ FrameFetch is not designed to circumvent platform restrictions. Anonymous provid
 3. Run an available video, scene, shot or screenplay analysis and review its timeline and keyframe evidence against the source.
 4. Export a Markdown or DOCX report for content research, creative planning or team review.
 
-The Web instance exposes public Chinese pages — `/guide/` (usage guide), `/self-hosting/` (deployment guide) and `/about/` (scope and boundaries) — plus an English `/llms.txt` summary for generative search engines. See the capability table below and [project documentation](docs/design/README.md) for implementation and configuration. Available outputs depend on the configured analysis capabilities and AI service.
+The Web instance exposes public Chinese pages — `/guide/` (usage guide), `/self-hosting/` (deployment guide) and `/about/` (scope and boundaries) — plus an English `/llms.txt` summary for generative search engines. See the capability table below and the [design index](docs/design/README.md) (Chinese) for implementation and configuration. Available outputs depend on the configured analysis capabilities and AI service.
 
 ### Frequently asked questions
 
@@ -95,14 +108,16 @@ The web application includes media inspection and download, job history and deta
 
 ## Quick start
 
-The standard business topology includes the pinned media engine and an automatic guest maintainer for public Douyin content. On first start, the maintainer starts preparing its guest context in the background; a user can paste an authorized public link or share text without exporting browser cookies. Check the deployment state with `docker compose exec -T provider-guest python -m app.workers.runner.provider_guest_manager status`. Only `published_lease_usable=true` confirms that a guest lease has been published; container health alone does not prove a media download. Other public links may use an anonymous provider or the bounded Generic single-video route. Extractor candidates are not verified downloads. Account-restricted or otherwise protected content still depends on the platform's access rules; ordinary users do not install an extension or supply cookies.
+Use `docker-compose.yml` for local development and `docker-compose-prod.yml` for production. Online parsing requires the operator to configure valid site sessions; the anonymous and guest execution routes have been removed. Ordinary users still just paste a public link, while the containers verify, maintain and rotate sessions. When a session is missing, revoked or needs a new login, FrameFetch reports the missing deployment prerequisite instead of silently switching routes. An installed extractor, an existing cookie or a healthy service does not prove that media can be downloaded; only a real file result does.
 
 ### Requirements
 
 - Docker Engine and Docker Compose
-- `uv` for the deployment-host startup and first-admin commands
+- For the automatic macOS entry point: `uv`, platform logins already present in your local Chrome, and a one-time system read permission
 - Existing PostgreSQL, RabbitMQ, Redis and MinIO services; reuse their addresses and credentials
-- Strong random secrets and a public origin are required before an internet-facing deployment
+- Strong random secrets and a public origin before any internet-facing deployment
+
+### Automatic local start (macOS)
 
 ```bash
 git clone https://github.com/StephenQiu30/video-server.git
@@ -111,43 +126,37 @@ test -f .env || cp .env.example .env
 
 # Configure .env to reuse existing PostgreSQL, RabbitMQ, Redis and MinIO
 
-# Initialize an empty project database with the current schema before starting
-# services. These local connection parameters are examples from .env.example;
-# use the actual DDL account for your database and back up an existing one first.
+# Initialize an empty project database with the current schema first.
+# These connection parameters are examples from .env.example; use the actual
+# DDL account for your database and back up an existing one before upgrading.
 # -W reads the password interactively.
 psql -X -v ON_ERROR_STOP=1 -W -h 127.0.0.1 -U video -d video \
   -f backend/sql/schema.sql
 
-# Start Web, API, workers, runners, site session services and the egress proxy
-docker compose --env-file .env -f docker-compose.yml up -d --build --wait
+# Prepare platform sessions, install the background session source,
+# then build and start the business containers
+./start
 ```
 
-For an empty user table, create the first administrator on the deployment host. The command prompts for a password, writes its Argon2 hash, and refuses to run once any user exists; it does not expose a remote bootstrap endpoint:
+For an empty user table, create the first administrator on the deployment host. The command prompts for a password, refuses to run once any user exists, and does not expose a remote bootstrap endpoint:
 
 ```bash
 uv run --project backend python -m app.workers.bootstrap_admin \
   --env-file .env --username your-admin --email you@example.com
 ```
 
-Sites that need a login (YouTube, Douyin accounts, Reddit, WeChat Channels, Youku, Tencent Video or any other site) use one mechanism: import the logged-in state from your local Chrome **once**, and the container session browser keeps it alive afterwards. A site with an imported session never falls back to anonymous access. From `backend/` in a local terminal (macOS asks for Keychain access once):
+Then sign in to the Web app. The default registration flow needs a real SMTP server (`SMTP_ENABLED=true`) before other users can self-register; existing accounts can always sign in. Replace every example secret in a public deployment.
+
+### Site sessions
+
+`./start` applies the current database schema, discovers Chrome logins for enabled platforms, registers them encrypted, waits for the containers to verify them, and installs a per-user macOS LaunchAgent. YouTube and Douyin are enabled by default. The agent checks every 60 seconds for missing or confirmed-invalid sessions; healthy sessions are not re-imported, and restarts restore from the database and persistent profile. The first system permission, QR scan or verification code is still completed by the operator; after you sign in again in Chrome, the session is picked up automatically without running any import command.
+
+If several Chrome profiles are signed in, pin the source once with `SITE_SESSION_SOURCE_PROFILES` in `.env`. Revoked sessions are never restored in the background. See the [platform session design](docs/design/08-平台会话.md) (Chinese) for scope, status checks and uninstalling the background source. Other platforms need a login probe and real-file acceptance before they are considered available.
+
+Container-only production deployments restore existing encrypted sessions and never read a remote Mac's browser:
 
 ```bash
-uv run python -m app.workers.session.seed import --site youtube.com
-uv run python -m app.workers.session.seed status
-```
-
-See the [site session runbook](docs/design/README.md).
-
-Log in to the Web app with that account, then paste a public link. The default registration flow needs SMTP for email verification, so set up SMTP before inviting users to self-register. Do not reuse the example development secrets in a public deployment.
-
-PowerShell:
-
-```powershell
-if (-not (Test-Path .env)) { Copy-Item .env.example .env }
-# Initialize an empty project database with your DDL account first.
-psql -X -v ON_ERROR_STOP=1 -W -h 127.0.0.1 -U video -d video -f backend/sql/schema.sql
-docker compose --env-file .env -f docker-compose.yml up -d --build --wait
-uv run --project backend python -m app.workers.bootstrap_admin --env-file .env --username your-admin --email you@example.com
+docker compose --env-file .env.prod -f docker-compose-prod.yml up -d --build --wait
 ```
 
 Open the services after startup:
@@ -162,8 +171,7 @@ curl --fail http://127.0.0.1:8111/health/ready
 curl --fail --head http://127.0.0.1:8101/
 ```
 
-Set `ANALYSIS_ENABLED=false` in `.env` when you only need downloads and screenplay imports. See the [root Compose operations guide](docs/design/README.md) for startup, shutdown, external infrastructure and recovery procedures.
-Re-run the same provider startup command after updating code: `docker compose restart` does not apply a new image, configuration or source plan. An existing database requires a backup and the documented schema upgrade sequence before a behavior-version upgrade. A fresh host still requires provisioned infrastructure and a real end-to-end media check; the CI infrastructure fixture is not a production installer.
+Set `ANALYSIS_ENABLED=false` in `.env` when you only need downloads and screenplay imports. See [reliability and operations](docs/design/13-可靠性与运行.md) (Chinese) for startup, shutdown, existing infrastructure and recovery. After updating code, run `git pull --ff-only` and the same start command again: `docker compose restart` does not apply a new image or configuration.
 
 ### Optional AI worker
 
@@ -175,6 +183,13 @@ uv sync --frozen --dev
 uv run python -m app.workers.analysis.agent_cli doctor
 uv run python -m app.workers.analysis.agent_cli install
 uv run python -m app.workers.analysis.agent_cli status
+```
+
+When the business services use `.env.prod`, the host agent must read the same file:
+
+```bash
+uv run python -m app.workers.analysis.agent_cli doctor --env-file ../.env.prod
+uv run python -m app.workers.analysis.agent_cli install --env-file ../.env.prod
 ```
 
 Do not copy or mount Codex/Claude OAuth directories into containers. Before enabling an external model, run a canary with authorized material and review the provider's terms and your organization's data policy.
@@ -213,8 +228,8 @@ See [docs/design/README.md](docs/design/README.md) for the maintained system des
 ## Security and content boundaries
 
 - Process only content you are legally authorized to download or analyze.
-- Anonymous providers accept only public, free and non-DRM HTTP(S) content. Private-network URLs, arbitrary yt-dlp arguments and shell input are always rejected.
-- Normal API requests never accept raw cookies. Provider credentials are limited to the corresponding read-only, isolated runner and must not enter the browser, ordinary logs or unrelated workers.
+- Providers accept only public, free and non-DRM HTTP(S) content. Private-network URLs, arbitrary yt-dlp arguments and shell input are always rejected.
+- Normal API requests never accept raw cookies. Site sessions are stored encrypted in PostgreSQL and only `session-broker` holds the key; each operation's plaintext copy lives only in the `session-runner` tmpfs and is destroyed afterwards, never reaching ordinary logs or other workers.
 - An edge agent may transfer only a clear file the user has legally obtained and explicitly selected. It must not inspect platform sessions, intercept traffic, extract content keys or transform protected media.
 - External media access must pass through an egress proxy that blocks private networks; input validation is not a substitute for network isolation.
 
@@ -222,6 +237,7 @@ Do not disclose exploit details, secrets or user content in a public issue. Foll
 
 ## Current limitations
 
+- Tencent Video and Youku have an optional personal-session path that only attempts full, non-DRM content the account can access; full VIP downloads still await real-sample verification.
 - FrameFetch is evolving open-source software. It currently provides self-hosted source and Compose workflows, not an official SaaS, public demo or availability SLA.
 - Provider behavior can change with source pages and platforms. A platform name does not imply support for every item, region or account entitlement.
 - AI analysis needs a separate host agent or a deployment-configured model service. Disabling AI does not disable downloads or document imports.
@@ -230,7 +246,7 @@ Do not disclose exploit details, secrets or user content in a public issue. Foll
 
 ## Development
 
-The frontend requires Node.js `>=24.15 <25` and npm 11. The backend requires Python `>=3.12 <3.13` and [uv](https://docs.astral.sh/uv/).
+The frontend requires Node.js `>=24.15 <25` and pnpm 12. The backend requires Python `>=3.12 <3.13` and [uv](https://docs.astral.sh/uv/).
 
 ```bash
 cd backend
@@ -240,17 +256,23 @@ uv run --frozen mypy --strict app
 uv run --frozen pytest -q
 
 cd ../frontend
-npm ci
-npm run lint
-npm test
-npm run build
+pnpm install --frozen-lockfile
+pnpm lint
+pnpm test
+pnpm build
 ```
+
+## Roadmap
+
+Implementation status and technical debt for every area are tracked in [status and backlog](docs/design/14-状态与待办.md) (Chinese); the planned creation and publishing flow is described in [content creation and publishing](docs/design/11-内容创作与发布.md). Discuss priorities in [Issues](https://github.com/StephenQiu30/video-server/issues) — tasks labeled `good first issue` or `help wanted` are a good place to start.
 
 ## Contributing
 
 Contributions to provider adapters, reliability, web and mobile UX, AI reports, tests and documentation are welcome. Before opening a pull request, read the [Contributing Guide](CONTRIBUTING.md), [Code of Conduct](CODE_OF_CONDUCT.md), [repository rules](AGENTS.md), [documentation index](docs/design/README.md), and [Security Policy](SECURITY.md).
 
 Keep implementation, OpenAPI contracts, tests, operations documentation and acceptance evidence aligned. Prefer small, independently verifiable changes.
+
+If FrameFetch helps your creative work, research or self-hosting setup, please give it a **Star** and watch [Releases](https://github.com/StephenQiu30/video-server/releases) for updates — it is the best way to keep the project maintained.
 
 ## Citation
 
@@ -260,4 +282,4 @@ To cite FrameFetch in papers, reports or course material, use “Cite this repos
 
 FrameFetch is available under the [MIT License](LICENSE). The software license does not grant rights to download, copy or analyze third-party media.
 
-For public-site indexing and generative-search visibility, see the [SEO/GEO operations guide](docs/design/README.md) (Chinese). Private self-hosted instances default to noindex; intentionally public sites must opt in with `SITE_INDEXABLE=true` and a stable `SITE_URL` at build and runtime.
+For public-site indexing and generative-search visibility, see [Web experience and SEO](docs/design/12-Web体验.md) (Chinese). Private self-hosted instances default to noindex; intentionally public sites must opt in with `SITE_INDEXABLE=true` and a stable `SITE_URL` at build and runtime.
