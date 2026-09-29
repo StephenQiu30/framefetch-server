@@ -3,7 +3,6 @@ from __future__ import annotations
 import json
 from urllib.parse import urlsplit
 
-from app.services.provider_access import execution_access_mode
 from app.services.provider_types import ProviderAccessMode, ProviderCanaryStage
 from app.workers.runner.errors import RunnerFailure
 from app.workers.runner.provider_registry import provider_request
@@ -80,7 +79,7 @@ def _validate_targets(targets: tuple[ProviderCanaryTarget, ...]) -> None:
             or parsed.username is not None
             or parsed.password is not None
             or resolved.profile.key != target.provider_key
-            or target.access_mode is not execution_access_mode(target.provider_key)
+            or target.access_mode is not resolved.profile.execution_access_mode
             or target.access_mode not in resolved.profile.access_modes
         ):
             raise ValueError

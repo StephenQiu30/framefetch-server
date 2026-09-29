@@ -8,20 +8,52 @@ from urllib.parse import urlsplit
 from app.services.downloads.errors import (
     MediaInspectionPolicyNotAllowed,
 )
-from app.services.provider_access import NATIVE_PUBLIC_PROVIDERS, ProviderAccessPolicy
+from app.services.provider_access import ProviderAccessPolicy
 from app.services.site_sessions import (
     InvalidSessionSite,
-    SessionEntitlement,
     SiteSessionPolicy,
-    known_site_policy,
     registrable_site,
-    site_policy,
 )
 from app.workers.runner.errors import RunnerFailure
 from app.workers.runner.provider_registry import (
+    current_provider_registry,
     provider_profile,
     provider_profile_for_key,
 )
+
+
+def known_site_policy(provider_key: str) -> SiteSessionPolicy | None:
+    return next(
+        (
+            policy
+            for policy in current_provider_registry().session_policies
+            if policy.provider_key == provider_key
+        ),
+        None,
+    )
+
+
+def known_session_provider_keys() -> frozenset[str]:
+    return frozenset(
+        policy.provider_key
+        for policy in current_provider_registry().session_policies
+        if policy.provider_key is not None
+    )
+
+
+def known_session_sites() -> tuple[str, ...]:
+    return tuple(policy.site for policy in current_provider_registry().session_policies)
+
+
+def site_policy(site: str) -> SiteSessionPolicy:
+    for policy in current_provider_registry().session_policies:
+        if policy.site == site:
+            return policy
+    if registrable_site(site) != site:
+        raise InvalidSessionSite(
+            "unknown session sites are keyed by registrable domain"
+        )
+    return SiteSessionPolicy(site, None, f"https://{site}/")
 
 
 @dataclass(frozen=True, slots=True)
@@ -61,24 +93,25 @@ def _target(policy: SiteSessionPolicy) -> SiteTarget:
 
 
 class SiteSessionRoutes:
-    """Decide whether a URL uses a fixed public route or the Chrome session."""
+    """Apply the profile's approved strategy before any session or media I/O."""
 
     async def policy_for(self, url: str) -> ProviderAccessPolicy:
-        if provider_profile(url).key in NATIVE_PUBLIC_PROVIDERS:
-            return ProviderAccessPolicy.PUBLIC
         try:
+            profile = provider_profile(url)
+            # Resolving a host classifies it; execution also checks retirement.
+            provider_profile_for_key(profile.key)
+            if profile.access_policy is ProviderAccessPolicy.PUBLIC:
+                return profile.access_policy
             target = site_target_for_url(url)
         except (InvalidSessionSite, RunnerFailure) as exc:
             raise MediaInspectionPolicyNotAllowed from exc
         if target.policy.provider_key is None:
             raise MediaInspectionPolicyNotAllowed
-        if target.policy.entitlement is SessionEntitlement.ACCOUNT_ENTITLED_FULL_VIDEO:
-            return ProviderAccessPolicy.PERSONAL_ENTITLED
-        return ProviderAccessPolicy.OPERATOR_PUBLIC
+        return profile.access_policy
 
     async def ensure_ready(self, url: str) -> None:
         """Login state lives in the operator's Chrome and is read per operation
         by the Runner, so there is no stored state to gate on here."""
-        if provider_profile(url).key in NATIVE_PUBLIC_PROVIDERS:
+        if await self.policy_for(url) is ProviderAccessPolicy.PUBLIC:
             return
         site_target_for_url(url)

@@ -2,12 +2,14 @@
 
 from __future__ import annotations
 
+from app.services.provider_access import ProviderAccessPolicy
 from app.services.provider_types import (
     ProviderAccessMode,
     ProviderCapability,
     ProviderProfileVersion,
     ProviderSupportStatus,
 )
+from app.services.site_sessions import SiteSessionPolicy
 from app.workers.runner.provider_registry import (
     ProviderProfile,
     RuntimeCommandArgs,
@@ -51,6 +53,8 @@ def standard_provider(
     host_suffixes: frozenset[str] = frozenset(),
     operator_cookie_domains: frozenset[str] = frozenset(),
     anonymous_access: bool = True,
+    access_policy: ProviderAccessPolicy = ProviderAccessPolicy.PUBLIC,
+    session_policy: SiteSessionPolicy | None = None,
     command_args: tuple[str, ...] = (),
     runtime_command_args: RuntimeCommandArgs = default_runtime_command_args,
     client_profile_id: str = "yt-dlp-default",
@@ -76,6 +80,8 @@ def standard_provider(
         capabilities=capabilities,
         support_status=status,
         access_modes=access_modes,
+        access_policy=access_policy,
+        session_policy=session_policy,
         cookie_domain_allowlist=operator_cookie_domains,
         client_profile_id=client_profile_id,
         credential_concurrency=1 if operator_cookie_domains else 0,
@@ -100,6 +106,8 @@ def challenged_provider(
     status: ProviderSupportStatus = ProviderSupportStatus.UNKNOWN,
     operator_cookie_domains: frozenset[str] = frozenset(),
     anonymous_access: bool = True,
+    access_policy: ProviderAccessPolicy = ProviderAccessPolicy.PUBLIC,
+    session_policy: SiteSessionPolicy | None = None,
     command_args: tuple[str, ...] = CHROME_IMPERSONATION,
     client_profile_id: str = "chrome-136-macos-15",
     runtime_command_args: RuntimeCommandArgs = default_runtime_command_args,
@@ -117,6 +125,8 @@ def challenged_provider(
         status=status,
         operator_cookie_domains=operator_cookie_domains,
         anonymous_access=anonymous_access,
+        access_policy=access_policy,
+        session_policy=session_policy,
         command_args=command_args,
         runtime_command_args=runtime_command_args,
         client_profile_id=client_profile_id,

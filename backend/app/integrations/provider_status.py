@@ -4,11 +4,6 @@ from __future__ import annotations
 
 from collections.abc import Set
 
-from app.services.provider_access import (
-    NATIVE_PUBLIC_PROVIDERS,
-    ProviderAccessPolicy,
-    provider_access_policies,
-)
 from app.services.provider_types import (
     ProviderAccessMode,
     ProviderKey,
@@ -60,13 +55,11 @@ def _configured_status(
     profile: ProviderProfile,
     enabled_operator_keys: Set[str],
 ) -> ProviderStatusView:
-    access_modes = (
-        ()
-        if profile.support_status is ProviderSupportStatus.DISABLED
-        else _effective_access_modes(
-            profile.key, profile.access_modes, enabled_operator_keys
-        )
+    mode = profile.execution_access_mode
+    configured = profile.support_status is not ProviderSupportStatus.DISABLED and (
+        mode is ProviderAccessMode.ANONYMOUS or profile.key in enabled_operator_keys
     )
+    access_modes = (mode,) if configured else ()
     status = (
         profile.support_status
         if access_modes or profile.support_status is ProviderSupportStatus.DISABLED
@@ -75,40 +68,17 @@ def _configured_status(
     policies = (
         ()
         if profile.support_status is ProviderSupportStatus.DISABLED
-        else tuple(
+        else (
             ProviderAccessPolicyView(
-                id=policy, configured=policy.access_mode in access_modes
-            )
-            for policy in provider_access_policies(
-                profile.key,
-                (ProviderAccessMode.ANONYMOUS,)
-                if profile.key in NATIVE_PUBLIC_PROVIDERS
-                else (ProviderAccessMode.OPERATOR_MANAGED,),
-            )
+                id=profile.access_policy,
+                configured=profile.execution_access_mode in access_modes,
+            ),
         )
     )
-    default_policy = (
-        (
-            ProviderAccessPolicy.PUBLIC
-            if profile.key in NATIVE_PUBLIC_PROVIDERS
-            else ProviderAccessPolicy.PERSONAL_ENTITLED
-            if profile.key in {"qqvideo", "youku"}
-            else ProviderAccessPolicy.OPERATOR_PUBLIC
-        )
-        if policies
-        else None
-    )
-    if default_policy is not None and default_policy not in {
-        item.id for item in policies
-    }:
-        raise ValueError("default provider access policy is not admitted")
+    default_policy = profile.access_policy if policies else None
     missing_default = any(
         item.id is default_policy and not item.configured for item in policies
     )
-    if default_policy is ProviderAccessPolicy.PUBLIC_SESSION and not missing_default:
-        # Configured visitor preparation is not an account requirement or a
-        # successful download. Current, matching canary evidence decides that.
-        status = ProviderSupportStatus.UNKNOWN
     return ProviderStatusView(
         key=profile.key,
         display_name=profile.display_name,
@@ -133,18 +103,4 @@ def _configured_status(
         default_access_policy_id=default_policy,
         hosts=tuple(sorted(profile.hosts)),
         host_suffixes=tuple(sorted(profile.host_suffixes)),
-    )
-
-
-def _effective_access_modes(
-    provider_key: str,
-    declared: tuple[ProviderAccessMode, ...],
-    enabled_operator_keys: Set[str],
-) -> tuple[ProviderAccessMode, ...]:
-    if provider_key in NATIVE_PUBLIC_PROVIDERS:
-        return (ProviderAccessMode.ANONYMOUS,)
-    return (
-        (ProviderAccessMode.OPERATOR_MANAGED,)
-        if provider_key in enabled_operator_keys
-        else ()
     )

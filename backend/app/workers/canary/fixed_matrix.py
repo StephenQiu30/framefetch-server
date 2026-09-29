@@ -8,11 +8,12 @@ import json
 
 from app.core.config import get_settings_for_role
 from app.core.db import create_engine
-from app.services.provider_access import NATIVE_PUBLIC_PROVIDERS
+from app.services.provider_access import ProviderAccessPolicy
 from app.services.provider_types import ProviderCanaryOutcome, ProviderCanaryStage
 from app.workers.canary.fixed_cases import fixed_public_diagnostic_targets
 from app.workers.canary.runtime import build_runtime
 from app.workers.canary.targets import ProviderCanaryTarget
+from app.workers.runner.provider_registry import current_provider_registry
 
 
 async def _run(providers: frozenset[str], stage: str) -> int:
@@ -95,9 +96,12 @@ def main() -> None:
     arguments = parser.parse_args()
     providers = frozenset(arguments.provider)
     if arguments.native_public:
-        if providers and not providers <= NATIVE_PUBLIC_PROVIDERS:
+        public_providers = current_provider_registry().keys_for_policy(
+            ProviderAccessPolicy.PUBLIC
+        )
+        if providers and not providers <= public_providers:
             parser.error("--native-public only accepts native public providers")
-        providers = providers or NATIVE_PUBLIC_PROVIDERS
+        providers = providers or public_providers
     raise SystemExit(asyncio.run(_run(providers, arguments.stage)))
 
 

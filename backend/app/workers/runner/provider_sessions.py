@@ -3,23 +3,24 @@ runners."""
 
 from __future__ import annotations
 
-import asyncio
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from dataclasses import replace
 from pathlib import Path
 
-from app.integrations.site_session_catalog import site_target_for_url
-from app.services.provider_access import execution_access_mode
+from app.integrations.site_session_catalog import known_site_policy, site_target_for_url
 from app.services.provider_types import (
     ProviderAccessContextRef,
     ProviderAccessMode,
     ProviderKey,
 )
-from app.services.site_sessions import InvalidSessionSite, known_site_policy
+from app.services.site_sessions import InvalidSessionSite
 from app.workers.runner.errors import RunnerFailure
 from app.workers.runner.provider_credential_lease import ProviderCredentialLocks
-from app.workers.runner.provider_registry import ProviderProfile
+from app.workers.runner.provider_registry import (
+    ProviderProfile,
+    provider_profile_for_key,
+)
 from app.workers.runner.provider_session_files import (
     operation_cookie,
     prepare_private_root,
@@ -50,7 +51,6 @@ class ProviderSessionStore:
     ) -> None:
         self._settings = settings
         self._temp_root = settings.runner_provider_session_temp_root
-        self._gate = asyncio.Semaphore(1)
         self._credential_locks = credential_locks or ProviderCredentialLocks()
         self._site_sessions = site_sessions
         broker, secret = (
@@ -71,7 +71,7 @@ class ProviderSessionStore:
     ) -> ProviderAccessContextRef:
         mode = self._settings.runner_access_mode
         if mode is ProviderAccessMode.OPERATOR_MANAGED:
-            mode = execution_access_mode(profile.key)
+            mode = profile.execution_access_mode
         credential_version: str | None = None
         if mode is ProviderAccessMode.OPERATOR_MANAGED:
             # Any site with a deployment session is admitted by the broker, not
@@ -127,7 +127,8 @@ class ProviderSessionStore:
     ) -> AsyncIterator[Path | None]:
         if (
             self._settings.runner_access_mode is ProviderAccessMode.OPERATOR_MANAGED
-            and context.access_mode is not execution_access_mode(context.provider_key)
+            and context.access_mode
+            is not provider_profile_for_key(context.provider_key).execution_access_mode
         ):
             raise RunnerFailure("provider_session_not_allowed", status=422)
         if context.access_mode is ProviderAccessMode.ANONYMOUS:

@@ -1,13 +1,12 @@
 import pytest
+from app.integrations.site_session_catalog import known_site_policy, site_policy
 from app.services.provider_types import ProviderKey
 from app.services.site_sessions import (
     CookieRequirement,
     InvalidSessionSite,
     SessionEntitlement,
     SiteSessionPolicy,
-    known_site_policy,
     registrable_site,
-    site_policy,
 )
 
 

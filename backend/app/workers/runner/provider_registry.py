@@ -7,12 +7,14 @@ from dataclasses import dataclass
 from typing import Protocol
 from urllib.parse import SplitResult, urlsplit
 
+from app.services.provider_access import ProviderAccessPolicy
 from app.services.provider_types import (
     ProviderAccessMode,
     ProviderCapability,
     ProviderProfileVersion,
     ProviderSupportStatus,
 )
+from app.services.site_sessions import SessionEntitlement, SiteSessionPolicy
 from app.workers.runner.errors import RunnerFailure
 
 UNSUPPORTED_PROVIDER_DOMAINS = frozenset(
@@ -60,6 +62,10 @@ class ProviderProfile:
         {ProviderCapability.SINGLE_VIDEO}
     )
     access_modes: tuple[ProviderAccessMode, ...] = (ProviderAccessMode.ANONYMOUS,)
+    # Engine support is not execution approval. All callers use this policy;
+    # cookies, runtime failures and caller parameters cannot change it.
+    access_policy: ProviderAccessPolicy = ProviderAccessPolicy.PUBLIC
+    session_policy: SiteSessionPolicy | None = None
     cookie_domain_allowlist: frozenset[str] = frozenset()
     client_profile_id: str = "yt-dlp-default"
     attestation_policy: str = "none"
@@ -76,6 +82,10 @@ class ProviderProfile:
     probe_authenticated_media: bool = False
     probe_media_duration: bool = False
     normalize_url: UrlNormalizer = identity_url
+
+    @property
+    def execution_access_mode(self) -> ProviderAccessMode:
+        return self.access_policy.access_mode
 
     def request_url(self, url: str, parsed: SplitResult) -> str:
         return self.normalize_url(url, parsed)
@@ -105,6 +115,7 @@ class ProviderRegistry:
         configured = tuple(profiles)
         by_host: dict[str, ProviderProfile] = {}
         by_host_suffix: dict[str, ProviderProfile] = {}
+        by_site: dict[str, SiteSessionPolicy] = {}
         keys: set[str] = set()
         for profile in configured:
             if profile.key in keys:
@@ -126,6 +137,11 @@ class ProviderRegistry:
                 or not profile.canary_suite
             ):
                 raise ValueError(f"provider {profile.key} has incomplete capabilities")
+            if (
+                profile.access_policy is ProviderAccessPolicy.PUBLIC_SESSION
+                or profile.execution_access_mode not in profile.access_modes
+            ):
+                raise ValueError(f"provider {profile.key} has invalid access policy")
             supports_operator = (
                 ProviderAccessMode.OPERATOR_MANAGED in profile.access_modes
             )
@@ -133,6 +149,27 @@ class ProviderRegistry:
                 raise ValueError(f"provider {profile.key} has invalid session policy")
             if supports_operator != (profile.credential_concurrency > 0):
                 raise ValueError(f"provider {profile.key} has invalid session limit")
+            session = profile.session_policy
+            if supports_operator != (session is not None):
+                raise ValueError(f"provider {profile.key} has missing session policy")
+            if session is not None:
+                if session.provider_key != profile.key:
+                    raise ValueError(f"provider {profile.key} has mismatched session")
+                if session.site in by_site:
+                    raise ValueError(
+                        f"provider session site is registered twice: {session.site}"
+                    )
+                personal = (
+                    profile.access_policy is ProviderAccessPolicy.PERSONAL_ENTITLED
+                )
+                if personal != (
+                    session.entitlement
+                    is SessionEntitlement.ACCOUNT_ENTITLED_FULL_VIDEO
+                ):
+                    raise ValueError(
+                        f"provider {profile.key} has mismatched entitlement"
+                    )
+                by_site[session.site] = session
             if profile.probe_authenticated_media and not supports_operator:
                 raise ValueError(
                     f"provider {profile.key} cannot probe authenticated media"
@@ -151,10 +188,12 @@ class ProviderRegistry:
         self._by_key = {profile.key: profile for profile in configured}
         self._by_host = by_host
         self._by_host_suffix = by_host_suffix
+        self._by_site = by_site
         self._fallback = fallback or ProviderProfile(
             "generic",
             "Generic media source",
             frozenset(),
+            access_policy=ProviderAccessPolicy.OPERATOR_PUBLIC,
             support_status=ProviderSupportStatus.UNKNOWN,
             canary_suite="generic-public-fixtures",
         )
@@ -162,6 +201,18 @@ class ProviderRegistry:
     @property
     def profiles(self) -> tuple[ProviderProfile, ...]:
         return self._profiles
+
+    def keys_for_policy(self, policy: ProviderAccessPolicy) -> frozenset[str]:
+        return frozenset(
+            profile.key
+            for profile in self._profiles
+            if profile.access_policy is policy
+            and profile.support_status is not ProviderSupportStatus.DISABLED
+        )
+
+    @property
+    def session_policies(self) -> tuple[SiteSessionPolicy, ...]:
+        return tuple(self._by_site.values())
 
     def resolve(self, url: str) -> ProviderProfile:
         hostname = urlsplit(url).hostname

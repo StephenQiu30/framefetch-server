@@ -5,9 +5,9 @@ from __future__ import annotations
 from app.core.config import Settings
 from app.integrations.media_inspection_pipeline import SessionPolicyReader
 from app.integrations.media_runner import MediaRunnerHttpClient, MediaRunnerRouter
+from app.integrations.site_session_catalog import known_session_provider_keys
 from app.services.provider_route_admission import ProviderRouteAdmission
 from app.services.provider_types import ProviderAccessMode
-from app.services.site_sessions import known_session_provider_keys
 
 
 def session_media_runner(

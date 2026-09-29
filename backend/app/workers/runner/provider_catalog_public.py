@@ -1,11 +1,17 @@
 """Public single-media provider profiles."""
 
+from app.services.provider_access import ProviderAccessPolicy
 from app.services.provider_types import (
     ProviderCapability,
     ProviderCookieDomain,
     ProviderKey,
     ProviderProfileVersion,
     ProviderSupportStatus,
+)
+from app.services.site_sessions import (
+    CookieRequirement,
+    SessionEntitlement,
+    SiteSessionPolicy,
 )
 from app.workers.runner.provider_factories import (
     CHROME_IMPERSONATION,
@@ -30,6 +36,14 @@ PUBLIC_PROVIDER_PROFILES: tuple[ProviderProfile, ...] = (
         ProviderKey.PINTEREST,
         "Pinterest",
         ("pinterest.com", "www.pinterest.com", "pin.it"),
+        access_policy=ProviderAccessPolicy.OPERATOR_PUBLIC,
+        session_policy=SiteSessionPolicy(
+            "pinterest.com",
+            ProviderKey.PINTEREST,
+            "https://www.pinterest.com/",
+            required_cookie_names=frozenset({"_auth", "_pinterest_sess"}),
+            requirement=CookieRequirement.ALL,
+        ),
         version=ProviderProfileVersion.PINTEREST,
         capabilities=SINGLE_VIDEO,
         status=ProviderSupportStatus.VERIFIED,
@@ -57,6 +71,14 @@ PUBLIC_PROVIDER_PROFILES: tuple[ProviderProfile, ...] = (
         ProviderKey.YOUKU,
         "优酷",
         ("youku.com", "www.youku.com", "v.youku.com"),
+        access_policy=ProviderAccessPolicy.PERSONAL_ENTITLED,
+        session_policy=SiteSessionPolicy(
+            "youku.com",
+            ProviderKey.YOUKU,
+            "https://www.youku.com/",
+            entitlement=SessionEntitlement.ACCOUNT_ENTITLED_FULL_VIDEO,
+            required_cookie_names=frozenset({"P_sck"}),
+        ),
         version=ProviderProfileVersion.YOUKU,
         capabilities=SINGLE_VIDEO,
         status=ProviderSupportStatus.UNKNOWN,
@@ -67,6 +89,15 @@ PUBLIC_PROVIDER_PROFILES: tuple[ProviderProfile, ...] = (
         ProviderKey.QQVIDEO,
         "腾讯视频",
         ("v.qq.com",),
+        access_policy=ProviderAccessPolicy.PERSONAL_ENTITLED,
+        session_policy=SiteSessionPolicy(
+            "v.qq.com",
+            ProviderKey.QQVIDEO,
+            "https://v.qq.com/",
+            entitlement=SessionEntitlement.ACCOUNT_ENTITLED_FULL_VIDEO,
+            required_cookie_names=frozenset({"v_vuserid", "v_vusession"}),
+            requirement=CookieRequirement.ALL,
+        ),
         version=ProviderProfileVersion.QQVIDEO,
         capabilities=SINGLE_VIDEO,
         status=ProviderSupportStatus.UNKNOWN,

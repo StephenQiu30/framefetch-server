@@ -1,11 +1,13 @@
 from collections import defaultdict
 
-from app.services.provider_access import execution_access_mode
 from app.services.provider_types import (
     ProviderCanaryStage,
 )
 from app.workers.canary.fixed_cases import fixed_public_diagnostic_targets
-from app.workers.runner.provider_registry import current_provider_registry
+from app.workers.runner.provider_registry import (
+    current_provider_registry,
+    provider_profile_for_key,
+)
 
 _KNOWN_INVALID_UPSTREAM_FIXTURES = {
     "BaW_jenozKc",
@@ -21,7 +23,7 @@ def test_fixed_matrix_covers_every_registered_parser_and_its_fixed_route():
     assert set(grouped) == {p.key for p in current_provider_registry().profiles}
     for key, targets in grouped.items():
         assert {target.access_mode for target in targets} == {
-            execution_access_mode(key)
+            provider_profile_for_key(key).execution_access_mode
         }
         assert {target.stage for target in targets} == {
             ProviderCanaryStage.METADATA,

@@ -4,13 +4,19 @@ import pytest
 from app.integrations.media_runner import MediaRunnerRouter
 from app.integrations.site_session_catalog import SiteSessionRoutes
 from app.services.downloads.errors import MediaInspectionPolicyNotAllowed
-from app.services.provider_access import NATIVE_PUBLIC_PROVIDERS, ProviderAccessPolicy
+from app.services.provider_access import ProviderAccessPolicy
 from app.services.provider_types import ProviderAccessMode
-from app.workers.runner.provider_registry import provider_profile_for_key
+from app.workers.runner.provider_registry import (
+    current_provider_registry,
+    provider_profile_for_key,
+)
 from tests.unit.integrations.test_media_runner_router import FakeClient, context
 
 
-@pytest.mark.parametrize("provider", sorted(NATIVE_PUBLIC_PROVIDERS))
+@pytest.mark.parametrize(
+    "provider",
+    sorted(current_provider_registry().keys_for_policy(ProviderAccessPolicy.PUBLIC)),
+)
 async def test_native_platforms_have_one_fixed_route_without_session_io(provider):
     profile = provider_profile_for_key(provider)
     url = f"https://{sorted(profile.hosts)[0]}/"

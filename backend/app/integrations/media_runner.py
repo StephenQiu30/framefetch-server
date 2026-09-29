@@ -54,7 +54,7 @@ from app.services.downloads.inspection_models import RunnerFormat, RunnerInspect
 from app.services.downloads.rules.content_restrictions import ContentRestriction
 from app.services.downloads.rules.enums import MediaKind
 from app.services.downloads.rules.formats import DownloadPlan
-from app.services.provider_access import ProviderAccessPolicy, execution_access_mode
+from app.services.provider_access import ProviderAccessPolicy
 from app.services.provider_route_admission import (
     ProviderRouteAdmission,
     RouteAdmissionUnavailable,
@@ -76,7 +76,10 @@ from app.workers.runner.contracts import (
     ProviderContextsResponse,
     TaskStatusResponse,
 )
-from app.workers.runner.provider_registry import provider_profile
+from app.workers.runner.provider_registry import (
+    provider_profile,
+    provider_profile_for_key,
+)
 from app.workers.runner.signing import sign_request
 
 _TASK_ID = re.compile(r"[A-Za-z0-9_-]{1,64}")
@@ -170,7 +173,7 @@ class MediaRunnerHttpClient:
         )
         context = _context_to_domain(response)
         expected_mode = (
-            execution_access_mode(provider_key)
+            provider_profile_for_key(provider_key).execution_access_mode
             if self._expected_access_mode is ProviderAccessMode.OPERATOR_MANAGED
             else self._expected_access_mode
         )
@@ -542,7 +545,7 @@ class MediaRunnerRouter:
         groups = [
             (self._session, (key,))
             for key, mode in requested.items()
-            if mode is execution_access_mode(key)
+            if mode is provider_profile_for_key(key).execution_access_mode
         ]
 
         async def resolve(
@@ -623,7 +626,8 @@ class MediaRunnerRouter:
     ) -> MediaRunnerClient | None:
         return (
             self._session
-            if access_mode is execution_access_mode(provider_key)
+            if access_mode
+            is provider_profile_for_key(provider_key).execution_access_mode
             else None
         )
 

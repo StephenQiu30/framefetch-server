@@ -1,4 +1,5 @@
 import pytest
+from app.integrations.site_session_catalog import known_session_provider_keys
 from app.services.provider_types import (
     ProviderAccessMode,
     ProviderCapability,
@@ -6,7 +7,6 @@ from app.services.provider_types import (
     ProviderProfileVersion,
     ProviderSupportStatus,
 )
-from app.services.site_sessions import known_session_provider_keys
 from app.workers.runner.errors import RunnerFailure
 from app.workers.runner.provider_registry import (
     ProviderProfile,

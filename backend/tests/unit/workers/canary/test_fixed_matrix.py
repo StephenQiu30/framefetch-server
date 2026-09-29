@@ -69,7 +69,8 @@ def test_native_public_cli_never_selects_account_platforms(monkeypatch):
     import sys
 
     import pytest
-    from app.services.provider_access import NATIVE_PUBLIC_PROVIDERS
+    from app.services.provider_access import ProviderAccessPolicy
+    from app.workers.runner.provider_registry import current_provider_registry
 
     calls = []
 
@@ -84,7 +85,12 @@ def test_native_public_cli_never_selects_account_platforms(monkeypatch):
     with pytest.raises(SystemExit) as caught:
         fixed_matrix.main()
     assert caught.value.code == 0
-    assert calls == [(NATIVE_PUBLIC_PROVIDERS, "metadata")]
+    assert calls == [
+        (
+            current_provider_registry().keys_for_policy(ProviderAccessPolicy.PUBLIC),
+            "metadata",
+        )
+    ]
 
 
 def test_native_public_cli_rejects_account_override(monkeypatch):

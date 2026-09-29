@@ -20,6 +20,8 @@
 
 具体版本通过依赖清单与锁文件固定；禁止在本文维护另一份版本快照。新依赖必须承担明确职责，不因脚手架默认包含就保留。
 
+媒体获取重设计继续使用这些技术及已锁定的 Playwright browser 依赖组，不引入 SQLite 或新的任务存储。PostgreSQL 是业务事实来源，Temporal／RabbitMQ 各自拥有既定任务；执行进程不复制业务状态机。专用浏览器与采集运行时尚待实施，当前目录和部署描述仍反映已接通的链路。
+
 ## 2. FastAPI 工程结构
 
 ### 2.1 官方基线与项目边界
@@ -91,6 +93,8 @@ backend/
 
 `workers/runner/` 内部按实际边界就近组织，不保留空文件或兼容转发层：
 
+- `provider_catalog_*.py` 声明各平台的 Profile（访问策略、URL、能力、账号要求、引擎参数）；`provider_registry.py` 统一识别与启动校验；`provider_factories.py` 仅复用确有重复的声明默认值。
+- 平台差异采用函数策略与可信提取器适配，通用顺序复用现有 inspection/download Pipeline；不按每个平台复制 Workflow、HTTP 路由、Repository 或生成器框架。会话纯规则位于 `services/site_sessions.py`，Registry 查询与站点映射位于 `integrations/site_session_catalog.py`，不再维护第二份站点声明。
 - `site_sessions.py` 负责向 broker 按需查询并解封单次租约；`provider_sessions.py` 管理操作期间的凭据使用与执行租约，不回写 Cookie 或发送失败上报。
 - `provider_session_files.py` 与 `_secure_file.py` 管理私有临时文件，`provider_session_headers.py` 校验受控请求头；`netscape_cookie.py` 统一解析与序列化 Cookie。
 - 宿主机来源和 RPC 契约位于 `workers/session/`；broker 不保存会话副本，不运行扫描或保活状态机。

@@ -1,10 +1,10 @@
 import pytest
 from app.integrations.site_session_catalog import (
+    known_site_policy,
     site_target,
     site_target_for_url,
 )
 from app.services.provider_types import ProviderAccessMode, ProviderKey
-from app.services.site_sessions import known_site_policy
 from app.workers.runner.provider_registry import provider_profile_for_key
 
 

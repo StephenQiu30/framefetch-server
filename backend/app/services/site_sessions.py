@@ -1,8 +1,7 @@
 """Site sessions: which login identity a URL needs, keyed by a domain.
 
-The identity is read live from the operator's Chrome for each operation. Known
-providers declare their key and session behaviour here; any other site is keyed
-by its registrable domain under the bundled Public Suffix List.
+Pure session requirements and domain validation; platform declarations live in
+the Provider Registry. This module performs no registry lookup or browser I/O.
 """
 
 from __future__ import annotations
@@ -13,8 +12,6 @@ from enum import StrEnum
 from ipaddress import ip_address
 
 import tldextract
-
-from app.services.provider_types import ProviderKey
 
 _HOST = re.compile(
     r"[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)+"
@@ -48,7 +45,7 @@ class InvalidSessionSite(ValueError):
 @dataclass(frozen=True, slots=True)
 class SiteSessionPolicy:
     site: str
-    provider_key: ProviderKey | None
+    provider_key: str | None
     keepalive_url: str
     entitlement: SessionEntitlement = SessionEntitlement.PUBLIC_ONLY
     required_cookie_names: frozenset[str] = frozenset()
@@ -69,127 +66,6 @@ class SiteSessionPolicy:
         if self.requirement is CookieRequirement.ALL:
             return self.required_cookie_names <= cookie_names
         return bool(self.required_cookie_names & cookie_names)
-
-
-_KNOWN_POLICIES = {
-    policy.provider_key: policy
-    for policy in (
-        SiteSessionPolicy(
-            "youtube.com",
-            ProviderKey.YOUTUBE,
-            "https://www.youtube.com/feed/you",
-            required_cookie_names=frozenset(
-                {
-                    "SID",
-                    "HSID",
-                    "SSID",
-                    "APISID",
-                    "SAPISID",
-                    "__Secure-1PSID",
-                    "__Secure-3PSID",
-                }
-            ),
-        ),
-        SiteSessionPolicy(
-            "douyin.com",
-            ProviderKey.DOUYIN,
-            "https://www.douyin.com/",
-            # ``ttwid`` is issued to every visitor, so it proves nothing.
-            required_cookie_names=frozenset({"sessionid", "sessionid_ss", "sid_tt"}),
-        ),
-        SiteSessionPolicy(
-            "xiaohongshu.com",
-            ProviderKey.XIAOHONGSHU,
-            "https://www.xiaohongshu.com/explore",
-            required_cookie_names=frozenset({"web_session"}),
-        ),
-        SiteSessionPolicy(
-            "x.com",
-            ProviderKey.X,
-            "https://x.com/home",
-            required_cookie_names=frozenset({"auth_token", "ct0"}),
-            requirement=CookieRequirement.ALL,
-        ),
-        SiteSessionPolicy(
-            "instagram.com",
-            ProviderKey.INSTAGRAM,
-            "https://www.instagram.com/",
-            required_cookie_names=frozenset({"sessionid"}),
-        ),
-        SiteSessionPolicy(
-            "facebook.com",
-            ProviderKey.FACEBOOK,
-            "https://www.facebook.com/",
-            required_cookie_names=frozenset({"c_user", "xs"}),
-            requirement=CookieRequirement.ALL,
-        ),
-        SiteSessionPolicy(
-            "reddit.com",
-            ProviderKey.REDDIT,
-            "https://www.reddit.com/",
-            # ``loid`` is Reddit's logged-out visitor id.
-            required_cookie_names=frozenset({"reddit_session"}),
-        ),
-        SiteSessionPolicy(
-            "pinterest.com",
-            ProviderKey.PINTEREST,
-            "https://www.pinterest.com/",
-            required_cookie_names=frozenset({"_auth", "_pinterest_sess"}),
-            requirement=CookieRequirement.ALL,
-        ),
-        SiteSessionPolicy(
-            "youku.com",
-            ProviderKey.YOUKU,
-            "https://www.youku.com/",
-            entitlement=SessionEntitlement.ACCOUNT_ENTITLED_FULL_VIDEO,
-            required_cookie_names=frozenset({"P_sck"}),
-        ),
-        SiteSessionPolicy(
-            "v.qq.com",
-            ProviderKey.QQVIDEO,
-            "https://v.qq.com/",
-            entitlement=SessionEntitlement.ACCOUNT_ENTITLED_FULL_VIDEO,
-            required_cookie_names=frozenset({"v_vuserid", "v_vusession"}),
-            requirement=CookieRequirement.ALL,
-        ),
-        SiteSessionPolicy(
-            "weixin.qq.com",
-            ProviderKey.WECHAT_CHANNELS,
-            "https://yuanbao.tencent.com/",
-            required_cookie_names=frozenset({"hy_user", "hy_token"}),
-            requirement=CookieRequirement.ALL,
-            header_plugin=HeaderPlugin.YUANBAO,
-        ),
-    )
-}
-_KNOWN_SITES = {policy.site: policy for policy in _KNOWN_POLICIES.values()}
-
-
-def known_site_policy(provider_key: str) -> SiteSessionPolicy | None:
-    try:
-        return _KNOWN_POLICIES.get(ProviderKey(provider_key))
-    except ValueError:
-        return None
-
-
-def known_session_provider_keys() -> frozenset[str]:
-    return frozenset(str(key) for key in _KNOWN_POLICIES)
-
-
-def known_session_sites() -> tuple[str, ...]:
-    return tuple(_KNOWN_SITES)
-
-
-def site_policy(site: str) -> SiteSessionPolicy:
-    """Policy for a stored site key: a known provider's key or a registrable domain."""
-    known = _KNOWN_SITES.get(site)
-    if known is not None:
-        return known
-    if registrable_site(site) != site:
-        raise InvalidSessionSite(
-            "unknown session sites are keyed by registrable domain"
-        )
-    return SiteSessionPolicy(site, None, f"https://{site}/")
 
 
 def registrable_site(host: str) -> str:

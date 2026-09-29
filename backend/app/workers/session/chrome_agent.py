@@ -35,12 +35,12 @@ from pathlib import Path
 from typing import Annotated, Final
 
 import uvicorn
-from app.integrations.site_session_catalog import SiteTarget, site_target
-from app.services.site_sessions import (
-    InvalidSessionSite,
-    SiteSessionPolicy,
+from app.integrations.site_session_catalog import (
+    SiteTarget,
     known_session_sites,
+    site_target,
 )
+from app.services.site_sessions import InvalidSessionSite, SiteSessionPolicy
 from app.workers.runner.netscape_cookie import (
     has_safe_cookie_fields,
     is_allowed_domain,

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from app.services.provider_access import ProviderAccessPolicy
 from app.services.provider_types import (
     ProviderAccessMode,
     ProviderCapability,
@@ -9,6 +10,9 @@ from app.services.provider_types import (
     ProviderKey,
     ProviderProfileVersion,
     ProviderSupportStatus,
+)
+from app.services.site_sessions import (
+    SiteSessionPolicy,
 )
 from app.workers.runner.provider_factories import (
     ANDROID_IMPERSONATION,
@@ -39,6 +43,23 @@ def _youtube_runtime_args(settings: ProviderRuntimeSettings) -> tuple[str, ...]:
 CORE_PROVIDER_PROFILES: tuple[ProviderProfile, ...] = (
     ProviderProfile(
         key=ProviderKey.YOUTUBE,
+        access_policy=ProviderAccessPolicy.OPERATOR_PUBLIC,
+        session_policy=SiteSessionPolicy(
+            "youtube.com",
+            ProviderKey.YOUTUBE,
+            "https://www.youtube.com/feed/you",
+            required_cookie_names=frozenset(
+                {
+                    "SID",
+                    "HSID",
+                    "SSID",
+                    "APISID",
+                    "SAPISID",
+                    "__Secure-1PSID",
+                    "__Secure-3PSID",
+                }
+            ),
+        ),
         display_name="YouTube",
         hosts=frozenset(
             {
@@ -97,6 +118,14 @@ CORE_PROVIDER_PROFILES: tuple[ProviderProfile, ...] = (
             "iesdouyin.com",
             "www.iesdouyin.com",
         ),
+        access_policy=ProviderAccessPolicy.OPERATOR_PUBLIC,
+        session_policy=SiteSessionPolicy(
+            "douyin.com",
+            ProviderKey.DOUYIN,
+            "https://www.douyin.com/",
+            # ``ttwid`` is issued to every visitor, so it proves nothing.
+            required_cookie_names=frozenset({"sessionid", "sessionid_ss", "sid_tt"}),
+        ),
         version=ProviderProfileVersion.DOUYIN,
         normalize_url=douyin_url,
         status=ProviderSupportStatus.ACCESS_REQUIRED,
@@ -138,6 +167,13 @@ CORE_PROVIDER_PROFILES: tuple[ProviderProfile, ...] = (
             "www.xiaohongshu.com",
             "xhslink.com",
             "www.xhslink.com",
+        ),
+        access_policy=ProviderAccessPolicy.OPERATOR_PUBLIC,
+        session_policy=SiteSessionPolicy(
+            "xiaohongshu.com",
+            ProviderKey.XIAOHONGSHU,
+            "https://www.xiaohongshu.com/explore",
+            required_cookie_names=frozenset({"web_session"}),
         ),
         status=ProviderSupportStatus.DEGRADED,
         operator_cookie_domains=frozenset({ProviderCookieDomain.XIAOHONGSHU}),

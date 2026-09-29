@@ -3,11 +3,11 @@
 from datetime import datetime
 from typing import Literal
 
+from app.integrations.site_session_catalog import known_site_policy
 from app.schemas.common import StrictModel
 from app.services.provider_access import ProviderAccessPolicy
 from app.services.provider_types import ProviderAccessMode
 from app.services.providers import ProviderEvidenceState, ProviderStatusView
-from app.services.site_sessions import known_site_policy
 
 
 class ProviderRuntimeResponse(StrictModel):

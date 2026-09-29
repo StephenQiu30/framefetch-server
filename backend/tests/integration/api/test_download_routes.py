@@ -359,17 +359,23 @@ def test_provider_status_distinguishes_registered_verified_and_unsupported(
         response = test_client.get("/api/providers")
 
     assert response.status_code == 200
-    from app.services.provider_access import NATIVE_PUBLIC_PROVIDERS
+    from app.services.provider_access import ProviderAccessPolicy
+    from app.workers.runner.provider_registry import current_provider_registry
 
     items = {item["key"]: item for item in response.json()["data"]["items"]}
     assert len(items) == 24
     for key, item in items.items():
         assert item["registered"] is True
         assert item["access_modes"] == (
-            ["anonymous"] if key in NATIVE_PUBLIC_PROVIDERS else []
+            ["anonymous"]
+            if key
+            in current_provider_registry().keys_for_policy(ProviderAccessPolicy.PUBLIC)
+            else []
         )
         assert not item["download_available"]
-        if key not in NATIVE_PUBLIC_PROVIDERS | {"wechat_official_account_article"}:
+        if key not in current_provider_registry().keys_for_policy(
+            ProviderAccessPolicy.PUBLIC
+        ) | {"wechat_official_account_article"}:
             assert item["status"] == "access_required"
     assert items["wechat_official_account_article"]["status"] == "unknown"
     assert not {"acfun", "rutube", "vk", "dailymotion", "niconico"} & items.keys()

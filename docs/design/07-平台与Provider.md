@@ -13,7 +13,11 @@
 
 ## 路线选择（当前）
 
-固定公开集合 `provider_access.NATIVE_PUBLIC_PROVIDERS` 是公开路线的唯一权限依据（不由 Cookie、故障或请求参数推断）。其他已知站点走部署会话路线（`operator_public` 或 `personal_entitled`），意图在联网前持久化。两种路线共用 `session-runner`，没有匿名／访客兜底服务或兼容开关；请求指定路线必须与平台固定路线一致。
+`ProviderProfile.access_policy` 是当前批准路线的唯一声明，`execution_access_mode` 从它派生；`access_modes` 只表示引擎具备的技术能力，不自动授权执行。API、Runner、状态目录与探针读取同一 Registry，意图在联网前持久化，失败不切换路线。默认 23 平台的访问范围保持不变；显式配置的 PeerTube 精确实例读取自身公开声明，未知实例仍不可进入公开入口。
+
+账号站点的 Cookie 条件、页面头插件与权益范围通过 `session_policy` 组合进同一 Profile，删除独立的站点声明表。Registry 在启动时拒绝不受支持的执行模式、访客策略、缺失账号策略、账号归属／权益冲突及重复站点。状态目录不再包含已退休访客路线的分支。
+
+新增平台通常只需一份 Profile、实际需要的 URL／提取器策略和真实样本；使用 Registry、Strategy 与公共 Pipeline 组合，避免每个平台增加一套调度和业务层。多种已验证能力的选择、专用持久浏览器及新产物协议仍属后续实施，见[工作流与平台下载目标](15-工作流与平台下载目标.md)。
 
 ## 内容权益
 

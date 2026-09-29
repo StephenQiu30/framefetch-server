@@ -49,6 +49,7 @@ _SHARED_PROVIDER_SERVICES = frozenset(
         "provider_access.py",
         "provider_route_admission.py",
         "provider_types.py",
+        "site_sessions.py",
     }
 )
 
