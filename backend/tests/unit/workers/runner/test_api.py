@@ -24,6 +24,7 @@ def test_internal_media_contract_has_only_direct_operation_paths(tmp_path):
         path for path in app.openapi()["paths"] if path.startswith("/internal/")
     } == {
         "/internal/engine-catalog",
+        "/internal/runtime",
         "/internal/context",
         "/internal/site-sessions/login",
         "/internal/contexts",
@@ -303,3 +304,34 @@ def test_download_rejects_invalid_semantic_plan_before_service(tmp_path: Path) -
     assert response.status_code == 422
     assert response.json()["error"]["code"] == "invalid_request"
     assert service.download_request is None
+
+
+def test_execution_binding_rejects_old_boot_and_tampered_header(tmp_path, monkeypatch):
+    from uuid import UUID
+
+    service = FakeService()
+    monkeypatch.setattr("app.workers.runner.main.uuid4", lambda: UUID(int=1))
+    client = TestClient(create_app(settings(tmp_path), service=service))
+    path = "/internal/inspect"
+    body = b'{"url":"https://media.example.com/video"}'
+    # Helper signs for boot zero; a new process has lost nonce memory but must
+    # still reject this delayed, otherwise valid execution from the old boot.
+    headers = signed_headers(path, body, "old_boot_nonce_123456")
+    response = client.post(path, content=body, headers=headers)
+    assert response.status_code == 409
+    assert response.json()["error"]["code"] == "runner_restarted"
+    assert service.inspected_url is None
+
+    headers = signed_headers(path, body, "tamper_boot_nonce_123456")
+    headers["X-Runner-Instance"] = UUID(int=1).hex
+    response = client.post(path, content=body, headers=headers)
+    assert response.status_code == 401
+    assert service.inspected_url is None
+
+    runtime_path = "/internal/runtime"
+    response = client.get(
+        runtime_path,
+        headers=signed_headers(runtime_path, b"", "runtime_nonce_123456", method="GET"),
+    )
+    assert response.json() == {"instance_id": UUID(int=1).hex}
+    assert client.get(runtime_path).status_code == 401

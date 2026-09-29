@@ -43,6 +43,8 @@ async def test_context_reads_the_runner_runtime_generation() -> None:
     expected = _access_context()
 
     async def respond(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/internal/runtime":
+            return httpx.Response(200, json={"instance_id": "0" * 32})
         assert request.url.path == "/internal/context"
         assert json.loads(request.content) == {"url": "https://media.example/video"}
         return httpx.Response(200, json=expected.to_document())
@@ -72,6 +74,8 @@ async def test_new_client_fails_closed_against_pre_revision_runner() -> None:
     old_document.pop("runtime_revision")
 
     async def respond(_request: httpx.Request) -> httpx.Response:
+        if _request.url.path == "/internal/runtime":
+            return httpx.Response(200, json={"instance_id": "0" * 32})
         return httpx.Response(200, json=old_document)
 
     http = httpx.AsyncClient(
@@ -98,6 +102,8 @@ async def test_context_batch_uses_one_short_lived_runner_request() -> None:
     expected = _access_context()
 
     async def respond(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/internal/runtime":
+            return httpx.Response(200, json={"instance_id": "0" * 32})
         assert request.url.path == "/internal/contexts"
         assert json.loads(request.content) == {"provider_keys": ["generic"]}
         assert request.extensions["timeout"]["read"] == 0.25
@@ -131,6 +137,8 @@ async def test_context_batch_rejects_a_semantically_invalid_runner_context() -> 
     }
 
     async def respond(_request: httpx.Request) -> httpx.Response:
+        if _request.url.path == "/internal/runtime":
+            return httpx.Response(200, json={"instance_id": "0" * 32})
         return httpx.Response(200, json={"contexts": [invalid]})
 
     http = httpx.AsyncClient(
@@ -156,6 +164,8 @@ async def test_context_batch_rejects_a_semantically_invalid_runner_context() -> 
 @pytest.mark.asyncio
 async def test_inspect_exposes_provider_access_requirement() -> None:
     async def respond(_request: httpx.Request) -> httpx.Response:
+        if _request.url.path == "/internal/runtime":
+            return httpx.Response(200, json={"instance_id": "0" * 32})
         return httpx.Response(
             422,
             json={
@@ -218,6 +228,8 @@ async def test_operator_content_auth_requirement_stays_content_error(
         return _access_context()
 
     async def respond(_request: httpx.Request) -> httpx.Response:
+        if _request.url.path == "/internal/runtime":
+            return httpx.Response(200, json={"instance_id": "0" * 32})
         return httpx.Response(
             422,
             json={"error": {"code": "credential_required", "message": "required"}},
@@ -252,6 +264,8 @@ async def test_inspect_exposes_a_site_session_that_is_not_ready(
     monkeypatch: pytest.MonkeyPatch, context_ready: bool, code: str
 ) -> None:
     async def respond(_request: httpx.Request) -> httpx.Response:
+        if _request.url.path == "/internal/runtime":
+            return httpx.Response(200, json={"instance_id": "0" * 32})
         return httpx.Response(503, json={"error": {"code": code, "message": code}})
 
     http = httpx.AsyncClient(
@@ -282,6 +296,8 @@ async def test_inspect_exposes_a_site_session_that_is_not_ready(
 @pytest.mark.asyncio
 async def test_inspect_exposes_duration_safety_boundary() -> None:
     async def respond(_request: httpx.Request) -> httpx.Response:
+        if _request.url.path == "/internal/runtime":
+            return httpx.Response(200, json={"instance_id": "0" * 32})
         return httpx.Response(
             422,
             json={
@@ -314,6 +330,8 @@ async def test_inspect_exposes_duration_safety_boundary() -> None:
 @pytest.mark.asyncio
 async def test_inspect_exposes_unavailable_provider_link() -> None:
     async def respond(_request: httpx.Request) -> httpx.Response:
+        if _request.url.path == "/internal/runtime":
+            return httpx.Response(200, json={"instance_id": "0" * 32})
         return httpx.Response(
             422,
             json={
@@ -346,6 +364,8 @@ async def test_inspect_exposes_unavailable_provider_link() -> None:
 @pytest.mark.asyncio
 async def test_inspect_exposes_unsupported_provider() -> None:
     async def respond(_request: httpx.Request) -> httpx.Response:
+        if _request.url.path == "/internal/runtime":
+            return httpx.Response(200, json={"instance_id": "0" * 32})
         return httpx.Response(
             422,
             json={
@@ -378,6 +398,8 @@ async def test_inspect_exposes_unsupported_provider() -> None:
 @pytest.mark.asyncio
 async def test_inspect_exposes_unsupported_provider_media() -> None:
     async def respond(_request: httpx.Request) -> httpx.Response:
+        if _request.url.path == "/internal/runtime":
+            return httpx.Response(200, json={"instance_id": "0" * 32})
         return httpx.Response(
             422,
             json={
@@ -410,6 +432,8 @@ async def test_inspect_exposes_unsupported_provider_media() -> None:
 @pytest.mark.asyncio
 async def test_inspect_maps_unsupported_source() -> None:
     async def respond(_request: httpx.Request) -> httpx.Response:
+        if _request.url.path == "/internal/runtime":
+            return httpx.Response(200, json={"instance_id": "0" * 32})
         return httpx.Response(
             422,
             json={
@@ -442,6 +466,8 @@ async def test_inspect_maps_unsupported_source() -> None:
 @pytest.mark.asyncio
 async def test_inspect_exposes_runner_timeout_response() -> None:
     async def respond(_request: httpx.Request) -> httpx.Response:
+        if _request.url.path == "/internal/runtime":
+            return httpx.Response(200, json={"instance_id": "0" * 32})
         return httpx.Response(
             504,
             json={"error": {"code": "inspection_timeout", "message": "timeout"}},
@@ -469,6 +495,8 @@ async def test_inspect_exposes_runner_timeout_response() -> None:
 @pytest.mark.asyncio
 async def test_inspect_exposes_client_read_timeout() -> None:
     async def respond(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/internal/runtime":
+            return httpx.Response(200, json={"instance_id": "0" * 32})
         raise httpx.ReadTimeout("runner timed out", request=request)
 
     http = httpx.AsyncClient(
@@ -493,6 +521,8 @@ async def test_inspect_exposes_client_read_timeout() -> None:
 @pytest.mark.asyncio
 async def test_inspect_classifies_runner_disconnect_as_dependency_unavailable() -> None:
     async def respond(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/internal/runtime":
+            return httpx.Response(200, json={"instance_id": "0" * 32})
         raise httpx.ConnectError("runner unavailable", request=request)
 
     http = httpx.AsyncClient(
@@ -521,6 +551,8 @@ async def test_download_sends_expected_inspection_identity(tmp_path) -> None:
     workspace = tmp_path / "job-controlled"
 
     async def respond(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/internal/runtime":
+            return httpx.Response(200, json={"instance_id": "0" * 32})
         captured.update(json.loads(request.content))
         return httpx.Response(
             200,
@@ -589,6 +621,8 @@ async def test_new_client_rejects_legacy_probe_revision(tmp_path: Path) -> None:
     returned.pop("runtime_revision")
 
     async def respond(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/internal/runtime":
+            return httpx.Response(200, json={"instance_id": "0" * 32})
         assert request.url.path == "/internal/inspect"
         assert json.loads(request.content)["access_context"] == newer.to_document()
         return httpx.Response(
@@ -651,6 +685,8 @@ async def test_new_client_half_open_download_rejects_legacy_runner(
             self.probing = False
 
     async def respond(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/internal/runtime":
+            return httpx.Response(200, json={"instance_id": "0" * 32})
         if request.url.path == "/internal/inspect":
             events.append("probe")
             return httpx.Response(
@@ -732,3 +768,29 @@ def _access_context() -> ProviderAccessContextRef:
         engine_commit="5d6b8c8",
         runtime_revision="a" * 64,
     )
+
+
+async def test_execution_is_bound_to_handshake_and_never_replayed_on_restart():
+    paths = []
+
+    async def respond(request):
+        paths.append(request.url.path)
+        if request.url.path == "/internal/runtime":
+            return httpx.Response(200, json={"instance_id": "a" * 32})
+        assert request.headers["X-Runner-Instance"] == "a" * 32
+        return httpx.Response(409, json={"error": {"code": "runner_restarted"}})
+
+    async with httpx.AsyncClient(
+        base_url="http://runner", transport=httpx.MockTransport(respond)
+    ) as http:
+        client = MediaRunnerHttpClient(
+            base_url="http://runner",
+            secret=b"s" * 32,
+            workspace_root=Path("."),
+            inspect_timeout_seconds=1,
+            download_timeout_seconds=1,
+            client=http,
+        )
+        with pytest.raises(MediaInspectionTemporarilyUnavailable):
+            await client.inspect("https://media.example/video")
+    assert paths == ["/internal/runtime", "/internal/inspect"]

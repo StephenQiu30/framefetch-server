@@ -71,11 +71,19 @@ class ActiveTaskRegistry:
         if record is not None and record.task is task:
             self._tasks.pop(task_id, None)
 
-    def cancel(self, task_id: str) -> None:
+    async def cancel(self, task_id: str) -> None:
         record = self._tasks.get(task_id)
         task = record.task if record is not None else None
         if task is not None and not task.done() and task.cancelling() == 0:
             task.cancel()
+        if task is not None:
+            # Shield cleanup from the cancellation request disconnecting. A
+            # timeout is uncertainty, never an acknowledgement of termination.
+            try:
+                async with asyncio.timeout(20):
+                    await asyncio.shield(asyncio.gather(task, return_exceptions=True))
+            except TimeoutError as exc:
+                raise RunnerFailure("cancellation_pending", status=503) from exc
 
     def status(self, task_id: str) -> TaskSnapshot | None:
         record = self._tasks.get(task_id)

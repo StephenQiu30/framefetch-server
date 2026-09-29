@@ -118,3 +118,27 @@ def test_launch_agent_receives_only_source_configuration(tmp_path):
         "SITE_SESSION_PROFILE_ROOT",
         "SITE_SESSION_BROWSER_PROXY",
     }
+
+
+async def test_cancelled_login_closes_browser_and_releases_capacity(
+    tmp_path, monkeypatch
+):
+    import asyncio
+
+    source = BrowserSource(tmp_path, proxy="http://127.0.0.1:13128", secret=b"s" * 32)
+    context = Context([])
+    entered = asyncio.Event()
+
+    async def goto(*args, **kwargs):
+        entered.set()
+        await asyncio.Event().wait()
+
+    context.pages[0].goto = goto
+    monkeypatch.setattr(source, "_launch", AsyncMock(return_value=context))
+    login = asyncio.create_task(source.open_login("youtube.com"))
+    await entered.wait()
+    login.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await login
+    assert context.closed == 1
+    assert not source._logins and not source._login_timers

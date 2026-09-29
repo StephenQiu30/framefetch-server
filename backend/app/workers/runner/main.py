@@ -7,6 +7,7 @@ from collections.abc import AsyncIterator, Awaitable
 from contextlib import asynccontextmanager
 from datetime import datetime
 from typing import Protocol
+from uuid import uuid4
 
 from app.schemas.engine_catalog import EngineCatalogResponse
 from app.services.provider_types import ProviderAccessContextRef, ProviderAccessMode
@@ -22,6 +23,7 @@ from app.workers.runner.contracts import (
     ProviderContextsRequest,
     ProviderContextsResponse,
     ProviderLoginRequest,
+    RuntimeResponse,
     TaskStatusResponse,
 )
 from app.workers.runner.engine_catalog import RunnerEngineCatalog
@@ -46,9 +48,9 @@ from pydantic import BaseModel, ValidationError
 _TASK_ID = re.compile(r"[A-Za-z0-9_-]{1,64}")
 
 
-async def _inspect_until_disconnect(
-    request: Request, operation: Awaitable[InspectResponse]
-) -> InspectResponse:
+async def _until_disconnect[ResultT](
+    request: Request, operation: Awaitable[ResultT]
+) -> ResultT:
     async def disconnected() -> None:
         # Authentication has consumed the request body. Waiting on ASGI receive
         # avoids polling CancelScope cancellation swallowing our own shutdown.
@@ -64,7 +66,7 @@ async def _inspect_until_disconnect(
         if work in done:
             return work.result()
         watcher.result()
-        raise HTTPException(status_code=499, detail="inspection_cancelled")
+        raise HTTPException(status_code=499, detail="operation_cancelled")
     finally:
         work.cancel()
         watcher.cancel()
@@ -106,6 +108,7 @@ def create_app(
     readiness: ReadinessProbe | None = None,
 ) -> FastAPI:
     configured = settings or get_runner_settings()
+    instance_id = uuid4().hex
     configure_provider_instances(configured.peertube_allowed_instances)
     sessions = ProviderSessionStore(configured)
     runner = service or MediaRunnerService(configured, session_store=sessions)
@@ -176,6 +179,15 @@ def create_app(
             },
         )
 
+    @app.get("/internal/runtime", response_model=RuntimeResponse)
+    async def runtime(request: Request) -> RuntimeResponse:
+        await _authenticated_body(request, configured, authenticator)
+        return RuntimeResponse(instance_id=instance_id)
+
+    def require_instance(request: Request) -> None:
+        if request.headers.get("X-Runner-Instance") != instance_id:
+            raise RunnerFailure("runner_restarted", status=409)
+
     @app.get("/internal/engine-catalog", response_model=EngineCatalogResponse)
     async def get_engine_catalog(request: Request) -> EngineCatalogResponse:
         await _authenticated_body(request, configured, authenticator)
@@ -197,9 +209,10 @@ def create_app(
             configured,
             authenticator,
         )
+        require_instance(request)
         payload = _parse(InspectRequest, body)
         _require_pinned_engine(configured)
-        return await _inspect_until_disconnect(
+        return await _until_disconnect(
             request,
             runner.inspect(
                 payload.url,
@@ -255,9 +268,10 @@ def create_app(
             configured,
             authenticator,
         )
+        require_instance(request)
         payload = _parse(DownloadRequest, body)
         _require_pinned_engine(configured)
-        return await runner.download(payload)
+        return await _until_disconnect(request, runner.download(payload))
 
     @app.post(
         "/internal/tasks/{task_id}/cancel",
@@ -329,6 +343,7 @@ async def _authenticated_body(
             nonce,
             signature,
             now=int(time.time()),
+            runtime_instance_id=request.headers.get("X-Runner-Instance"),
         )
     except ReplayDetectedError as exc:
         raise RunnerFailure("request_replayed", status=401) from exc

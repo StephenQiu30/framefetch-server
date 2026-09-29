@@ -170,14 +170,14 @@ class MediaRunnerService:
         workspace = None
         succeeded = False
         try:
-            safe_url = safe_media_url(request.url)
-            source = provider_request(safe_url)
-            await self._require_companion(source.profile.key)
-            context = await self._sessions.validate_context(
-                source.profile, request.access_context.to_domain(), url=safe_url
-            )
-            workspace = self._workspaces.create(request.task_id)
             async with asyncio.timeout(self._settings.runner_download_timeout_seconds):
+                safe_url = safe_media_url(request.url)
+                source = provider_request(safe_url)
+                await self._require_companion(source.profile.key)
+                context = await self._sessions.validate_context(
+                    source.profile, request.access_context.to_domain(), url=safe_url
+                )
+                workspace = self._workspaces.create(request.task_id)
                 async with self._sessions.operation(context) as cookie_jar:
                     response = await self._download_in_workspace(
                         request,
@@ -206,7 +206,7 @@ class MediaRunnerService:
             await require_youtube_sidecar_identity(base_url)
 
     async def cancel(self, task_id: str) -> CancelResponse:
-        self._active.cancel(task_id)
+        await self._active.cancel(task_id)
         return CancelResponse(task_id=task_id)
 
     async def status(self, task_id: str) -> TaskStatusResponse:

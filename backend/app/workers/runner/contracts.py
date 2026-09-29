@@ -37,6 +37,10 @@ class ContractModel(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
 
+class RuntimeResponse(ContractModel):
+    instance_id: str = Field(pattern=r"^[0-9a-f]{32}$")
+
+
 class ProviderHintsContract(ContractModel):
     video_id: str | None = Field(default=None, max_length=128)
     audio_id: str | None = Field(default=None, max_length=128)
@@ -276,7 +280,7 @@ class CancelCommand(ContractModel):
 
 class CancelResponse(ContractModel):
     task_id: str
-    status: str = "cancellation_requested"
+    status: str = "stopped"
 
 
 class RunnerTaskStage(StrEnum):

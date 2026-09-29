@@ -8,6 +8,9 @@ from yt_dlp import extractor as yt_dlp_extractor
 
 @pytest.fixture(autouse=True)
 def controlled_named_extractor(monkeypatch: pytest.MonkeyPatch) -> None:
+    from uuid import UUID
+
+    monkeypatch.setattr("app.workers.runner.main.uuid4", lambda: UUID(int=0))
     original = yt_dlp_extractor.get_info_extractor
 
     class ControlledExtractor:

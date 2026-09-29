@@ -130,6 +130,7 @@ def signed_headers(
     nonce: str,
     *,
     method: str = "POST",
+    instance_id: str = "0" * 32,
 ) -> dict[str, str]:
     timestamp = int(time.time())
     signer = HmacRequestAuthenticator(
@@ -138,10 +139,16 @@ def signed_headers(
         max_age_seconds=30,
         max_future_skew_seconds=5,
     )
-    signature = signer.sign(method, path, body, timestamp, nonce)
+    instance = (
+        instance_id if path in {"/internal/inspect", "/internal/download"} else None
+    )
+    signature = signer.sign(
+        method, path, body, timestamp, nonce, runtime_instance_id=instance
+    )
     return {
         "X-Runner-Timestamp": str(timestamp),
         "X-Runner-Nonce": nonce,
         "X-Runner-Signature": signature,
         "Content-Type": "application/json",
+        **({"X-Runner-Instance": instance} if instance is not None else {}),
     }

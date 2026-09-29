@@ -62,6 +62,7 @@ class BrowserSource:
         self._logins: dict[str, BrowserContext] = {}
         self._login_timers: dict[str, asyncio.Task[None]] = {}
         self._slots = asyncio.Semaphore(4)
+        self._login_lock = asyncio.Lock()
 
     async def start(self) -> None:
         from playwright.async_api import async_playwright
@@ -195,34 +196,41 @@ class BrowserSource:
 
     async def open_login(self, site: str) -> None:
         self._site(site)
-        async with asyncio.timeout(35), self._locks[site]:
-            existing = self._logins.get(site)
-            if existing is not None:
+        try:
+            async with asyncio.timeout(35), self._locks[site], self._login_lock:
+                existing = self._logins.get(site)
+                if existing is not None:
+                    try:
+                        if existing.pages:
+                            await existing.pages[0].bring_to_front()
+                            return
+                    except Exception:
+                        pass
+                    await self._close_login(site)
+                # Login windows are bounded separately; do not retain a media slot
+                # or any task ownership while waiting for the operator.
+                if len(self._logins) >= 3:
+                    raise SourceUnavailable("login_capacity_reached")
+                context = await self._launch(site, visible=True)
+                self._logins[site] = context
+                self._login_timers[site] = asyncio.create_task(self._expire_login(site))
                 try:
-                    if existing.pages:
-                        await existing.pages[0].bring_to_front()
-                        return
-                except Exception:
-                    pass
-                await self._close_login(site)
-            # Login windows are bounded separately; do not retain a media slot
-            # or any task ownership while waiting for the operator.
-            if len(self._logins) >= 3:
-                raise SourceUnavailable("login_capacity_reached")
-            context = await self._launch(site, visible=True)
-            self._logins[site] = context
-            self._login_timers[site] = asyncio.create_task(self._expire_login(site))
-            try:
-                page = context.pages[0] if context.pages else await context.new_page()
-                await page.goto(
-                    site_target(site).policy.login_url,
-                    wait_until="domcontentloaded",
-                    timeout=25_000,
-                )
-                await page.bring_to_front()
-            except Exception:
-                await self._close_login(site)
-                raise SourceUnavailable() from None
+                    page = (
+                        context.pages[0] if context.pages else await context.new_page()
+                    )
+                    await page.goto(
+                        site_target(site).policy.login_url,
+                        wait_until="domcontentloaded",
+                        timeout=25_000,
+                    )
+                    await page.bring_to_front()
+                except BaseException as error:
+                    await self._close_login(site)
+                    if isinstance(error, asyncio.CancelledError):
+                        raise
+                    raise SourceUnavailable() from None
+        except TimeoutError:
+            raise SourceUnavailable() from None
 
     async def finish_login(self, site: str) -> None:
         self._site(site)

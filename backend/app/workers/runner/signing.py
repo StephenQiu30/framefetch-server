@@ -83,8 +83,18 @@ class HmacRequestAuthenticator:
         body: bytes,
         timestamp: int,
         nonce: str,
+        *,
+        runtime_instance_id: str | None = None,
     ) -> str:
-        return sign_request(self._secret, method, target, body, timestamp, nonce)
+        return sign_request(
+            self._secret,
+            method,
+            target,
+            body,
+            timestamp,
+            nonce,
+            runtime_instance_id=runtime_instance_id,
+        )
 
     def verify(
         self,
@@ -96,8 +106,11 @@ class HmacRequestAuthenticator:
         signature: str,
         *,
         now: int,
+        runtime_instance_id: str | None = None,
     ) -> None:
-        payload = _canonical_request(method, target, body, timestamp, nonce)
+        payload = _canonical_request(
+            method, target, body, timestamp, nonce, runtime_instance_id
+        )
         if timestamp < now - self._max_age or timestamp > now + self._future_skew:
             raise ExpiredSignatureError(
                 "signature timestamp is outside the time window"
@@ -116,6 +129,7 @@ def _canonical_request(
     body: bytes,
     timestamp: int,
     nonce: str,
+    runtime_instance_id: str | None,
 ) -> bytes:
     if not method or not method.isascii() or not method.isalpha():
         raise RequestAuthenticationError("HTTP method is invalid")
@@ -127,7 +141,19 @@ def _canonical_request(
         raise RequestAuthenticationError("timestamp must be integer seconds")
     _validate_nonce(nonce)
     body_hash = hashlib.sha256(body).hexdigest()
-    fields = (method.upper(), target, str(timestamp), nonce, body_hash)
+    if (
+        runtime_instance_id is not None
+        and re.fullmatch(r"[0-9a-f]{32}", runtime_instance_id) is None
+    ):
+        raise RequestAuthenticationError("runtime instance is invalid")
+    fields = (
+        method.upper(),
+        target,
+        str(timestamp),
+        nonce,
+        body_hash,
+        runtime_instance_id or "",
+    )
     return "\n".join(fields).encode("utf-8")
 
 
@@ -138,10 +164,14 @@ def sign_request(
     body: bytes,
     timestamp: int,
     nonce: str,
+    *,
+    runtime_instance_id: str | None = None,
 ) -> str:
     """Create the canonical signature without mutating replay state."""
     _validate_secret(secret)
-    payload = _canonical_request(method, target, body, timestamp, nonce)
+    payload = _canonical_request(
+        method, target, body, timestamp, nonce, runtime_instance_id
+    )
     return hmac.new(secret, payload, hashlib.sha256).hexdigest()
 
 

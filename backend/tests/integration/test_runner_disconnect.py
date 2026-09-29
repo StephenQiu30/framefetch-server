@@ -13,11 +13,16 @@ from app.workers.runner.process import ProcessSupervisor
 from tests.unit.workers.runner.api_helpers import FakeService, settings, signed_headers
 
 
-async def test_http_disconnect_terminates_real_inspection_process(tmp_path):
+@pytest.mark.parametrize("operation", ["inspect", "download"])
+async def test_http_disconnect_terminates_real_media_process(tmp_path, operation):
     cleaned = asyncio.Event()
     pid_file = tmp_path / "pid"
 
     class ProcessService(FakeService):
+        async def download(self, payload):
+            await self.inspect(payload.url)
+            return await super().download(payload)
+
         async def inspect(self, url, **kwargs):
             try:
                 await ProcessSupervisor().run(
@@ -55,13 +60,27 @@ async def test_http_disconnect_terminates_real_inspection_process(tmp_path):
                 trust_env=False,
                 timeout=60,
             ) as client:
-                path = "/internal/inspect"
+                runtime_path = "/internal/runtime"
+                runtime = await client.get(
+                    runtime_path,
+                    headers=signed_headers(
+                        runtime_path, b"", "runtime-handshake-nonce", method="GET"
+                    ),
+                )
+                instance_id = runtime.json()["instance_id"]
+                path = f"/internal/{operation}"
                 body = json.dumps({"url": "https://example.com/video"}).encode()
+                if operation == "download":
+                    from tests.unit.workers.runner.helpers import download_request
+
+                    body = download_request().model_dump_json().encode()
                 request = asyncio.create_task(
                     client.post(
                         path,
                         content=body,
-                        headers=signed_headers(path, body, "disconnect-test-nonce"),
+                        headers=signed_headers(
+                            path, body, "disconnect-test-nonce", instance_id=instance_id
+                        ),
                     )
                 )
                 while not pid_file.exists():

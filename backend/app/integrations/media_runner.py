@@ -9,7 +9,6 @@ import re
 import secrets
 import time
 from collections.abc import Callable, Mapping
-from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 from email.utils import parsedate_to_datetime
 from pathlib import Path
@@ -75,6 +74,7 @@ from app.workers.runner.contracts import (
     ProviderContextsResponse,
     ProviderLoginRequest,
     ProviderLoginResponse,
+    RuntimeResponse,
     TaskStatusResponse,
 )
 from app.workers.runner.provider_registry import (
@@ -278,6 +278,7 @@ class MediaRunnerHttpClient:
                 "runner_unavailable",
                 "runner_release_mismatch",
                 "runner_release_changed",
+                "runner_restarted",
             }:
                 raise MediaInspectionTemporarilyUnavailable from exc
             if exc.code == "provider_link_unavailable":
@@ -341,12 +342,6 @@ class MediaRunnerHttpClient:
         )
         if context is not None:
             returned_context = _context_to_domain(response.access_context)
-            if returned_context.runtime_revision == "legacy":
-                # A rollback Runner emits its own legacy identity. Its inspect
-                # result still has to match every other frozen route reference.
-                returned_context = replace(
-                    returned_context, runtime_revision=context.runtime_revision
-                )
             if returned_context != context:
                 raise MediaRunnerClientError("client_context_mismatch", 422)
             if not response.options:
@@ -472,15 +467,35 @@ class MediaRunnerHttpClient:
         *,
         timeout_code: str,
     ) -> ResponseModel:
+        instance_id = None
+        if target in {"/internal/inspect", "/internal/download"}:
+            # Bind this one execution, never transparently replay it after a boot.
+            runtime = await self._request(
+                "GET",
+                "/internal/runtime",
+                b"",
+                RuntimeResponse,
+                min(timeout, 5.0),
+                timeout_code=timeout_code,
+            )
+            instance_id = runtime.instance_id
         timestamp, nonce = self._clock(), self._nonce()
         headers = {
             "Content-Type": "application/json",
             "X-Runner-Timestamp": str(timestamp),
             "X-Runner-Nonce": nonce,
             "X-Runner-Signature": sign_request(
-                self._secret, method, target, body, timestamp, nonce
+                self._secret,
+                method,
+                target,
+                body,
+                timestamp,
+                nonce,
+                runtime_instance_id=instance_id,
             ),
         }
+        if instance_id is not None:
+            headers["X-Runner-Instance"] = instance_id
         try:
             response = await self._client.request(
                 method,

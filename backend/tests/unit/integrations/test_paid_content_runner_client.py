@@ -10,6 +10,8 @@ from app.services.downloads.rules.content_restrictions import ContentRestriction
 @pytest.mark.parametrize("reason", list(ContentRestriction))
 async def test_runner_client_preserves_known_content_reason(reason) -> None:
     async def respond(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/internal/runtime":
+            return httpx.Response(200, json={"instance_id": "0" * 32})
         return httpx.Response(
             422, json={"error": {"code": reason.value, "message": "restricted"}}
         )

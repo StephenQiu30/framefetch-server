@@ -25,7 +25,7 @@ def test_cancel_is_authenticated_and_idempotent(tmp_path: Path) -> None:
         == responses[1].json()
         == {
             "task_id": "job_123",
-            "status": "cancellation_requested",
+            "status": "stopped",
         }
     )
     assert service.cancelled == ["job_123", "job_123"]

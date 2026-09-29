@@ -81,6 +81,7 @@ _RUNNER_CODES = {
     "download_failed": DownloadErrorCode.PROVIDER_TEMPORARILY_UNAVAILABLE,
     "runner_dependency_unavailable": DownloadErrorCode.WORKER_LOST,
     "runner_unavailable": DownloadErrorCode.WORKER_LOST,
+    "runner_restarted": DownloadErrorCode.WORKER_LOST,
     "runner_release_mismatch": DownloadErrorCode.WORKER_LOST,
     "runner_release_changed": DownloadErrorCode.WORKER_LOST,
     "runner_busy": DownloadErrorCode.WORKER_LOST,

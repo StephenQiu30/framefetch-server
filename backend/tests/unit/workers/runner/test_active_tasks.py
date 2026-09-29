@@ -41,3 +41,28 @@ async def test_ready_record_is_bounded_and_evictable() -> None:
 
     assert registry.status("first") is None
     assert registry.status("second") is not None
+
+
+async def test_cancel_acknowledges_only_after_cleanup_and_is_idempotent():
+    registry = ActiveTaskRegistry(2)
+    started, cleaning, finish = asyncio.Event(), asyncio.Event(), asyncio.Event()
+
+    async def work():
+        started.set()
+        try:
+            await asyncio.Event().wait()
+        finally:
+            cleaning.set()
+            await finish.wait()
+
+    task = asyncio.create_task(work())
+    registry.register("job", task)
+    await started.wait()
+    cancel = asyncio.create_task(registry.cancel("job"))
+    await cleaning.wait()
+    assert not cancel.done()
+    finish.set()
+    await asyncio.wait_for(cancel, 1)
+    assert task.done()
+    await registry.cancel("job")
+    await registry.cancel("unknown")
