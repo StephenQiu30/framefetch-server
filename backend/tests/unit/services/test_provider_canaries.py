@@ -967,3 +967,43 @@ async def test_admin_catalog_controls_public_order_names_and_custom_entries() ->
     assert views[0].status is ProviderSupportStatus.UNSUPPORTED
     assert views[0].registered is False
     assert views[1].display_name == "Vimeo 视频"
+
+
+@pytest.mark.asyncio
+async def test_live_operator_session_without_evidence_is_unverified_not_login() -> None:
+    operator = replace(
+        baseline(ProviderSupportStatus.ACCESS_REQUIRED),
+        access_modes=(ProviderAccessMode.OPERATOR_MANAGED,),
+    )
+    service = ProviderStatusService(
+        Reader(()),
+        (operator,),
+        now=lambda: NOW,
+        context_reader=ContextReader(
+            (access_context(access_mode=ProviderAccessMode.OPERATOR_MANAGED),)
+        ),
+    )
+
+    view = (await service.list())[0]
+
+    assert view.status is ProviderSupportStatus.UNKNOWN
+    assert view.access_state is ProviderAccessState.OPERATOR_PROBE
+    assert view.user_action == "该平台尚未完成当前版本的真实下载验证。"
+
+
+@pytest.mark.asyncio
+async def test_missing_operator_session_still_requires_authorization() -> None:
+    operator = replace(
+        baseline(ProviderSupportStatus.ACCESS_REQUIRED),
+        access_modes=(ProviderAccessMode.OPERATOR_MANAGED,),
+    )
+    service = ProviderStatusService(
+        Reader(()),
+        (operator,),
+        now=lambda: NOW,
+        context_reader=ContextReader(()),
+    )
+
+    view = (await service.list())[0]
+
+    assert view.access_state is ProviderAccessState.AUTHORIZATION_REQUIRED

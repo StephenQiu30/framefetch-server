@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import logging
 import math
 import re
 import secrets
@@ -82,6 +83,8 @@ from app.workers.runner.signing import sign_request
 
 _TASK_ID = re.compile(r"[A-Za-z0-9_-]{1,64}")
 _CONTEXT_TIMEOUT_SECONDS = 2.0
+logger = logging.getLogger(__name__)
+
 _STATUS_CONTEXT_TIMEOUT_SECONDS = 0.25
 ResponseModel = TypeVar("ResponseModel", bound=BaseModel)
 
@@ -583,7 +586,17 @@ class MediaRunnerRouter:
         ) -> tuple[ProviderAccessContextRef, ...]:
             try:
                 return await client.contexts_for_providers(keys)
-            except MediaRunnerClientError:
+            except MediaRunnerClientError as exc:
+                # provider_session_not_ready is an expected, actionable state;
+                # anything else (timeouts, transport) deserves a trace.
+                logger.log(
+                    logging.INFO
+                    if exc.code == "provider_session_not_ready"
+                    else logging.WARNING,
+                    "provider context unavailable providers=%s code=%s",
+                    ",".join(keys),
+                    exc.code,
+                )
                 return ()
 
         batches = await asyncio.gather(

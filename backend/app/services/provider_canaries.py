@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 import math
 import time
 from collections.abc import Callable, Mapping
@@ -26,6 +27,8 @@ from app.services.providers import (
     ProviderStatusView,
     provider_user_action,
 )
+
+logger = logging.getLogger(__name__)
 
 _ACCESS_ERRORS = {
     "provider_auth_required",
@@ -270,6 +273,24 @@ def _merge_status(
         )
     )
     if not results:
+        if (
+            baseline.status is ProviderSupportStatus.ACCESS_REQUIRED
+            and access_mode is ProviderAccessMode.OPERATOR_MANAGED
+        ):
+            # The live runner resolved this route's session context, so the
+            # platform is not missing authorization; it simply has no canary
+            # evidence for the current generation yet (cold start, session
+            # rotation). Report it as unverified instead of asking for login.
+            return replace(
+                baseline,
+                status=ProviderSupportStatus.UNKNOWN,
+                user_action=provider_user_action(
+                    ProviderSupportStatus.UNKNOWN,
+                    baseline.key,
+                    download_available=False,
+                    access_mode=access_mode,
+                ),
+            )
         return baseline
     ordered = tuple(
         sorted(
@@ -371,7 +392,9 @@ async def _runtime_contexts(
         resolved = await reader.contexts_for_providers(requested)
     except Exception:
         # Public status must never reuse stale evidence when the live runner
-        # generation cannot be established.
+        # generation cannot be established. The failure is still operational
+        # signal, so it must not disappear silently.
+        logger.warning("provider runtime context lookup failed", exc_info=True)
         return {}
     profile_versions = {
         baseline.key: baseline.profile_version for baseline in baselines

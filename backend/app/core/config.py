@@ -300,6 +300,9 @@ class Settings(BaseSettings):
     runner_workspace_root: Path = Path("/work")
     runner_hmac_secret: SecretStr = SecretStr("development-runner-secret-change-me")
     provider_canary_targets: SecretStr = SecretStr("[]")
+    # With no explicit targets, the canary probes the repository's fixed public
+    # samples so a cold start always refreshes provider evidence on its own.
+    provider_canary_default_targets: bool = True
     provider_verified_keys: frozenset[str] = frozenset()
     peertube_allowed_instances: frozenset[str] = frozenset()
     provider_canary_metadata_interval_seconds: int = Field(

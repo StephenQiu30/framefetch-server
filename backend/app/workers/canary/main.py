@@ -18,6 +18,8 @@ from app.repositories.providers.canary_repository import (
 )
 from app.repositories.providers.route_cooldowns import SqlAlchemyProviderRouteCooldowns
 from app.services.provider_route_admission import ProviderRouteAdmission
+from app.services.provider_types import ProviderAccessMode
+from app.workers.canary.fixed_cases import fixed_public_diagnostic_targets
 from app.workers.canary.runner import ProviderCanaryRunner
 from app.workers.canary.scheduler import ProviderCanaryScheduler
 from app.workers.canary.service import ProviderCanaryService
@@ -46,11 +48,18 @@ class ProviderCanaryRuntime:
 
 def build_runtime(settings: Settings) -> ProviderCanaryRuntime:
     configure_provider_instances(settings.peertube_allowed_instances)
+    session_keys = session_provider_keys(settings)
     targets = parse_canary_targets(settings.provider_canary_targets)
-    validate_canary_target_routes(
-        targets,
-        session_provider_keys(settings),
-    )
+    if not targets and settings.provider_canary_default_targets:
+        # Operator-route samples without a matching session runner cannot run
+        # in this deployment; anonymous samples always can.
+        targets = tuple(
+            target
+            for target in fixed_public_diagnostic_targets()
+            if target.access_mode is not ProviderAccessMode.OPERATOR_MANAGED
+            or target.provider_key in session_keys
+        )
+    validate_canary_target_routes(targets, session_keys)
     engine = create_engine(settings.database_url)
     sessions = create_session_factory(engine)
     repository = SqlAlchemyProviderCanaryRepository(sessions)
