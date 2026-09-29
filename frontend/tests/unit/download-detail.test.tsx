@@ -76,6 +76,8 @@ describe('DownloadJobView', () => {
       '[data-slot="media-result"] > [data-slot="card"]',
     );
     expect(cards).toHaveLength(2);
+    expect(cards[0]).toHaveClass('ring-0');
+    expect(cards[1]).toHaveClass('ring-0');
     expect(cards[0].querySelector('[data-slot="media-result-frame"]')).toBe(
       mediaFrame,
     );
