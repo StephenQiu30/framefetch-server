@@ -35,7 +35,7 @@ def agent_spec(env_file: Path, interval: int) -> dict[str, object]:
             sys.executable,
             "-m",
             "app.workers.session.source",
-            "reconcile",
+            "supervise",
             "--env-file",
             str(env_file),
         ],
@@ -192,10 +192,7 @@ def main() -> int:
             return 2
         print("检查当前数据库结构并自动准备平台连接…", flush=True)
         asyncio.run(apply_schema(env_file))
-        print(json.dumps(reconcile(env_file)), flush=True)
-        install_agent(env_file, settings.site_session_source_interval_seconds)
-        request_id = request_access_check(env_file)
-        print("自动接入服务已由 macOS 监管；正在启动业务服务…", flush=True)
+        print("先启动业务服务；平台接入不阻塞核心 API…", flush=True)
         compose = [
             "docker",
             "compose",
@@ -208,7 +205,10 @@ def main() -> int:
         if not args.no_build:
             command.append("--build")
         subprocess.run(command, cwd=PROJECT_ROOT, check=True, timeout=1200)
-        print("服务已启动，等待平台实际验证…", flush=True)
+        print(json.dumps(reconcile(env_file)), flush=True)
+        install_agent(env_file, settings.site_session_source_interval_seconds)
+        request_id = request_access_check(env_file)
+        print("服务已启动，等待所有已启用平台实际验证…", flush=True)
         result_code = subprocess.run(
             compose
             + [
@@ -227,18 +227,37 @@ def main() -> int:
             check=False,
         ).returncode
         if result_code:
+            print("部分平台未就绪；核心服务继续运行，启动报告保留失败。", flush=True)
+        print("验证固定公开平台的实际解析接口…", flush=True)
+        public_code = subprocess.run(
+            compose
+            + [
+                "exec",
+                "-T",
+                "provider-canary",
+                "python",
+                "-m",
+                "app.workers.canary.fixed_matrix",
+                "--native-public",
+                "--stage",
+                "metadata",
+            ],
+            cwd=PROJECT_ROOT,
+            timeout=600,
+            check=False,
+        ).returncode
+        if public_code:
             print(
-                "服务已启动，但部分平台尚未就绪。自动接入将继续检查；"
-                "请查看 source-status.json 和平台会话状态。",
-                flush=True,
+                "部分公开平台探测失败，已保留真实失败状态；不切换访问路线。", flush=True
             )
         access_ready = wait_access_check(env_file, request_id)
         if not access_ready:
             print(
-                "已有平台会话仍可由容器维护；"
-                "自动重新获取尚需处理系统权限或 Chrome 登录。"
+                "自动重新获取尚需处理系统权限或 Chrome 登录；"
+                "已有平台会话仍由容器维护，启动报告保留失败。",
+                flush=True,
             )
-        return result_code or (0 if access_ready else 2)
+        return result_code or public_code or (0 if access_ready else 2)
     except Exception:
         print(
             "启动操作未完成；请检查数据库、Docker 与 macOS 接入权限。"

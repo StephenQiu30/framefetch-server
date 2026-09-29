@@ -54,6 +54,8 @@ class SessionEntitlement(StrEnum):
 class LoginProbe(StrEnum):
     YOUTUBE_LOGGED_IN = "youtube_logged_in"
     DOUYIN_PROFILE = "douyin_profile"
+    PAGE_IDENTITY = "page_identity"
+    REDDIT_IDENTITY = "reddit_identity"
     COOKIES_RETAINED = "cookies_retained"
 
     @property
@@ -152,12 +154,14 @@ _KNOWN_POLICIES = {
             "xiaohongshu.com",
             ProviderKey.XIAOHONGSHU,
             "https://www.xiaohongshu.com/explore",
-            required_cookie_names=frozenset({"a1", "webId", "web_session"}),
+            login_probe=LoginProbe.PAGE_IDENTITY,
+            required_cookie_names=frozenset({"web_session"}),
         ),
         SiteSessionPolicy(
             "x.com",
             ProviderKey.X,
             "https://x.com/home",
+            login_probe=LoginProbe.PAGE_IDENTITY,
             required_cookie_names=frozenset({"auth_token", "ct0"}),
             requirement=CookieRequirement.ALL,
         ),
@@ -165,12 +169,14 @@ _KNOWN_POLICIES = {
             "instagram.com",
             ProviderKey.INSTAGRAM,
             "https://www.instagram.com/",
+            login_probe=LoginProbe.PAGE_IDENTITY,
             required_cookie_names=frozenset({"sessionid"}),
         ),
         SiteSessionPolicy(
             "facebook.com",
             ProviderKey.FACEBOOK,
             "https://www.facebook.com/",
+            login_probe=LoginProbe.PAGE_IDENTITY,
             required_cookie_names=frozenset({"c_user", "xs"}),
             requirement=CookieRequirement.ALL,
         ),
@@ -178,6 +184,7 @@ _KNOWN_POLICIES = {
             "reddit.com",
             ProviderKey.REDDIT,
             "https://www.reddit.com/",
+            login_probe=LoginProbe.REDDIT_IDENTITY,
             # ``loid`` is Reddit's logged-out visitor id.
             required_cookie_names=frozenset({"reddit_session"}),
         ),
@@ -185,6 +192,7 @@ _KNOWN_POLICIES = {
             "pinterest.com",
             ProviderKey.PINTEREST,
             "https://www.pinterest.com/",
+            login_probe=LoginProbe.PAGE_IDENTITY,
             required_cookie_names=frozenset({"_auth", "_pinterest_sess"}),
             requirement=CookieRequirement.ALL,
         ),
@@ -192,6 +200,7 @@ _KNOWN_POLICIES = {
             "youku.com",
             ProviderKey.YOUKU,
             "https://www.youku.com/",
+            login_probe=LoginProbe.PAGE_IDENTITY,
             entitlement=SessionEntitlement.ACCOUNT_ENTITLED_FULL_VIDEO,
             required_cookie_names=frozenset({"P_sck"}),
         ),
@@ -199,8 +208,9 @@ _KNOWN_POLICIES = {
             "v.qq.com",
             ProviderKey.QQVIDEO,
             "https://v.qq.com/",
+            login_probe=LoginProbe.PAGE_IDENTITY,
             entitlement=SessionEntitlement.ACCOUNT_ENTITLED_FULL_VIDEO,
-            required_cookie_names=frozenset({"vqq_vuserid", "vqq_vusession"}),
+            required_cookie_names=frozenset({"v_vuserid", "v_vusession"}),
             requirement=CookieRequirement.ALL,
         ),
         SiteSessionPolicy(
@@ -225,6 +235,10 @@ def known_site_policy(provider_key: str) -> SiteSessionPolicy | None:
 
 def known_session_provider_keys() -> frozenset[str]:
     return frozenset(str(key) for key in _KNOWN_POLICIES)
+
+
+def known_session_sites() -> tuple[str, ...]:
+    return tuple(_KNOWN_SITES)
 
 
 def site_policy(site: str) -> SiteSessionPolicy:

@@ -11,6 +11,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 from app.integrations.site_session_catalog import site_target_for_url
+from app.services.provider_access import execution_access_mode
 from app.services.provider_guest import GuestScope
 from app.services.provider_types import (
     ProviderAccessContextRef,
@@ -95,6 +96,8 @@ class ProviderSessionStore:
         self, profile: ProviderProfile, *, url: str | None = None
     ) -> ProviderAccessContextRef:
         mode = self._settings.runner_access_mode
+        if mode is ProviderAccessMode.OPERATOR_MANAGED:
+            mode = execution_access_mode(profile.key)
         credential_version: str | None = None
         if mode is ProviderAccessMode.OPERATOR_MANAGED:
             # Any site with a deployment session is admitted by the broker, not
@@ -165,6 +168,11 @@ class ProviderSessionStore:
     async def operation(
         self, context: ProviderAccessContextRef
     ) -> AsyncIterator[Path | None]:
+        if (
+            self._settings.runner_access_mode is ProviderAccessMode.OPERATOR_MANAGED
+            and context.access_mode is not execution_access_mode(context.provider_key)
+        ):
+            raise RunnerFailure("provider_session_not_allowed", status=422)
         if context.access_mode is ProviderAccessMode.ANONYMOUS:
             yield None
             return

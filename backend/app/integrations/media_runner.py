@@ -55,7 +55,7 @@ from app.services.downloads.inspection_models import RunnerFormat, RunnerInspect
 from app.services.downloads.rules.content_restrictions import ContentRestriction
 from app.services.downloads.rules.enums import MediaKind
 from app.services.downloads.rules.formats import DownloadPlan
-from app.services.provider_access import ProviderAccessPolicy
+from app.services.provider_access import ProviderAccessPolicy, execution_access_mode
 from app.services.provider_route_admission import (
     ProviderRouteAdmission,
     RouteAdmissionUnavailable,
@@ -171,9 +171,13 @@ class MediaRunnerHttpClient:
             timeout_code="inspection_timeout",
         )
         context = _context_to_domain(response)
+        expected_mode = (
+            execution_access_mode(provider_key)
+            if self._expected_access_mode is ProviderAccessMode.OPERATOR_MANAGED
+            else self._expected_access_mode
+        )
         if context.provider_key != provider_key or (
-            self._expected_access_mode is not None
-            and context.access_mode is not self._expected_access_mode
+            expected_mode is not None and context.access_mode is not expected_mode
         ):
             raise MediaRunnerClientError("client_context_mismatch", 502)
         return context
@@ -570,7 +574,7 @@ class MediaRunnerRouter:
         groups = [
             (self._session, (key,))
             for key, mode in requested.items()
-            if mode is ProviderAccessMode.OPERATOR_MANAGED
+            if mode is execution_access_mode(key)
         ]
 
         async def resolve(
@@ -647,7 +651,7 @@ class MediaRunnerRouter:
     ) -> MediaRunnerClient | None:
         return (
             self._session
-            if access_mode is ProviderAccessMode.OPERATOR_MANAGED
+            if access_mode is execution_access_mode(provider_key)
             else None
         )
 

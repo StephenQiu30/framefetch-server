@@ -54,6 +54,7 @@ SOCIAL_PROVIDER_PROFILES: tuple[ProviderProfile, ...] = (
         operator_cookie_domains=frozenset(
             {ProviderCookieDomain.X, ProviderCookieDomain.TWITTER}
         ),
+        probe_authenticated_media=True,
     ),
     standard_provider(
         ProviderKey.INSTAGRAM,

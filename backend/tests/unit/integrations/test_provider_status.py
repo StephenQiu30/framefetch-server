@@ -1,4 +1,5 @@
 from app.integrations.provider_status import configured_provider_statuses
+from app.services.provider_access import NATIVE_PUBLIC_PROVIDERS
 from app.services.provider_access import ProviderAccessPolicy as Policy
 from app.services.provider_types import (
     ProviderAccessMode as Mode,
@@ -8,12 +9,19 @@ from app.services.provider_types import (
 )
 
 
-def test_unconfigured_platforms_never_advertise_anonymous_access():
+def test_only_fixed_native_platforms_advertise_public_access():
     for item in configured_provider_statuses():
-        assert item.access_modes == ()
+        assert item.access_modes == (
+            (Mode.ANONYMOUS,) if item.key in NATIVE_PUBLIC_PROVIDERS else ()
+        )
         assert not item.download_available
         assert all(
-            policy.id.access_mode is Mode.OPERATOR_MANAGED
+            policy.id.access_mode
+            is (
+                Mode.ANONYMOUS
+                if item.key in NATIVE_PUBLIC_PROVIDERS
+                else Mode.OPERATOR_MANAGED
+            )
             for policy in item.access_policies
         )
 

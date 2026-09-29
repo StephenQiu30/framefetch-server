@@ -202,22 +202,18 @@ class _VQQPersonalIE(VQQVideoIE, plugin_name="personal_video"):  # type: ignore[
         if url_or_request == self._API_URL:
             cookies = self._get_cookies("https://v.qq.com/")
             mapping = {
-                "vuserid": "vqq_vuserid",
-                "vusession": "vqq_vusession",
-                "main_login": "main_login",
-                "openid": "vqq_openid",
-                "appid": "vqq_appid",
-                "access_token": "vqq_access_token",
+                "vuserid": "v_vuserid",
+                "vusession": "v_vusession",
+                "main_login": "v_main_login",
+                "openid": "v_t_openid",
+                "appid": "v_t_appid",
+                "access_token": "v_t_access_token",
             }
             token = {
                 key: cookies[name].value
                 for key, name in mapping.items()
                 if name in cookies
             }
-            if not token:
-                return super()._download_webpage(
-                    url_or_request, video_id, *args, **kwargs
-                )
             if not token.get("vuserid") or not token.get("vusession"):
                 reject("credential_required")
             # Exact Tencent API only; never copy the account token to CDN requests

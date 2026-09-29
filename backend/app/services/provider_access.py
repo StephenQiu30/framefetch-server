@@ -4,6 +4,33 @@ from enum import StrEnum
 
 from app.services.provider_types import ProviderAccessMode, ProviderKey
 
+# Explicit platform-native public routes. This set is decided before any I/O;
+# authentication failures never switch a session platform into this set.
+NATIVE_PUBLIC_PROVIDERS = frozenset(
+    {
+        ProviderKey.BILIBILI,
+        ProviderKey.TIKTOK,
+        ProviderKey.KUAISHOU,
+        ProviderKey.VIMEO,
+        ProviderKey.TWITCH,
+        ProviderKey.WEIBO,
+        ProviderKey.SNAPCHAT,
+        ProviderKey.LINKEDIN,
+        ProviderKey.TELEGRAM,
+        ProviderKey.KICK,
+        ProviderKey.TUMBLR,
+        ProviderKey.HONGGUO_WEB,
+    }
+)
+
+
+def execution_access_mode(provider_key: str) -> ProviderAccessMode:
+    return (
+        ProviderAccessMode.ANONYMOUS
+        if provider_key in NATIVE_PUBLIC_PROVIDERS
+        else ProviderAccessMode.OPERATOR_MANAGED
+    )
+
 
 class ProviderAccessPolicy(StrEnum):
     PUBLIC = "public"

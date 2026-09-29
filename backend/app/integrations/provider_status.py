@@ -5,6 +5,7 @@ from __future__ import annotations
 from collections.abc import Set
 
 from app.services.provider_access import (
+    NATIVE_PUBLIC_PROVIDERS,
     ProviderAccessPolicy,
     provider_access_policies,
 )
@@ -79,14 +80,18 @@ def _configured_status(
                 id=policy, configured=policy.access_mode in access_modes
             )
             for policy in provider_access_policies(
-                profile.key, (ProviderAccessMode.OPERATOR_MANAGED,)
+                profile.key,
+                (ProviderAccessMode.ANONYMOUS,)
+                if profile.key in NATIVE_PUBLIC_PROVIDERS
+                else (ProviderAccessMode.OPERATOR_MANAGED,),
             )
-            if policy.access_mode is ProviderAccessMode.OPERATOR_MANAGED
         )
     )
     default_policy = (
         (
-            ProviderAccessPolicy.PERSONAL_ENTITLED
+            ProviderAccessPolicy.PUBLIC
+            if profile.key in NATIVE_PUBLIC_PROVIDERS
+            else ProviderAccessPolicy.PERSONAL_ENTITLED
             if profile.key in {"qqvideo", "youku"}
             else ProviderAccessPolicy.OPERATOR_PUBLIC
         )
@@ -136,6 +141,8 @@ def _effective_access_modes(
     declared: tuple[ProviderAccessMode, ...],
     enabled_operator_keys: Set[str],
 ) -> tuple[ProviderAccessMode, ...]:
+    if provider_key in NATIVE_PUBLIC_PROVIDERS:
+        return (ProviderAccessMode.ANONYMOUS,)
     return (
         (ProviderAccessMode.OPERATOR_MANAGED,)
         if provider_key in enabled_operator_keys

@@ -159,6 +159,7 @@ def test_remaining_provider_profiles_record_verified_access_boundaries() -> None
     assert ProviderCapability.SHORT_VIDEO in facebook.capabilities
     assert facebook.probe_authenticated_media is True
     assert instagram.probe_authenticated_media is True
+    assert provider_profile("https://x.com/user/status/123").probe_authenticated_media
     assert twitch.version == "twitch-public-clip"
     assert twitch.capabilities == frozenset(
         {

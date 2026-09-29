@@ -6,13 +6,13 @@ FastAPI API、下载/分析领域逻辑、异步 Worker、当前态数据库 SQL
 
 ## 站点会话（046）
 
-需要登录态的平台统一为“站点会话”：部署者在本机执行一次 `uv run python -m app.workers.session.seed import --site <站点>`，从 Chrome 读取该站点 Cookie、以 `SITE_SESSION_ENCRYPTION_KEY` 加密写入 PostgreSQL `site_sessions`。之后全部在容器内运行：
+需要登录态的平台统一为“站点会话”：项目根目录 `./start` 自动读取已启用站点的 Chrome Cookie、以 `SITE_SESSION_ENCRYPTION_KEY` 加密写入 PostgreSQL `site_sessions`。之后全部在容器内运行：
 
 - `session-broker`（`app/workers/session/broker_app.py`）唯一持有密钥，维护状态机、调度保活，并为每个 Runner 任务签发绑定任务与站点的一次性加密租约。
 - `session-browser`（`app/workers/session/browser_app.py`，Dockerfile `session-browser` 目标）为每个站点保存持久 Chromium Profile，验证登录、保活并采集平台轮换后的 Cookie；没有数据库与密钥。
 - `session-runner`（`RUNNER_ACCESS_MODE=operator_managed`）只在 tmpfs 中为单次操作写入 `0600` Cookie jar，操作结束即删除。
 
-已导入会话的站点一律走会话路线，不回退匿名。密钥必须稳定并与数据库备份分开保管；丢失后需要重新导入。运维步骤见 [站点会话运行手册](../docs/operations/011-站点会话运行手册.md)。
+账号平台固定使用经过验证的会话，失败不切换到公开路线。密钥必须稳定并与数据库备份分开保管；丢失后需要重新导入。运维步骤见 [站点会话运行手册](../docs/operations/011-站点会话运行手册.md)。
 
 ## 目录约定
 
@@ -46,9 +46,9 @@ Web 登录、注册、退出和 Cookie 写操作都校验精确 Origin（缺失�
 
 Media Runner 通过 `app/workers/runner/plugins/yt_dlp_plugins/` 加载随项目交付的可信站点提取器。MediaTrack 适配仅处理无需登录的公开审片视频和 API 明确授权的播放转码；抖音适配用数字视频 ID 构造固定公开分享页并修正 landscape 下载规格的短边尺寸语义，TikTok 适配只使用其第一方嵌入播放器 item API 和 yt-dlp 默认客户端，明确无 item/HTTPS 格式、API 临时故障与响应结构漂移分别返回链接不可用、临时不可用和提取器回归，不回退网页挑战；快手适配把公开作品规范化到第一方移动分享页并限制短链重定向域，Tumblr 适配优先读取当前 `www.tumblr.com` 公开页而不强制改写到旧 blog 子域。小红书适配识别第一方 `300031` 笔记失效和 `300012` 平台验证边界，避免把失效内容误报成提取器故障。视频号适配只接受公开 `weixin.qq.com/sph/...` 单视频，读取第一方公开信息，并可在受控线路使用专用元宝会话解析；只接受批准腾讯媒体域上的非加密媒体，保护材料直接拒绝。所有适配都继续经过受控代理、作品身份校验、大小/时长限制、重新 inspect、FFmpeg 和 ffprobe 校验，不支持图集截断、账号内容、无水印承诺或原文件权限绕过。
 
-主流视频源使用声明式 Provider Profile 接入：`provider_catalog_*.py` 按策略族登记能力和运行参数，`ProviderRegistry.prepare()` 一次解析得到贯穿 inspect/download 的不可变 `ProviderRequest`，`YtDlpCommandBuilder` 只消费该请求生成固定参数，错误由有序 `FailureRule` 归一化。已有 yt-dlp extractor 的公开单视频平台通常只需增加一个 Profile、契约测试和 metadata/media canary；需要自定义解析时再按 yt-dlp 官方插件目录增加可信 extractor，不修改通用命令执行器。未知站点使用无凭据 Generic extractor；导入了站点会话的任何站点（包括未适配站点）改走 `session-runner`。
+主流视频源使用声明式 Provider Profile 接入：`provider_catalog_*.py` 按策略族登记能力和运行参数，`ProviderRegistry.prepare()` 一次解析得到贯穿 inspect/download 的不可变 `ProviderRequest`，`YtDlpCommandBuilder` 只消费该请求生成固定参数，错误由有序 `FailureRule` 归一化。已有 yt-dlp extractor 的公开单视频平台通常只需增加一个 Profile、契约测试和 metadata/media canary；需要自定义解析时再按 yt-dlp 官方插件目录增加可信 extractor，不修改通用命令执行器。固定公开平台和已验证的账号平台均复用 `session-runner`；未知站点不因 yt-dlp Generic 匹配或存在 Cookie 而自动开放。
 
-管理员可通过只读接口 `GET /api/admin/provider-runtime/engine-catalog` 查询匿名 Runner 实际安装的提取器及项目插件，获取安装版本、固定依赖是否匹配和清单摘要；extractor 数量不代表可下载的平台数。首次读取在独立子进程中有界枚举，后续复用当前进程快照，更新镜像后重新生成；不访问平台、不读取账号材料。API 或 Runner 缺失时返回服务不可用，不改变本站身份。平台策略、部署就绪和真实下载证据仍分别由 Profile、管理员运行诊断 API 与实际下载验证决定。
+管理员可通过只读接口 `GET /api/admin/provider-runtime/engine-catalog` 查询 `session-runner` 实际安装的提取器及项目插件，获取安装版本、固定依赖是否匹配和清单摘要；extractor 数量不代表可下载的平台数。首次读取在独立子进程中有界枚举，后续复用当前进程快照，更新镜像后重新生成；不访问平台、不读取账号材料。API 或 Runner 缺失时返回服务不可用，不改变本站身份。平台策略、部署就绪和真实下载证据仍分别由 Profile、管理员运行诊断 API 与实际下载验证决定。
 
 微博公开单视频支持普通帖子、移动端 status/detail、`video.weibo.com` 视频页和 `t.cn` 分享短链。短链插件在取得有效微博视频地址后立即交给微博提取器，避免通用网页跳转进入访客页面；使用无账号凭据的受控 Runner，容器重启后重新解析即可。分阶段接入设计见 [017 设计](../docs/design/017-其他短视频平台分阶段接入设计.md)。
 
@@ -58,7 +58,7 @@ Media Runner 通过 `app/workers/runner/plugins/yt_dlp_plugins/` 加载随项目
 
 ## 资源准入
 
-在线解析统一使用容器自持站点会话，未配置或撤销时明确拒绝，不回退匿名／访客路线。导入、自动维护、重启恢复和人工重新登录边界见 [站点会话运行手册](../docs/operations/011-站点会话运行手册.md)。
+在线解析使用平台固定路线：原生公开接口不携带账号，其余平台使用容器自持站点会话；会话未配置或撤销时明确拒绝，不切换路线。导入、自动维护、重启恢复和人工重新登录边界见 [站点会话运行手册](../docs/operations/011-站点会话运行手册.md)。
 
 持久解析入口为 `POST /api/download-intents`，接单提交后返回 202；查询和取消使用同一资源 ID。API 不等待上游解析。下载 Worker 的独立解析消费槽通过 `download.intent.requested` 事件执行，失联租约和重试由同一恢复循环收敛；解析总预算 180 秒、最多三次执行。用户取消后 Worker 停止 HTTP 操作，Runner 断连处理终止实际子进程。新入口和双客户端切换状态见 [044 Plan](../docs/plan/044-开源部署无感解析Plan.md#p9-02)。解析按每日任务计量、零下载字节，同幂等键重放不重复计量。Worker 与 API 使用相同 `REQUEST_FINGERPRINT_SECRET`，生产环境禁止开发默认值。
 
@@ -77,7 +77,7 @@ docker compose --env-file .env -f docker-compose.yml ps --all
 
 本机 macOS 统一从仓库根目录执行 `./start`，自动接入平台并启动下述 Compose 服务；纯容器入口只能恢复已保存会话。站点会话暂不可用只影响对应站点，不阻断核心 API。
 更新代码时先独立执行 `git pull --ff-only`，再重复该命令；不要使用不会应用镜像或配置变化的
-`docker compose restart`。固定 Provider 探针仍是独立验收步骤。
+`docker compose restart`。`./start` 包含公开平台的解析探测；完整文件与播放仍是独立验收步骤。
 
 本地开发复用 Homebrew 的 PostgreSQL、RabbitMQ、Redis 和 MinIO，业务进程仍只通过根 Compose 启动。根目录 `.env` 应分别使用标准端口 `5432`、`5672`、`6379` 和 `9000`。确认 `brew services list` 中四项均为 `started` 后，从根目录执行：
 
@@ -96,16 +96,7 @@ uv run python -m app.main
 
 该命令是后端模块调试入口，不替代完整本地拓扑中的 Worker、Runner 与前端构建。
 
-当 `.env` 的 `RUNNER_OPERATOR_BASE_URLS` 声明 Provider Operator 时，需要使用受控
-会话的平台还必须启动对应 Profile：
-
-```bash
-docker compose --env-file .env -f docker-compose.yml \
-  --profile youtube-operator --profile douyin-operator \
-  --profile reddit-operator --profile wechat-channels-operator up -d --build
-```
-
-API readiness 与媒体 Runner 健康隔离。在线解析只使用 `session-runner`，未导入会话的平台明确拒绝执行。API、
+API readiness 与媒体 Runner 健康隔离。在线解析复用 `session-runner`；固定公开平台不携带账号，其余平台未导入或未验证会话时明确拒绝执行。API、
 下载 Worker 与 Canary 不等待平台健康；Worker/Canary 仅等待共享工作目录初始化。
 站点会话的可用性由 broker 状态、探针和真实任务证明，容器健康不代表平台接受会话。
 开发环境只需启用 `.env` 实际声明的平台 Profile。腾讯与优酷的实验个人线路仅在生产 Compose 提供，接入范围和未完成验证见 [032 设计](../docs/design/032-腾讯视频与优酷个人下载设计.md)。

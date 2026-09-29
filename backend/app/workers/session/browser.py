@@ -25,6 +25,7 @@ from app.workers.runner.netscape_cookie import (
     serialize_cookies,
 )
 from app.workers.session.contracts import BrowserOutcome
+from app.workers.session.login_probes import PAGE_IDENTITY_PROBES, REDDIT_IDENTITY_PROBE
 from playwright.async_api import (
     BrowserContext,
     Page,
@@ -177,7 +178,9 @@ class SiteBrowser:
         policy = target.policy
         try:
             page = await self._page(context, target)
-            response = await page.goto(policy.keepalive_url, wait_until="load")
+            response = await page.goto(
+                policy.keepalive_url, wait_until="domcontentloaded"
+            )
             if response is not None and response.status in _CHALLENGE_STATUSES:
                 return VisitResult(
                     BrowserOutcome.TEMPORARY_FAILURE,
@@ -213,6 +216,23 @@ class SiteBrowser:
                 else _DOUYIN_PROFILE
             )
             result = await page.evaluate(probe)
+            return result if isinstance(result, bool) else None
+        if policy.login_probe is LoginProbe.REDDIT_IDENTITY:
+            result = await page.evaluate(REDDIT_IDENTITY_PROBE)
+            return result if isinstance(result, bool) else None
+        if policy.login_probe is LoginProbe.PAGE_IDENTITY:
+            script = PAGE_IDENTITY_PROBES[str(policy.provider_key)]
+            # SPA state may not exist at DOMContentLoaded. Wait only on this
+            # local assertion; do not repeatedly call a platform account API.
+            try:
+                await page.wait_for_function(
+                    f"() => ({{probe: ({script})()}}).probe !== null",
+                    timeout=12000,
+                    polling=500,
+                )
+            except PlaywrightError:
+                return None
+            result = await page.evaluate(script)
             return result if isinstance(result, bool) else None
         # Cookie presence is not proof of a logged-in identity.
         return None

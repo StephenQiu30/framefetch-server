@@ -124,5 +124,201 @@
     "stage": "media",
     "access_mode": "operator_managed",
     "url": "https://www.pinterest.com/pin/664281013778109217/"
+  },
+  {
+    "target_id": "bilibili-public-single",
+    "provider_key": "bilibili",
+    "stage": "metadata",
+    "access_mode": "anonymous",
+    "url": "https://www.bilibili.com/video/BV13x41117TL"
+  },
+  {
+    "target_id": "bilibili-public-single",
+    "provider_key": "bilibili",
+    "stage": "media",
+    "access_mode": "anonymous",
+    "url": "https://www.bilibili.com/video/BV13x41117TL"
+  },
+  {
+    "target_id": "tiktok-public-single",
+    "provider_key": "tiktok",
+    "stage": "metadata",
+    "access_mode": "anonymous",
+    "url": "https://www.tiktok.com/@creator/video/7670674983328222486"
+  },
+  {
+    "target_id": "tiktok-public-single",
+    "provider_key": "tiktok",
+    "stage": "media",
+    "access_mode": "anonymous",
+    "url": "https://www.tiktok.com/@creator/video/7670674983328222486"
+  },
+  {
+    "target_id": "kuaishou-public-single",
+    "provider_key": "kuaishou",
+    "stage": "metadata",
+    "access_mode": "anonymous",
+    "url": "https://www.kuaishou.com/short-video/3x888mrikrur4g2"
+  },
+  {
+    "target_id": "kuaishou-public-single",
+    "provider_key": "kuaishou",
+    "stage": "media",
+    "access_mode": "anonymous",
+    "url": "https://www.kuaishou.com/short-video/3x888mrikrur4g2"
+  },
+  {
+    "target_id": "vimeo-staff-pick",
+    "provider_key": "vimeo",
+    "stage": "metadata",
+    "access_mode": "anonymous",
+    "url": "https://vimeo.com/1208412630"
+  },
+  {
+    "target_id": "vimeo-staff-pick",
+    "provider_key": "vimeo",
+    "stage": "media",
+    "access_mode": "anonymous",
+    "url": "https://vimeo.com/1208412630"
+  },
+  {
+    "target_id": "twitch-public-clip",
+    "provider_key": "twitch",
+    "stage": "metadata",
+    "access_mode": "anonymous",
+    "url": "https://clips.twitch.tv/FaintLightGullWholeWheat"
+  },
+  {
+    "target_id": "twitch-public-clip",
+    "provider_key": "twitch",
+    "stage": "media",
+    "access_mode": "anonymous",
+    "url": "https://clips.twitch.tv/FaintLightGullWholeWheat"
+  },
+  {
+    "target_id": "weibo-public-single",
+    "provider_key": "weibo",
+    "stage": "metadata",
+    "access_mode": "anonymous",
+    "url": "https://weibo.com/7827771738/N4xlMvjhI"
+  },
+  {
+    "target_id": "weibo-public-single",
+    "provider_key": "weibo",
+    "stage": "media",
+    "access_mode": "anonymous",
+    "url": "https://weibo.com/7827771738/N4xlMvjhI"
+  },
+  {
+    "target_id": "youku-public-single",
+    "provider_key": "youku",
+    "stage": "metadata",
+    "access_mode": "operator_managed",
+    "url": "https://v.youku.com/v_show/id_XOTUxMzg4NDMy.html"
+  },
+  {
+    "target_id": "youku-public-single",
+    "provider_key": "youku",
+    "stage": "media",
+    "access_mode": "operator_managed",
+    "url": "https://v.youku.com/v_show/id_XOTUxMzg4NDMy.html"
+  },
+  {
+    "target_id": "qqvideo-public-short",
+    "provider_key": "qqvideo",
+    "stage": "metadata",
+    "access_mode": "operator_managed",
+    "url": "https://v.qq.com/x/page/q326831cny0.html"
+  },
+  {
+    "target_id": "qqvideo-public-short",
+    "provider_key": "qqvideo",
+    "stage": "media",
+    "access_mode": "operator_managed",
+    "url": "https://v.qq.com/x/page/q326831cny0.html"
+  },
+  {
+    "target_id": "snapchat-public-spotlight",
+    "provider_key": "snapchat",
+    "stage": "metadata",
+    "access_mode": "anonymous",
+    "url": "https://www.snapchat.com/spotlight/W7_EDlXWTBiXAEEniNoMPwAAYYWtidGhudGZpAX1TKn0JAX1TKnXJAAAAAA"
+  },
+  {
+    "target_id": "snapchat-public-spotlight",
+    "provider_key": "snapchat",
+    "stage": "media",
+    "access_mode": "anonymous",
+    "url": "https://www.snapchat.com/spotlight/W7_EDlXWTBiXAEEniNoMPwAAYYWtidGhudGZpAX1TKn0JAX1TKnXJAAAAAA"
+  },
+  {
+    "target_id": "linkedin-public-post",
+    "provider_key": "linkedin",
+    "stage": "metadata",
+    "access_mode": "anonymous",
+    "url": "https://www.linkedin.com/posts/the-mathworks_2_what-is-mathworks-cloud-center-activity-7151241570371948544-4Gu7"
+  },
+  {
+    "target_id": "linkedin-public-post",
+    "provider_key": "linkedin",
+    "stage": "media",
+    "access_mode": "anonymous",
+    "url": "https://www.linkedin.com/posts/the-mathworks_2_what-is-mathworks-cloud-center-activity-7151241570371948544-4Gu7"
+  },
+  {
+    "target_id": "telegram-public-post",
+    "provider_key": "telegram",
+    "stage": "metadata",
+    "access_mode": "anonymous",
+    "url": "https://t.me/europa_press/613"
+  },
+  {
+    "target_id": "telegram-public-post",
+    "provider_key": "telegram",
+    "stage": "media",
+    "access_mode": "anonymous",
+    "url": "https://t.me/europa_press/613"
+  },
+  {
+    "target_id": "kick-public-clip",
+    "provider_key": "kick",
+    "stage": "metadata",
+    "access_mode": "anonymous",
+    "url": "https://kick.com/spreen/clips/clip_01J8RGZRKHXHXXKJEHGRM932A5"
+  },
+  {
+    "target_id": "kick-public-clip",
+    "provider_key": "kick",
+    "stage": "media",
+    "access_mode": "anonymous",
+    "url": "https://kick.com/spreen/clips/clip_01J8RGZRKHXHXXKJEHGRM932A5"
+  },
+  {
+    "target_id": "tumblr-public-post",
+    "provider_key": "tumblr",
+    "stage": "metadata",
+    "access_mode": "anonymous",
+    "url": "https://www.tumblr.com/maskofthedragon/626907179849564160/mona-talking-in-english"
+  },
+  {
+    "target_id": "tumblr-public-post",
+    "provider_key": "tumblr",
+    "stage": "media",
+    "access_mode": "anonymous",
+    "url": "https://www.tumblr.com/maskofthedragon/626907179849564160/mona-talking-in-english"
+  },
+  {
+    "target_id": "hongguo-official-player",
+    "provider_key": "hongguo_web",
+    "stage": "metadata",
+    "access_mode": "anonymous",
+    "url": "https://hongguoduanju.com/player/7662704510720019480/7662705589293681726"
+  },
+  {
+    "target_id": "hongguo-official-player",
+    "provider_key": "hongguo_web",
+    "stage": "media",
+    "access_mode": "anonymous",
+    "url": "https://hongguoduanju.com/player/7662704510720019480/7662705589293681726"
   }
 ]

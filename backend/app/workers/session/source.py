@@ -11,6 +11,8 @@ import signal
 import subprocess
 import sys
 import tempfile
+import time
+from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -22,7 +24,7 @@ from app.repositories.providers.site_sessions import (
     SiteSessionSecrets,
     SiteSessionStates,
 )
-from app.services.site_sessions import SiteSessionState
+from app.services.site_sessions import SiteSessionState, known_session_sites
 from app.workers.session.seed import (
     PROJECT_ROOT,
     SeedError,
@@ -95,46 +97,46 @@ def run_bounded(command: list[str], *, timeout: int, cwd: Path) -> tuple[int, st
         return 4, "source_timeout"
 
 
-def reconcile(env_file: Path) -> dict[str, str]:
+def reconcile(env_file: Path, *, background: bool = False) -> dict[str, str]:
     settings = load_settings(env_file)
     directory = source_directory(env_file)
     directory.mkdir(parents=True, exist_ok=True, mode=0o700)
     request = directory / "access-request"
-    request_id = request.read_text() if request.exists() else None
-    access: dict[str, str] = {}
-    results: dict[str, str] = {}
-    for site in dict.fromkeys(settings.site_session_source_sites):
+    # Foreground startup must never consume or certify a launchd access check.
+    request_id = request.read_text() if background and request.exists() else None
+    deadline = time.monotonic() + 90
+    sites = tuple(dict.fromkeys(settings.site_session_source_sites))
+
+    def execute(item: tuple[str, str]) -> tuple[str, str]:
+        operation, site = item
+        remaining = deadline - time.monotonic()
+        if remaining < 1:
+            return site, "source_timeout"
         _, result = run_bounded(
             [
                 sys.executable,
                 "-m",
                 "app.workers.session.source",
-                "site",
+                operation,
                 "--env-file",
                 str(env_file),
                 "--site",
                 site,
             ],
-            timeout=60,
+            timeout=min(60, int(remaining)),
             cwd=PROJECT_ROOT / "backend",
         )
-        results[site] = result or "source_unavailable"
-        if request_id is not None:
-            _, result = run_bounded(
-                [
-                    sys.executable,
-                    "-m",
-                    "app.workers.session.source",
-                    "access",
-                    "--env-file",
-                    str(env_file),
-                    "--site",
-                    site,
-                ],
-                timeout=60,
-                cwd=PROJECT_ROOT / "backend",
-            )
-            access[site] = result or "source_unavailable"
+        return site, result or "source_unavailable"
+
+    # One blocked Keychain prompt cannot serialize all 11 platforms. The shared
+    # deadline also bounds queued children, not just each individual process.
+    with ThreadPoolExecutor(max_workers=3) as pool:
+        results = dict(pool.map(execute, (("site", site) for site in sites)))
+        access = (
+            dict(pool.map(execute, (("access", site) for site in sites)))
+            if request_id is not None
+            else {}
+        )
     payload: dict[str, object] = {
         "checked_at": datetime.now(UTC).isoformat(),
         "sites": results,
@@ -202,9 +204,9 @@ async def _site(env_file: Path, site: str, *, check_access: bool = False) -> str
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("command", choices=("reconcile", "site", "access"))
+    parser.add_argument("command", choices=("reconcile", "supervise", "site", "access"))
     parser.add_argument("--env-file", type=Path, default=PROJECT_ROOT / ".env")
-    parser.add_argument("--site", choices=("youtube.com", "douyin.com"))
+    parser.add_argument("--site", choices=known_session_sites())
     args = parser.parse_args()
     try:
         if args.command in {"site", "access"}:
@@ -220,7 +222,13 @@ def main() -> int:
                 )
             )
         else:
-            print(json.dumps(reconcile(args.env_file.resolve())))
+            print(
+                json.dumps(
+                    reconcile(
+                        args.env_file.resolve(), background=args.command == "supervise"
+                    )
+                )
+            )
         return 0
     except SeedError as exc:
         print(

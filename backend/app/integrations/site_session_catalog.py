@@ -11,7 +11,7 @@ from app.services.downloads.errors import (
     MediaInspectionPolicyNotAllowed,
     MediaInspectionSessionNotReady,
 )
-from app.services.provider_access import ProviderAccessPolicy
+from app.services.provider_access import NATIVE_PUBLIC_PROVIDERS, ProviderAccessPolicy
 from app.services.site_sessions import (
     InvalidSessionSite,
     SessionEntitlement,
@@ -83,6 +83,8 @@ class SiteSessionRoutes:
         self._states = states
 
     async def policy_for(self, url: str) -> ProviderAccessPolicy:
+        if provider_profile(url).key in NATIVE_PUBLIC_PROVIDERS:
+            return ProviderAccessPolicy.PUBLIC
         try:
             target = site_target_for_url(url)
         except (InvalidSessionSite, RunnerFailure) as exc:
@@ -94,6 +96,8 @@ class SiteSessionRoutes:
         return ProviderAccessPolicy.OPERATOR_PUBLIC
 
     async def ensure_ready(self, url: str) -> None:
+        if provider_profile(url).key in NATIVE_PUBLIC_PROVIDERS:
+            return
         target = site_target_for_url(url)
         status = await self._states.get(target.site)
         if status is None or status.state in {

@@ -16,11 +16,11 @@ Extractor、访问和下载链路问题；生产发布仍必须使用项目自�
 curl --fail http://127.0.0.1:8111/health/ready
 ```
 
-API 就绪只证明核心依赖可用，不能替代平台 metadata／media 验收。`provider-canary` 需要共享的 `runner_work:/work`；所有固定目标使用 `operator_managed`，未配置会话或不能通过登录探针时必须明确失败。
+API 就绪只证明核心依赖可用，不能替代平台 metadata／media 验收。`provider-canary` 需要共享的 `runner_work:/work`；固定公开目标使用 `anonymous`（不携带账号），账号目标使用 `operator_managed`；目标必须匹配平台固定路线，账号缺失或登录探针未验证必须明确失败。
 
 ## 2. 固定矩阵
 
-样本位于 `backend/app/workers/canary/fixed_public_cases.json`。当前矩阵只有 9 个平台，每个 target 包含 metadata 与 media 两条记录；页面登记的 23 个下载解析器尚未全部纳入，不能据此宣布全平台通过；URL 不会出现在命令输出或数据库 canary 行中。所有探针固定使用 `operator_managed`，会话缺失或登录探针未验证时明确失败，不自动准备访客或回退匿名。矩阵登记仅代表测试目标，不等于该站点已经通过真实文件验收。
+样本位于 `backend/app/workers/canary/fixed_public_cases.json`。当前矩阵覆盖全部 23 个下载解析器，每个 target 包含 metadata 与 media 两条记录；登记齐全不能据此宣布全平台通过；URL 不会出现在命令输出或数据库 canary 行中。探针按平台固定公开／账号路线执行，会话缺失或登录探针未验证时明确失败，不自动准备访客或降级。矩阵登记仅代表测试目标，不等于该站点已经通过真实文件验收。
 
 media 阶段必须下载解析结果中的第一项格式，与 Web 界面默认选项保持一致；不得改成
 最低清晰度来缩短探针时间，否则会漏掉真实用户默认格式的签名或客户端兼容问题。

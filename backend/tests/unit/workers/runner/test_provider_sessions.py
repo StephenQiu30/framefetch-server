@@ -264,3 +264,25 @@ async def test_malformed_session_version_is_revoked(tmp_path: Path) -> None:
             pass
 
     assert caught.value.code == "credential_revoked"
+
+
+async def test_native_public_operation_uses_no_credentials_or_broker(tmp_path):
+    broker = FakeSiteSessions()
+    locks = FakeCredentialLease()
+    store = ProviderSessionStore(
+        session_settings(tmp_path),
+        site_sessions=broker,
+        credential_lease=locks,
+        enforce_memory_backing=False,
+    )
+    profile = provider_profile("https://t.me/example/1")
+    context = await store.context_for(profile)
+    assert context.access_mode is ProviderAccessMode.ANONYMOUS
+    assert context.credential_version_id is None
+    async with store.operation(context) as jar:
+        assert jar is None
+    assert not broker.leases and not locks.held
+    forged = replace(context, provider_key="youtube")
+    with pytest.raises(RunnerFailure, match="provider session not allowed"):
+        async with store.operation(forged):
+            pytest.fail("session platforms may never execute without a lease")

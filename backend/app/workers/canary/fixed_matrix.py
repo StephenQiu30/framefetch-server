@@ -7,9 +7,11 @@ import asyncio
 import json
 
 from app.core.config import get_settings_for_role
+from app.services.provider_access import NATIVE_PUBLIC_PROVIDERS
 from app.services.provider_types import ProviderCanaryOutcome, ProviderCanaryStage
 from app.workers.canary.fixed_cases import fixed_public_diagnostic_targets
 from app.workers.canary.main import build_runtime
+from app.workers.canary.targets import ProviderCanaryTarget
 
 
 async def _run(providers: frozenset[str], stage: str) -> int:
@@ -34,19 +36,22 @@ async def _run(providers: frozenset[str], stage: str) -> int:
     runtime = build_runtime(get_settings_for_role("provider-canary"))
     results: list[dict[str, object]] = []
     try:
-        for target in targets:
-            result = await runtime.service.execute(target)
-            results.append(
-                {
-                    "provider_key": result.provider_key,
-                    "profile_version": result.profile_version,
-                    "stage": result.stage.value,
-                    "access_mode": result.access_mode.value,
-                    "outcome": result.outcome.value,
-                    "stable_error_code": result.stable_error_code,
-                    "duration_ms": result.duration_ms,
-                }
-            )
+        slots = asyncio.Semaphore(3)
+
+        async def execute(target: ProviderCanaryTarget) -> dict[str, object]:
+            async with slots:
+                result = await runtime.service.execute(target)
+            return {
+                "provider_key": result.provider_key,
+                "profile_version": result.profile_version,
+                "stage": result.stage.value,
+                "access_mode": result.access_mode.value,
+                "outcome": result.outcome.value,
+                "stable_error_code": result.stable_error_code,
+                "duration_ms": result.duration_ms,
+            }
+
+        results = list(await asyncio.gather(*(execute(target) for target in targets)))
     finally:
         await runtime.close()
     passed = all(
@@ -71,6 +76,7 @@ def main() -> None:
         description="Run fixed public Provider metadata/media diagnostics.",
     )
     parser.add_argument("--provider", action="append", default=[])
+    parser.add_argument("--native-public", action="store_true")
     parser.add_argument(
         "--stage",
         choices=(
@@ -81,7 +87,12 @@ def main() -> None:
         default="all",
     )
     arguments = parser.parse_args()
-    raise SystemExit(asyncio.run(_run(frozenset(arguments.provider), arguments.stage)))
+    providers = frozenset(arguments.provider)
+    if arguments.native_public:
+        if providers and not providers <= NATIVE_PUBLIC_PROVIDERS:
+            parser.error("--native-public only accepts native public providers")
+        providers = providers or NATIVE_PUBLIC_PROVIDERS
+    raise SystemExit(asyncio.run(_run(providers, arguments.stage)))
 
 
 if __name__ == "__main__":

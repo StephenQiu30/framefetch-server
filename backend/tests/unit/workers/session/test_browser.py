@@ -37,6 +37,9 @@ class Page:
             raise PlaywrightError("net::ERR_TIMED_OUT")
         return Response(self.context.status)
 
+    async def wait_for_function(self, script, **kwargs):
+        pass
+
     async def evaluate(self, script):
         return self.context.evaluations.pop(0)
 
@@ -148,6 +151,7 @@ async def test_cookie_presence_does_not_prove_login(tmp_path):
         b"# Netscape HTTP Cookie File\n"
         b".reddit.com\tTRUE\t/\tTRUE\t4102444800\treddit_session\tx\n"
     )
+    context.evaluations.append(None)
     assert (await browser.bootstrap("reddit.com", jar)).outcome is O.TEMPORARY_FAILURE
     context.cookie_store = [
         {
@@ -159,6 +163,7 @@ async def test_cookie_presence_does_not_prove_login(tmp_path):
         }
     ]
     # Unknown login probes must never claim success or logout from cookies alone.
+    context.evaluations.append(None)
     assert (await browser.keepalive("reddit.com")).outcome is O.TEMPORARY_FAILURE
 
 
@@ -268,3 +273,37 @@ async def test_douyin_requires_authenticated_profile_response(
         b".douyin.com\tTRUE\t/\tTRUE\t4102444800\tsessionid\tfixture\n"
     )
     assert (await browser.bootstrap("douyin.com", jar)).outcome is expected
+
+
+@pytest.mark.parametrize(
+    "site,cookie",
+    [
+        ("xiaohongshu.com", "web_session"),
+        ("x.com", "auth_token"),
+        ("instagram.com", "sessionid"),
+        ("facebook.com", "xs"),
+        ("reddit.com", "reddit_session"),
+        ("pinterest.com", "_pinterest_sess"),
+        ("v.qq.com", "v_vusession"),
+        ("youku.com", "P_sck"),
+    ],
+)
+@pytest.mark.parametrize(
+    "identity,expected",
+    [
+        (True, O.VERIFIED),
+        (False, O.LOGGED_OUT),
+        (None, O.TEMPORARY_FAILURE),
+        ({"id": "public-creator"}, O.TEMPORARY_FAILURE),
+    ],
+)
+async def test_account_probes_require_explicit_boolean_identity(
+    tmp_path, site, cookie, identity, expected
+):
+    browser, context, _ = make(tmp_path)
+    context.evaluations.append(identity)
+    jar = (
+        "# Netscape HTTP Cookie File\n"
+        f".{site}\tTRUE\t/\tTRUE\t4102444800\t{cookie}\tx\n"
+    ).encode()
+    assert (await browser.bootstrap(site, jar)).outcome is expected

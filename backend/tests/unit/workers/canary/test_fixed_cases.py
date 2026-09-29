@@ -1,11 +1,11 @@
 from collections import defaultdict
 
+from app.services.provider_access import execution_access_mode
 from app.services.provider_types import (
-    ProviderAccessMode,
     ProviderCanaryStage,
 )
-from app.services.site_sessions import known_session_provider_keys
 from app.workers.canary.fixed_cases import fixed_public_diagnostic_targets
+from app.workers.runner.provider_registry import current_provider_registry
 
 _KNOWN_INVALID_UPSTREAM_FIXTURES = {
     "BaW_jenozKc",
@@ -13,15 +13,15 @@ _KNOWN_INVALID_UPSTREAM_FIXTURES = {
 }
 
 
-def test_fixed_matrix_covers_supported_session_sites_without_anonymous_routes():
+def test_fixed_matrix_covers_every_registered_parser_and_its_fixed_route():
     targets = fixed_public_diagnostic_targets()
     grouped = defaultdict(list)
     for target in targets:
         grouped[target.provider_key].append(target)
-    assert set(grouped) == known_session_provider_keys() - {"youku", "qqvideo"}
-    for targets in grouped.values():
+    assert set(grouped) == {p.key for p in current_provider_registry().profiles}
+    for key, targets in grouped.items():
         assert {target.access_mode for target in targets} == {
-            ProviderAccessMode.OPERATOR_MANAGED
+            execution_access_mode(key)
         }
         assert {target.stage for target in targets} == {
             ProviderCanaryStage.METADATA,

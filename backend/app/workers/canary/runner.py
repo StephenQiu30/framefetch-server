@@ -11,6 +11,7 @@ from app.services.downloads.errors import (
 from app.services.downloads.inspection_models import RunnerInspection
 from app.services.downloads.rules.enums import MediaKind
 from app.services.downloads.rules.formats import DownloadPlan
+from app.services.provider_access import execution_access_mode
 from app.services.provider_types import ProviderAccessContextRef, ProviderAccessMode
 from app.workers.runner.provider_registry import provider_profile
 
@@ -77,13 +78,13 @@ class ProviderCanaryRunner:
     def _inspection_client(
         self, provider_key: str, access_mode: ProviderAccessMode
     ) -> MediaRunnerClient:
-        if access_mode is not ProviderAccessMode.OPERATOR_MANAGED:
+        if access_mode is not execution_access_mode(provider_key):
             raise MediaInspectionAuthRequired(access_mode=access_mode)
         return self._session
 
     def _client_for_context(
         self, context: ProviderAccessContextRef
     ) -> MediaRunnerClient:
-        if context.access_mode is not ProviderAccessMode.OPERATOR_MANAGED:
+        if context.access_mode is not execution_access_mode(context.provider_key):
             raise MediaRunnerClientError("provider_session_not_allowed", 422)
         return self._session

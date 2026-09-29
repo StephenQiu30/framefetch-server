@@ -193,8 +193,8 @@ def test_tencent_login_token_is_scoped_to_exact_api_and_never_mutates_query(
         extractor,
         "_get_cookies",
         lambda url: {
-            "vqq_vuserid": SimpleNamespace(value="synthetic-user"),
-            "vqq_vusession": SimpleNamespace(value="synthetic-session"),
+            "v_vuserid": SimpleNamespace(value="synthetic-user"),
+            "v_vusession": SimpleNamespace(value="synthetic-session"),
             "unrelated": SimpleNamespace(value="must-not-send"),
         },
     )
@@ -211,6 +211,25 @@ def test_tencent_login_token_is_scoped_to_exact_api_and_never_mutates_query(
     assert query == {"vid": "fixture"}
     extractor._download_webpage("https://media.example/a.m3u8", "fixture")
     assert "query" not in calls[1]
+
+
+@pytest.mark.parametrize("names", [(), ("v_vuserid",), ("v_vusession",)])
+def test_tencent_missing_session_never_makes_anonymous_api_request(
+    monkeypatch, names
+) -> None:
+    extractor = _VQQPersonalIE(YoutubeDL({"quiet": True}))
+    monkeypatch.setattr(
+        extractor,
+        "_get_cookies",
+        lambda url: {name: SimpleNamespace(value="synthetic") for name in names},
+    )
+    calls = []
+    monkeypatch.setattr(
+        InfoExtractor, "_download_webpage", lambda *a, **kw: calls.append(kw)
+    )
+    with pytest.raises(ExtractorError, match="credential_required"):
+        extractor._download_webpage(extractor._API_URL, "fixture")
+    assert calls == []
 
 
 @pytest.mark.parametrize("provider", [ProviderKey.YOUKU, ProviderKey.QQVIDEO])

@@ -51,3 +51,38 @@ async def test_selected_targets_execute_once_close_and_report_without_url(
     assert json.loads(output)["target_count"] == 1
     assert calls == [("youtube", "metadata")]
     assert closed == [True]
+
+
+def test_native_public_cli_never_selects_account_platforms(monkeypatch):
+    import sys
+
+    import pytest
+    from app.services.provider_access import NATIVE_PUBLIC_PROVIDERS
+
+    calls = []
+
+    async def run(providers, stage):
+        calls.append((providers, stage))
+        return 0
+
+    monkeypatch.setattr(fixed_matrix, "_run", run)
+    monkeypatch.setattr(
+        sys, "argv", ["fixed_matrix", "--native-public", "--stage", "metadata"]
+    )
+    with pytest.raises(SystemExit) as caught:
+        fixed_matrix.main()
+    assert caught.value.code == 0
+    assert calls == [(NATIVE_PUBLIC_PROVIDERS, "metadata")]
+
+
+def test_native_public_cli_rejects_account_override(monkeypatch):
+    import sys
+
+    import pytest
+
+    monkeypatch.setattr(
+        sys, "argv", ["fixed_matrix", "--native-public", "--provider", "youtube"]
+    )
+    with pytest.raises(SystemExit) as caught:
+        fixed_matrix.main()
+    assert caught.value.code == 2

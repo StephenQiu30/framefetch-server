@@ -26,6 +26,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 from app.services.identifiers import RightsStatementVersion, UrlEncryptionKeyId
 from app.services.provider_types import ProviderAccessMode, ProviderKey
 from app.services.quotas import QuotaPolicy
+from app.services.site_sessions import known_session_sites
 from app.workers.runner.provider_instances import validated_instance_hosts
 
 
@@ -144,18 +145,25 @@ class Settings(BaseSettings):
     site_session_keepalive_jitter_seconds: int = Field(default=300, ge=0, le=1800)
     site_session_coordination_url: str = "redis://provider-lease-redis:6379/0"
     site_session_lease_seconds: int = Field(default=600, ge=60, le=3600)
-    site_session_source_sites: tuple[Literal["youtube.com", "douyin.com"], ...] = (
-        "youtube.com",
-        "douyin.com",
+    site_session_source_sites: tuple[str, ...] = Field(
+        default_factory=known_session_sites
     )
-    site_session_source_profiles: dict[Literal["youtube.com", "douyin.com"], str] = (
-        Field(default_factory=dict)
-    )
+    site_session_source_profiles: dict[str, str] = Field(default_factory=dict)
+
+    @field_validator("site_session_source_sites")
+    @classmethod
+    def validate_source_sites(cls, value: tuple[str, ...]) -> tuple[str, ...]:
+        if set(value) - set(known_session_sites()):
+            raise ValueError("source sites must be registered session sites")
+        return tuple(dict.fromkeys(value))
+
     site_session_source_interval_seconds: int = Field(default=60, ge=30, le=3600)
 
     @field_validator("site_session_source_profiles")
     @classmethod
     def validate_source_profiles(cls, value: dict[str, str]) -> dict[str, str]:
+        if set(value) - set(known_session_sites()):
+            raise ValueError("source profile sites must be registered session sites")
         if any(
             re.fullmatch(r"(?:Default|Profile [1-9][0-9]*)", v) is None
             for v in value.values()
