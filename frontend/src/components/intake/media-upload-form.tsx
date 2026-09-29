@@ -10,7 +10,6 @@ import {
 } from '@/components/intake/intake-control-row';
 import { Button } from '@/components/ui/button';
 import { Form } from '@/components/ui/form';
-import { Input } from '@/components/ui/input';
 import { Progress } from '@/components/ui/progress';
 import { Spinner } from '@/components/ui/spinner';
 import { formatFileSize } from '@/lib/format';
@@ -62,37 +61,26 @@ export function MediaUploadForm({
         </p>
       ) : null}
       <IntakeControlRow data-invalid={fileInvalid || undefined}>
-        <IntakePickerButton
-          aria-describedby={
-            fileInvalid ? 'download-workspace-error' : undefined
-          }
-          aria-invalid={fileInvalid || undefined}
-          className="flex-1"
-          disabled={busy}
-          onClick={() => inputRef.current?.click()}
-          size="xl"
-          variant="outline"
-        >
-          <FileVideo aria-hidden data-icon="inline-start" />
-          <span className="min-w-0 truncate" title={file?.name}>
-            {file
-              ? `${file.name} · ${formatFileSize(file.size)}`
-              : '选择本地 MP4 视频'}
-          </span>
-        </IntakePickerButton>
-        <Input
-          accept="video/mp4,.mp4"
-          aria-label="选择本地 MP4 视频文件"
-          className="sr-only h-px w-px border-0 p-0"
-          disabled={busy}
-          onChange={(event) => onFileSelect(event.target.files?.[0] ?? null)}
-          onClick={(event) => {
-            event.currentTarget.value = '';
-          }}
-          ref={inputRef}
-          tabIndex={-1}
-          type="file"
-        />
+        <div className="min-w-0 flex-1">
+          <IntakePickerButton
+            aria-describedby={
+              fileInvalid ? 'download-workspace-error' : undefined
+            }
+            aria-invalid={fileInvalid || undefined}
+            className="w-full"
+            disabled={busy}
+            onClick={() => inputRef.current?.click()}
+            size="xl"
+            variant="outline"
+          >
+            <FileVideo aria-hidden data-icon="inline-start" />
+            <span className="min-w-0 truncate" title={file?.name}>
+              {file
+                ? `${file.name} · ${formatFileSize(file.size)}`
+                : '选择本地 MP4 视频'}
+            </span>
+          </IntakePickerButton>
+        </div>
         <IntakeSubmitButton disabled={busy} size="xl">
           {busy ? (
             <Spinner aria-hidden data-icon="inline-start" />
@@ -102,6 +90,19 @@ export function MediaUploadForm({
           {busy ? '处理中…' : '上传视频'}
         </IntakeSubmitButton>
       </IntakeControlRow>
+      <input
+        accept="video/mp4,.mp4"
+        aria-label="选择本地 MP4 视频文件"
+        className="sr-only"
+        disabled={busy}
+        onChange={(event) => onFileSelect(event.target.files?.[0] ?? null)}
+        onClick={(event) => {
+          event.currentTarget.value = '';
+        }}
+        ref={inputRef}
+        tabIndex={-1}
+        type="file"
+      />
       {busy ? (
         <div>
           <div className="mb-3 flex min-h-9 items-center justify-between gap-4">

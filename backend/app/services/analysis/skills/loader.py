@@ -4,6 +4,7 @@ import hashlib
 import re
 from pathlib import Path, PurePosixPath
 
+from app.services.analysis.rules.contracts import contract_for
 from app.services.analysis.rules.enums import AnalysisInputKind, AnalysisResultContract
 from app.services.analysis.skills.frontmatter import (
     bounded,
@@ -110,13 +111,7 @@ def _validate_contract(
     contract: AnalysisResultContract,
     path: Path,
 ) -> None:
-    allowed = {
-        AnalysisResultContract.VIDEO_VISUAL_ANALYSIS: {AnalysisInputKind.VIDEO},
-        AnalysisResultContract.VIDEO_ARTICLE: {AnalysisInputKind.VIDEO},
-        AnalysisResultContract.SCREENPLAY_ANALYSIS: {AnalysisInputKind.SCREENPLAY},
-        AnalysisResultContract.SCREENPLAY_REWRITE: {AnalysisInputKind.SCREENPLAY},
-    }
-    if set(input_kinds) != allowed[contract]:
+    if set(input_kinds) != {contract_for(contract).input_kind}:
         raise ValueError(f"incompatible analysis skill contract: {path}")
 
 

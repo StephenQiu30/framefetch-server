@@ -15,14 +15,11 @@ from app.repositories.analysis.repository_serialization import analysis_result_d
 from app.services.analysis.errors import PersistenceConflict, PersistenceNotFound
 from app.services.analysis.models import AnalysisJobSnapshot, AnalysisPublish
 from app.services.analysis.report import render_analysis_report_markdown
+from app.services.analysis.rules.contracts import contract_for_result
 from app.services.analysis.rules.enums import (
     AnalysisReportStatus,
     AnalysisStage,
     AnalysisStatus,
-)
-from app.services.analysis.rules.result_types import (
-    analysis_result_contract,
-    analysis_result_language,
 )
 from app.services.identifiers import AnalysisReportRenderer
 
@@ -62,9 +59,10 @@ class AnalysisPublishRepository(AnalysisRepositoryBase):
                 or row.version != command.expected_version
             ):
                 raise PersistenceConflict("analysis publish lease or version lost")
+            contract = contract_for_result(command.result)
             if (
-                row.output_language != analysis_result_language(command.result)
-                or row.result_contract != analysis_result_contract(command.result).value
+                row.output_language != contract.language(command.result)
+                or row.result_contract != contract.contract.value
             ):
                 raise PersistenceConflict("analysis result contract differs from job")
             report_id = uuid4()
@@ -76,7 +74,7 @@ class AnalysisPublishRepository(AnalysisRepositoryBase):
                     job_id=row.id,
                     run_id=run.id,
                     input_sha256=row.input_sha256,
-                    language=analysis_result_language(command.result),
+                    language=contract.language(command.result),
                     provider=command.provider,
                     model=command.model,
                     cli_version=command.cli_version,

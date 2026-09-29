@@ -56,21 +56,23 @@ export function LinkDownloadForm({
   return (
     <Form onSubmit={submit}>
       <IntakeControlRow data-invalid={invalid || undefined}>
-        <Input
-          aria-describedby={invalid ? 'download-workspace-error' : undefined}
-          aria-invalid={invalid || undefined}
-          aria-label="公开视频地址"
-          autoComplete="url"
-          controlSize="xl"
-          disabled={disabled}
-          id="public-media-input"
-          maxLength={4096}
-          onChange={(event) => onUrlChange(event.target.value)}
-          onKeyDown={handleKeyDown}
-          onPaste={handlePaste}
-          placeholder="粘贴公开媒体链接或完整分享文案"
-          value={url}
-        />
+        <div className="min-w-0 flex-1">
+          <Input
+            aria-describedby={invalid ? 'download-workspace-error' : undefined}
+            aria-invalid={invalid || undefined}
+            aria-label="公开视频地址"
+            autoComplete="url"
+            controlSize="xl"
+            disabled={disabled}
+            id="public-media-input"
+            maxLength={4096}
+            onChange={(event) => onUrlChange(event.target.value)}
+            onKeyDown={handleKeyDown}
+            onPaste={handlePaste}
+            placeholder="粘贴公开媒体链接或完整分享文案"
+            value={url}
+          />
+        </div>
         <IntakeSubmitButton disabled={disabled}>
           {busy ? (
             <Spinner aria-hidden data-icon="inline-start" />

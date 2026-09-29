@@ -1,6 +1,12 @@
 from __future__ import annotations
 
-from app.services.analysis.rules.enums import AnalysisValidationCode
+from collections.abc import Callable
+
+from app.services.analysis.rules.contracts import contract_for
+from app.services.analysis.rules.enums import (
+    AnalysisResultContract,
+    AnalysisValidationCode,
+)
 from app.services.analysis.rules.errors import AnalysisValidationError
 from app.services.analysis.rules.parse_helpers import ParseContext
 from app.services.analysis.rules.result_drafts import (
@@ -29,16 +35,23 @@ def parse_analysis_result(
     media: AnalysisMedia,
     *,
     expected_language: str,
-    result_contract: str = "video-visual-analysis",
+    result_contract: str = AnalysisResultContract.VIDEO_VISUAL_ANALYSIS.value,
     limits: AnalysisLimits | None = None,
 ) -> VideoAnalysisResult | VideoArticleResult:
-    if result_contract == "video-article":
-        return parse_video_article_result(
-            payload,
-            media,
-            expected_language=expected_language,
-            limits=limits,
-        )
+    """Strictly parse a video contract's model output."""
+    parser = _VIDEO_PARSERS.get(contract_for(result_contract).contract)
+    if parser is None:
+        raise ValueError(f"not a video result contract: {result_contract}")
+    return parser(payload, media, expected_language=expected_language, limits=limits)
+
+
+def parse_visual_analysis_result(
+    payload: object,
+    media: AnalysisMedia,
+    *,
+    expected_language: str,
+    limits: AnalysisLimits | None = None,
+) -> VideoAnalysisResult:
     context = ParseContext(limits or AnalysisLimits())
     root = context.mapping(
         payload,
@@ -194,3 +207,11 @@ def _referenced(
             AnalysisValidationCode.INVALID_EVIDENCE,
             f"unknown evidence shot id: {exc.args[0]}",
         ) from exc
+
+
+_VIDEO_PARSERS: dict[
+    AnalysisResultContract, Callable[..., VideoAnalysisResult | VideoArticleResult]
+] = {
+    AnalysisResultContract.VIDEO_VISUAL_ANALYSIS: parse_visual_analysis_result,
+    AnalysisResultContract.VIDEO_ARTICLE: parse_video_article_result,
+}

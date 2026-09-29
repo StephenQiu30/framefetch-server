@@ -26,9 +26,13 @@ describe('LinkDownloadForm', () => {
       'placeholder',
       '粘贴公开媒体链接或完整分享文案',
     );
-    expect(field.parentElement).toBe(
-      screen.getByRole('button', { name: '解析媒体' }).parentElement,
+    const controlRow = field.closest('[data-slot="field"]');
+    expect(controlRow).toBe(
+      screen
+        .getByRole('button', { name: '解析媒体' })
+        .closest('[data-slot="field"]'),
     );
+    expect(controlRow).toHaveAttribute('data-orientation', 'responsive');
 
     field.focus();
     expect(field).toHaveFocus();

@@ -24,16 +24,11 @@ from app.services.analysis.errors import (
     PersistenceNotFound,
 )
 from app.services.analysis.models import AnalysisCreate
-from app.services.analysis.rules.enums import AnalysisInputKind, AnalysisResultContract
+from app.services.analysis.rules.contracts import contracts_for_input
+from app.services.analysis.rules.enums import AnalysisInputKind
 
-_SCREENPLAY_CONTRACTS = {
-    AnalysisResultContract.SCREENPLAY_ANALYSIS,
-    AnalysisResultContract.SCREENPLAY_REWRITE,
-}
-_VIDEO_CONTRACTS = {
-    AnalysisResultContract.VIDEO_VISUAL_ANALYSIS,
-    AnalysisResultContract.VIDEO_ARTICLE,
-}
+_SCREENPLAY_CONTRACTS = contracts_for_input(AnalysisInputKind.SCREENPLAY)
+_VIDEO_CONTRACTS = contracts_for_input(AnalysisInputKind.VIDEO)
 
 
 async def validate_create_source(

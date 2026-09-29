@@ -12,21 +12,26 @@ import { siteConfig } from '@/lib/site';
 export function SiteFooter({ className }: { className?: string }) {
   return (
     <footer className={cn('shrink-0 bg-card', className)}>
-      <div className="content-shell flex min-h-16 flex-col justify-between gap-3 py-5 text-sm text-muted-foreground sm:flex-row sm:items-center">
-        <div className="flex items-center gap-4">
+      <div className="content-shell flex min-h-16 flex-wrap items-center justify-between gap-x-8 gap-y-3 py-5 text-sm text-muted-foreground">
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
           <Link className="focus-ring font-medium text-foreground" href="/">
             帧取 · FrameFetch
           </Link>
-          <span>MIT 开源 · 请仅处理已获授权内容</span>
+          <span>
+            <Link className="focus-ring" href={siteConfig.licenseUrl}>
+              MIT 开源
+            </Link>{' '}
+            · 请仅处理已获授权内容
+          </span>
         </div>
-        <div className="flex flex-wrap items-center gap-3">
+        <div className="flex min-w-0 flex-wrap items-center gap-3">
           <QuickParseDialog />
           <NavigationMenu
             aria-label="项目链接"
-            className="min-w-0 max-w-none w-full sm:w-auto"
+            className="min-w-0 max-w-none"
             viewport={false}
           >
-            <NavigationMenuList className="w-full justify-start flex-wrap gap-4">
+            <NavigationMenuList className="flex-wrap justify-start gap-x-4 gap-y-2">
               <FooterLink href="/guide/">使用指南</FooterLink>
               <FooterLink href="/self-hosting/">自托管部署</FooterLink>
               <FooterLink href="/about/">关于</FooterLink>
@@ -34,7 +39,6 @@ export function SiteFooter({ className }: { className?: string }) {
               <FooterLink href={`${siteConfig.repositoryUrl}/tree/main/docs`}>
                 文档
               </FooterLink>
-              <FooterLink href={siteConfig.licenseUrl}>MIT License</FooterLink>
             </NavigationMenuList>
           </NavigationMenu>
         </div>

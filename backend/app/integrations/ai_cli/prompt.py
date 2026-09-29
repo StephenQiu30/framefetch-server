@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from collections.abc import Callable
+
 from app.services.analysis.rules.enums import AnalysisResultContract
 from app.services.analysis_execution.models import VideoAnalysisRequest
 
@@ -12,14 +14,30 @@ def analysis_prompt(
     video_observer: bool = False,
     provided_frames: bool = False,
 ) -> str:
-    if request.result_contract is AnalysisResultContract.VIDEO_ARTICLE:
-        return _article_prompt(
-            request,
-            ffmpeg=ffmpeg,
-            ffprobe=ffprobe,
-            video_observer=video_observer,
-            provided_frames=provided_frames,
-        )
+    """Build the fixed-boundary task prompt for a video result contract."""
+    try:
+        builder = _VIDEO_PROMPTS[request.result_contract]
+    except KeyError:
+        raise ValueError(
+            f"not a video result contract: {request.result_contract}"
+        ) from None
+    return builder(
+        request,
+        ffmpeg=ffmpeg,
+        ffprobe=ffprobe,
+        video_observer=video_observer,
+        provided_frames=provided_frames,
+    )
+
+
+def _visual_prompt(
+    request: VideoAnalysisRequest,
+    *,
+    ffmpeg: str,
+    ffprobe: str,
+    video_observer: bool,
+    provided_frames: bool,
+) -> str:
     if provided_frames:
         short_video_rule = (
             "- 服务端已按完整时长均匀抽取有界截图；只能基于这些可见证据分析，"
@@ -246,3 +264,9 @@ def _custom_prompt_lines(custom_prompt: str | None) -> tuple[str, ...]:
         custom_prompt,
         "</user_analysis_request>",
     )
+
+
+_VIDEO_PROMPTS: dict[AnalysisResultContract, Callable[..., str]] = {
+    AnalysisResultContract.VIDEO_VISUAL_ANALYSIS: _visual_prompt,
+    AnalysisResultContract.VIDEO_ARTICLE: _article_prompt,
+}

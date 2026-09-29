@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Callable
 from typing import Any
 
 from app.services.analysis.rules.enums import AnalysisResultContract
@@ -11,8 +12,15 @@ def analysis_output_schema(
         AnalysisResultContract.VIDEO_VISUAL_ANALYSIS
     ),
 ) -> dict[str, Any]:
-    if result_contract is AnalysisResultContract.VIDEO_ARTICLE:
-        return video_article_output_schema(language)
+    """Return the model-facing JSON Schema for a video result contract."""
+    try:
+        builder = _VIDEO_SCHEMAS[result_contract]
+    except KeyError:
+        raise ValueError(f"not a video result contract: {result_contract}") from None
+    return builder(language)
+
+
+def video_visual_output_schema(language: str) -> dict[str, Any]:
     reference_array = {
         "type": "array",
         "items": {"type": "string"},
@@ -266,3 +274,9 @@ def _text() -> dict[str, Any]:
 
 def _integer() -> dict[str, Any]:
     return {"type": "integer"}
+
+
+_VIDEO_SCHEMAS: dict[AnalysisResultContract, Callable[[str], dict[str, Any]]] = {
+    AnalysisResultContract.VIDEO_VISUAL_ANALYSIS: video_visual_output_schema,
+    AnalysisResultContract.VIDEO_ARTICLE: video_article_output_schema,
+}

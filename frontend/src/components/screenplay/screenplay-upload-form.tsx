@@ -11,7 +11,6 @@ import {
 import { FeedbackNotice } from '@/components/layout/feedback-notice';
 import { Button } from '@/components/ui/button';
 import { Form } from '@/components/ui/form';
-import { Input } from '@/components/ui/input';
 import { Progress } from '@/components/ui/progress';
 import { Spinner } from '@/components/ui/spinner';
 import { formatFileSize } from '@/lib/format';
@@ -66,7 +65,7 @@ export function ScreenplayUploadForm({
         error && fileInvalid ? 'screenplay-upload-error' : undefined
       }
       aria-invalid={fileInvalid || undefined}
-      className={workspace ? 'flex-1' : 'w-full'}
+      className="w-full"
       disabled={busy}
       onClick={() => inputRef.current?.click()}
       size={workspace ? 'xl' : undefined}
@@ -83,10 +82,10 @@ export function ScreenplayUploadForm({
     </IntakePickerButton>
   );
   const fileInput = (
-    <Input
+    <input
       accept=".docx,.pdf,.txt,.md,.markdown,.fountain"
       aria-label="选择剧本文档文件"
-      className="sr-only h-px w-px border-0 p-0"
+      className="sr-only"
       disabled={busy}
       onChange={(event) => onFileSelect(event.target.files?.[0] ?? null)}
       onClick={(event) => {
@@ -139,8 +138,7 @@ export function ScreenplayUploadForm({
     return (
       <Form className="flex flex-col gap-4" onSubmit={submit}>
         <IntakeControlRow data-invalid={fileInvalid || undefined}>
-          {filePicker}
-          {fileInput}
+          <div className="min-w-0 flex-1">{filePicker}</div>
           <IntakeSubmitButton disabled={busy}>
             {busy ? (
               <Spinner aria-hidden data-icon="inline-start" />
@@ -150,6 +148,7 @@ export function ScreenplayUploadForm({
             {busy ? '处理中…' : '上传剧本'}
           </IntakeSubmitButton>
         </IntakeControlRow>
+        {fileInput}
         {errorNotice}
         {progressNotice}
       </Form>
