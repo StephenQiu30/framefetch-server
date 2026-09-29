@@ -434,6 +434,8 @@ services:
     volumes:
       - runner_work:/work
     depends_on:
+      temporal:
+        condition: service_healthy
       migrate:
         condition: service_completed_successfully
       workspace-init:
