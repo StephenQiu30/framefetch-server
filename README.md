@@ -146,7 +146,15 @@ uv run --project backend python -m app.workers.session.chrome_agent install --en
 docker compose up -d --build --wait --remove-orphans
 ```
 
-所有容器化后台循环（Outbox 投递、解析与下载、导入、报告发布、Provider 探针）运行在一个 `worker` 容器中，使用一个 RabbitMQ 账号 `RABBITMQ_WORKER_USER` / `RABBITMQ_WORKER_PASS`（对 `RABBITMQ_VHOST` 需要 configure/write/read 权限）。从旧的多 Worker 拓扑升级时，先在 RabbitMQ 中创建该账号并写入环境文件；`--remove-orphans` 会移除已退役的 `outbox`、`worker-*`、`provider-canary`、`provider-lease-redis` 与 `workspace-init` 容器，旧的 outbox／download／import／report 账号随后可删除。
+所有容器化后台循环（Outbox 投递、解析与下载、导入、报告发布、Provider 探针）运行在一个 `worker` 容器中，使用一个 RabbitMQ 账号 `RABBITMQ_WORKER_USER` / `RABBITMQ_WORKER_PASS`，权限是原 outbox、download、import、report 四个角色的并集，不授予 `.*`。从旧的多 Worker 拓扑升级时，先创建该账号（生产环境替换账号名与密码，并写入环境文件）：
+
+```bash
+DL='(?:^video\.(events|events\.dead|download|download\.dead)$)|^video\.download-intent(?:\.dead)?$'
+rabbitmqctl add_user video-worker '<password>'
+rabbitmqctl set_permissions -p video video-worker "$DL" "$DL" "$DL|^video\.import$|^video\.analysis-report$"
+```
+
+`--remove-orphans` 会移除已退役的 `outbox`、`worker-*`、`provider-canary`、`provider-lease-redis` 与 `workspace-init` 容器，旧的 outbox／download／import／report 账号随后可删除。
 
 agent 安装后会执行来源检查；未登录站点可能让检查返回非零，这不等于系统服务安装失败。公开平台不依赖 Chrome 登录态；需要登录的平台按检查结果完成授权与登录。
 
