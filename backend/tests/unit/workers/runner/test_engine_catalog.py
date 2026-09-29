@@ -94,7 +94,7 @@ def test_catalog_requires_signature_and_rejects_replay(tmp_path, monkeypatch):
 
     monkeypatch.setattr(RunnerEngineCatalog, "get", unavailable)
     client = TestClient(create_app(settings(tmp_path), service=FakeService()))
-    path = "/internal/v1/engine-catalog"
+    path = "/internal/engine-catalog"
     assert client.get(path).status_code == 401
     assert not calls
     headers = signed_headers(path, b"", "engine_catalog_nonce", method="GET")

@@ -154,7 +154,7 @@ class MediaRunnerHttpClient:
     async def engine_catalog(self) -> EngineCatalogResponse:
         return await self._request(
             "GET",
-            "/internal/v1/engine-catalog",
+            "/internal/engine-catalog",
             b"",
             EngineCatalogResponse,
             15.0,
@@ -165,7 +165,7 @@ class MediaRunnerHttpClient:
         provider_key = provider_profile(url).key
         response = await self._request(
             "POST",
-            "/internal/v1/context",
+            "/internal/context",
             ProviderContextRequest(url=url).model_dump_json().encode(),
             ProviderAccessContextContract,
             min(self._inspect_timeout, _CONTEXT_TIMEOUT_SECONDS),
@@ -188,7 +188,7 @@ class MediaRunnerHttpClient:
     ) -> tuple[ProviderAccessContextRef, ...]:
         response = await self._request(
             "POST",
-            "/internal/v1/contexts",
+            "/internal/contexts",
             ProviderContextsRequest(provider_keys=list(provider_keys))
             .model_dump_json()
             .encode(),
@@ -325,7 +325,7 @@ class MediaRunnerHttpClient:
     ) -> InspectResponse:
         response = await self._request(
             "POST",
-            "/internal/v1/inspect",
+            "/internal/inspect",
             InspectRequest(
                 url=url,
                 access_context=(
@@ -388,7 +388,7 @@ class MediaRunnerHttpClient:
         async def execute(_deadline: datetime | None = None) -> DownloadResponse:
             return await self._request(
                 "POST",
-                "/internal/v1/download",
+                "/internal/download",
                 body,
                 DownloadResponse,
                 self._download_timeout,
@@ -431,7 +431,7 @@ class MediaRunnerHttpClient:
         self._validate_task_id(task_id)
         response = await self._request(
             "GET",
-            f"/internal/v1/tasks/{task_id}",
+            f"/internal/tasks/{task_id}",
             b"",
             TaskStatusResponse,
             self._inspect_timeout,
@@ -443,7 +443,7 @@ class MediaRunnerHttpClient:
         self._validate_task_id(task_id)
         await self._request(
             "POST",
-            f"/internal/v1/tasks/{task_id}/cancel",
+            f"/internal/tasks/{task_id}/cancel",
             CancelCommand().model_dump_json().encode(),
             CancelResponse,
             self._inspect_timeout,

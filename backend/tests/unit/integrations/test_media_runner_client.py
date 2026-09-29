@@ -44,7 +44,7 @@ async def test_context_reads_the_runner_runtime_generation() -> None:
     expected = _access_context()
 
     async def respond(request: httpx.Request) -> httpx.Response:
-        assert request.url.path == "/internal/v1/context"
+        assert request.url.path == "/internal/context"
         assert json.loads(request.content) == {"url": "https://media.example/video"}
         return httpx.Response(200, json=expected.to_document())
 
@@ -99,7 +99,7 @@ async def test_context_batch_uses_one_short_lived_runner_request() -> None:
     expected = _access_context()
 
     async def respond(request: httpx.Request) -> httpx.Response:
-        assert request.url.path == "/internal/v1/contexts"
+        assert request.url.path == "/internal/contexts"
         assert json.loads(request.content) == {"provider_keys": ["generic"]}
         assert request.extensions["timeout"]["read"] == 0.25
         return httpx.Response(200, json={"contexts": [expected.to_document()]})
@@ -590,7 +590,7 @@ async def test_new_client_rejects_legacy_probe_revision(tmp_path: Path) -> None:
     returned.pop("runtime_revision")
 
     async def respond(request: httpx.Request) -> httpx.Response:
-        assert request.url.path == "/internal/v1/inspect"
+        assert request.url.path == "/internal/inspect"
         assert json.loads(request.content)["access_context"] == newer.to_document()
         return httpx.Response(
             200,
@@ -652,7 +652,7 @@ async def test_new_client_half_open_download_rejects_legacy_runner(
             self.probing = False
 
     async def respond(request: httpx.Request) -> httpx.Response:
-        if request.url.path == "/internal/v1/inspect":
+        if request.url.path == "/internal/inspect":
             events.append("probe")
             return httpx.Response(
                 200,

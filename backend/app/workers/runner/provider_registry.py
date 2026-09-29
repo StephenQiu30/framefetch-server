@@ -73,7 +73,7 @@ class ProviderProfile:
     credential_concurrency: int = 0
     support_status: ProviderSupportStatus = ProviderSupportStatus.UNKNOWN
     canary_suite: str = "anonymous-metadata-range"
-    error_policy_id: str = "yt-dlp-stable-v2"
+    error_policy_id: str = "yt-dlp-stable"
     command_args: tuple[str, ...] = ()
     runtime_command_args: RuntimeCommandArgs = default_runtime_command_args
     yt_dlp_retry_count: int = 3

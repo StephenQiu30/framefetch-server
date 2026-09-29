@@ -18,6 +18,21 @@ class Readiness:
         return self.available
 
 
+def test_internal_media_contract_has_only_direct_operation_paths(tmp_path):
+    app = create_app(settings(tmp_path), service=FakeService())
+    assert {
+        path for path in app.openapi()["paths"] if path.startswith("/internal/")
+    } == {
+        "/internal/engine-catalog",
+        "/internal/context",
+        "/internal/contexts",
+        "/internal/inspect",
+        "/internal/download",
+        "/internal/tasks/{task_id}",
+        "/internal/tasks/{task_id}/cancel",
+    }
+
+
 def test_signed_inspect_forwards_frozen_context_and_aware_deadline(tmp_path):
     service = FakeService()
     client = TestClient(create_app(settings(tmp_path), service=service))
@@ -29,7 +44,7 @@ def test_signed_inspect_forwards_frozen_context_and_aware_deadline(tmp_path):
             "deadline_at": deadline.isoformat(),
         }
     ).encode()
-    path = "/internal/v1/inspect"
+    path = "/internal/inspect"
     response = client.post(
         path, content=body, headers=signed_headers(path, body, "deadline_nonce_123456")
     )
@@ -44,7 +59,7 @@ def test_health_is_public_and_inspect_requires_valid_raw_body_signature(
     service = FakeService()
     client = TestClient(create_app(settings(tmp_path), service=service))
     body = json.dumps({"url": "https://media.example.com/video"}).encode()
-    path = "/internal/v1/inspect"
+    path = "/internal/inspect"
     headers = signed_headers(path, body, "inspect_nonce_123456")
 
     assert client.get("/health/live").json() == {
@@ -69,7 +84,7 @@ def test_context_endpoint_returns_only_signed_non_secret_runtime_refs(
     service = FakeService()
     client = TestClient(create_app(settings(tmp_path), service=service))
     body = json.dumps({"url": "https://media.example.com/video"}).encode()
-    path = "/internal/v1/context"
+    path = "/internal/context"
 
     response = client.post(
         path,
@@ -99,7 +114,7 @@ def test_contexts_endpoint_resolves_a_signed_batch_without_network_input(
     service = FakeService()
     client = TestClient(create_app(settings(tmp_path), service=service))
     body = json.dumps({"provider_keys": ["generic"]}).encode()
-    path = "/internal/v1/contexts"
+    path = "/internal/contexts"
 
     response = client.post(
         path,
@@ -141,11 +156,11 @@ def test_readiness_fails_closed_until_runner_dependencies_are_ready(
 @pytest.mark.parametrize(
     ("path", "payload"),
     (
-        ("/internal/v1/context", {"url": "https://media.example.com/video"}),
-        ("/internal/v1/contexts", {"provider_keys": ["generic"]}),
-        ("/internal/v1/inspect", {"url": "https://media.example.com/video"}),
+        ("/internal/context", {"url": "https://media.example.com/video"}),
+        ("/internal/contexts", {"provider_keys": ["generic"]}),
+        ("/internal/inspect", {"url": "https://media.example.com/video"}),
         (
-            "/internal/v1/download",
+            "/internal/download",
             {
                 "task_id": "job_123",
                 "url": "https://media.example.com/video",
@@ -196,7 +211,7 @@ def test_signed_work_is_rejected_when_installed_engine_does_not_match(
 
 def test_tampered_or_unsigned_request_has_stable_error(tmp_path: Path) -> None:
     client = TestClient(create_app(settings(tmp_path), service=FakeService()))
-    path = "/internal/v1/inspect"
+    path = "/internal/inspect"
     original = b'{"url":"https://media.example.com/video"}'
     headers = signed_headers(path, original, "tampered_nonce_12345")
 
@@ -220,7 +235,7 @@ def test_tampered_or_unsigned_request_has_stable_error(tmp_path: Path) -> None:
 def test_download_uses_signed_stable_contract(tmp_path: Path) -> None:
     service = FakeService()
     client = TestClient(create_app(settings(tmp_path), service=service))
-    path = "/internal/v1/download"
+    path = "/internal/download"
     payload = {
         "task_id": "job_123",
         "url": "https://media.example.com/video",
@@ -257,7 +272,7 @@ def test_download_uses_signed_stable_contract(tmp_path: Path) -> None:
 def test_download_rejects_invalid_semantic_plan_before_service(tmp_path: Path) -> None:
     service = FakeService()
     client = TestClient(create_app(settings(tmp_path), service=service))
-    path = "/internal/v1/download"
+    path = "/internal/download"
     body = json.dumps(
         {
             "task_id": "job_123",

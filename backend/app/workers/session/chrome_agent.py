@@ -61,7 +61,7 @@ from pydantic import BaseModel, ConfigDict, StringConstraints
 
 PROJECT_ROOT = Path(__file__).resolve().parents[4]
 AGENT_PORT: Final = 19250
-COOKIES_PATH: Final = "/v1/cookies"
+COOKIES_PATH: Final = "/cookies"
 AGENT_LABEL: Final = "com.framefetch.chrome-agent"
 _PROFILE_NAME: Final = re.compile(r"(?:Default|Profile [1-9][0-9]*)")
 # Chrome rewrites its Cookie database continuously; a short cache only absorbs

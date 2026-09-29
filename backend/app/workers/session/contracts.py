@@ -10,8 +10,8 @@ from typing import Annotated, Final
 
 from pydantic import BaseModel, ConfigDict, Field, StringConstraints
 
-STATUS_PATH: Final = "/internal/v1/site-sessions/status"
-LEASE_PATH: Final = "/internal/v1/site-sessions/lease"
+STATUS_PATH: Final = "/internal/site-sessions/status"
+LEASE_PATH: Final = "/internal/site-sessions/lease"
 
 Site = Annotated[str, StringConstraints(pattern=r"^[a-z0-9.-]{3,253}$")]
 TaskId = Annotated[str, StringConstraints(pattern=r"^[A-Za-z0-9_-]{1,128}$")]

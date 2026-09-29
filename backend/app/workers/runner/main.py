@@ -175,14 +175,14 @@ def create_app(
             },
         )
 
-    @app.get("/internal/v1/engine-catalog", response_model=EngineCatalogResponse)
+    @app.get("/internal/engine-catalog", response_model=EngineCatalogResponse)
     async def get_engine_catalog(request: Request) -> EngineCatalogResponse:
         await _authenticated_body(request, configured, authenticator)
         if configured.runner_access_mode is not ProviderAccessMode.ANONYMOUS:
             raise RunnerFailure("engine_catalog_unavailable", status=503)
         return await engine_catalog.get()
 
-    @app.post("/internal/v1/inspect", response_model=InspectResponse)
+    @app.post("/internal/inspect", response_model=InspectResponse)
     async def inspect(request: Request) -> InspectResponse:
         body = await _authenticated_body(
             request,
@@ -205,7 +205,7 @@ def create_app(
         )
 
     @app.post(
-        "/internal/v1/context",
+        "/internal/context",
         response_model=ProviderAccessContextContract,
     )
     async def context(request: Request) -> ProviderAccessContextContract:
@@ -221,7 +221,7 @@ def create_app(
         )
 
     @app.post(
-        "/internal/v1/contexts",
+        "/internal/contexts",
         response_model=ProviderContextsResponse,
     )
     async def contexts(request: Request) -> ProviderContextsResponse:
@@ -240,7 +240,7 @@ def create_app(
             ]
         )
 
-    @app.post("/internal/v1/download", response_model=DownloadResponse)
+    @app.post("/internal/download", response_model=DownloadResponse)
     async def download(request: Request) -> DownloadResponse:
         body = await _authenticated_body(
             request,
@@ -252,7 +252,7 @@ def create_app(
         return await runner.download(payload)
 
     @app.post(
-        "/internal/v1/tasks/{task_id}/cancel",
+        "/internal/tasks/{task_id}/cancel",
         response_model=CancelResponse,
     )
     async def cancel(task_id: str, request: Request) -> CancelResponse:
@@ -267,7 +267,7 @@ def create_app(
         return await runner.cancel(task_id)
 
     @app.get(
-        "/internal/v1/tasks/{task_id}",
+        "/internal/tasks/{task_id}",
         response_model=TaskStatusResponse,
     )
     async def status(task_id: str, request: Request) -> TaskStatusResponse:

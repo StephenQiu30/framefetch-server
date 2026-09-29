@@ -132,7 +132,7 @@ async def test_ready_tracks_resource_startup_and_shutdown():
 @pytest.mark.parametrize("route", ["rotation", "failures"])
 async def test_unused_session_writeback_routes_are_not_exposed(route):
     async with running(StubBroker()) as raw:
-        response = await raw.post(f"/internal/v1/site-sessions/{route}", json={})
+        response = await raw.post(f"/internal/site-sessions/{route}", json={})
         assert response.status_code == 404
 
 

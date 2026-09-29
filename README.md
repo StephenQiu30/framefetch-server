@@ -44,7 +44,7 @@
 
 **[v0.2.0](https://github.com/StephenQiu30/video-server/releases/tag/v0.2.0) · 容器自持平台会话**
 
-- 平台会话由 `session-broker` 与容器会话浏览器自持：冷启动恢复、保活、失效检测与自动轮换，普通用户只需粘贴链接。
+- 平台账号来源当前由宿主 Chrome 接入和 `session-broker` 按需提供，不自动保活；专用持久浏览器与登录恢复正在重设计，实施状态见[设计文档](docs/design/15-工作流与平台下载目标.md)。
 - 在线解析统一走站点会话路线，移除匿名与访客执行路线，结果以真实文件验收为准。
 - Web 体验：头像上传与个人资料、统一的解析结果双栏卡片、可恢复错误提示与 shadcn 组件整理。
 
@@ -191,6 +191,8 @@ createdb -O framefetch_temporal framefetch_temporal_visibility
 - 首次安装后运行 `uv run --project backend python -m app.workers.session.chrome_agent check --env-file .env` 查看各站点是否已登录；它会打印需要在“系统设置 → 隐私与安全性 → 完全磁盘访问权限”中添加的程序路径，并在钥匙串弹窗中对“Chrome Safe Storage”选择“始终允许”。
 - 多个 Chrome Profile 登录了同一平台时，在 `.env` 的 `SITE_SESSION_SOURCE_PROFILES` 指定一个。
 - 卸载：`uv run --project backend python -m app.workers.session.chrome_agent uninstall`。设计见[平台会话](docs/design/08-平台会话.md)。
+
+媒体内部接口已统一为 `/internal/inspect`、`/internal/download` 等直接命名，宿主来源为 `/cookies`，不保留带代际前缀的路径。升级时先暂停新媒体任务并排空在途操作，再配套重建 API、worker、session-runner、session-broker，并重新运行上述 `chrome_agent install` 更新宿主服务；不能混用新旧镜像或只更新客户端。此次改名不修改业务数据库结构。
 
 生产配置使用独立的环境文件与 Compose 文件，同样需要本机 Chrome 登录态服务：
 

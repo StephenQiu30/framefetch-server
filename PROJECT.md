@@ -122,6 +122,7 @@ backend/
 - 事务须有明确所有者；文件归类不能改变事务提交、回滚、Outbox 原子性或权限校验。Runner 归入 workers 后仍是独立隔离进程。
 - 路由不反向导入主应用；共享依赖通过 Depends 注入；运行资源通过 lifespan 创建和关闭。导入应用、生成 OpenAPI 不启动外部服务。
 - Python 文件和函数采用 snake_case，类采用 PascalCase。异步路径不执行阻塞 IO 或 CPU 密集工作；使用线程边界或独立 Worker。
+- 自有接口、类与模块按职责直接命名，不新增 `/vN`、`V2`、`_v2` 命名或平行实现；媒体内部路径为 `/internal/inspect`、`/internal/download` 等。迭代时直接修改唯一实现并同步所有调用方，依赖锁定与真实运行版本仍按发布要求维护。
 - `__pycache__` 是 Python 运行缓存，不是源码目录；不得写入 Git。清理可移除缓存，不通过新增脚本控制缓存。
 
 ## 3. Swagger 与生成 API（必须遵守）

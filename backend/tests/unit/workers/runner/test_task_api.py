@@ -10,7 +10,7 @@ from fastapi.testclient import TestClient
 def test_cancel_is_authenticated_and_idempotent(tmp_path: Path) -> None:
     service = FakeService()
     client = TestClient(create_app(settings(tmp_path), service=service))
-    path = "/internal/v1/tasks/job_123/cancel"
+    path = "/internal/tasks/job_123/cancel"
 
     responses = []
     for nonce in ("cancel_nonce_1234567", "cancel_nonce_7654321"):
@@ -34,7 +34,7 @@ def test_cancel_is_authenticated_and_idempotent(tmp_path: Path) -> None:
 def test_task_status_get_is_hmac_authenticated(tmp_path: Path) -> None:
     service = FakeService()
     client = TestClient(create_app(settings(tmp_path), service=service))
-    path = "/internal/v1/tasks/job_123"
+    path = "/internal/tasks/job_123"
     headers = signed_headers(
         path,
         b"",

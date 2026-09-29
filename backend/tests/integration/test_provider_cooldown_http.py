@@ -25,9 +25,9 @@ async def test_independent_api_and_canary_clients_share_durable_429_gate(
 
     async def respond(request):
         calls.append(request.url.path)
-        if request.url.path == "/internal/v1/context":
+        if request.url.path == "/internal/context":
             return httpx.Response(200, json=_access_context().to_document())
-        assert request.url.path == "/internal/v1/inspect"
+        assert request.url.path == "/internal/inspect"
         return httpx.Response(429, json={"error": {"code": "provider_rate_limited"}})
 
     sessions = create_session_factory(postgres_engine)
@@ -49,8 +49,8 @@ async def test_independent_api_and_canary_clients_share_durable_429_gate(
             with pytest.raises(MediaInspectionRateLimited) as result:
                 await client.inspect("https://media.example/owned")
             assert result.value.retry_at is not None
-    assert calls.count("/internal/v1/inspect") == 1
-    assert calls.count("/internal/v1/context") == 2  # Local non-media context only.
+    assert calls.count("/internal/inspect") == 1
+    assert calls.count("/internal/context") == 2  # Local non-media context only.
 
 
 async def test_wrong_runner_role_is_rejected_before_any_platform_request():
@@ -63,7 +63,7 @@ async def test_wrong_runner_role_is_rejected_before_any_platform_request():
 
     async def respond(request):
         calls.append(request.url.path)
-        assert request.url.path == "/internal/v1/context"
+        assert request.url.path == "/internal/context"
         return httpx.Response(200, json=wrong.to_document())
 
     async with httpx.AsyncClient(
@@ -80,12 +80,12 @@ async def test_wrong_runner_role_is_rejected_before_any_platform_request():
         )
         with pytest.raises(MediaInspectionVerificationFailed):
             await client.inspect("https://media.example/owned")
-    assert calls == ["/internal/v1/context"]
+    assert calls == ["/internal/context"]
 
 
 async def test_half_open_client_transmits_context_and_deadline_before_platform_io():
     async def respond(request):
-        if request.url.path == "/internal/v1/context":
+        if request.url.path == "/internal/context":
             return httpx.Response(200, json=_access_context().to_document())
         payload = json.loads(request.content)
         assert payload["access_context"] == _access_context().to_document()

@@ -55,7 +55,7 @@ async def test_http_disconnect_terminates_real_inspection_process(tmp_path):
                 trust_env=False,
                 timeout=60,
             ) as client:
-                path = "/internal/v1/inspect"
+                path = "/internal/inspect"
                 body = json.dumps({"url": "https://example.com/video"}).encode()
                 request = asyncio.create_task(
                     client.post(
