@@ -119,14 +119,16 @@ def _visual_prompt(
         "模型自述。详细写法遵循 Skill 附带的《报告写作规范》。",
         "- summary 是报告导语，使用 2 至 4 句串起全片主线、最强之处和首要风险；"
         "scene description 应写成可连续阅读的小段落；shot 的 description 与 "
-        "narrative_function 会进入表格单元格，各写成一个完整句子；"
+        "narrative_function 会进入表格单元格，不加字段标签，各写成一到两句连贯的话；"
         "production_advice 使用直接、可执行的表达。",
         "- 避免“本报告将”“综上所述”“该镜头很有冲击力”“推进剧情”“营造氛围”"
-        "等空泛套话，也不要在字段中写 shot id、字段名、Markdown 标题或"
+        "等空泛套话，也不要在文本字段中写 shot id、字段名、Markdown 标题或"
         "“AI 建议”；正文指代分镜时写“分镜 003”这样的三位序号。专业术语只在"
         "能帮助创作判断时使用。",
         "- 每个分镜必须填写 narrative_function，并用 1 至 5 的 highlight_score "
-        "表达其视觉、情绪或叙事价值；production_advice 必须引用真实 shot id。",
+        "表达其视觉、情绪或叙事价值。shot id 只出现在 *_shot_ids 数组中："
+        "production_advice.priority_shot_ids 必须引用真实 shot id，服务端会把它们"
+        "渲染为分镜序号。",
         "- 最终只返回符合给定 JSON Schema 的对象，不要附加 Markdown 或解释。",
         "",
         f"本次分析 Skill：{request.skill_id}",

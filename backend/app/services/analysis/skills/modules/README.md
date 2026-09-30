@@ -1,12 +1,16 @@
-# Direct upstream screenplay modules
+# Vendored upstream modules
 
-This directory contains unmodified Markdown files from two MIT-licensed repositories. The copies are pinned to the commits below and include each repository's original `LICENSE` file.
+This directory holds unmodified Markdown files from MIT-licensed repositories, each pinned to a reviewed commit and kept beside its original `LICENSE`:
 
-| Repository | Commit | Imported files |
+| Directory | Repository | Modules |
 | --- | --- | --- |
-| [zenstory-ai/drama-skills](https://github.com/zenstory-ai/drama-skills) | `b71cb3ca9343eaf6c0375725ccc9261a4e79021e` | `short-drama-review/SKILL.md`, `references/review-method.md`, `references/rubric-story-script.md`, `references/anti-template-repair.md` |
-| [jtydhr88/screenwriting-skills](https://github.com/jtydhr88/screenwriting-skills) | `357d1348ccaa1ab75f2f51ef7c90a7f00a686c76` | `sw-scene-craft/SKILL.md`, `sw-character-conflict/SKILL.md`, `sw-dialogue/SKILL.md`, `sw-story-structure/SKILL.md` |
+| `drama-skills/` | [zenstory-ai/drama-skills](https://github.com/zenstory-ai/drama-skills) | `drama-story-script`, `drama-anti-template`, `drama-edit-cut-craft`, `drama-shot-craft`, `drama-shot-grammar`, `drama-blocking-playbooks` |
+| `screenwriting-skills/` | [jtydhr88/screenwriting-skills](https://github.com/jtydhr88/screenwriting-skills) | `sw-story-structure`, `sw-character-conflict`, `sw-scene-craft`, `sw-dialogue`, `sw-premise-theme`, `sw-truby-anatomy` |
+| `humanizer-zh/` | [op7418/Humanizer-zh](https://github.com/op7418/Humanizer-zh) | `humanizer-zh` |
+| `chinese-copywriting-guidelines/` | [sparanoid/chinese-copywriting-guidelines](https://github.com/sparanoid/chinese-copywriting-guidelines) | `zh-copywriting-guidelines` |
 
-The files retain their upstream text and frontmatter. `manifest.json` pins each file's SHA-256, license and selected sections; `app.services.analysis.skills.modules` validates it at load time. A skill opts into modules with `video-server-modules`; the loader places the selected original text into the immutable task instruction snapshot. The project-specific skill body and output contract constrain how the source material is applied. Only Markdown text is compiled; no upstream scripts or tools run, and the worker does not fetch content from GitHub.
+`manifest.json` pins each file's SHA-256, license, source URL and the `##` sections a product Skill may compile. Select only sections that serve the product task: a section that would have to be followed by "ignore this" in the Skill body does not belong in the selection. The per-module rationale is in `../NOTICE.md`.
 
-Import new sources with `uv run python -m app.workers.skill_import --repository <url> --commit <sha> --path <skill dir> --source <name>` from `backend/`. It fetches exactly that commit, requires an allowlisted license (MIT, Apache-2.0, BSD, CC-BY-4.0), keeps only Markdown, drops scripts and manifests without executing them, blocks on prompt-injection findings until reviewed, writes the files unmodified, registers every `##` section in `manifest.json` and appends a `NOTICE.md` entry. Narrow `sections` in the manifest to what a product Skill needs. To upgrade a source, delete the old files deliberately and import the new commit; do not edit vendored files in place.
+A Skill opts into modules with `video-server-modules`; the loader places the selected text into the immutable task instruction snapshot, ahead of the Skill body. Only Markdown is compiled; no upstream scripts or tools run, and the worker never fetches from GitHub.
+
+Import a source with `uv run python -m app.workers.skill_import --repository <url> --commit <sha> --path <skill dir or file> --source <name>` from `backend/`. The command requires an allowlisted license (MIT, Apache-2.0, BSD, CC-BY-4.0), keeps only Markdown, blocks on prompt-injection findings until reviewed, writes files unmodified, registers every `##` section and appends a `NOTICE.md` entry. Afterwards give the module a short id, narrow its sections and rewrite the NOTICE entry to describe the actual use. To upgrade a source, delete the old files and import the new commit; do not edit vendored files in place. Delete files that no Skill uses.

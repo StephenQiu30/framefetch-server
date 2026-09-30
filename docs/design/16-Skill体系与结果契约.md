@@ -45,21 +45,25 @@
 
 更新上游版本必须重新执行上述审查，并补静态样例与真实模型验收后才能发布。
 
-## 首批接入
+## 上游模块选用
 
-此次新增 9 个固定版本模块，挂载于以下 5 个产品 Skill；完整原文、许可证、SHA-256 与选用二级标题见 `skills/modules/manifest.json`，用途和扫描复核见 `skills/NOTICE.md`。
+当前固定 14 个上游模块（drama-skills 6 个、screenwriting-skills 6 个、Humanizer-zh 与中文文案排版指北各 1 个）；原文、许可证、SHA-256 与选用章节见 `skills/modules/manifest.json`，逐模块用途见 `skills/NOTICE.md`。
 
-| 产品 Skill | 本次采用的方法 | 结果契约 |
-| --- | --- | --- |
-| 导演拉片 `director-breakdown` | drama-skills 镜头目的、摄影问题、轴线和调度 | video-visual-analysis |
-| 剪辑节奏 `editing-rhythm-review` | drama-skills 切点工艺、marketingskills 剪辑解剖 | video-visual-analysis |
-| 连续性审阅 `continuity-quality-review` | drama-skills 轴线、屏幕方向和可见状态衔接 | video-visual-analysis |
-| 剧本结构 `screenplay-structure-review` | 保留既有结构/场景方法，追加前提主题和 Truby 诊断 | screenplay-analysis |
-| 短视频包装 `short-video-packaging` | marketingskills 钩子、视觉表达与平台呈现参考 | structured-report |
+选用规则：只选与产品任务对题的章节。若某一节需要在 Skill 正文里写“忽略其中的……”才能使用，它就不应进入选用范围；无任何 Skill 使用的 vendored 文件直接删除。按此规则：
 
-短视频包装按内容定位、标题备选、封面文字、开头钩子和发布文案输出五节草稿；事实绑定原视频证据，拟新增文案与编辑动作明确标注。平台未指定时提供通用版并标记待确认，不据此发布内容或生成成片。
+- 不引入 marketingskills：其平台人口、算法与发布时间说法未经核实，英文模板钩子要求虚构亲历和效果，剪辑解剖的交付物是复刻他人成片，均与“包装已有视频、只承诺素材已兑现内容”的边界冲突。短视频包装与剪辑节奏改用项目自有的 `references/packaging-method.md` 与 `references/editing-rhythm-rubric.md`。
+- 不引入 drama-skills 的 review-method：其规则分级、机械检查与 finding 结构面向该项目的文件和校验器流程，与本项目 JSON 契约冲突。
+- 镜头与剪辑模块只保留判断问题，不编译音频入出点与对白估时、镜长配额、逐镜运镜行格式和提示词反模式；结构模块不编译按分钟切分的九节拍、分场表流程与反模式。
 
-上游章节先编译，随后加载产品 Skill 正文和本地 references。产品正文明确约束适用范围：不执行上游脚本、项目文件操作或制作流程；视频不判断未经验证的音频；上游人口、算法、触达、发布时间和固定镜长说法不作为当前事实或验收门槛；剧本不强制套用页码或结构公式。选用章节以外的正文不注入模型。
+| 产品 Skill | 上游方法 |
+| --- | --- |
+| 导演拉片 | `drama-shot-craft`、`drama-shot-grammar`、`drama-blocking-playbooks` |
+| 剪辑节奏审阅 | `drama-edit-cut-craft`（镜序与相邻关系） |
+| 连续性与成片 QA | `drama-blocking-playbooks` |
+| 剧本审稿系列 | `drama-story-script`、`drama-anti-template` 与 `sw-*` 诊断章节，按 Skill 组合 |
+| 全部分析 Skill | `humanizer-zh`、`zh-copywriting-guidelines`（剧本改写只用后者） |
+
+上游章节先编译，随后加载产品 Skill 正文和 references；需要说明适用方式的 Skill 在正文“上游方法的用法”一节写明。
 
 ## 成稿写作规范
 
@@ -69,7 +73,9 @@
 | --- | --- | --- |
 | 共享规范 | `skills/shared/report-writing.md` | 项目自有。结论先行、段落与句式、事实／判断／建议分层、标题与条目写法、需删除的套话、中文排版、交付前通读 |
 | 契约写法 | `skills/shared/screenplay-coverage-writing.md` 与各契约提示 | 字段在渲染报告中的位置与写法；剧本审稿 7 个 Skill 共用一份 |
-| Skill 重点 | 各 `SKILL.md` 的“成稿写法” | 本 Skill 的标题、导语与关键字段应当回答什么 |
+| Skill 重点 | 各 `SKILL.md` 的“成稿重点”与 Skill 自有 references 的字段写法 | 本 Skill 的标题、导语与关键字段应当回答什么、写成什么样 |
+
+字段写法只在一处定义：文本字段写成连贯的句子或段落，不使用“字段名：……；……”式的标签串；分镜等内部 ID 只出现在 `*_shot_ids` 数组中，正文写“分镜 003”。
 
 `video-server-references` 可引用 `references/<名>.md`（Skill 自有）或 `shared/<名>.md`（项目自有、多 Skill 复用）；`shared/` 不含 `SKILL.md`，不会被注册为 Skill。
 

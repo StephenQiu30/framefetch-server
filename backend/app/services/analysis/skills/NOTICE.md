@@ -1,6 +1,6 @@
 # Analysis Skill third-party notices
 
-Most built-in analysis skills are original, project-specific rewrites. The screenplay source modules listed below vendor exact upstream Markdown files and compile named sections into the selected skill snapshot. No upstream scripts, MCP definitions, plugins, network calls, file writes, or sub-agent workflows execute in the analysis worker.
+Most built-in analysis skills are original, project-specific rewrites. The source modules listed under “Vendored source modules” are exact upstream Markdown files; only the sections named in `modules/manifest.json` are compiled into a skill snapshot. No upstream scripts, MCP definitions, plugins, network calls, file writes, or sub-agent workflows execute in the analysis worker.
 
 ## Agent Skills specification
 
@@ -79,22 +79,6 @@ Most built-in analysis skills are original, project-specific rewrites. The scree
 - License: MIT; copyright 2026 drama-skills contributors.
 - Local use: the opening-hook review independently separates bounded evidence, viewer or production impact, and the required revision outcome. Upstream review wording, templates, rubrics, scripts, examples, production adapters, assets, generation workflow, and cross-Skill orchestration were excluded.
 
-## drama-skills screenplay story review (2026-09-24)
-
-- Source: https://github.com/zenstory-ai/drama-skills/tree/b71cb3ca9343eaf6c0375725ccc9261a4e79021e/skills/short-drama-review
-- Reviewed commit: `b71cb3ca9343eaf6c0375725ccc9261a4e79021e`.
-- License: MIT; copyright 2026 drama-skills contributors.
-- Local use: `screenplay-analysis`, `screenplay-drama-review`, `screenplay-character-review`, `screenplay-scene-review`, `screenplay-dialogue-review`, and `screenplay-continuity-review` compile named sections directly from vendored upstream `review-method.md`, `rubric-story-script.md`, and `anti-template-repair.md`. The upstream `SKILL.md` is retained for provenance. File publication, scripts, examples, other media rubrics, and agent workflow are not executed.
-
-## screenwriting-skills screenplay story review (2026-09-24)
-
-- Source: https://github.com/jtydhr88/screenwriting-skills/tree/357d1348ccaa1ab75f2f51ef7c90a7f00a686c76/plugins/screenwriting/skills
-- Reviewed commit: `357d1348ccaa1ab75f2f51ef7c90a7f00a686c76`.
-- License: MIT; copyright 2026 Terry Jia.
-- Local use: `screenplay-analysis`, `screenplay-character-review`, `screenplay-scene-review`, `screenplay-dialogue-review`, and `screenplay-structure-review` compile named diagnostic sections directly from the four vendored upstream `SKILL.md` files. Their fixed page counts, required beat shapes, authoring exercises, examples, and other Skill links are reference material, not product acceptance criteria or executable workflow.
-
-Both repositories' original MIT licenses are included beside their vendored files. `modules/manifest.json` pins each source file SHA-256 and license, and `loader.py` embeds only explicitly named sections in each task's immutable instruction snapshot. A source change requires a deliberate hash and section review; no runtime GitHub fetch occurs.
-
 ## video-shotcraft
 
 - Source: https://github.com/Vincentwei1021/video-shotcraft
@@ -102,125 +86,41 @@ Both repositories' original MIT licenses are included beside their vendored file
 - License: Apache-2.0; copyright 2026 Wei Yihao.
 - Local use: the opening-hook review independently emphasizes reviewing rendered evidence before delivery, legible on-screen text, a clear initial subject, purposeful visual progression, and shot-specific handoff checks. Upstream wording, shot cards, recipes, demos, media, Remotion templates, source code, gallery, generation workflow, sound library, examples, and assets were excluded.
 
+## Vendored source modules
+
+Each repository's original license is kept beside its files. `modules/manifest.json` pins every file's SHA-256, license and selected `##` sections, and the loader compiles only those sections. Sections outside the selection (workflows, templates, tool instructions, platform statistics, audio timing, links) never reach the model. Updating a source requires re-importing a pinned commit with `app.workers.skill_import`, a fresh license and prompt-injection review, and a new section selection.
+
+### drama-skills
+
+- Source: https://github.com/zenstory-ai/drama-skills (MIT; copyright 2026 drama-skills contributors)
+- Commit `b71cb3ca9343eaf6c0375725ccc9261a4e79021e`:
+  - `drama-story-script` ← `skills/short-drama-review/references/rubric-story-script.md`: story promise, entry and character memory, scene test, dialogue. Used by `screenplay-analysis`, `screenplay-drama-review`, `screenplay-character-review`, `screenplay-scene-review`, `screenplay-dialogue-review`, `screenplay-continuity-review`.
+  - `drama-anti-template` ← `skills/short-drama-review/references/anti-template-repair.md`: four diagnostic layers and false-positive counterexamples. Used by `screenplay-analysis`, `screenplay-drama-review`.
+- Commit `4e48ccbf0f77da757d7cacc6937b1cc59c124845`:
+  - `drama-edit-cut-craft` ← `skills/short-drama-edit/references/cut-craft.md`: shot order and adjacency only. Used by `editing-rhythm-review`.
+  - `drama-shot-craft` ← `skills/short-drama-storyboard/references/shot-craft.md`: shot purpose, blocking and geography, connected boundaries, common problems, review questions. Used by `director-breakdown`.
+  - `drama-shot-grammar` ← `skills/short-drama-storyboard/references/production-shot-grammar.md`: narrative photography questions and scene-type diagnosis. Used by `director-breakdown`.
+  - `drama-blocking-playbooks` ← `skills/short-drama-storyboard/references/blocking-playbooks.md`: axis and screen direction, single-room dialogue, evidence reveals, observation boundaries. Used by `director-breakdown`, `continuity-quality-review`.
+
+### screenwriting-skills
+
+- Source: https://github.com/jtydhr88/screenwriting-skills (MIT; copyright 2026 Terry Jia), commit `357d1348ccaa1ab75f2f51ef7c90a7f00a686c76`, files under `plugins/screenwriting/skills/`.
+  - `sw-story-structure`: structure levels, Chinese short-play devices, inciting incident and progressive complications, crisis/climax/resolution, non-linear and ensemble forms. The minute-based nine-beat template is not compiled.
+  - `sw-character-conflict`, `sw-scene-craft`, `sw-dialogue`: diagnostic sections; the authoring workflows and exercises are not compiled.
+  - `sw-premise-theme`: controlling idea, desire vs. false belief, premise questions, dramatic core, conflict and plot.
+  - `sw-truby-anatomy`: seven key steps, the five middle components and the ten-question diagnosis. Scene weave and anti-patterns are not compiled.
+- Used by the screenplay review Skills as diagnostic perspectives. Page counts, minute marks and step counts inside the selected text are reference points, not acceptance criteria.
+
+### Humanizer-zh
+
+- Source: https://github.com/op7418/Humanizer-zh (MIT), commit `f4518a8eab97b8bfebc66a89d34320a89bef6930`, file `SKILL.md`.
+- `humanizer-zh`: editing constraints, register, pattern usage, patterns A–F and the pre-delivery check. The file workflow, file protection, full example and source links are not compiled. Import scan findings (the `allowed-tools` frontmatter and source links) lie outside the selection.
+- Used by every analysis Skill except `screenplay-rewrite`, through `shared/report-writing.md`, as a self-review checklist for the Skill's own report prose. It is never used to judge the analysed screenplay or on-screen text and never licenses adding facts.
+
+### chinese-copywriting-guidelines
+
+- Source: https://github.com/sparanoid/chinese-copywriting-guidelines (MIT), commit `9a5fbeb842f39644352fd79b5d8c6764718105cc`, file `README.zh-Hans.md`.
+- `zh-copywriting-guidelines`: spacing, punctuation, full-width and half-width characters, proper nouns. The disputed rules, tool list, adopters and references are not compiled; import scan findings are links in those excluded sections.
+- Used by every analysis Skill for report prose; `screenplay-rewrite` applies it to narration and stage directions and keeps characters' intentional speech as written.
+
 Updating any reviewed commit requires a fresh license and prompt-injection review, static fixtures, and real-provider E2E before release.
-
-## marketingskills (2026-09-29)
-
-- Source: https://github.com/coreyhaines31/marketingskills/tree/5b2c0007766c6a1cf1d53fd8fc73e979e0821022/skills/video/references/edit-anatomy.md
-- Reviewed commit: `5b2c0007766c6a1cf1d53fd8fc73e979e0821022`
-- License: MIT
-- Imported Markdown (unmodified): `marketingskills/video-edit-anatomy.md`
-- Registered modules: `marketingskills-video-edit-anatomy`
-- Dropped, never vendored or executed: none
-- Prompt-injection scan: no findings
-- Local use: `editing-rhythm-review`: beat-by-beat visual edit analysis only; download/execution sections excluded, audio and imitation instructions do not apply.
-
-## marketingskills (2026-09-29)
-
-- Source: https://github.com/coreyhaines31/marketingskills/tree/5b2c0007766c6a1cf1d53fd8fc73e979e0821022/skills/social/references/short-form-video.md
-- Reviewed commit: `5b2c0007766c6a1cf1d53fd8fc73e979e0821022`
-- License: MIT
-- Imported Markdown (unmodified): `marketingskills/social-short-form-video.md`
-- Registered modules: `marketingskills-social-short-form-video`
-- Dropped, never vendored or executed: none
-- Prompt-injection scan: 2 findings reviewed and accepted
-- Local use: `short-video-packaging`: hook types, information order and visual patterns only; examples are not facts, audio is unverified and production/publishing workflows are not executed. Scan matches were two uses of "secret" in hook examples, not access to secrets.
-
-## marketingskills (2026-09-29)
-
-- Source: https://github.com/coreyhaines31/marketingskills/tree/5b2c0007766c6a1cf1d53fd8fc73e979e0821022/skills/social/references/platforms.md
-- Reviewed commit: `5b2c0007766c6a1cf1d53fd8fc73e979e0821022`
-- License: MIT
-- Imported Markdown (unmodified): `marketingskills/social-platforms.md`
-- Registered modules: `marketingskills-social-platforms`
-- Dropped, never vendored or executed: none
-- Prompt-injection scan: 1 findings reviewed and accepted
-- Local use: `short-video-packaging`: TikTok and Instagram presentation references only; demographic, reach, algorithm, posting-time and frequency claims are not verified facts or output requirements. The scan match was "Post consistently to train algorithm", not a network instruction.
-
-## drama-skills (2026-09-29)
-
-- Source: https://github.com/zenstory-ai/drama-skills/tree/4e48ccbf0f77da757d7cacc6937b1cc59c124845/skills/short-drama-edit/references/cut-craft.md
-- Reviewed commit: `4e48ccbf0f77da757d7cacc6937b1cc59c124845`
-- License: MIT
-- Imported Markdown (unmodified): `drama-skills/short-drama-edit-cut-craft.md`
-- Registered modules: `drama-skills-short-drama-edit-cut-craft`
-- Dropped, never vendored or executed: none
-- Prompt-injection scan: no findings
-- Local use: `editing-rhythm-review`: entry/exit points, adjacency, cuts and duration as visual review criteria; audio-dependent judgments excluded.
-
-## drama-skills (2026-09-29)
-
-- Source: https://github.com/zenstory-ai/drama-skills/tree/4e48ccbf0f77da757d7cacc6937b1cc59c124845/skills/short-drama-storyboard/references/shot-craft.md
-- Reviewed commit: `4e48ccbf0f77da757d7cacc6937b1cc59c124845`
-- License: MIT
-- Imported Markdown (unmodified): `drama-skills/short-drama-storyboard-shot-craft.md`
-- Registered modules: `drama-skills-short-drama-storyboard-shot-craft`
-- Dropped, never vendored or executed: none
-- Prompt-injection scan: no findings
-- Local use: `director-breakdown`: selected shot purpose, geography, framing, timing, continuity and review questions; no storyboard or project output.
-
-## drama-skills (2026-09-29)
-
-- Source: https://github.com/zenstory-ai/drama-skills/tree/4e48ccbf0f77da757d7cacc6937b1cc59c124845/skills/short-drama-storyboard/references/production-shot-grammar.md
-- Reviewed commit: `4e48ccbf0f77da757d7cacc6937b1cc59c124845`
-- License: MIT
-- Imported Markdown (unmodified): `drama-skills/short-drama-storyboard-production-shot-grammar.md`
-- Registered modules: `drama-skills-short-drama-storyboard-production-shot-grammar`
-- Dropped, never vendored or executed: none
-- Prompt-injection scan: no findings
-- Local use: `director-breakdown`: selected narrative photography questions, scene diagnosis and anti-patterns; production fields, prompts and workflow sections excluded.
-
-## drama-skills (2026-09-29)
-
-- Source: https://github.com/zenstory-ai/drama-skills/tree/4e48ccbf0f77da757d7cacc6937b1cc59c124845/skills/short-drama-storyboard/references/blocking-playbooks.md
-- Reviewed commit: `4e48ccbf0f77da757d7cacc6937b1cc59c124845`
-- License: MIT
-- Imported Markdown (unmodified): `drama-skills/short-drama-storyboard-blocking-playbooks.md`
-- Registered modules: `drama-skills-short-drama-storyboard-blocking-playbooks`
-- Dropped, never vendored or executed: none
-- Prompt-injection scan: no findings
-- Local use: `director-breakdown` and `continuity-quality-review`: axis, screen direction, visible dialogue staging, evidence reveals and observation boundaries only; no audio judgments.
-
-## screenwriting-skills (2026-09-29)
-
-- Source: https://github.com/jtydhr88/screenwriting-skills/tree/357d1348ccaa1ab75f2f51ef7c90a7f00a686c76/plugins/screenwriting/skills/sw-premise-theme/SKILL.md
-- Reviewed commit: `357d1348ccaa1ab75f2f51ef7c90a7f00a686c76`
-- License: MIT
-- Imported Markdown (unmodified): `screenwriting-skills/sw-premise-theme-SKILL.md`
-- Registered modules: `screenwriting-skills-sw-premise-theme-skill`
-- Dropped, never vendored or executed: none
-- Prompt-injection scan: no findings
-- Local use: `screenplay-structure-review`: selected premise/theme diagnostic perspectives grounded in supplied scenes; no authoring workflow or mandatory formula.
-
-## screenwriting-skills (2026-09-29)
-
-- Source: https://github.com/jtydhr88/screenwriting-skills/tree/357d1348ccaa1ab75f2f51ef7c90a7f00a686c76/plugins/screenwriting/skills/sw-truby-anatomy/SKILL.md
-- Reviewed commit: `357d1348ccaa1ab75f2f51ef7c90a7f00a686c76`
-- License: MIT
-- Imported Markdown (unmodified): `screenwriting-skills/sw-truby-anatomy-SKILL.md`
-- Registered modules: `screenwriting-skills-sw-truby-anatomy-skill`
-- Dropped, never vendored or executed: none
-- Prompt-injection scan: no findings
-- Local use: `screenplay-structure-review`: selected Truby structure and scene-weave diagnostics; no mandatory step counts or page quotas.
-
-## humanizer-zh (2026-09-30)
-
-- Source: https://github.com/op7418/Humanizer-zh/tree/f4518a8eab97b8bfebc66a89d34320a89bef6930/SKILL.md
-- Reviewed commit: `f4518a8eab97b8bfebc66a89d34320a89bef6930`
-- License: MIT
-- Imported Markdown (unmodified): `humanizer-zh/repo-SKILL.md`
-- Registered modules: `humanizer-zh` (sections narrowed to editing constraints, register, pattern usage, patterns A–F and the pre-delivery check; the file workflow, file protection, full example and source links are not compiled)
-- Dropped, never vendored or executed: none
-- Prompt-injection scan: 5 findings reviewed and accepted (the `allowed-tools` frontmatter and the source links, all outside the selected sections)
-- Local use: all builtin analysis Skills except `screenplay-rewrite`: self-review checklist for the Skill's own report prose, bridged by `shared/report-writing.md`; never used to judge the analysed screenplay or on-screen text, never adds facts.
-
-## chinese-copywriting-guidelines (2026-09-30)
-
-- Source: https://github.com/sparanoid/chinese-copywriting-guidelines/tree/9a5fbeb842f39644352fd79b5d8c6764718105cc/README.zh-Hans.md
-- Reviewed commit: `9a5fbeb842f39644352fd79b5d8c6764718105cc`
-- License: MIT
-- Imported Markdown (unmodified): `chinese-copywriting-guidelines/repo-README.zh-Hans.md`
-- Registered modules: `zh-copywriting-guidelines` (sections narrowed to spacing, punctuation, full-width vs half-width and proper nouns; the disputed rules, tool list, adopters and references are not compiled)
-- Dropped, never vendored or executed: none
-- Prompt-injection scan: 48 findings reviewed and accepted (tool, adopter and reference links, all outside the selected sections)
-- Local use: all builtin analysis Skills: Chinese spacing, punctuation and proper-noun rules for report prose; `screenplay-rewrite` applies them to narration only and keeps intentional dialogue as written.

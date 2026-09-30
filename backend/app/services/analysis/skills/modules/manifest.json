@@ -10,31 +10,7 @@
         "3. 误报反例"
       ]
     },
-    "drama-review-method": {
-      "path": "drama-skills/review-method.md",
-      "sha256": "832cc8ac66920d485d3dc6495de363dba72e5c58f7d03b3caffab143bc08915c",
-      "license": "MIT",
-      "source_url": "https://github.com/zenstory-ai/drama-skills/blob/b71cb3ca9343eaf6c0375725ccc9261a4e79021e/skills/short-drama-review/references/review-method.md",
-      "sections": [
-        "Rule classification",
-        "Mechanical before taste",
-        "Finding anatomy",
-        "Anti-template review"
-      ]
-    },
-    "drama-skills-short-drama-edit-cut-craft": {
-      "path": "drama-skills/short-drama-edit-cut-craft.md",
-      "sha256": "0ac6a7251921f3595db8a144c6a9f8c18a8bb06bb0f18b8e2855103f3aa56e56",
-      "license": "MIT",
-      "source_url": "https://github.com/zenstory-ai/drama-skills/blob/4e48ccbf0f77da757d7cacc6937b1cc59c124845/skills/short-drama-edit/references/cut-craft.md",
-      "sections": [
-        "入出点",
-        "镜序与相邻关系",
-        "切点与转场",
-        "时长与完成"
-      ]
-    },
-    "drama-skills-short-drama-storyboard-blocking-playbooks": {
+    "drama-blocking-playbooks": {
       "path": "drama-skills/short-drama-storyboard-blocking-playbooks.md",
       "sha256": "8df2000c058677321ffed906eb8b55618bd51b426f9eef086b1a5598232a2faf",
       "license": "MIT",
@@ -46,18 +22,16 @@
         "6. 观察视角与边界"
       ]
     },
-    "drama-skills-short-drama-storyboard-production-shot-grammar": {
-      "path": "drama-skills/short-drama-storyboard-production-shot-grammar.md",
-      "sha256": "dc3f1d1ee10d9783a493a1f02b0029ee145bcc6d42457eed97f3a3e195327bfe",
+    "drama-edit-cut-craft": {
+      "path": "drama-skills/short-drama-edit-cut-craft.md",
+      "sha256": "0ac6a7251921f3595db8a144c6a9f8c18a8bb06bb0f18b8e2855103f3aa56e56",
       "license": "MIT",
-      "source_url": "https://github.com/zenstory-ai/drama-skills/blob/4e48ccbf0f77da757d7cacc6937b1cc59c124845/skills/short-drama-storyboard/references/production-shot-grammar.md",
+      "source_url": "https://github.com/zenstory-ai/drama-skills/blob/4e48ccbf0f77da757d7cacc6937b1cc59c124845/skills/short-drama-edit/references/cut-craft.md",
       "sections": [
-        "五、镜头叙事学（摄影决策问题）",
-        "六、场景戏型诊断问题",
-        "十一、反模式"
+        "镜序与相邻关系"
       ]
     },
-    "drama-skills-short-drama-storyboard-shot-craft": {
+    "drama-shot-craft": {
       "path": "drama-skills/short-drama-storyboard-shot-craft.md",
       "sha256": "8c62f12a469889a51280f108a9d20fb4928a349e1589933ec6e3d8e0a26c004e",
       "license": "MIT",
@@ -65,11 +39,19 @@
       "sections": [
         "镜头目的",
         "场面调度与地理",
-        "景别与摄影机动机",
-        "时长与切镜",
         "相连边界 (`CON-01`)",
         "常见问题",
         "审查问题"
+      ]
+    },
+    "drama-shot-grammar": {
+      "path": "drama-skills/short-drama-storyboard-production-shot-grammar.md",
+      "sha256": "dc3f1d1ee10d9783a493a1f02b0029ee145bcc6d42457eed97f3a3e195327bfe",
+      "license": "MIT",
+      "source_url": "https://github.com/zenstory-ai/drama-skills/blob/4e48ccbf0f77da757d7cacc6937b1cc59c124845/skills/short-drama-storyboard/references/production-shot-grammar.md",
+      "sections": [
+        "五、镜头叙事学（摄影决策问题）",
+        "六、场景戏型诊断问题"
       ]
     },
     "drama-story-script": {
@@ -100,66 +82,6 @@
         "E. 聊天与草稿残留",
         "F. 中文表达的补充检查",
         "交付前核对"
-      ]
-    },
-    "marketingskills-social-platforms": {
-      "path": "marketingskills/social-platforms.md",
-      "sha256": "3c4e1b15717a3bcd4ed0cf29dc167dac28aa88bbf01723fde53815122396090f",
-      "license": "MIT",
-      "source_url": "https://github.com/coreyhaines31/marketingskills/blob/5b2c0007766c6a1cf1d53fd8fc73e979e0821022/skills/social/references/platforms.md",
-      "sections": [
-        "TikTok",
-        "Instagram"
-      ]
-    },
-    "marketingskills-social-short-form-video": {
-      "path": "marketingskills/social-short-form-video.md",
-      "sha256": "38e7de4049f39d116b815a8d07f5e45777501e9f506e3a5fe005c5d204d32ee7",
-      "license": "MIT",
-      "source_url": "https://github.com/coreyhaines31/marketingskills/blob/5b2c0007766c6a1cf1d53fd8fc73e979e0821022/skills/social/references/short-form-video.md",
-      "sections": [
-        "Video Hook Library",
-        "Scripting Template",
-        "Additional Video Structures",
-        "Visual Patterns"
-      ]
-    },
-    "marketingskills-video-edit-anatomy": {
-      "path": "marketingskills/video-edit-anatomy.md",
-      "sha256": "51319196939e75b29fd1f00ef393e1772043e79dbf0a19c82145060cc62fde7f",
-      "license": "MIT",
-      "source_url": "https://github.com/coreyhaines31/marketingskills/blob/5b2c0007766c6a1cf1d53fd8fc73e979e0821022/skills/video/references/edit-anatomy.md",
-      "sections": [
-        "Step 2 — Extract the anatomy, beat by beat",
-        "Step 3 — Write the beat sheet",
-        "Originality guardrail",
-        "Common mistakes"
-      ]
-    },
-    "screenwriting-skills-sw-premise-theme-skill": {
-      "path": "screenwriting-skills/sw-premise-theme-SKILL.md",
-      "sha256": "1a715602130e43a14da78f700d4af757e856e4bd1466ae3d23ee7c91473259c5",
-      "license": "MIT",
-      "source_url": "https://github.com/jtydhr88/screenwriting-skills/blob/357d1348ccaa1ab75f2f51ef7c90a7f00a686c76/plugins/screenwriting/skills/sw-premise-theme/SKILL.md",
-      "sections": [
-        "二、主控思想＝价值＋原因（麦基）",
-        "三、第三条轨道：渴望 vs 错误信念（克龙）",
-        "四、前提五问与十要素（希克斯）",
-        "十、戏核要好（陆军）",
-        "十一、冲突要真、情节要奇（陆军）"
-      ]
-    },
-    "screenwriting-skills-sw-truby-anatomy-skill": {
-      "path": "screenwriting-skills/sw-truby-anatomy-SKILL.md",
-      "sha256": "e057bdd7ffc34e070b9ec3906b9563b3a2fac7c421e5d7ca2b600e799b58c102",
-      "license": "MIT",
-      "source_url": "https://github.com/jtydhr88/screenwriting-skills/blob/357d1348ccaa1ab75f2f51ef7c90a7f00a686c76/plugins/screenwriting/skills/sw-truby-anatomy/SKILL.md",
-      "sections": [
-        "三、七大关键步骤与手风琴原则",
-        "五、中段五个重点组件（BS2 覆盖最薄处）",
-        "九、场景编排（scene weave）",
-        "十、诊断清单（中段松散十问）",
-        "十二、反模式"
       ]
     },
     "sw-character-conflict": {
@@ -193,6 +115,19 @@
         "九、诊断清单"
       ]
     },
+    "sw-premise-theme": {
+      "path": "screenwriting-skills/sw-premise-theme-SKILL.md",
+      "sha256": "1a715602130e43a14da78f700d4af757e856e4bd1466ae3d23ee7c91473259c5",
+      "license": "MIT",
+      "source_url": "https://github.com/jtydhr88/screenwriting-skills/blob/357d1348ccaa1ab75f2f51ef7c90a7f00a686c76/plugins/screenwriting/skills/sw-premise-theme/SKILL.md",
+      "sections": [
+        "二、主控思想＝价值＋原因（麦基）",
+        "三、第三条轨道：渴望 vs 错误信念（克龙）",
+        "四、前提五问与十要素（希克斯）",
+        "十、戏核要好（陆军）",
+        "十一、冲突要真、情节要奇（陆军）"
+      ]
+    },
     "sw-scene-craft": {
       "path": "screenwriting-skills/sw-scene-craft-SKILL.md",
       "sha256": "8e17bd548c7b27e7c88d8bceb498cf7d61e545d567085efecb1e4818f4e0e902",
@@ -217,11 +152,21 @@
       "source_url": "https://github.com/jtydhr88/screenwriting-skills/blob/357d1348ccaa1ab75f2f51ef7c90a7f00a686c76/plugins/screenwriting/skills/sw-story-structure/SKILL.md",
       "sections": [
         "一、结构的层级（麦基）",
-        "四、九节拍（霍克斯特）与线性发展表",
         "六、中国小戏的结构手法（陆军）",
         "七、激励事件与进展纠葛（麦基）",
         "八、危机、高潮、结局（麦基）",
         "九、非线性、多线与群像"
+      ]
+    },
+    "sw-truby-anatomy": {
+      "path": "screenwriting-skills/sw-truby-anatomy-SKILL.md",
+      "sha256": "e057bdd7ffc34e070b9ec3906b9563b3a2fac7c421e5d7ca2b600e799b58c102",
+      "license": "MIT",
+      "source_url": "https://github.com/jtydhr88/screenwriting-skills/blob/357d1348ccaa1ab75f2f51ef7c90a7f00a686c76/plugins/screenwriting/skills/sw-truby-anatomy/SKILL.md",
+      "sections": [
+        "三、七大关键步骤与手风琴原则",
+        "五、中段五个重点组件（BS2 覆盖最薄处）",
+        "十、诊断清单（中段松散十问）"
       ]
     },
     "zh-copywriting-guidelines": {

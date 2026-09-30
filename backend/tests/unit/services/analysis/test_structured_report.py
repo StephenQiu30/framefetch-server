@@ -154,9 +154,10 @@ def test_packaging_skill_sample_uses_the_generic_report_pipeline(
         result_contract=skill.result_contract,
     )
     prompt = analysis_prompt(request, ffmpeg="ffmpeg", ffprobe="ffprobe")
-    assert "marketingskills-social-short-form-video" in prompt
-    assert "不能声称听到台词" in prompt
-    assert "不得当作当前事实或质量门槛" in prompt
+    assert "# Reference: references/packaging-method.md" in prompt
+    assert "Source module: marketing" not in prompt
+    assert "不声称听到台词" in prompt
+    assert "不引用未经核实的平台算法" in prompt
     sample = {
         "language": "zh-CN",
         "title": "桌面收纳视频包装",

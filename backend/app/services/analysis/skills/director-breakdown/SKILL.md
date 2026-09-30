@@ -1,51 +1,40 @@
 ---
 name: director-breakdown
-description: 按真实编辑边界与连续镜头节拍复盘调度、构图、镜头动机、剪辑关系和复刻策略。用于完整视频的专业导演拉片。
+description: 逐分镜复盘成片的调度、构图、镜头动机与剪辑关系，并转成可执行的复刻或修改建议。用于完整视频的专业导演拉片。
 license: MIT
 metadata:
   video-server-display-name: 导演拉片
-  video-server-default-prompt: 以导演工作台方式逐分镜拉片，区分真实 Cut 与连续长镜头内的视觉节拍，复盘调度、镜头动机、剪辑关系、连续性和可执行复刻策略。
+  video-server-default-prompt: 逐分镜拉片，复盘调度、构图、镜头动机、剪辑关系和连续性，说明每个关键决策为什么成立，并给出可执行的复刻或修改建议。
   video-server-order: "10"
   video-server-input-kinds: video
-  video-server-modules: drama-skills-short-drama-storyboard-shot-craft, drama-skills-short-drama-storyboard-production-shot-grammar, drama-skills-short-drama-storyboard-blocking-playbooks, humanizer-zh, zh-copywriting-guidelines
+  video-server-modules: drama-shot-craft, drama-shot-grammar, drama-blocking-playbooks, humanizer-zh, zh-copywriting-guidelines
   video-server-output-contract: video-visual-analysis
   video-server-references: references/director-method.md, shared/report-writing.md
 ---
 # 导演拉片
 
-目标不是罗列景别，而是解释每个分析分镜为什么成立、画面如何组织注意力、相邻分镜如何共同完成一个叙事节拍，以及这些观察如何转成可执行的复刻方案。分析分镜既可以来自物理编辑，也可以来自连续长镜头内已经完成并切换任务的视觉阶段。
+交付物是一份导演拉片笔记：解释每个分析分镜为什么成立、画面如何组织注意力、相邻分镜如何共同完成一个节拍，以及这些观察怎样转成复刻或修改时可以照做的约束。读者是导演、摄影和剪辑，他们要的是判断和依据，不是景别清单。
 
-## 引用方法的用法
+## 上游方法的用法
 
-上文的分镜与剪辑 Source module 是固定版本的上游方法，原本写给制作流程。这里只把其中的判断标准用于审阅已经完成的视频：
-- 只评价画面中可见的决策，不输出分镜稿、剪辑单、关键帧或生成提示词，也不涉及其中提到的项目文件、字段、工具或下游环节。
-- 当前没有可靠音频证据：凡是依赖台词发声、音乐、音效或声音桥的条目一律不评价，必要时在局限中说明。
-- 上游示例与数字（如镜长、景别阶梯）是参考而非配额；结论必须回到本片的真实分镜证据。
+上文的 drama-shot-craft、drama-shot-grammar 和 drama-blocking-playbooks 原本写给分镜制作，这里把其中的判断问题用于复盘已完成的成片：镜头目的是否成立、调度是否表达人物策略、轴线与屏幕方向是否一致、切点是否带来可见变化、证据是否被读到。
+
+- 只评价画面中可见的决策。上游提到的分镜文档、字段编号（如 `SHT-02`）、资产、关键帧和提示词环节不属于本任务，不在结果中出现。
+- 上游的景别阶梯和示例是判断参照，不是配额；结论必须回到本片的分镜证据。
+- 没有可靠音频证据时，依赖台词、音乐、声音桥的判断不做，必要时在摘要中说明。
 
 ## 执行顺序
 
-1. 先全片覆盖，再复核疑似边界；分别标记物理 Cut/转场和连续镜头内的语义节拍。低对比转场、遮挡转场和显著画面演化不能只靠固定阈值判断，也不能因没看到 Cut 就把长片合成一镜。
-2. 对每镜分别记录可见事实、主体调度、构图/光色、摄影机行为、剪辑关系和叙事功能，禁止用风格形容词替代观察。
-3. 纵向检查镜头序列，并把连续完成同一任务的相邻镜头归入 `scenes`：空间建立、视线/运动方向、动作衔接、景别变化、节奏转折和视觉母题。
-4. 最后才评高光、资产和复刻优先级；场景、高光、资产和建议必须能回指真实 `shot.id`。
+1. 先完整覆盖全片，再复核疑似边界。低对比转场、遮挡转场和连续长镜头内的任务变化都要语义复核。
+2. 对每个分镜依次看边界、调度、摄影与美术、剪辑关系和叙事节拍，禁止用风格形容词替代观察。
+3. 纵向检查镜头序列，把连续完成同一任务的相邻镜头归入 `scenes`：空间如何建立、视线与运动方向是否连贯、景别变化服务什么、节奏在哪里转折。
+4. 最后评高光、资产和复刻优先级。
 
-## 输出纪律
-
-- `description` 按“主体与动作；空间与构图；光线与色彩；镜头起止状态”写可见事实。无法从画面确认焦段、机位尺寸或创作者意图时不要猜。
-- 物理编辑使用对应的 `transition_in`；确认无编辑但进入新视觉阶段时使用 `transition_in=continuous`；边界成立但转场类型不明时使用 `unknown`。不得按固定秒数切片。
-- `narrative_function` 写“本镜头完成的节拍 + 与前后镜头的关系 + 判断依据”，不要只写“推进剧情”“营造氛围”。
-- `visual_tags` 使用参考文档中的受控前缀，保留角度、构图、光色、连续性和节奏线索。
-- 高光分数只是本次分析中的相对排序；资产只是身份候选；`production_advice` 只是制作建议，均不代表主选、审核或项目写入结果。
-- 没有可靠音频证据时，不得把字幕、口型或画面文字推断成对白、音乐、音效或作者观点。
-
-## 成稿写法
-
-报告读起来应像一份导演拉片笔记：先给判断，再逐镜交代证据。文字规范见《报告写作规范》，这里只补充本 Skill 的重点。
+## 成稿重点
 
 - `title` 写出这支片子在调度上的核心特点或问题，例如“固定机位撑起全片，信息靠人物走位递进”，不写“导演拉片报告”。
-- `summary` 依次交代：画面主要靠什么组织注意力、最成立的一处导演决策（点到分镜）、最值得复查的一处风险。
-- `scenes[].description` 写成一段 2–4 句的小段落，说明这组镜头在空间、调度和节拍上如何配合；`narrative_function` 用一句话说明该段承上启下的作用。
-- 分镜字段会进入表格单元格，换行会被合并：`description` 按四段格式写成一句，用分号隔开，控制在 120 字以内；`narrative_function` 一句话写清节拍和前后关系。
-- `production_advice.recommended_extensions` 每条写成“分镜 003：观察 → 影响 → 复刻或修改时要达到的结果”，按影响排序。
+- `summary` 依次交代：画面靠什么组织注意力、最成立的一处导演决策、最值得复查的一处风险，并点到具体分镜。
+- 每个 `scenes[].description` 写成 2–4 句的小段落，说明这组镜头在空间、调度和节拍上如何配合。
+- `production_advice` 先用一段话说明优先顺序，再逐条给出可以照做的复刻或修改约束。
 
-详细判读步骤、字段映射和交付自检见 `references/director-method.md`。最终只返回 `video-visual-analysis` Schema 所需字段。
+分镜字段写法、标签词表、分值口径和交付自检见 `references/director-method.md`，通用文字要求见《报告写作规范》。

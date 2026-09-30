@@ -5,9 +5,14 @@ from pathlib import Path
 import pytest
 from app.integrations.analysis_skill_catalog import BuiltinAnalysisSkillCatalog
 from app.services.analysis.rules.enums import AnalysisInputKind, AnalysisResultContract
+from app.services.analysis.skills.modules import SOURCE_MODULES
 from app.services.analysis.skills.registry import (
     BUILTIN_ANALYSIS_SKILLS,
     AnalysisSkillRegistry,
+)
+
+SKILLS_ROOT = (
+    Path(__file__).resolve().parents[3] / "app" / "services" / "analysis" / "skills"
 )
 
 
@@ -92,7 +97,7 @@ def test_builtin_resolution_compiles_allowlisted_reference_and_sha256() -> None:
     resolved = catalog.resolve("screenplay-analysis", AnalysisInputKind.SCREENPLAY)
 
     assert resolved is not None
-    assert "# Source module: drama-review-method" in resolved.instructions
+    assert "# Source module: drama-story-script" in resolved.instructions
     assert "# Source module: sw-story-structure" in resolved.instructions
     assert "# Reference: references/output-contract.md" in resolved.instructions
     assert "完整场景调用必须返回以下字段" in resolved.instructions
@@ -131,16 +136,17 @@ def test_video_skills_compile_professional_reference_methods(
 def test_builtin_skills_expose_the_current_production_boundary() -> None:
     expected_phrases = {
         "director-breakdown": ("镜头动机", "production_advice"),
-        "comprehensive": ("观察、解释、建议", "video-visual-analysis"),
-        "visual-shots": ("反向分镜表", "video-visual-analysis"),
-        "scene-extraction": ("场景段落", "全部镜头"),
+        "comprehensive": ("观察、解释、建议", "覆盖矩阵"),
+        "visual-shots": ("反向分镜表", "起始帧"),
+        "scene-extraction": ("场景大纲", "全部镜头"),
         "narrative-structure-review": ("结构主线", "不评价台词逻辑"),
         "highlights": ("同一量表", "主选"),
         "editing-rhythm-review": ("无目的快切", "固定秒数"),
         "opening-hook-review": ("0–3 秒", "不预测平台留存率"),
-        "continuity-quality-review": ("交付前看片", "不声称完成逐帧"),
-        "asset-catalog": ("AssetVersion", "资产身份候选"),
+        "continuity-quality-review": ("交付前看片", "不声称完成了逐帧"),
+        "asset-catalog": ("资产身份候选", "证据等级"),
         "video-to-article": ("中心命题", "limitations"),
+        "short-video-packaging": ("拟新增", "limitations"),
         "screenplay-analysis": ("汇总调用", "source_scene_id"),
         "screenplay-structure-review": ("连续性", "priority_revisions"),
         "screenplay-rewrite": ("不可变文本版本候选", "source_sha256"),
@@ -157,31 +163,6 @@ def test_builtin_skills_expose_the_current_production_boundary() -> None:
         assert all(phrase in skill.instructions for phrase in phrases), skill_id
 
 
-@pytest.mark.parametrize(
-    "skill_id",
-    (
-        "director-breakdown",
-        "comprehensive",
-        "visual-shots",
-        "scene-extraction",
-        "narrative-structure-review",
-        "highlights",
-        "editing-rhythm-review",
-        "opening-hook-review",
-        "continuity-quality-review",
-        "asset-catalog",
-    ),
-)
-def test_visual_skills_prevent_long_take_single_segment_collapse(
-    skill_id: str,
-) -> None:
-    skill = BUILTIN_ANALYSIS_SKILLS.get(skill_id, AnalysisInputKind.VIDEO)
-
-    assert skill is not None
-    assert "transition_in=continuous" in skill.instructions
-    assert "固定秒数" in skill.instructions or "固定时长" in skill.instructions
-
-
 def test_article_and_screenplay_skills_preserve_stage_boundaries() -> None:
     article = BUILTIN_ANALYSIS_SKILLS.get("video-to-article", AnalysisInputKind.VIDEO)
     screenplay = BUILTIN_ANALYSIS_SKILLS.get(
@@ -196,7 +177,7 @@ def test_article_and_screenplay_skills_preserve_stage_boundaries() -> None:
 
     assert article is not None
     assert "连续长镜头" in article.instructions
-    assert "固定秒数" in article.instructions
+    assert "不把时码写进正文" in article.instructions
     assert screenplay is not None and "镜头数量" in screenplay.instructions
     assert structure is not None and "镜头数量" in structure.instructions
     assert rewrite is not None and "新增场景或镜头" in rewrite.instructions
@@ -213,7 +194,7 @@ def test_opening_hook_review_preserves_visual_evidence_boundaries() -> None:
     assert "0–15s" in skill.instructions
     assert "不评价开场台词、语速、音乐卡点" in skill.instructions
     assert "不表示停留、完播、点击、转化" in skill.instructions
-    assert "真实 `shot.id`" in skill.instructions
+    assert "分镜 002" in skill.instructions
 
 
 @pytest.mark.parametrize(
@@ -372,7 +353,6 @@ def test_every_builtin_skill_carries_the_writing_standard() -> None:
                 continue
             assert "# Source module: humanizer-zh" in text, skill.id
             assert "# Reference: shared/report-writing.md" in text, skill.id
-            assert "## 成稿写法" in text, skill.id
             assert "## 输出与文件保护" not in text, skill.id
             assert "## 争议" not in text, skill.id
             if input_kind is AnalysisInputKind.SCREENPLAY:
@@ -380,76 +360,83 @@ def test_every_builtin_skill_carries_the_writing_standard() -> None:
 
 
 @pytest.mark.parametrize(
-    ("skill_id", "input_kind", "contract", "modules", "excluded"),
+    ("skill_id", "input_kind", "modules", "excluded"),
     [
         (
             "director-breakdown",
             AnalysisInputKind.VIDEO,
-            AnalysisResultContract.VIDEO_VISUAL_ANALYSIS,
-            (
-                "drama-skills-short-drama-storyboard-shot-craft",
-                "drama-skills-short-drama-storyboard-production-shot-grammar",
-                "drama-skills-short-drama-storyboard-blocking-playbooks",
-            ),
-            "## 四、动作顺序交接（给视频提示词环节的输入）",
+            ("drama-shot-craft", "drama-shot-grammar", "drama-blocking-playbooks"),
+            ("## 时长与切镜", "## 景别与摄影机动机", "## 十一、反模式"),
         ),
         (
             "editing-rhythm-review",
             AnalysisInputKind.VIDEO,
-            AnalysisResultContract.VIDEO_VISUAL_ANALYSIS,
-            (
-                "drama-skills-short-drama-edit-cut-craft",
-                "marketingskills-video-edit-anatomy",
-            ),
-            "## Step 1 —",
+            ("drama-edit-cut-craft",),
+            ("## 入出点", "## 时长与完成"),
         ),
         (
             "continuity-quality-review",
             AnalysisInputKind.VIDEO,
-            AnalysisResultContract.VIDEO_VISUAL_ANALYSIS,
-            ("drama-skills-short-drama-storyboard-blocking-playbooks",),
-            "## 5. 动态对象与竞赛",
+            ("drama-blocking-playbooks",),
+            ("## 5. 动态对象与竞赛",),
         ),
         (
             "screenplay-structure-review",
             AnalysisInputKind.SCREENPLAY,
-            AnalysisResultContract.SCREENPLAY_ANALYSIS,
             (
                 "sw-story-structure",
                 "sw-scene-craft",
-                "screenwriting-skills-sw-premise-theme-skill",
-                "screenwriting-skills-sw-truby-anatomy-skill",
+                "sw-premise-theme",
+                "sw-truby-anatomy",
             ),
-            "## 十二、从想法到前提：工作流程",
-        ),
-        (
-            "short-video-packaging",
-            AnalysisInputKind.VIDEO,
-            AnalysisResultContract.STRUCTURED_REPORT,
             (
-                "marketingskills-social-short-form-video",
-                "marketingskills-social-platforms",
+                "## 四、九节拍",
+                "## 九、场景编排",
+                "## 十二、反模式",
+                "## 十二、从想法到前提：工作流程",
             ),
-            "## Posting Strategy",
         ),
     ],
 )
-def test_reviewed_product_skills_compile_pinned_methods_with_local_boundaries(
+def test_product_skills_compile_only_selected_upstream_sections(
     skill_id: str,
     input_kind: AnalysisInputKind,
-    contract: AnalysisResultContract,
     modules: tuple[str, ...],
-    excluded: str,
+    excluded: tuple[str, ...],
 ) -> None:
     skill = BUILTIN_ANALYSIS_SKILLS.get(skill_id, input_kind)
-    assert skill is not None and skill.result_contract is contract
+    assert skill is not None
     text = skill.instructions
     for module in modules:
         assert f"# Source module: {module}\nPinned source: https://github.com/" in text
-    assert excluded not in text
-    assert "## 引用方法的用法" in text
-    assert text.rindex("# Source module:") < text.index("## 引用方法的用法")
-    if input_kind is AnalysisInputKind.VIDEO:
-        assert "当前没有可靠音频证据" in text
-    else:
-        assert "不得要求剧本套用固定步骤数或页码" in text
+    assert all(heading not in text for heading in excluded)
+    assert text.rindex("# Source module:") < text.index("## 上游方法的用法")
+
+
+def test_builtin_skills_contain_no_off_topic_or_leaked_material() -> None:
+    for input_kind in (AnalysisInputKind.VIDEO, AnalysisInputKind.SCREENPLAY):
+        for skill in BUILTIN_ANALYSIS_SKILLS.list(input_kind):
+            text = skill.instructions
+            assert "marketingskills" not in text, skill.id
+            assert "VibeReels" not in text and "Lanverse" not in text, skill.id
+            assert "Shot 00" not in text, skill.id
+            assert "Rule classification" not in text, skill.id
+
+
+def test_every_vendored_module_file_is_registered_and_used() -> None:
+    modules_root = SKILLS_ROOT / "modules"
+    registered = {module.path for module in SOURCE_MODULES.values()}
+    vendored = {
+        path.relative_to(modules_root).as_posix()
+        for path in modules_root.glob("*/*.md")
+    }
+    assert vendored == registered
+    used: set[str] = set()
+    for input_kind in (AnalysisInputKind.VIDEO, AnalysisInputKind.SCREENPLAY):
+        for skill in BUILTIN_ANALYSIS_SKILLS.list(input_kind):
+            used.update(
+                module_id
+                for module_id in SOURCE_MODULES
+                if f"# Source module: {module_id}\n" in skill.instructions
+            )
+    assert used == set(SOURCE_MODULES)
