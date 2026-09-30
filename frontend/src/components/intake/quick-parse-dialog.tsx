@@ -280,7 +280,6 @@ export function QuickParseDialog() {
         aria-keyshortcuts="Meta+K Control+K"
         aria-label="快捷操作"
         onClick={openDialog}
-        size="sm"
         variant="ghost"
       >
         <MagnifyingGlassIcon aria-hidden data-icon="inline-start" />

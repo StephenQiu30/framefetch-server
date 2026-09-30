@@ -4,6 +4,7 @@ import { cn } from 'cn';
 import Link from 'next/link';
 import { useSyncExternalStore } from 'react';
 import { QuickParseDialog } from '@/components/intake/quick-parse-dialog';
+import { buttonVariants } from '@/components/ui/button';
 import {
   NavigationMenu,
   NavigationMenuItem,
@@ -81,7 +82,10 @@ export function SiteFooter({ className }: { className?: string }) {
 function FooterLink({ children, href }: { children: string; href: string }) {
   return (
     <NavigationMenuItem>
-      <NavigationMenuLink asChild className="focus-ring">
+      <NavigationMenuLink
+        asChild
+        className={buttonVariants({ variant: 'ghost' })}
+      >
         <Link href={href}>{children}</Link>
       </NavigationMenuLink>
     </NavigationMenuItem>
