@@ -1,6 +1,0 @@
-:root { color-scheme: light dark; font: 14px system-ui, sans-serif; }
-body { width: 300px; margin: 0; }
-main { padding: 20px; }
-h1 { font-size: 18px; }
-p { line-height: 1.6; }
-button { font: inherit; padding: 8px 12px; cursor: pointer; }

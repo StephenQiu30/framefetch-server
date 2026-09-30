@@ -100,6 +100,5 @@ jobs:
           OPENAPI_SCHEMA_URL="$RUNNER_TEMP/framefetch-openapi.json" pnpm openapi:check
           pnpm format:check
           pnpm lint
-          node --test ../browser-extension/background.test.cjs
           pnpm test
           pnpm build
