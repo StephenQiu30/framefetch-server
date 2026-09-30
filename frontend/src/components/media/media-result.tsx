@@ -1,3 +1,4 @@
+import { cn } from 'cn';
 import type { ReactNode } from 'react';
 import { SplitLayout } from '@/components/layout/split-layout';
 import { mediaFrameAspectRatio } from '@/components/media/media-cover';
@@ -56,7 +57,13 @@ export function MediaResult({
         </CardHeader>
       </Card>
       <Card
-        className={`${borderlessCardClassName} lg:pt-1`}
+        // Let the fixed media frame and its metadata determine the desktop row.
+        // The selection list scrolls within the remaining panel space.
+        className={cn(
+          borderlessCardClassName,
+          'lg:pt-1',
+          panel && 'lg:contain-size',
+        )}
         data-media-result-column="actions"
       >
         {panel ? (
@@ -67,11 +74,7 @@ export function MediaResult({
           </CardHeader>
         ) : null}
         <CardContent
-          className={
-            panel
-              ? 'mt-5 flex min-h-0 flex-1 flex-col px-0'
-              : 'flex min-h-0 flex-1 flex-col px-0'
-          }
+          className={cn('flex min-h-0 flex-1 flex-col px-0', panel && 'mt-5')}
         >
           {actions}
         </CardContent>
@@ -103,23 +106,28 @@ export function MediaResultSkeleton({
             <Skeleton className="size-full rounded-none" />
           </AspectRatio>
         </CardContent>
-        <CardHeader className="mt-5 space-y-2 px-0">
+        <CardHeader className="mt-5 flex flex-col gap-2 px-0">
           <Skeleton className="h-8 w-3/4" />
           <Skeleton className="h-4 w-1/2" />
         </CardHeader>
       </Card>
-      <Card className={`${borderlessCardClassName} lg:pt-1`}>
+      <Card
+        className={cn(
+          borderlessCardClassName,
+          'lg:pt-1',
+          selectionPanel && 'lg:contain-size',
+        )}
+      >
         {selectionPanel ? (
           <CardHeader className="px-0">
             <Skeleton className="h-5 w-20" />
           </CardHeader>
         ) : null}
         <CardContent
-          className={
-            selectionPanel
-              ? 'mt-5 flex-1 space-y-4 px-0'
-              : 'flex-1 space-y-4 px-0'
-          }
+          className={cn(
+            'flex min-h-0 flex-1 flex-col gap-4 px-0',
+            selectionPanel && 'mt-5',
+          )}
         >
           {selectionPanel ? (
             <>

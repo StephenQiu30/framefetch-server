@@ -43,7 +43,7 @@ export default function FormatPicker({
   return (
     <RadioGroup
       aria-label="选择下载版本"
-      className="scrollbar-thin max-h-[min(45vh,22.5rem)] overflow-y-auto"
+      className="scrollbar-thin min-h-0 max-h-[min(45vh,22.5rem)] overflow-y-auto lg:flex-1 lg:content-start lg:max-h-none"
       onValueChange={onChange}
       value={selectedId}
     >
