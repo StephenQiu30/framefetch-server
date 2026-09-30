@@ -22,8 +22,8 @@ def test_docx_report_is_valid_and_uses_business_brief_geometry() -> None:
     assert document.core_properties.subject == "Editorial analysis report"
     assert len(document.tables) == 1
     paragraphs = "\n".join(paragraph.text for paragraph in document.paragraphs)
-    assert "先说结论：这支片子最值得看什么" in paragraphs
-    assert "如果继续打磨，先做这几件事" in paragraphs
+    assert "核心判断" in paragraphs
+    assert "修改建议" in paragraphs
 
     with ZipFile(BytesIO(content)) as package:
         xml = package.read("word/document.xml").decode("utf-8")

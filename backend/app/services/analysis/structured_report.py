@@ -24,7 +24,7 @@ def render_structured_report_markdown(result: StructuredReportResult) -> str:
             lines.extend(f"- {markdown_text(item)}" for item in section.items)
             lines.append("")
         if section.evidence:
-            lines.extend(("画面证据：", ""))
+            lines.extend(("**回看依据**", ""))
             lines.extend(
                 f"- {format_range(item.start_ms, item.end_ms)}："
                 f"{markdown_text(item.note)}"

@@ -64,24 +64,24 @@ def test_markdown_report_is_complete_and_escapes_model_text() -> None:
 
     assert markdown.startswith("# 产品 \\[演示\\]\\(https://invalid\\.example\\)")
     headings = (
-        "## 先说结论：这支片子最值得看什么",
-        "## 内容是怎样一步步展开的",
-        "## 把关键变化拆到每一个分镜",
-        "## 哪些瞬间值得再看一遍",
-        "## 如果继续打磨，先做这几件事",
-        "## 后续制作需要锁住的视觉资产",
-        "## 这份分析采用什么口径",
+        "## 核心判断",
+        "## 内容如何展开",
+        "## 逐镜证据",
+        "## 值得回看的片段",
+        "## 修改建议",
+        "## 需保持一致的视觉资产",
+        "## 分析口径与局限",
     )
     assert all(heading in markdown for heading in headings)
     assert tuple(markdown.index(heading) for heading in headings) == tuple(
         sorted(markdown.index(heading) for heading in headings)
     )
     assert "**片长**：00:02.000 · **分析分镜**：1" in markdown
-    assert "| 分镜 | 时间码 | 时长 | 画面发生了什么 |" in markdown
+    assert "| 分镜 | 时间码 | 时长 | 画面内容 |" in markdown
     assert "| 分镜 001 | 00:00.000–00:02.000 | 2.0s |" in markdown
     assert "全景 / 固定 / 起始" in markdown
     assert "### 01｜开场建立" in markdown
-    assert "**为什么值得保留**：信息密度高。" in markdown
+    assert "**保留理由**：信息密度高。" in markdown
     assert "**类别**：产品 · **首次出现**：00:00.000" in markdown
     assert "## 一、基础信息" not in markdown
     assert "AI 制作建议" not in markdown
@@ -105,10 +105,10 @@ def test_visual_report_keeps_the_editorial_structure_in_english() -> None:
 
     markdown = render_analysis_report_markdown(result)
 
-    assert "## The takeaway: what matters most in this video" in markdown
-    assert "## How the video develops" in markdown
+    assert "## Key findings" in markdown
+    assert "## How the video unfolds" in markdown
     assert "wide / static / none" in markdown
-    assert "## How to read this analysis" in markdown
+    assert "## Method and limits" in markdown
 
 
 def test_screenplay_report_uses_coverage_sections_without_internal_ids() -> None:
@@ -121,16 +121,36 @@ def test_screenplay_report_uses_coverage_sections_without_internal_ids() -> None
     markdown = render_screenplay_report_markdown(result)
 
     assert markdown.startswith("# 剧本 \\[分析\\] &lt;草稿&gt;")
-    assert "## 一、审稿重点" in markdown
-    assert "- 逐场景分析：1 个源场景，已按原文顺序覆盖" in markdown
-    assert "## 六、逐场景附录" in markdown
-    assert "### 场景 1" in markdown
+    assert "> 剧本审稿报告 · 共 1 场，已按原文顺序逐场审阅" in markdown
+    assert "## 一、审稿结论" in markdown
+    assert "输出语言" not in markdown
+    assert "## 六、逐场附录" in markdown
+    assert "### 第 1 场" in markdown
     assert "scene-1" not in markdown
     assert "### 优先修改" in markdown
     assert "> 本项没有独立发现。" in markdown
     assert "## 七、阅读说明" in markdown
     assert "分析判断仍需对照原文核查" in markdown
+    assert "开端\n\n升级与选择。" in markdown
     assert markdown.endswith("\n")
+
+
+def test_screenplay_report_keeps_finding_paragraphs_and_english_labels() -> None:
+    base = screenplay_analysis_result()
+    finding = replace(
+        base.structure.acts[0],
+        title="Motive fades in act two",
+        description="The key appears late.\nThe search lacks a reason.",
+    )
+    result = replace(base, language="en-US", priority_revisions=(finding,))
+
+    markdown = render_screenplay_report_markdown(result)
+
+    assert "## 1. Key findings" in markdown
+    assert "**1\\. Motive fades in act two**" in markdown
+    assert "The key appears late\\.\n\nThe search lacks a reason\\." in markdown
+    assert "## 6. Scene-by-scene notes" in markdown
+    assert "审稿" not in markdown
 
 
 def test_video_article_report_keeps_topic_structure_and_evidence() -> None:
