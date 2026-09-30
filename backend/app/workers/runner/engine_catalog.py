@@ -12,9 +12,11 @@ import sys
 from pathlib import Path
 
 from app.schemas.engine_catalog import EngineCandidateResponse, EngineCatalogResponse
+from app.schemas.resolution import RunnerEngineCatalogResponse
 from app.workers.runner.errors import RunnerFailure
 from app.workers.runner.process import ProcessSupervisor
 from app.workers.runner.readiness import _package_record
+from app.workers.runner.resolution_catalog import resolution_capabilities
 from app.workers.runner.settings import RunnerSettings
 from app.workers.runner.version import (
     YOUTUBE_POT_PROVIDER_VERSION,
@@ -33,9 +35,17 @@ class RunnerEngineCatalog:
     def __init__(self, settings: RunnerSettings) -> None:
         self._settings = settings
         self._lock = asyncio.Lock()
-        self._snapshot: EngineCatalogResponse | None = None
+        self._snapshot: RunnerEngineCatalogResponse | None = None
 
-    async def get(self) -> EngineCatalogResponse:
+    def _capabilities(
+        self, snapshot: EngineCatalogResponse
+    ) -> RunnerEngineCatalogResponse:
+        return RunnerEngineCatalogResponse(
+            **snapshot.model_dump(),
+            resolution_capabilities=resolution_capabilities(self._settings),
+        )
+
+    async def get(self) -> RunnerEngineCatalogResponse:
         # A replaced image creates a new process and therefore a new snapshot.
         # Failure never serves a fabricated or previous-image catalog.
         try:
@@ -71,8 +81,8 @@ class RunnerEngineCatalog:
                 )
                 if result.returncode != 0 or result.stdout_truncated:
                     raise RunnerFailure("engine_catalog_unavailable", status=503)
-                self._snapshot = EngineCatalogResponse.model_validate_json(
-                    result.stdout
+                self._snapshot = self._capabilities(
+                    EngineCatalogResponse.model_validate_json(result.stdout)
                 )
                 return self._snapshot
         except (OSError, TimeoutError, ValidationError) as exc:

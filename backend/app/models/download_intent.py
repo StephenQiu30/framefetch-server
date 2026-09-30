@@ -1,6 +1,7 @@
 """Durable preparation state before an existing download job is created."""
 
 from datetime import datetime
+from typing import Any
 from uuid import UUID, uuid4
 
 from sqlalchemy import (
@@ -16,7 +17,7 @@ from sqlalchemy import (
 )
 from sqlalchemy.orm import Mapped, mapped_column
 
-from app.core.db import Base, utc_now
+from app.core.db import JSON_DOCUMENT, Base, utc_now
 from app.services.downloads.intent_models import (
     RUNNING_INTENT_STATUSES,
     IntentStatus,
@@ -117,9 +118,73 @@ class DownloadIntentRow(Base):
     )
     job_id: Mapped[UUID | None] = mapped_column(Uuid, ForeignKey("download_jobs.id"))
     reason_code: Mapped[str | None] = mapped_column(String(64))
+    resolution_plan: Mapped[dict[str, Any] | None] = mapped_column(JSON_DOCUMENT)
+    next_strategy_id: Mapped[str | None] = mapped_column(String(128))
+    selected_operation_id: Mapped[str | None] = mapped_column(String(64))
+    latest_failure: Mapped[dict[str, Any] | None] = mapped_column(JSON_DOCUMENT)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, default=utc_now
     )
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, default=utc_now
+    )
+
+
+class ResolutionAttemptRow(Base):
+    __tablename__ = "resolution_attempts"
+    __table_args__ = (
+        UniqueConstraint(
+            "intent_id", "generation", "attempt_no", name="uq_resolution_attempt_number"
+        ),
+        CheckConstraint(
+            "generation >= 0 AND attempt_no BETWEEN 1 AND 3 AND fence > 0",
+            name="ck_resolution_attempt_identity",
+        ),
+        CheckConstraint(
+            "status IN ('started','succeeded','failed','abandoned','outcome_unknown')",
+            name="ck_resolution_attempt_status",
+        ),
+        CheckConstraint(
+            "(status = 'started') = (finished_at IS NULL)",
+            name="ck_resolution_attempt_finished",
+        ),
+        CheckConstraint(
+            "duration_ms IS NULL OR duration_ms BETWEEN 0 AND 180000",
+            name="ck_resolution_attempt_duration",
+        ),
+        CheckConstraint(
+            "status <> 'succeeded' OR inspection_id IS NOT NULL",
+            name="ck_resolution_attempt_result",
+        ),
+        Index("ix_resolution_attempt_intent_started", "intent_id", "started_at"),
+    )
+
+    operation_id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    intent_id: Mapped[UUID] = mapped_column(
+        Uuid, ForeignKey("download_intents.id", ondelete="CASCADE"), nullable=False
+    )
+    generation: Mapped[int] = mapped_column(Integer, nullable=False)
+    attempt_no: Mapped[int] = mapped_column(Integer, nullable=False)
+    fence: Mapped[int] = mapped_column(Integer, nullable=False)
+    strategy_id: Mapped[str] = mapped_column(String(128), nullable=False)
+    plan_revision: Mapped[str] = mapped_column(String(64), nullable=False)
+    plan_snapshot: Mapped[dict[str, Any] | None] = mapped_column(JSON_DOCUMENT)
+    context_key: Mapped[str] = mapped_column(String(64), nullable=False)
+    access_context: Mapped[dict[str, Any]] = mapped_column(
+        JSON_DOCUMENT, nullable=False
+    )
+    runner_instance_id: Mapped[str] = mapped_column(String(32), nullable=False)
+    deadline_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False
+    )
+    started_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False
+    )
+    finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    duration_ms: Mapped[int | None] = mapped_column(Integer)
+    status: Mapped[str] = mapped_column(String(24), nullable=False)
+    failure: Mapped[dict[str, Any] | None] = mapped_column(JSON_DOCUMENT)
+    evidence_signature: Mapped[str | None] = mapped_column(String(64))
+    inspection_id: Mapped[UUID | None] = mapped_column(
+        Uuid, ForeignKey("media_inspections.id")
     )

@@ -252,10 +252,36 @@ class DownloadOption(ContractModel):
 
 
 class InspectRequest(ContractModel):
-    allow_session_fallback: bool = True
+    strategy_id: str = Field(min_length=1, max_length=128)
+    plan_revision: str = Field(pattern=r"^[0-9a-f]{64}$")
+    operation_id: str | None = Field(default=None, pattern=r"^[0-9a-f]{64}$")
     url: str = Field(min_length=1, max_length=4096)
-    access_context: ProviderAccessContextContract | None = None
+    access_context: ProviderAccessContextContract
     deadline_at: AwareDatetime | None = None
+
+    @model_validator(mode="after")
+    def _selected_strategy(self) -> Self:
+        if self.access_context.strategy_id != self.strategy_id:
+            raise ValueError("inspection strategy differs from context")
+        if self.operation_id is not None and self.deadline_at is None:
+            raise ValueError("durable inspection requires a deadline")
+        return self
+
+
+class InspectionOperationResponse(ContractModel):
+    status: str = Field(
+        pattern=r"^(active|succeeded|failed|cancelled|outcome_unknown)$"
+    )
+    result: InspectResponse | None = None
+    failure: ProviderFailureContract | None = None
+
+    @model_validator(mode="after")
+    def _receipt(self) -> Self:
+        if (self.status == "succeeded") != (self.result is not None):
+            raise ValueError("inspection receipt result mismatch")
+        if self.status in {"failed", "cancelled"} and self.failure is None:
+            raise ValueError("inspection failure receipt missing")
+        return self
 
 
 class ProviderContextRequest(ContractModel):

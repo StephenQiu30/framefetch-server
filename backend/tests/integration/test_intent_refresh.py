@@ -20,13 +20,18 @@ from tests.integration.test_download_intents import (
     repository,
 )
 from tests.integration.test_intent_handoff import ready
+from tests.resolution import start_attempt
 
 
 async def resolved(engine):
     repo = repository(engine)
     item = await repo.accept(command(), now=NOW)
-    lease = await repo.begin_attempt(
-        item.id, (await repo.execution_state(item.id)).generation, str(uuid4()), now=NOW
+    lease = await start_attempt(
+        repo,
+        item.id,
+        (await repo.execution_state(item.id)).generation,
+        str(uuid4()),
+        now=NOW,
     )
     saved = await repo.complete(
         lease.intent, inspection(lease.intent), now=NOW + timedelta(seconds=5)
@@ -44,7 +49,7 @@ def refreshed_result(lease, now):
     )
 
 
-async def test_concurrent_refresh_preserves_remaining_budget_and_one_outbox(
+async def test_concurrent_explicit_refresh_starts_one_new_generation_and_outbox(
     postgres_engine,
 ):
     repo, original = await resolved(postgres_engine)
@@ -57,10 +62,13 @@ async def test_concurrent_refresh_preserves_remaining_budget_and_one_outbox(
     assert resumed.status == "queued"
     assert resumed.id == original.id
     assert resumed.inspection_id == original.inspection_id
-    assert resumed.remaining_budget_ms == original.remaining_budget_ms == 175000
-    assert resumed.deadline == now + timedelta(seconds=175)
-    assert resumed.attempt == original.attempt == 1
-    lease = await repo.begin_attempt(
+    assert original.remaining_budget_ms == 175000
+    assert resumed.remaining_budget_ms == 180000
+    assert resumed.deadline == now + timedelta(seconds=180)
+    assert resumed.attempt == 0 and original.attempt == 1
+    assert resumed.generation == original.generation + 1
+    lease = await start_attempt(
+        repo,
         original.id,
         (await repo.execution_state(original.id)).generation,
         str(uuid4()),
@@ -73,7 +81,7 @@ async def test_concurrent_refresh_preserves_remaining_budget_and_one_outbox(
     )
     assert completed.status == "ready"
     assert completed.inspection_id == result.id != original.inspection_id
-    assert completed.remaining_budget_ms == 172000
+    assert completed.remaining_budget_ms == 177000
     from sqlalchemy.ext.asyncio import async_sessionmaker
 
     async with async_sessionmaker(postgres_engine)() as session:
@@ -113,7 +121,8 @@ async def test_refresh_has_owner_isolation_and_cancellation_wins(postgres_engine
     with pytest.raises(RepositoryConflict):
         await repo.refresh(original.id, OWNER, now=now)
     assert (
-        await repo.begin_attempt(
+        await start_attempt(
+            repo,
             original.id,
             (await repo.execution_state(original.id)).generation,
             str(uuid4()),
@@ -148,7 +157,8 @@ async def test_changed_source_cannot_replace_the_original_result(
     repo, original = await resolved(postgres_engine)
     now = NOW + timedelta(hours=2)
     await repo.refresh(original.id, OWNER, now=now)
-    lease = await repo.begin_attempt(
+    lease = await start_attempt(
+        repo,
         original.id,
         (await repo.execution_state(original.id)).generation,
         str(uuid4()),
@@ -169,12 +179,13 @@ async def test_changed_source_cannot_replace_the_original_result(
     assert failed.inspection_id == original.inspection_id
 
 
-async def test_refresh_never_resets_the_total_attempt_limit(postgres_engine):
+async def test_only_explicit_refresh_resets_generation_attempt_limit(postgres_engine):
     repo, item = await resolved(postgres_engine)
     for attempt in (2, 3):
         now = NOW + timedelta(hours=attempt * 2)
         await repo.refresh(item.id, OWNER, now=now)
-        lease = await repo.begin_attempt(
+        lease = await start_attempt(
+            repo,
             item.id,
             (await repo.execution_state(item.id)).generation,
             str(uuid4()),
@@ -183,11 +194,11 @@ async def test_refresh_never_resets_the_total_attempt_limit(postgres_engine):
         item = await repo.complete(
             lease.intent, refreshed_result(lease, now), now=now + timedelta(seconds=1)
         )
-        assert item.attempt == attempt
-    expired = await repo.refresh(item.id, OWNER, now=NOW + timedelta(days=1))
-    assert expired.status == "expired"
-    assert expired.reason_code == "resource_expired"
-    assert expired.attempt == 3
+        assert item.attempt == 1
+        assert item.generation == attempt - 1
+    refreshed = await repo.refresh(item.id, OWNER, now=NOW + timedelta(days=1))
+    assert refreshed.status == "queued"
+    assert refreshed.generation == 3 and refreshed.attempt == 0
 
 
 async def test_expired_inspection_preserves_metadata_and_ownership_without_formats(

@@ -49,7 +49,23 @@ async def _assert_download_execution_columns(connection: AsyncConnection) -> Non
         ("download_jobs", _DOWNLOAD_EXECUTION_COLUMNS),
         (
             "download_intents",
-            {"generation": "integer", "operation_id": "character varying"},
+            {
+                "generation": "integer",
+                "operation_id": "character varying",
+                "resolution_plan": "jsonb",
+                "next_strategy_id": "character varying",
+                "selected_operation_id": "character varying",
+                "latest_failure": "jsonb",
+            },
+        ),
+        (
+            "resolution_attempts",
+            {
+                "operation_id": "character varying",
+                "plan_revision": "character varying",
+                "context_key": "character varying",
+                "status": "character varying",
+            },
         ),
     ):
         columns = await connection.execute(

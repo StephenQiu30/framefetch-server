@@ -55,24 +55,25 @@ class InspectionWorkflow:
                     "inspect_media",
                     command,
                     result_type=InspectionOutcome,
-                    start_to_close_timeout=timedelta(seconds=185),
-                    schedule_to_close_timeout=timedelta(seconds=200),
+                    start_to_close_timeout=timedelta(seconds=260),
+                    schedule_to_close_timeout=timedelta(seconds=280),
                     heartbeat_timeout=timedelta(seconds=30),
-                    retry_policy=RetryPolicy(maximum_attempts=3),
+                    retry_policy=RetryPolicy(maximum_attempts=1),
                     cancellation_type=workflow.ActivityCancellationType.WAIT_CANCELLATION_COMPLETED,
                 )
             except ActivityError as exc:
                 if is_cancelled_exception(exc):
                     raise CancelledError() from None
-                final: InspectionOutcome = await workflow.execute_activity(
+                result = await workflow.execute_activity(
                     "finish_inspection",
                     command,
                     result_type=InspectionOutcome,
-                    start_to_close_timeout=timedelta(seconds=10),
+                    start_to_close_timeout=timedelta(seconds=45),
                     schedule_to_close_timeout=timedelta(minutes=5),
                     retry_policy=RetryPolicy(maximum_attempts=10),
                 )
-                return final
+            if result.status == "queued":
+                continue
             if (
                 result.status == "action_required"
                 and result.authorization_id

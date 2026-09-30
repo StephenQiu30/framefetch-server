@@ -12,11 +12,21 @@ from app.services.downloads.errors import (
     MediaInspectionFailure,
     MediaInspectionRateLimited,
 )
+from app.services.provider_access import ProviderAccessPolicy
 from app.services.provider_failures import FailureClass, FailurePhase, FailureScope
 from app.services.provider_route_admission import ProviderRouteAdmission
 from app.services.provider_types import ProviderAccessMode
+from tests.resolution import capability_for, catalog_document
 from tests.unit.integrations.test_media_runner_client import _access_context
 from tests.unit.services.test_provider_route_admission import Cooldowns
+
+
+def _catalog():
+    return catalog_document(
+        capability_for(
+            ProviderAccessPolicy.OPERATOR_PUBLIC, provider_key="generic", version="1"
+        )
+    )
 
 
 async def test_independent_api_and_canary_clients_share_durable_429_gate(
@@ -27,6 +37,8 @@ async def test_independent_api_and_canary_clients_share_durable_429_gate(
     async def respond(request):
         if request.url.path == "/internal/runtime":
             return httpx.Response(200, json={"instance_id": "0" * 32})
+        if request.url.path == "/internal/engine-catalog":
+            return httpx.Response(200, json=_catalog())
         calls.append(request.url.path)
         if request.url.path == "/internal/context":
             return httpx.Response(200, json=_access_context().to_document())
@@ -62,6 +74,8 @@ async def test_wrong_runner_role_is_rejected_before_any_platform_request():
         _access_context(),
         access_mode=ProviderAccessMode.OPERATOR_MANAGED,
         credential_version_id="controlled",
+        strategy_id="yt-dlp-session",
+        session_source_id="chrome_source",
     )
 
     async def respond(request):
@@ -99,6 +113,8 @@ async def test_half_open_client_transmits_context_and_deadline_before_platform_i
             return httpx.Response(200, json={"instance_id": "0" * 32})
         if request.url.path == "/internal/context":
             return httpx.Response(200, json=_access_context().to_document())
+        if request.url.path == "/internal/engine-catalog":
+            return httpx.Response(200, json=_catalog())
         payload = json.loads(request.content)
         assert payload["access_context"] == _access_context().to_document()
         assert datetime.fromisoformat(payload["deadline_at"]).tzinfo is not None

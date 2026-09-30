@@ -26,14 +26,6 @@ def provider_command_args(url: str) -> tuple[str, ...]:
     return provider_request(url).profile.command_args
 
 
-def provider_inspection_attempts(url: str) -> int:
-    return provider_request(url).profile.inspection_attempts
-
-
-def provider_inspection_retry_delay(url: str) -> float:
-    return provider_request(url).profile.inspection_retry_delay
-
-
 def test_uses_public_vimeo_player_endpoint_for_canonical_video() -> None:
     assert (
         provider_request_url("https://vimeo.com/76979871?share=copy")
@@ -52,7 +44,7 @@ def test_youtube_uses_the_managed_mweb_pot_route() -> None:
     assert profile.client_profile_id == "youtube-mweb"
     assert profile.attestation_policy == "bgutil-mweb-player-gvs"
     assert profile.yt_dlp_retry_count == 0
-    assert profile.inspection_attempts == 1
+    assert not hasattr(profile, "inspection_attempts")
 
 
 def test_builtin_profiles_use_centralized_provider_identifiers() -> None:
@@ -289,16 +281,17 @@ def test_tiktok_uses_anonymous_first_party_player_profile() -> None:
     profile = provider_profile(url)
 
     assert provider_command_args(url) == ()
-    assert provider_inspection_attempts(url) == 2
-    assert provider_inspection_retry_delay(url) == 1
+    assert not hasattr(provider_request(url).profile, "inspection_attempts")
+
     assert profile.access_modes == (ProviderAccessMode.ANONYMOUS,)
     assert profile.cookie_domain_allowlist == frozenset()
     assert profile.credential_concurrency == 0
     assert profile.client_profile_id == "yt-dlp-default"
     assert profile.canary_suite == "tiktok-public-player-video"
     assert provider_command_args("https://vimeo.com/123") == ("--check-formats",)
-    assert provider_inspection_attempts("https://vimeo.com/123") == 2
-    assert provider_inspection_retry_delay("https://vimeo.com/123") == 1
+    assert not hasattr(
+        provider_request("https://vimeo.com/123").profile, "inspection_attempts"
+    )
 
 
 @pytest.mark.parametrize(
@@ -345,15 +338,15 @@ def test_tiktok_rejects_urls_that_could_fall_through_to_generic_webpage(
     assert captured.value.code == "provider_unsupported"
 
 
-def test_targets_douyin_request_impersonation_and_retries() -> None:
+def test_targets_douyin_request_impersonation_without_hidden_retries() -> None:
     url = "https://www.douyin.com/video/123"
 
     assert provider_command_args(url) == (
         "--impersonate",
         "Chrome-136:Macos-15",
     )
-    assert provider_inspection_attempts(url) == 8
-    assert provider_inspection_retry_delay(url) == 0.5
+    assert not hasattr(provider_request(url).profile, "inspection_attempts")
+
     assert provider_profile(url).cookie_domain_allowlist == frozenset(
         {"douyin.com", "iesdouyin.com"}
     )
@@ -365,7 +358,7 @@ def test_targets_douyin_request_impersonation_and_retries() -> None:
         "--impersonate",
         "Chrome-136:Macos-15",
     )
-    assert provider_inspection_attempts(short_url) == 8
+    assert not hasattr(provider_request(short_url).profile, "inspection_attempts")
 
 
 def test_targets_xiaohongshu_short_links_with_browser_impersonation() -> None:
@@ -377,32 +370,30 @@ def test_targets_xiaohongshu_short_links_with_browser_impersonation() -> None:
             "--impersonate",
             "Chrome-136:Macos-15",
         )
-        assert provider_inspection_attempts(url) == 8
-        assert provider_inspection_retry_delay(url) == 0.5
+        assert not hasattr(provider_request(url).profile, "inspection_attempts")
+
         assert provider_profile(url).support_status is ProviderSupportStatus.DEGRADED
         assert provider_profile(url).cookie_domain_allowlist == frozenset(
             {"xiaohongshu.com"}
         )
 
 
-def test_tumblr_uses_bounded_rate_limit_backoff() -> None:
+def test_tumblr_leaves_retries_to_durable_plan() -> None:
     url = (
         "https://www.tumblr.com/maskofthedragon/"
         "626907179849564160/mona-talking-in-english"
     )
 
-    assert provider_inspection_attempts(url) == 4
-    assert provider_inspection_retry_delay(url) == 4
+    assert not hasattr(provider_request(url).profile, "inspection_attempts")
 
 
-def test_slow_public_extractors_use_bounded_retry_backoff() -> None:
+def test_slow_public_extractors_have_no_internal_inspection_retry() -> None:
     telegram = "https://t.me/europa_press/613"
     kick = "https://kick.com/spreen/clips/clip_01J8RGZRKHXHXXKJEHGRM932A5"
 
-    assert provider_inspection_attempts(telegram) == 4
-    assert provider_inspection_retry_delay(telegram) == 4
-    assert provider_inspection_attempts(kick) == 8
-    assert provider_inspection_retry_delay(kick) == 4
+    assert not hasattr(provider_request(telegram).profile, "inspection_attempts")
+
+    assert not hasattr(provider_request(kick).profile, "inspection_attempts")
 
 
 def test_normalizes_legacy_tumblr_blog_posts_to_the_current_public_page() -> None:
@@ -447,8 +438,8 @@ def test_normalizes_kuaishou_public_videos_and_uses_android_impersonation() -> N
         "--impersonate",
         "Chrome-131:Android-14",
     )
-    assert provider_inspection_attempts(url) == 4
-    assert provider_inspection_retry_delay(url) == 0.5
+    assert not hasattr(provider_request(url).profile, "inspection_attempts")
+
     assert provider_request_url("https://v.kuaishou.com/8qIlZu") == (
         "https://v.kuaishou.com/8qIlZu"
     )
@@ -516,7 +507,7 @@ def test_unknown_hosts_use_the_safe_generic_strategy() -> None:
     assert profile.key == "generic"
     assert default_provider_registry().profile_for_key("generic") == profile
     assert profile.command_args == ()
-    assert profile.inspection_attempts == 2
+    assert not hasattr(profile, "inspection_attempts")
 
 
 def test_peertube_requires_an_exact_approved_instance_and_video_path() -> None:

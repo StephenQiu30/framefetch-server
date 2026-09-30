@@ -56,7 +56,7 @@ def dispatch(repo, sessions, clock, client):
     )
 
 
-async def test_start_ack_loss_worker_restart_replay_and_one_result(
+async def test_start_ack_loss_restart_does_not_resubmit_unknown_platform_execution(
     postgres_engine,
     temporal_client,
 ):
@@ -78,30 +78,35 @@ async def test_start_ack_loss_worker_restart_replay_and_one_result(
     async with worker(temporal_client, activities):
         await asyncio.wait_for(runner.entered.wait(), 10)
     assert runner.stopped.is_set()
-    # A replacement worker receives the retried Activity, never a second Workflow.
-    activities._inspector._runner = FakeRunner(runner_result())
+    # SDK redelivery reconciles the original operation; a missing receipt cannot
+    # authorize another platform call even when a new worker is available.
+    replacement = FakeRunner(runner_result())
+    activities._inspector._runner = replacement
     async with worker(temporal_client, activities):
         result = await asyncio.wait_for(handle.result(), 45)
-        assert result["status"] == "ready"
-    assert (await repo.get(intent.id, TEST_USER.owner_hash)).attempt == 2
+        assert result["status"] == "failed"
+    state = await repo.get(intent.id, TEST_USER.owner_hash)
+    assert state.attempt == 1
+    assert state.latest_failure.failure_class.value == "outcome_unknown"
+    assert replacement.seen == []
     async with sessions() as session:
         assert (
             await session.scalar(select(func.count()).select_from(MediaInspectionRow))
-            == 1
+            == 0
         )
     history = await handle.fetch_history()
     await Replayer(workflows=[InspectionWorkflow]).replay_workflow(history)
     # Source URL and encrypted envelopes never enter History.
     encoded = b"".join(event.SerializeToString() for event in history.events)
     assert URL.encode() not in encoded and b"url_ciphertext" not in encoded
-    # A stale outbox event after successful completion cannot revive work.
+    # A stale outbox event after terminal reconciliation cannot revive work.
     async with sessions() as session, session.begin():
         event = await session.scalar(select(OutboxEventRow).with_for_update())
         event.published_at = None
     assert await loop.run_once() == 1
     assert (await handle.describe()).run_id == first_run
     await service.cancel(intent.id, TEST_USER.owner_hash)
-    assert await loop.run_once() == 1
+    assert await loop.run_once() == 0  # A terminal intent needs no cancel delivery.
     async with sessions() as session:
         pending = await session.scalar(
             select(func.count())
@@ -135,6 +140,33 @@ async def test_cancel_outbox_interrupts_running_activity(
             await session.scalar(select(func.count()).select_from(MediaInspectionRow))
             == 0
         )
+
+
+async def test_lost_activity_reply_recovers_original_receipt_and_commits_once(
+    postgres_engine, temporal_client
+):
+    class LostReplyRunner(FakeRunner):
+        async def inspect(self, url, **kwargs):
+            await super().inspect(url, **kwargs)
+            raise RuntimeError("transport reply lost after platform completion")
+
+    runner = LostReplyRunner(runner_result())
+    service, repo, activities, clock, sessions = components(postgres_engine, runner)
+    intent = await service.create(URL, TEST_USER.owner_hash, "lost-reply")
+    loop = dispatch(repo, sessions, clock, temporal_client)
+    handle = temporal_client.get_workflow_handle(
+        InspectionCommand(str(intent.id), 0).workflow_id
+    )
+    async with worker(temporal_client, activities):
+        assert await loop.run_once() == 1
+        result = await asyncio.wait_for(handle.result(), 15)
+    assert result["status"] == "ready"
+    assert (await repo.get(intent.id, TEST_USER.owner_hash)).attempt == 1
+    assert runner.seen == [URL]
+    assert await runner_result_count(sessions) == 1
+    await Replayer(workflows=[InspectionWorkflow]).replay_workflow(
+        await handle.fetch_history()
+    )
 
 
 async def test_login_wait_survives_worker_restart_and_durable_resume(

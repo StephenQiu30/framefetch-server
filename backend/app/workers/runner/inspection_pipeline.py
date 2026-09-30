@@ -75,7 +75,9 @@ class RunnerInspectionPipeline:
         cookie_jar: Path | None,
         probe_failures: list[RunnerFailure],
     ) -> MediaInspection:
-        payload = await self._inspect_with_retry(source, workspace, cookie_jar)
+        payload = await self._commands.inspect(
+            source, workspace.path, cookie_jar=cookie_jar
+        )
         _require_generic_source_identity(source, payload)
         failure_context = _failure_context(source, context)
         payload = normalize_media_payload(
@@ -220,30 +222,6 @@ class RunnerInspectionPipeline:
         raise RunnerFailure(
             "media_probe_failed", status=502, cause_code="invalid_inspection_response"
         )
-
-    async def _inspect_with_retry(
-        self,
-        source: ProviderRequest,
-        workspace: TaskWorkspace,
-        cookie_jar: Path | None,
-    ) -> dict[str, object]:
-        profile = source.profile
-        for attempt in range(profile.inspection_attempts):
-            try:
-                return await self._commands.inspect(
-                    source,
-                    workspace.path,
-                    cookie_jar=cookie_jar,
-                )
-            except RunnerFailure as exc:
-                retryable = exc.code in {
-                    "inspection_failed",
-                    "provider_temporarily_unavailable",
-                }
-                if not retryable or attempt == profile.inspection_attempts - 1:
-                    raise
-                await asyncio.sleep(profile.inspection_retry_delay)
-        raise AssertionError("inspection retry loop did not terminate")
 
     def _usable_inspection(self, payload: dict[str, object]) -> MediaInspection | None:
         try:

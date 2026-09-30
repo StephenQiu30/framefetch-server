@@ -44,6 +44,12 @@ from app.services.downloads.ports import (
     UrlCipher,
     UrlValidator,
 )
+from app.services.downloads.resolution import (
+    ResolutionCapability,
+    ResolutionExecution,
+    ResolutionPlan,
+    ResolutionPreparation,
+)
 from app.services.downloads.rules.enums import MediaKind
 from app.services.downloads.source_admission import (
     RestrictedSourceAdmission,
@@ -121,6 +127,8 @@ class InspectMedia:
         idempotency_key: str,
         *,
         access_policy: ProviderAccessPolicy | None = None,
+        execution: ResolutionExecution | None = None,
+        reconcile_only: bool = False,
     ) -> InspectionCreate:
         """Compute a result without persistence; the caller owns its commit."""
         owner_hash = validate_owner_hash(owner_hash)
@@ -145,9 +153,18 @@ class InspectMedia:
             selected_policy = await self._runner.resolve_access_policy(
                 validated_url, access_policy
             )
-            result = await self._runner.inspect(
-                validated_url, access_policy=selected_policy
-            )
+            if reconcile_only:
+                if execution is None:
+                    raise ValueError("reconciliation requires an execution identity")
+                result = await self._runner.reconcile_inspection(
+                    validated_url, execution
+                )
+            else:
+                result = await self._runner.inspect(
+                    validated_url,
+                    access_policy=selected_policy,
+                    **({"execution": execution} if execution is not None else {}),
+                )
         except MediaInspectionConfigurationMissing as exc:
             raise ApplicationError.from_inspection(
                 ApplicationErrorCode.PROVIDER_CONFIGURATION_MISSING, exc
@@ -271,11 +288,50 @@ class InspectMedia:
             metadata={
                 **_inspection_metadata(result),
                 "access_policy_id": selected_policy.value,
+                **(
+                    {
+                        "resolution_plan_revision": execution.plan_revision,
+                        "resolution_operation_id": execution.operation_id,
+                    }
+                    if execution is not None
+                    else {}
+                ),
             },
             expires_at=expires_at,
             formats=formats,
         )
         return command
+
+    def is_import_only(self, url: str) -> bool:
+        try:
+            return (
+                classify_restricted_source(self._url_validator.validate(url))
+                is not None
+            )
+        except ValueError as exc:
+            raise ApplicationError(ApplicationErrorCode.INVALID_URL) from exc
+
+    async def resolution_capability(
+        self, url: str, access_policy: ProviderAccessPolicy
+    ) -> ResolutionCapability:
+        try:
+            return await self._runner.resolution_capability(
+                url, access_policy=access_policy
+            )
+        except MediaInspectionFailure as exc:
+            raise _preparation_error(exc) from exc
+
+    async def prepare_resolution(
+        self, url: str, plan: ResolutionPlan, strategy_id: str
+    ) -> ResolutionPreparation:
+        try:
+            return await self._runner.prepare_resolution(url, plan, strategy_id)
+        except MediaInspectionFailure as exc:
+            raise _preparation_error(exc) from exc
+
+    async def cancel_resolution(self, execution: ResolutionExecution) -> bool:
+        """Only a terminal receipt from the original Runner proves cleanup."""
+        return await self._runner.cancel_inspection(execution)
 
     def _restricted_command(
         self,
@@ -360,6 +416,33 @@ def _required(value: str) -> str:
     if not value:
         raise ApplicationError(ApplicationErrorCode.INSPECTION_FAILED)
     return value
+
+
+def _preparation_error(error: MediaInspectionFailure) -> ApplicationError:
+    codes = (
+        (MediaInspectionAuthRequired, ApplicationErrorCode.PROVIDER_AUTH_REQUIRED),
+        (MediaInspectionSessionExpired, ApplicationErrorCode.PROVIDER_SESSION_EXPIRED),
+        (
+            MediaInspectionSessionNotReady,
+            ApplicationErrorCode.PROVIDER_SESSION_NOT_READY,
+        ),
+        (
+            MediaInspectionPolicyNotAllowed,
+            ApplicationErrorCode.PROVIDER_ACCESS_POLICY_NOT_ALLOWED,
+        ),
+        (MediaInspectionUnsupported, ApplicationErrorCode.PROVIDER_UNSUPPORTED),
+        (MediaInspectionRateLimited, ApplicationErrorCode.PROVIDER_RATE_LIMITED),
+        (MediaInspectionTimeout, ApplicationErrorCode.INSPECTION_TIMEOUT),
+        (
+            MediaInspectionTemporarilyUnavailable,
+            ApplicationErrorCode.PROVIDER_TEMPORARILY_UNAVAILABLE,
+        ),
+    )
+    code = next(
+        (code for kind, code in codes if isinstance(error, kind)),
+        ApplicationErrorCode.INSPECTION_FAILED,
+    )
+    return ApplicationError.from_inspection(code, error, preparation_wait=True)
 
 
 def _inspection_metadata(result: RunnerInspection) -> dict[str, object]:

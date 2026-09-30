@@ -27,6 +27,19 @@ from app.services.provider_route_admission import (
 )
 from app.services.provider_types import ProviderAccessContextRef, ProviderAccessMode
 from app.workers.runner.contracts import DownloadPlanContract
+from app.workers.runner.provider_registry import provider_profile
+from tests.resolution import capability_for
+
+
+@pytest.fixture(autouse=True)
+def declared_capabilities(monkeypatch):
+    async def capability(_self, url):
+        profile = provider_profile(url)
+        return capability_for(
+            profile.access_policy, provider_key=profile.key, version=profile.version
+        )
+
+    monkeypatch.setattr(MediaRunnerHttpClient, "resolution_capability", capability)
 
 
 def test_retry_after_parses_seconds_dates_and_rejects_malformed_values():
@@ -71,7 +84,16 @@ async def test_context_reads_the_runner_runtime_generation() -> None:
 @pytest.mark.asyncio
 async def test_new_client_fails_closed_against_pre_revision_runner() -> None:
     old_document = _access_context().to_document()
-    old_document.pop("runtime_revision")
+    for field in (
+        "runtime_revision",
+        "strategy_id",
+        "adapter_revision",
+        "session_source_id",
+        "browser_context_revision",
+        "protocol_capabilities",
+        "egress_observation_ref",
+    ):
+        old_document.pop(field, None)
 
     async def respond(_request: httpx.Request) -> httpx.Response:
         if _request.url.path == "/internal/runtime":
@@ -624,7 +646,16 @@ async def test_download_sends_expected_inspection_identity(tmp_path) -> None:
 async def test_new_client_rejects_legacy_probe_revision(tmp_path: Path) -> None:
     newer = replace(_access_context(), runtime_revision="a" * 64)
     returned = _access_context().to_document()
-    returned.pop("runtime_revision")
+    for field in (
+        "runtime_revision",
+        "strategy_id",
+        "adapter_revision",
+        "session_source_id",
+        "browser_context_revision",
+        "protocol_capabilities",
+        "egress_observation_ref",
+    ):
+        returned.pop(field, None)
 
     async def respond(request: httpx.Request) -> httpx.Response:
         if request.url.path == "/internal/runtime":
@@ -658,11 +689,15 @@ async def test_new_client_rejects_legacy_probe_revision(tmp_path: Path) -> None:
         client=http,
     )
     with pytest.raises(MediaRunnerClientError) as captured:
-        await client._inspect_response("https://media.example/video", newer)
+        await client._inspect_response(
+            "https://media.example/video", newer, plan_revision="a" * 64
+        )
     assert captured.value.code == "runner_release_mismatch"
     returned["engine_commit"] = "different"
     with pytest.raises(MediaRunnerClientError) as captured:
-        await client._inspect_response("https://media.example/video", newer)
+        await client._inspect_response(
+            "https://media.example/video", newer, plan_revision="a" * 64
+        )
     assert captured.value.code == "runner_release_mismatch"
     await http.aclose()
 
@@ -709,7 +744,16 @@ async def test_new_client_half_open_download_rejects_legacy_runner(
                     "access_context": {
                         key: value
                         for key, value in _access_context().to_document().items()
-                        if key != "runtime_revision"
+                        if key
+                        not in {
+                            "runtime_revision",
+                            "strategy_id",
+                            "adapter_revision",
+                            "session_source_id",
+                            "browser_context_revision",
+                            "protocol_capabilities",
+                            "egress_observation_ref",
+                        }
                     },
                 },
             )
@@ -773,6 +817,9 @@ def _access_context() -> ProviderAccessContextRef:
         attestation_provider_version=None,
         engine_commit="5d6b8c8",
         runtime_revision="a" * 64,
+        strategy_id="yt-dlp-anonymous",
+        adapter_revision="1",
+        protocol_capabilities=("http-media",),
     )
 
 
@@ -781,6 +828,8 @@ async def test_execution_is_bound_to_handshake_and_never_replayed_on_restart():
 
     async def respond(request):
         paths.append(request.url.path)
+        if request.url.path == "/internal/context":
+            return httpx.Response(200, json=_access_context().to_document())
         if request.url.path == "/internal/runtime":
             return httpx.Response(200, json={"instance_id": "a" * 32})
         assert request.headers["X-Runner-Instance"] == "a" * 32
@@ -799,4 +848,4 @@ async def test_execution_is_bound_to_handshake_and_never_replayed_on_restart():
         )
         with pytest.raises(MediaInspectionTemporarilyUnavailable):
             await client.inspect("https://media.example/video")
-    assert paths == ["/internal/runtime", "/internal/inspect"]
+    assert paths == ["/internal/context", "/internal/runtime", "/internal/inspect"]

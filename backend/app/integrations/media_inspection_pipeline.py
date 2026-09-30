@@ -9,13 +9,16 @@ from app.services.downloads.errors import (
     MediaInspectionPolicyNotAllowed,
 )
 from app.services.downloads.inspection_models import RunnerInspection
+from app.services.downloads.resolution import ResolutionExecution
 from app.services.provider_access import ProviderAccessPolicy
 from app.services.provider_types import ProviderAccessMode
 from app.workers.runner.provider_registry import provider_profile
 
 
 class MediaInspectionClient(Protocol):
-    async def inspect(self, url: str) -> RunnerInspection: ...
+    async def inspect(
+        self, url: str, *, execution: ResolutionExecution | None = None
+    ) -> RunnerInspection: ...
 
 
 class SessionPolicyReader(Protocol):
@@ -39,12 +42,18 @@ class MediaInspectionPipeline:
         return selected
 
     async def inspect(
-        self, url: str, *, access_policy: ProviderAccessPolicy | None = None
+        self,
+        url: str,
+        *,
+        access_policy: ProviderAccessPolicy | None = None,
+        execution: ResolutionExecution | None = None,
     ) -> RunnerInspection:
         selected = await self.resolve_access_policy(url, access_policy)
         try:
             await self._session_routes.ensure_ready(url)
-            result = await self._session.inspect(url)
+            result = await self._session.inspect(
+                url, **({"execution": execution} if execution is not None else {})
+            )
             profile = provider_profile(url)
             allowed_modes = {selected.access_mode}
             if (
@@ -55,6 +64,9 @@ class MediaInspectionPipeline:
             if (
                 result.access_context.access_mode not in allowed_modes
                 or result.access_context.provider_key != profile.key
+                or (
+                    execution is not None and result.access_context != execution.context
+                )
             ):
                 raise MediaInspectionFailure("runner policy context mismatch")
             return result

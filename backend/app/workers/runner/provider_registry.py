@@ -82,8 +82,6 @@ class ProviderProfile:
     command_args: tuple[str, ...] = ()
     runtime_command_args: RuntimeCommandArgs = default_runtime_command_args
     yt_dlp_retry_count: int = 3
-    inspection_attempts: int = 2
-    inspection_retry_delay: float = 1.0
     probe_authenticated_media: bool = False
     probe_media_duration: bool = False
     normalize_url: UrlNormalizer = identity_url
@@ -92,8 +90,8 @@ class ProviderProfile:
     def __post_init__(self) -> None:
         if self.resolution_strategies:
             return
-        # Describe the existing routes. This does not enable another engine or
-        # change Runner fallback; the persistent selector is introduced in P02.
+        # Registry order declares the routes; the durable selector owns every
+        # transition. A Runner invocation never upgrades or retries a route.
         modes = tuple(
             dict.fromkeys((self.initial_access_mode, self.execution_access_mode))
         )
@@ -199,11 +197,7 @@ class ProviderRegistry:
             keys.add(profile.key)
             if not profile.hosts:
                 raise ValueError(f"provider {profile.key} must declare hosts")
-            if (
-                profile.yt_dlp_retry_count < 0
-                or profile.inspection_attempts < 1
-                or profile.inspection_retry_delay < 0
-            ):
+            if profile.yt_dlp_retry_count < 0:
                 raise ValueError(f"provider {profile.key} has invalid retry policy")
             if (
                 not profile.version

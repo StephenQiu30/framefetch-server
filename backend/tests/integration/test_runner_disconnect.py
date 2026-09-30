@@ -10,7 +10,12 @@ import pytest
 import uvicorn
 from app.workers.runner.main import create_app
 from app.workers.runner.process import ProcessSupervisor
-from tests.unit.workers.runner.api_helpers import FakeService, settings, signed_headers
+from tests.unit.workers.runner.api_helpers import (
+    FakeService,
+    inspect_document,
+    settings,
+    signed_headers,
+)
 
 
 @pytest.mark.parametrize("operation", ["inspect", "download"])
@@ -69,7 +74,9 @@ async def test_http_disconnect_terminates_real_media_process(tmp_path, operation
                 )
                 instance_id = runtime.json()["instance_id"]
                 path = f"/internal/{operation}"
-                body = json.dumps({"url": "https://example.com/video"}).encode()
+                body = json.dumps(
+                    inspect_document("https://example.com/video")
+                ).encode()
                 if operation == "download":
                     from tests.unit.workers.runner.helpers import download_request
 

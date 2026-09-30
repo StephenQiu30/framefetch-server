@@ -4,6 +4,7 @@ Network work happens between beginning and completing an operation,
 never under a row lock.
 """
 
+from dataclasses import replace
 from datetime import datetime, timedelta
 from uuid import UUID, uuid4
 
@@ -12,7 +13,7 @@ from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.models.download import DownloadJobRow
-from app.models.download_intent import DownloadIntentRow
+from app.models.download_intent import DownloadIntentRow, ResolutionAttemptRow
 from app.models.media import MediaInspectionRow
 from app.models.outbox import OutboxEventRow
 from app.repositories.downloads.access_repository import cancel_job_row
@@ -27,6 +28,7 @@ from app.repositories.quota_admission import (
     lock_admission,
     reserve,
 )
+from app.schemas.resolution import PROVIDER_FAILURE, RESOLUTION_PLAN
 from app.services.downloads.inspection_models import EncryptedUrl, InspectionCreate
 from app.services.downloads.intent_models import (
     RUNNING_INTENT_STATUSES,
@@ -38,6 +40,19 @@ from app.services.downloads.intent_models import (
     IntentSnapshot,
     IntentStatus,
 )
+from app.services.downloads.resolution import (
+    ResolutionAction,
+    ResolutionAttemptStatus,
+    ResolutionExecution,
+    ResolutionPlan,
+    ResolutionPreparation,
+    decide_resolution,
+    failure_signature,
+    unchanged_failure_requires_wait,
+)
+from app.services.downloads.resolution import (
+    operation_id as inspection_operation_id,
+)
 from app.services.downloads.validation import (
     media_kind_from_metadata,
     validate_idempotency_key,
@@ -45,6 +60,12 @@ from app.services.downloads.validation import (
     validate_owner_hash,
 )
 from app.services.provider_access import ProviderAccessPolicy
+from app.services.provider_failures import (
+    FailureEvidenceKind,
+    FailurePhase,
+    ProviderFailure,
+)
+from app.services.provider_types import ProviderAccessContextRef, ProviderSessionSource
 from app.services.quotas import DEFAULT_USER_QUOTA, QuotaPolicy, UserQuota
 
 _RUNNING = tuple(status.value for status in RUNNING_INTENT_STATUSES)
@@ -165,6 +186,9 @@ class IntentRepository:
                 cancel_job_row(job, now)
                 _transition(row, IntentStatus.CANCELLED, now, "cancelled")
             if IntentStatus(row.status) not in TERMINAL_INTENT_STATUSES:
+                await _finish_attempt(
+                    session, row, now, ResolutionAttemptStatus.OUTCOME_UNKNOWN
+                )
                 _transition(row, IntentStatus.CANCELLED, now, "cancelled")
                 row.fence += 1
                 event = _requested(row, now)
@@ -215,10 +239,10 @@ class IntentRepository:
                 items, items[-1].intent.id if len(rows) > limit else None
             )
 
-    async def begin_attempt(
+    async def claim_preparation(
         self, intent_id: UUID, generation: int, operation_id: str, *, now: datetime
     ) -> IntentOperation | None:
-        """Temporal owns retries; this transaction only fences external effects."""
+        """Reserve preparation without spending a platform call or stealing work."""
         validate_now(now)
         if not operation_id or len(operation_id) > 128 or generation < 0:
             raise ValueError("invalid intent operation")
@@ -239,14 +263,19 @@ class IntentRepository:
                 }
             ):
                 return None
+            if row.status in _RUNNING:
+                return IntentOperation(
+                    _snapshot(row),
+                    EncryptedUrl(row.url_ciphertext, row.url_nonce, row.url_key_id),
+                    newly_claimed=False,
+                )
             if row.operation_id != operation_id:
                 if _exhausted(row, now):
                     _expire(row, now)
                     return None
                 if row.retry_at is not None and row.retry_at > now:
                     raise RepositoryConflict("retry timer has not elapsed")
-                _transition(row, IntentStatus.RESOLVING, now)
-                row.attempt += 1
+                _transition(row, IntentStatus.PREPARING, now)
                 row.fence += 1
                 row.operation_id = operation_id
             elif _remaining(row, now) == 0:
@@ -255,6 +284,153 @@ class IntentRepository:
             return IntentOperation(
                 _snapshot(row),
                 EncryptedUrl(row.url_ciphertext, row.url_nonce, row.url_key_id),
+            )
+
+    async def bind_plan(
+        self, operation: IntentSnapshot, plan: ResolutionPlan, *, now: datetime
+    ) -> IntentSnapshot:
+        async with self._sessions() as session, session.begin():
+            row = await self._executing(session, operation)
+            if row is None or row.status != IntentStatus.PREPARING.value:
+                raise RepositoryConflict("intent preparation superseded")
+            if (
+                plan.generation != row.generation
+                or plan.capability.access_policy.value != row.access_policy
+            ):
+                raise RepositoryConflict("resolution plan scope mismatch")
+            document = RESOLUTION_PLAN.dump_python(plan, mode="json")
+            if row.resolution_plan is not None:
+                if row.resolution_plan != document:
+                    raise RepositoryConflict("resolution plan is immutable")
+            else:
+                row.resolution_plan = document
+                row.next_strategy_id = plan.first_strategy.strategy_id
+                row.version += 1
+                row.updated_at = now
+            return _snapshot(row)
+
+    async def begin_attempt(
+        self,
+        operation: IntentSnapshot,
+        preparation: ResolutionPreparation,
+        *,
+        now: datetime,
+    ) -> IntentOperation | None:
+        """Register the one execution identity before submitting platform I/O."""
+        validate_now(now)
+        async with self._sessions() as session, session.begin():
+            row = await self._executing(session, operation)
+            if row is None or row.status != IntentStatus.PREPARING.value:
+                return None
+            snapshot = _snapshot(row)
+            plan = snapshot.resolution_plan
+            if plan is None or snapshot.next_strategy_id is None:
+                raise RepositoryConflict("resolution plan is missing")
+            if _exhausted(row, now):
+                _expire(row, now)
+                return None
+            strategy = plan.strategy(snapshot.next_strategy_id)
+            context = preparation.context
+            if (
+                context.provider_key != plan.capability.provider_key
+                or context.profile_version != plan.capability.profile_version
+                or context.strategy_id != strategy.strategy_id
+                or context.adapter_revision != strategy.adapter_revision
+                or context.access_mode != strategy.access_mode
+            ):
+                raise RepositoryConflict("resolution preparation context mismatch")
+            previous = await session.scalar(
+                select(ResolutionAttemptRow)
+                .where(
+                    ResolutionAttemptRow.intent_id == row.id,
+                    ResolutionAttemptRow.generation == row.generation,
+                    ResolutionAttemptRow.strategy_id == strategy.strategy_id,
+                    ResolutionAttemptRow.context_key == context.generation_id,
+                    ResolutionAttemptRow.status == ResolutionAttemptStatus.FAILED.value,
+                )
+                .order_by(ResolutionAttemptRow.attempt_no.desc())
+                .limit(1)
+            )
+            if previous is not None and previous.failure is not None:
+                failure = PROVIDER_FAILURE.validate_python(previous.failure)
+                if unchanged_failure_requires_wait(failure):
+                    row.latest_failure = previous.failure
+                    if strategy.session_source is not ProviderSessionSource.NONE:
+                        _wait_for_action(row, now, row.reason_code or failure.code)
+                    else:
+                        _transition(
+                            row,
+                            IntentStatus.FAILED,
+                            now,
+                            row.reason_code or failure.code,
+                        )
+                    return None
+            row.attempt += 1
+            row.fence += 1
+            identifier = inspection_operation_id(row.id, row.generation, row.attempt)
+            execution = ResolutionExecution(
+                strategy.strategy_id,
+                plan.revision,
+                identifier,
+                context,
+                preparation.runner_instance_id,
+                now
+                + timedelta(
+                    milliseconds=min(row.remaining_budget_ms, strategy.step_timeout_ms)
+                ),
+            )
+            _transition(row, IntentStatus.RESOLVING, now)
+            row.operation_id = identifier
+            session.add(
+                ResolutionAttemptRow(
+                    operation_id=identifier,
+                    intent_id=row.id,
+                    generation=row.generation,
+                    attempt_no=row.attempt,
+                    fence=row.fence,
+                    strategy_id=strategy.strategy_id,
+                    plan_revision=plan.revision,
+                    plan_snapshot=row.resolution_plan if row.attempt == 1 else None,
+                    context_key=context.generation_id,
+                    access_context=context.to_document(),
+                    runner_instance_id=execution.runner_instance_id,
+                    deadline_at=execution.deadline_at,
+                    started_at=now,
+                    status=ResolutionAttemptStatus.STARTED.value,
+                )
+            )
+            return IntentOperation(
+                _snapshot(row),
+                EncryptedUrl(row.url_ciphertext, row.url_nonce, row.url_key_id),
+                execution=execution,
+            )
+
+    async def running_operation(
+        self, intent_id: UUID, generation: int
+    ) -> IntentOperation | None:
+        async with self._sessions() as session:
+            row = await session.get(DownloadIntentRow, intent_id)
+            if (
+                row is None
+                or row.generation != generation
+                or row.status != IntentStatus.RESOLVING.value
+            ):
+                return None
+            attempt = await session.get(ResolutionAttemptRow, row.operation_id)
+            if attempt is None:
+                raise RepositoryConflict("resolution execution receipt missing")
+            return IntentOperation(
+                _snapshot(row),
+                EncryptedUrl(row.url_ciphertext, row.url_nonce, row.url_key_id),
+                newly_claimed=False,
+                execution=ResolutionExecution(
+                    attempt.strategy_id,
+                    attempt.plan_revision,
+                    attempt.operation_id,
+                    ProviderAccessContextRef.from_document(attempt.access_context),
+                    attempt.runner_instance_id,
+                    attempt.deadline_at,
+                ),
             )
 
     async def execution_state(self, intent_id: UUID) -> IntentSnapshot:
@@ -295,8 +471,21 @@ class IntentRepository:
                 IntentStatus.RETRY_WAIT.value,
                 *_RUNNING,
             }:
+                failure = ProviderFailure.for_code(
+                    "outcome_unknown",
+                    phase=FailurePhase.FETCH_METADATA,
+                    evidence_kind=FailureEvidenceKind.RUNTIME,
+                )
+                await _finish_attempt(
+                    session,
+                    row,
+                    now,
+                    ResolutionAttemptStatus.OUTCOME_UNKNOWN,
+                    failure=failure,
+                )
+                row.latest_failure = PROVIDER_FAILURE.dump_python(failure, mode="json")
                 row.fence += 1
-                _transition(row, IntentStatus.FAILED, now, "inspection_timeout")
+                _transition(row, IntentStatus.FAILED, now, "inspection_failed")
             return _snapshot(row)
 
     async def waiting_source(
@@ -358,24 +547,51 @@ class IntentRepository:
                 IntentStatus.HANDED_OFF,
             }:
                 return _snapshot(row)
-            if row.status != IntentStatus.READY.value or row.inspection_id is None:
+            if row.status not in {
+                IntentStatus.READY.value,
+                IntentStatus.FAILED.value,
+                IntentStatus.EXPIRED.value,
+            }:
                 raise RepositoryConflict("intent cannot refresh in this state")
-            previous = await session.get(MediaInspectionRow, row.inspection_id)
-            if previous is None or previous.owner_hash != owner_hash:
-                raise RepositoryConflict("intent result is unavailable")
-            if previous.expires_at > now:
-                return _snapshot(row)
-            # Waiting for a format choice was not active work. Only the saved
-            # remainder is available; neither attempt nor budget is reset.
-            if row.remaining_budget_ms <= 0 or row.attempt >= row.max_attempts:
-                _transition(row, IntentStatus.EXPIRED, now, "resource_expired")
-                return _snapshot(row)
+            unresolved = await session.scalar(
+                select(ResolutionAttemptRow.operation_id)
+                .where(
+                    ResolutionAttemptRow.intent_id == row.id,
+                    ResolutionAttemptRow.status.in_(
+                        (
+                            ResolutionAttemptStatus.STARTED.value,
+                            ResolutionAttemptStatus.OUTCOME_UNKNOWN.value,
+                        )
+                    ),
+                )
+                .limit(1)
+            )
+            if unresolved is not None:
+                raise RepositoryConflict(
+                    "previous execution termination is unconfirmed"
+                )
+            if row.status == IntentStatus.READY.value:
+                previous = await session.get(MediaInspectionRow, row.inspection_id)
+                if previous is None or previous.owner_hash != owner_hash:
+                    raise RepositoryConflict("intent result is unavailable")
+                if previous.expires_at > now:
+                    return _snapshot(row)
             if not quota.exempt:
                 await ensure_active_capacity(
                     session, quota.apply(self._quota_policy), owner_hash
                 )
             row.generation += 1
-            row.deadline = now + timedelta(milliseconds=row.remaining_budget_ms)
+            # Explicit refresh creates a new generation. Resume never does.
+            row.attempt = 0
+            row.remaining_budget_ms = 180_000
+            row.deadline = now + _BUDGET
+            row.resolution_plan = None
+            row.next_strategy_id = None
+            row.selected_operation_id = None
+            row.latest_failure = None
+            row.authorization_id = None
+            row.authorization_deadline = None
+            row.fence += 1
             _transition(row, IntentStatus.QUEUED, now)
             session.add(_requested(row, now))
             return _snapshot(row)
@@ -388,8 +604,22 @@ class IntentRepository:
         async with self._sessions() as session, session.begin():
             row = await self._executing(session, operation)
             if row is None:
+                existing = await session.get(DownloadIntentRow, operation.id)
+                if (
+                    existing is not None
+                    and existing.selected_operation_id == operation.operation_id
+                    and existing.inspection_id == result.id
+                ):
+                    return _snapshot(existing)
                 raise RepositoryConflict("intent execution superseded")
             if _remaining(row, now) == 0:
+                await _finish_attempt(
+                    session,
+                    row,
+                    now,
+                    ResolutionAttemptStatus.FAILED,
+                    failure=ProviderFailure.for_code("inspection_timeout"),
+                )
                 _expire(row, now)
                 return _snapshot(row)
             if (
@@ -411,10 +641,30 @@ class IntentRepository:
                     or media_kind_from_metadata(previous.metadata_json)
                     != media_kind_from_metadata(result.metadata)
                 ):
+                    await _finish_attempt(
+                        session,
+                        row,
+                        now,
+                        ResolutionAttemptStatus.FAILED,
+                        failure=ProviderFailure.for_code("provider_unsupported"),
+                    )
                     _transition(row, IntentStatus.FAILED, now, "unsupported_source")
                     return _snapshot(row)
             await insert_inspection(session, result)
             row.inspection_id = result.id
+            row.selected_operation_id = (
+                operation.operation_id
+                if row.status == IntentStatus.RESOLVING.value
+                else None
+            )
+            row.latest_failure = None
+            await _finish_attempt(
+                session,
+                row,
+                now,
+                ResolutionAttemptStatus.SUCCEEDED,
+                inspection_id=result.id,
+            )
             _transition(row, IntentStatus.READY, now)
             return _snapshot(row)
 
@@ -425,6 +675,7 @@ class IntentRepository:
         now: datetime,
         reason_code: str,
         retry_at: datetime | None = None,
+        failure: ProviderFailure | None = None,
     ) -> IntentSnapshot:
         validate_now(now)
         if not reason_code or len(reason_code) > 64:
@@ -437,8 +688,52 @@ class IntentRepository:
             row = await self._executing(session, operation)
             if row is None:
                 raise RepositoryConflict("intent execution superseded")
+            fact = failure or ProviderFailure.for_code(
+                reason_code,
+                phase=(
+                    FailurePhase.PREPARE_CONTEXT
+                    if row.status == IntentStatus.PREPARING.value
+                    else FailurePhase.FETCH_METADATA
+                ),
+                evidence_kind=FailureEvidenceKind.LOCAL_VALIDATION,
+            )
+            row.latest_failure = PROVIDER_FAILURE.dump_python(fact, mode="json")
+            await _finish_attempt(
+                session, row, now, ResolutionAttemptStatus.FAILED, failure=fact
+            )
             if _remaining(row, now) == 0:
                 _expire(row, now)
+                return _snapshot(row)
+            plan = _snapshot(row).resolution_plan
+            if (
+                row.status == IntentStatus.RESOLVING.value
+                and plan is not None
+                and row.next_strategy_id is not None
+            ):
+                decision = decide_resolution(
+                    plan,
+                    row.next_strategy_id,
+                    fact,
+                    attempt=row.attempt,
+                    remaining_budget_ms=_remaining(row, now),
+                    now=now,
+                )
+                row.next_strategy_id = decision.strategy_id
+                if decision.action is ResolutionAction.CONTINUE:
+                    _transition(row, IntentStatus.QUEUED, now, reason_code)
+                elif decision.action is ResolutionAction.WAIT:
+                    _wait_for_action(row, now, reason_code, new_wait=True)
+                elif (
+                    decision.action is ResolutionAction.RETRY
+                    and decision.retry_at is not None
+                    and decision.retry_at < row.deadline
+                ):
+                    _transition(row, IntentStatus.RETRY_WAIT, now, reason_code)
+                    row.retry_at = max(decision.retry_at, retry_at or decision.retry_at)
+                    if row.retry_at >= row.deadline:
+                        _transition(row, IntentStatus.FAILED, now, reason_code)
+                else:
+                    _transition(row, IntentStatus.FAILED, now, reason_code)
                 return _snapshot(row)
             if row.access_policy in {
                 ProviderAccessPolicy.OPERATOR_PUBLIC.value,
@@ -448,14 +743,7 @@ class IntentRepository:
                 "provider_session_expired",
                 "provider_session_not_ready",
             }:
-                _transition(row, IntentStatus.ACTION_REQUIRED, now, reason_code)
-                row.attempt = max(0, row.attempt - 1)
-                row.authorization_id = uuid4()
-                # One total user-wait deadline; repeated clicks never extend it.
-                if row.authorization_deadline is None:
-                    row.authorization_deadline = now + timedelta(hours=24)
-                if row.authorization_deadline <= now:
-                    _transition(row, IntentStatus.EXPIRED, now, "resource_expired")
+                _wait_for_action(row, now, reason_code)
                 return _snapshot(row)
             if (
                 retry_at is not None
@@ -467,6 +755,32 @@ class IntentRepository:
             else:
                 _transition(row, IntentStatus.FAILED, now, reason_code)
             return _snapshot(row)
+
+    async def abandon_attempt(
+        self, operation: IntentSnapshot, *, now: datetime
+    ) -> None:
+        """Cancellation reaches this only after Runner cleanup has been awaited."""
+        if operation.operation_id is None:
+            return
+        async with self._sessions() as session, session.begin():
+            attempt = await session.get(
+                ResolutionAttemptRow, operation.operation_id, with_for_update=True
+            )
+            if (
+                attempt is not None
+                and attempt.fence == operation.fence
+                and attempt.status
+                in {
+                    ResolutionAttemptStatus.STARTED.value,
+                    ResolutionAttemptStatus.OUTCOME_UNKNOWN.value,
+                }
+            ):
+                attempt.status = ResolutionAttemptStatus.ABANDONED.value
+                attempt.finished_at = now
+                attempt.duration_ms = min(
+                    180_000,
+                    max(0, int((now - attempt.started_at).total_seconds() * 1000)),
+                )
 
     @staticmethod
     async def _owned(
@@ -501,22 +815,29 @@ class IntentRepository:
 
 
 def _remaining(row: DownloadIntentRow, now: datetime) -> int:
-    return max(
-        0,
-        min(row.remaining_budget_ms, int((row.deadline - now).total_seconds() * 1000)),
+    elapsed = (
+        max(0, int((now - row.updated_at).total_seconds() * 1000))
+        if row.status == IntentStatus.RESOLVING.value
+        else 0
     )
+    return max(0, row.remaining_budget_ms - elapsed)
 
 
 def _exhausted(row: DownloadIntentRow, now: datetime) -> bool:
-    return _remaining(row, now) == 0 or row.attempt >= row.max_attempts
+    return (
+        _remaining(row, now) == 0
+        or row.attempt >= row.max_attempts
+        or now >= row.deadline
+    )
 
 
 def _expire(row: DownloadIntentRow, now: datetime) -> None:
+    timed_out = _remaining(row, now) == 0 or now >= row.deadline
     _transition(
         row,
-        IntentStatus.EXPIRED if _remaining(row, now) == 0 else IntentStatus.FAILED,
+        IntentStatus.EXPIRED if timed_out else IntentStatus.FAILED,
         now,
-        "inspection_timeout" if _remaining(row, now) == 0 else "inspection_failed",
+        "inspection_timeout" if timed_out else "inspection_failed",
     )
 
 
@@ -575,4 +896,58 @@ def _snapshot(row: DownloadIntentRow) -> IntentSnapshot:
         updated_at=row.updated_at,
         authorization_id=row.authorization_id,
         authorization_deadline=row.authorization_deadline,
+        resolution_plan=None
+        if row.resolution_plan is None
+        else RESOLUTION_PLAN.validate_python(row.resolution_plan),
+        next_strategy_id=row.next_strategy_id,
+        selected_operation_id=row.selected_operation_id,
+        latest_failure=None
+        if row.latest_failure is None
+        else PROVIDER_FAILURE.validate_python(row.latest_failure),
     )
+
+
+def _wait_for_action(
+    row: DownloadIntentRow, now: datetime, reason: str, *, new_wait: bool = False
+) -> None:
+    _transition(row, IntentStatus.ACTION_REQUIRED, now, reason)
+    if row.authorization_id is None or new_wait:
+        row.authorization_id = uuid4()
+    if row.authorization_deadline is None:
+        row.authorization_deadline = now + timedelta(hours=24)
+    if row.authorization_deadline <= now:
+        _transition(row, IntentStatus.EXPIRED, now, "resource_expired")
+
+
+async def _finish_attempt(
+    session: AsyncSession,
+    row: DownloadIntentRow,
+    now: datetime,
+    status: ResolutionAttemptStatus,
+    *,
+    failure: ProviderFailure | None = None,
+    inspection_id: UUID | None = None,
+) -> None:
+    if row.operation_id is None or row.status != IntentStatus.RESOLVING.value:
+        return
+    attempt = await session.get(
+        ResolutionAttemptRow, row.operation_id, with_for_update=True
+    )
+    if attempt is None or attempt.status != ResolutionAttemptStatus.STARTED.value:
+        return
+    attempt.status = status.value
+    attempt.finished_at = now
+    attempt.duration_ms = min(
+        row.remaining_budget_ms,
+        max(0, int((now - attempt.started_at).total_seconds() * 1000)),
+    )
+    attempt.inspection_id = inspection_id
+    if failure is not None:
+        fact = replace(
+            failure,
+            strategy_id=failure.strategy_id or attempt.strategy_id,
+            context_key=failure.context_key or attempt.context_key,
+        )
+        attempt.failure = PROVIDER_FAILURE.dump_python(fact, mode="json")
+        row.latest_failure = attempt.failure
+        attempt.evidence_signature = failure_signature(fact)

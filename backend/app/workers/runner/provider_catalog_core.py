@@ -99,7 +99,6 @@ CORE_PROVIDER_PROFILES: tuple[ProviderProfile, ...] = (
         canary_suite="youtube-anonymous-operator-pot",
         runtime_command_args=_youtube_runtime_args,
         yt_dlp_retry_count=0,
-        inspection_attempts=1,
     ),
     standard_provider(
         ProviderKey.BILIBILI,
@@ -203,8 +202,6 @@ CORE_PROVIDER_PROFILES: tuple[ProviderProfile, ...] = (
         support_status=ProviderSupportStatus.VERIFIED,
         canary_suite="kuaishou-public-share-page",
         command_args=ANDROID_IMPERSONATION,
-        inspection_attempts=4,
-        inspection_retry_delay=0.5,
         normalize_url=kuaishou_url,
     ),
 )

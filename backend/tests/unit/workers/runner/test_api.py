@@ -5,7 +5,13 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import pytest
-from api_helpers import FakeService, anonymous_access_context, settings, signed_headers
+from api_helpers import (
+    FakeService,
+    anonymous_access_context,
+    inspect_document,
+    settings,
+    signed_headers,
+)
 from app.workers.runner.main import create_app
 from fastapi.testclient import TestClient
 
@@ -32,6 +38,8 @@ def test_internal_media_contract_has_only_direct_operation_paths(tmp_path):
         "/internal/download",
         "/internal/tasks/{task_id}",
         "/internal/tasks/{task_id}/cancel",
+        "/internal/inspection-operations/{operation_id}",
+        "/internal/inspection-operations/{operation_id}/cancel",
     }
 
 
@@ -44,6 +52,8 @@ def test_signed_inspect_forwards_frozen_context_and_aware_deadline(tmp_path):
             "url": "https://media.example.com/video",
             "access_context": anonymous_access_context(),
             "deadline_at": deadline.isoformat(),
+            "strategy_id": "yt-dlp-anonymous",
+            "plan_revision": "a" * 64,
         }
     ).encode()
     path = "/internal/inspect"
@@ -60,7 +70,7 @@ def test_health_is_public_and_inspect_requires_valid_raw_body_signature(
 ) -> None:
     service = FakeService()
     client = TestClient(create_app(settings(tmp_path), service=service))
-    body = json.dumps({"url": "https://media.example.com/video"}).encode()
+    body = json.dumps(inspect_document("https://media.example.com/video")).encode()
     path = "/internal/inspect"
     headers = signed_headers(path, body, "inspect_nonce_123456")
 
@@ -106,6 +116,12 @@ def test_context_endpoint_returns_only_signed_non_secret_runtime_refs(
         "attestation_provider_version",
         "engine_commit",
         "runtime_revision",
+        "strategy_id",
+        "adapter_revision",
+        "session_source_id",
+        "browser_context_revision",
+        "protocol_capabilities",
+        "egress_observation_ref",
     }
     assert service.context_requests == ["https://media.example.com/video"]
 
@@ -196,7 +212,9 @@ def test_signed_work_is_rejected_when_installed_engine_does_not_match(
     )
     service = FakeService()
     client = TestClient(create_app(settings(tmp_path), service=service))
-    body = json.dumps(payload).encode()
+    body = json.dumps(
+        inspect_document(**payload) if path == "/internal/inspect" else payload
+    ).encode()
 
     response = client.post(
         path,

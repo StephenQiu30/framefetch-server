@@ -52,6 +52,9 @@ class FakeService:
         *,
         access_context: ProviderAccessContextRef | None = None,
         deadline_at: datetime | None = None,
+        strategy_id: str | None = None,
+        plan_revision: str | None = None,
+        operation_id: str | None = None,
     ) -> InspectResponse:
         self.inspected_url = url
         self.inspected_context = access_context
@@ -121,6 +124,22 @@ def anonymous_access_context() -> dict[str, object]:
         "attestation_provider_version": None,
         "engine_commit": YTDLP_ENGINE_COMMIT,
         "runtime_revision": "a" * 64,
+        "strategy_id": "yt-dlp-anonymous",
+        "adapter_revision": "default",
+        "session_source_id": None,
+        "browser_context_revision": None,
+        "protocol_capabilities": ["http-media"],
+        "egress_observation_ref": None,
+    }
+
+
+def inspect_document(url: str, **facts) -> dict[str, object]:
+    return {
+        "url": url,
+        "strategy_id": "yt-dlp-anonymous",
+        "plan_revision": "a" * 64,
+        "access_context": anonymous_access_context(),
+        **facts,
     }
 
 
@@ -140,7 +159,10 @@ def signed_headers(
         max_future_skew_seconds=5,
     )
     instance = (
-        instance_id if path in {"/internal/inspect", "/internal/download"} else None
+        instance_id
+        if path in {"/internal/inspect", "/internal/download"}
+        or path.startswith("/internal/inspection-operations/")
+        else None
     )
     signature = signer.sign(
         method, path, body, timestamp, nonce, runtime_instance_id=instance

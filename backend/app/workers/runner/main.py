@@ -9,13 +9,14 @@ from datetime import UTC, datetime
 from typing import Protocol
 from uuid import uuid4
 
-from app.schemas.engine_catalog import EngineCatalogResponse
+from app.schemas.resolution import RunnerEngineCatalogResponse
 from app.services.provider_types import ProviderAccessContextRef, ProviderAccessMode
 from app.workers.runner.contracts import (
     CancelCommand,
     CancelResponse,
     DownloadRequest,
     DownloadResponse,
+    InspectionOperationResponse,
     InspectRequest,
     InspectResponse,
     ProviderAccessContextContract,
@@ -95,8 +96,16 @@ class RunnerService(Protocol):
         *,
         access_context: ProviderAccessContextRef | None = None,
         deadline_at: datetime | None = None,
-        allow_session_fallback: bool = True,
+        strategy_id: str | None = None,
+        plan_revision: str | None = None,
+        operation_id: str | None = None,
     ) -> InspectResponse: ...
+
+    def inspection_status(self, operation_id: str) -> InspectionOperationResponse: ...
+
+    async def cancel_inspection(
+        self, operation_id: str
+    ) -> InspectionOperationResponse: ...
 
     async def download(self, request: DownloadRequest) -> DownloadResponse: ...
 
@@ -212,11 +221,9 @@ def create_app(
         if request.headers.get("X-Runner-Instance") != instance_id:
             raise RunnerFailure("runner_restarted", status=409)
 
-    @app.get("/internal/engine-catalog", response_model=EngineCatalogResponse)
-    async def get_engine_catalog(request: Request) -> EngineCatalogResponse:
+    @app.get("/internal/engine-catalog", response_model=RunnerEngineCatalogResponse)
+    async def get_engine_catalog(request: Request) -> RunnerEngineCatalogResponse:
         await _authenticated_body(request, configured, authenticator)
-        if configured.runner_access_mode is not ProviderAccessMode.ANONYMOUS:
-            raise RunnerFailure("engine_catalog_unavailable", status=503)
         return await engine_catalog.get()
 
     @app.post("/internal/site-sessions/login")
@@ -240,19 +247,40 @@ def create_app(
             request,
             runner.inspect(
                 payload.url,
-                access_context=(
-                    None
-                    if payload.access_context is None
-                    else payload.access_context.to_domain()
-                ),
+                access_context=payload.access_context.to_domain(),
                 deadline_at=payload.deadline_at,
-                **(
-                    {"allow_session_fallback": False}
-                    if not payload.allow_session_fallback
-                    else {}
-                ),
+                strategy_id=payload.strategy_id,
+                plan_revision=payload.plan_revision,
+                operation_id=payload.operation_id,
             ),
         )
+
+    @app.get(
+        "/internal/inspection-operations/{operation_id}",
+        response_model=InspectionOperationResponse,
+    )
+    async def inspection_status(
+        request: Request, operation_id: str
+    ) -> InspectionOperationResponse:
+        await _authenticated_body(request, configured, authenticator)
+        require_instance(request)
+        if re.fullmatch(r"[0-9a-f]{64}", operation_id) is None:
+            raise RunnerFailure("invalid_request", status=422)
+        return runner.inspection_status(operation_id)
+
+    @app.post(
+        "/internal/inspection-operations/{operation_id}/cancel",
+        response_model=InspectionOperationResponse,
+    )
+    async def cancel_inspection(
+        request: Request, operation_id: str
+    ) -> InspectionOperationResponse:
+        body = await _authenticated_body(request, configured, authenticator)
+        require_instance(request)
+        _parse(CancelCommand, body)
+        if re.fullmatch(r"[0-9a-f]{64}", operation_id) is None:
+            raise RunnerFailure("invalid_request", status=422)
+        return await runner.cancel_inspection(operation_id)
 
     @app.post(
         "/internal/context",

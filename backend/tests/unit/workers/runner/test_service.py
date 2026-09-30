@@ -9,6 +9,7 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import pytest
+from app.services.provider_types import ProviderAccessMode
 from app.workers.runner.errors import RunnerFailure
 from app.workers.runner.process import ProcessResult
 from app.workers.runner.provider_sessions import ProviderSessionStore
@@ -440,9 +441,6 @@ class ProbeSampleSupervisor(FixtureSupervisor):
         command = tuple(argv)
         if "--dump-single-json" in command:
             self.inspection_attempts += 1
-            if self.inspection_attempts == 1:
-                self.calls.append((command, env))
-                return ProcessResult(1, b"", b"transient", False, False)
         if command[0] == "ffprobe" and str(command[-1]).startswith("https://"):
             self.calls.append((command, env))
             return ProcessResult(1, b"", b"forbidden", False, False)
@@ -743,7 +741,10 @@ async def test_operator_session_is_rebuilt_then_reused_for_download_operation(
     )
     url = "https://www.youtube.com/watch?v=owned"
 
-    inspected = await service.inspect(url)
+    context = await service.context(
+        url, access_mode=ProviderAccessMode.OPERATOR_MANAGED
+    )
+    inspected = await service.inspect(url, access_context=context)
     request = download_request().model_copy(
         update={
             "url": url,
@@ -775,7 +776,11 @@ async def test_operator_session_rejects_private_before_media_download(
     )
 
     with pytest.raises(RunnerFailure) as caught:
-        await service.inspect("https://www.youtube.com/watch?v=private")
+        url = "https://www.youtube.com/watch?v=private"
+        context = await service.context(
+            url, access_mode=ProviderAccessMode.OPERATOR_MANAGED
+        )
+        await service.inspect(url, access_context=context)
 
     assert caught.value.code == "content_private"
     assert len(supervisor.calls) == 1
@@ -835,7 +840,9 @@ async def test_inspect_requires_at_least_one_semantic_option(tmp_path: Path) -> 
     assert caught.value.code == "format_unavailable"
 
 
-async def test_inspect_retries_stay_within_the_total_deadline(tmp_path: Path) -> None:
+async def test_inspect_reports_the_first_failure_without_hidden_retry(
+    tmp_path: Path,
+) -> None:
     configured = settings(tmp_path).model_copy(
         update={"runner_inspect_timeout_seconds": 0.05}
     )
@@ -845,7 +852,7 @@ async def test_inspect_retries_stay_within_the_total_deadline(tmp_path: Path) ->
     with pytest.raises(RunnerFailure) as caught:
         await service.inspect("https://www.douyin.com/video/7662711608636889201")
 
-    assert caught.value.code == "inspection_timeout"
+    assert caught.value.code == "inspection_failed"
     assert len(supervisor.calls) == 1
     assert list(tmp_path.iterdir()) == []
 
@@ -1033,7 +1040,7 @@ async def test_douyin_inspect_fails_closed_without_media_duration(
     assert list(tmp_path.iterdir()) == []
 
 
-async def test_inspect_retries_and_uses_bounded_local_probe_sample(
+async def test_single_inspection_uses_bounded_local_probe_sample(
     tmp_path: Path,
 ) -> None:
     info = split_media_info()
@@ -1055,7 +1062,7 @@ async def test_inspect_retries_and_uses_bounded_local_probe_sample(
 
     response = await service.inspect("https://media.example.com/video")
 
-    assert supervisor.inspection_attempts == 2
+    assert supervisor.inspection_attempts == 1
     assert response.media.duration_seconds == 30
     assert response.streams[0].fps == 30
     sample = next(
@@ -1179,7 +1186,7 @@ async def test_inspect_does_not_retry_xiaohongshu_egress_challenge(
     assert delays == []
 
 
-async def test_inspect_retries_tiktok_temporary_api_failure(
+async def test_inspect_leaves_tiktok_temporary_api_retry_to_durable_policy(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -1197,13 +1204,14 @@ async def test_inspect_retries_tiktok_temporary_api_failure(
     )
     service = MediaRunnerService(settings(tmp_path), supervisor=supervisor)
 
-    response = await service.inspect(
-        "https://www.tiktok.com/@creator/video/6742501081818877190",
-    )
+    with pytest.raises(RunnerFailure) as caught:
+        await service.inspect(
+            "https://www.tiktok.com/@creator/video/6742501081818877190",
+        )
 
-    assert response.media.duration_seconds == 30
-    assert supervisor.inspection_attempts == 2
-    assert delays == [1]
+    assert caught.value.code == "provider_temporarily_unavailable"
+    assert supervisor.inspection_attempts == 1
+    assert delays == []
 
 
 async def test_inspect_does_not_retry_tiktok_rate_limited_temporary_failure(
@@ -1451,17 +1459,15 @@ async def test_explicit_anonymous_canary_does_not_upgrade_on_auth_required(tmp_p
         side_effect=AssertionError("must not request Chrome")
     )
     with pytest.raises(RunnerFailure) as caught:
-        await service.inspect(
-            "https://www.youtube.com/watch?v=owned", allow_session_fallback=False
-        )
+        await service.inspect("https://www.youtube.com/watch?v=owned")
     assert caught.value.code == "credential_required"
     sessions._site_sessions.ready_revision.assert_not_awaited()
 
 
-async def test_auth_failure_reads_chrome_once_and_freezes_final_account_route(tmp_path):
+async def test_explicit_account_strategy_reads_chrome_once_and_freezes_context(
+    tmp_path,
+):
     from unittest.mock import AsyncMock
-
-    from app.services.provider_types import ProviderAccessMode
 
     configured = operator_settings(tmp_path)
     sessions = operator_session_store(configured)
@@ -1480,7 +1486,16 @@ async def test_auth_failure_reads_chrome_once_and_freezes_final_account_route(tm
         return await original(source, workspace, context=context, cookie_jar=cookie_jar)
 
     service._inspection.inspect = AsyncMock(side_effect=inspect)
-    response = await service.inspect("https://www.youtube.com/watch?v=owned")
+    url = "https://www.youtube.com/watch?v=owned"
+    with pytest.raises(RunnerFailure) as caught:
+        await service.inspect(url)
+    assert caught.value.code == "credential_required"
+    assert calls == [(ProviderAccessMode.ANONYMOUS, False)]
+    assert sessions._site_sessions.leases == []
+    context = await service.context(
+        url, access_mode=ProviderAccessMode.OPERATOR_MANAGED
+    )
+    response = await service.inspect(url, access_context=context)
     assert calls == [
         (ProviderAccessMode.ANONYMOUS, False),
         (ProviderAccessMode.OPERATOR_MANAGED, True),
@@ -1497,7 +1512,9 @@ async def test_auth_failure_reads_chrome_once_and_freezes_final_account_route(tm
     "code",
     ["credential_required", "egress_challenged"],
 )
-async def test_anonymous_session_walls_continue_with_chrome_session(tmp_path, code):
+async def test_anonymous_session_walls_do_not_read_chrome_or_choose_another_strategy(
+    tmp_path, code
+):
     from unittest.mock import AsyncMock
 
     configured = operator_settings(tmp_path)
@@ -1513,6 +1530,6 @@ async def test_anonymous_session_walls_continue_with_chrome_session(tmp_path, co
     )
     with pytest.raises(RunnerFailure) as caught:
         await service.inspect("https://www.youtube.com/watch?v=owned")
-    # The task went on to the Chrome session instead of failing anonymously.
-    sessions._site_sessions.ready_revision.assert_awaited_once()
-    assert caught.value.code == "provider_session_not_ready"
+    sessions._site_sessions.ready_revision.assert_not_awaited()
+    service._inspection.inspect.assert_awaited_once()
+    assert caught.value.code == code

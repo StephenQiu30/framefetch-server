@@ -138,11 +138,15 @@ class YtDlpCommandBuilder:
             str(self._plugin_root),
             "--no-progress",
             "--retries",
-            str(profile.yt_dlp_retry_count),
+            "0"
+            if "--skip-download" in operation_args
+            else str(profile.yt_dlp_retry_count),
             "--fragment-retries",
-            str(profile.yt_dlp_retry_count),
+            "0"
+            if "--skip-download" in operation_args
+            else str(profile.yt_dlp_retry_count),
             "--extractor-retries",
-            str(profile.yt_dlp_retry_count),
+            "0",
             "--js-runtimes",
             self._settings.runner_ytdlp_js_runtime,
             "--proxy",

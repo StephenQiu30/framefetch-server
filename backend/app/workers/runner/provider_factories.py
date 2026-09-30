@@ -59,8 +59,6 @@ def standard_provider(
     runtime_command_args: RuntimeCommandArgs = default_runtime_command_args,
     client_profile_id: str = "yt-dlp-default",
     canary_suite: str = "anonymous-metadata-range",
-    inspection_attempts: int = 2,
-    inspection_retry_delay: float = 1,
     probe_authenticated_media: bool = False,
     probe_media_duration: bool = False,
 ) -> ProviderProfile:
@@ -88,8 +86,6 @@ def standard_provider(
         canary_suite=canary_suite,
         command_args=command_args,
         runtime_command_args=runtime_command_args,
-        inspection_attempts=inspection_attempts,
-        inspection_retry_delay=inspection_retry_delay,
         probe_authenticated_media=probe_authenticated_media,
         probe_media_duration=probe_media_duration,
         normalize_url=normalize_url,
@@ -131,8 +127,6 @@ def challenged_provider(
         runtime_command_args=runtime_command_args,
         client_profile_id=client_profile_id,
         canary_suite=canary_suite,
-        inspection_attempts=8,
-        inspection_retry_delay=0.5,
         probe_authenticated_media=probe_authenticated_media,
         probe_media_duration=probe_media_duration,
     )

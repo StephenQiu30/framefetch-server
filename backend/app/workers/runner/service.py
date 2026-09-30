@@ -3,13 +3,13 @@ from __future__ import annotations
 import asyncio
 from dataclasses import replace
 from datetime import UTC, datetime
+from hashlib import sha256
 from pathlib import Path
 
 from app.services.downloads.rules.enums import Container, MediaKind, StreamKind
 from app.services.downloads.rules.errors import FormatSelectionError
 from app.services.downloads.rules.formats import CandidateStream, ProviderHints
 from app.services.downloads.rules.selection import select_streams
-from app.services.provider_access import ProviderAccessPolicy
 from app.services.provider_failures import FailurePhase
 from app.services.provider_types import ProviderAccessContextRef, ProviderAccessMode
 from app.workers.runner.active_tasks import ActiveTaskRegistry
@@ -21,6 +21,7 @@ from app.workers.runner.contracts import (
     CancelResponse,
     DownloadRequest,
     DownloadResponse,
+    InspectionOperationResponse,
     InspectResponse,
     RunnerTaskStage,
     SelectedStreamsContract,
@@ -28,6 +29,7 @@ from app.workers.runner.contracts import (
 )
 from app.workers.runner.errors import RunnerFailure
 from app.workers.runner.gallery import download_gallery_zip
+from app.workers.runner.inspection_operations import InspectionOperationRegistry
 from app.workers.runner.inspection_pipeline import RunnerInspectionPipeline
 from app.workers.runner.metadata import (
     build_download_options,
@@ -42,6 +44,7 @@ from app.workers.runner.provider_registry import (
 )
 from app.workers.runner.provider_sessions import ProviderSessionStore
 from app.workers.runner.release_identity import require_youtube_sidecar_identity
+from app.workers.runner.resolution_catalog import require_resolution_strategy
 from app.workers.runner.resolved_info import write_resolved_info
 from app.workers.runner.settings import RunnerSettings
 from app.workers.runner.thumbnails import ThumbnailFetcher
@@ -57,9 +60,6 @@ from app.workers.runner.workspace import (
     WorkspaceManager,
     WorkspaceViolation,
 )
-
-# Anonymous failures that the provider's session route is expected to clear.
-_SESSION_UPGRADE_CODES = frozenset({"credential_required", "egress_challenged"})
 
 
 class MediaRunnerService:
@@ -86,6 +86,9 @@ class MediaRunnerService:
             ),
         )
         self._active = ActiveTaskRegistry(settings.runner_max_active_tasks)
+        self._inspection_operations = InspectionOperationRegistry(
+            settings.runner_max_active_tasks
+        )
         self._sessions = session_store or ProviderSessionStore(settings)
 
     async def context(
@@ -121,10 +124,62 @@ class MediaRunnerService:
         *,
         access_context: ProviderAccessContextRef | None = None,
         deadline_at: datetime | None = None,
-        allow_session_fallback: bool = True,
+        strategy_id: str | None = None,
+        plan_revision: str | None = None,
+        operation_id: str | None = None,
+    ) -> InspectResponse:
+        async def execute() -> InspectResponse:
+            return await self._inspect_selected(
+                url,
+                access_context=access_context,
+                deadline_at=deadline_at,
+                strategy_id=strategy_id,
+                plan_revision=plan_revision,
+            )
+
+        if operation_id is None:
+            return await execute()
+        if (
+            access_context is None
+            or deadline_at is None
+            or strategy_id is None
+            or plan_revision is None
+        ):
+            raise RunnerFailure("invalid_request", status=422)
+        fingerprint = sha256(
+            "\0".join(
+                (
+                    url,
+                    access_context.generation_id,
+                    strategy_id,
+                    plan_revision,
+                    deadline_at.isoformat(),
+                )
+            ).encode()
+        ).hexdigest()
+        return await self._inspection_operations.run(operation_id, fingerprint, execute)
+
+    def inspection_status(self, operation_id: str) -> InspectionOperationResponse:
+        return self._inspection_operations.status(operation_id)
+
+    async def cancel_inspection(self, operation_id: str) -> InspectionOperationResponse:
+        return await self._inspection_operations.cancel(operation_id)
+
+    async def _inspect_selected(
+        self,
+        url: str,
+        *,
+        access_context: ProviderAccessContextRef | None = None,
+        deadline_at: datetime | None = None,
+        strategy_id: str | None = None,
+        plan_revision: str | None = None,
     ) -> InspectResponse:
         safe_url = safe_media_url(url)
         source = provider_request(safe_url)
+        if strategy_id is not None and plan_revision is not None:
+            require_resolution_strategy(
+                source.profile, self._settings, strategy_id, plan_revision
+            )
         await self._require_companion(source.profile.key)
         context = (
             await self._sessions.context_for(source.profile, url=safe_url)
@@ -143,44 +198,12 @@ class MediaRunnerService:
             try:
                 async with asyncio.timeout(timeout):
                     async with self._sessions.operation(context) as cookie_jar:
-                        try:
-                            inspection = await self._inspection.inspect(
-                                source,
-                                workspace,
-                                context=context,
-                                cookie_jar=cookie_jar,
-                            )
-                        except RunnerFailure as error:
-                            # Only explicit login or challenge evidence can enter
-                            # the provider's approved account route.
-                            # 429, private content and network failures cannot.
-                            if (
-                                not allow_session_fallback
-                                or error.code not in _SESSION_UPGRADE_CODES
-                                or error.failure.phase
-                                is not FailurePhase.FETCH_METADATA
-                                or self._settings.runner_access_mode
-                                is not ProviderAccessMode.OPERATOR_MANAGED
-                                or context.access_mode
-                                is not ProviderAccessMode.ANONYMOUS
-                                or source.profile.access_policy
-                                is not ProviderAccessPolicy.OPERATOR_PUBLIC
-                                or ProviderAccessMode.OPERATOR_MANAGED
-                                not in source.profile.access_modes
-                            ):
-                                raise
-                            context = await self._sessions.context_for(
-                                source.profile,
-                                url=safe_url,
-                                access_mode=ProviderAccessMode.OPERATOR_MANAGED,
-                            )
-                            async with self._sessions.operation(context) as account_jar:
-                                inspection = await self._inspection.inspect(
-                                    source,
-                                    workspace,
-                                    context=context,
-                                    cookie_jar=account_jar,
-                                )
+                        inspection = await self._inspection.inspect(
+                            source,
+                            workspace,
+                            context=context,
+                            cookie_jar=cookie_jar,
+                        )
                         plans = (
                             build_download_options(
                                 inspection.streams,

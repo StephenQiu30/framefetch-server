@@ -6,7 +6,9 @@ from enum import StrEnum
 from uuid import UUID
 
 from app.services.downloads.inspection_models import EncryptedUrl
+from app.services.downloads.resolution import ResolutionExecution, ResolutionPlan
 from app.services.provider_access import ProviderAccessPolicy
+from app.services.provider_failures import ProviderFailure
 
 
 class IntentStatus(StrEnum):
@@ -72,12 +74,18 @@ class IntentSnapshot:
     updated_at: datetime
     authorization_id: UUID | None = None
     authorization_deadline: datetime | None = None
+    resolution_plan: ResolutionPlan | None = None
+    next_strategy_id: str | None = None
+    selected_operation_id: str | None = None
+    latest_failure: ProviderFailure | None = None
 
 
 @dataclass(frozen=True, slots=True)
 class IntentOperation:
     intent: IntentSnapshot
     url: EncryptedUrl = field(repr=False)
+    newly_claimed: bool = True
+    execution: ResolutionExecution | None = None
 
 
 @dataclass(frozen=True, slots=True)

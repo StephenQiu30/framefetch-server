@@ -21,6 +21,7 @@ from app.services.downloads.fingerprints import HmacRequestFingerprinter
 from app.services.downloads.inspect_media import InspectMedia
 from app.services.downloads.intents import IntentService
 from app.services.provider_access import ProviderAccessPolicy
+from app.services.provider_failures import ProviderFailure
 from app.services.quotas import UserQuota
 from app.workers.download.activities import InspectionActivities
 from app.workers.download.workflows import InspectionCommand
@@ -97,11 +98,11 @@ class PreparingSessionRunner(FakeRunner):
         super().__init__(runner_result())
         self.waits = 0
 
-    async def inspect(self, url, *, access_policy):
+    async def prepare_resolution(self, url, plan, strategy_id):
         if self.waits < 4:
             self.waits += 1
             raise MediaInspectionSessionNotReady(before_media_io=True)
-        return await super().inspect(url, access_policy=access_policy)
+        return await super().prepare_resolution(url, plan, strategy_id)
 
 
 async def test_session_preparation_wait_keeps_original_intent_and_attempt_budget(
@@ -233,7 +234,7 @@ class WaitingRunner(FakeRunner):
         self.entered = asyncio.Event()
         self.stopped = asyncio.Event()
 
-    async def inspect(self, url, *, access_policy):
+    async def inspect(self, url, *, access_policy, execution=None):
         self.entered.set()
         try:
             await asyncio.Event().wait()
@@ -275,16 +276,23 @@ async def test_worker_interruption_recovers_original_intent(postgres_engine):
         await work
     assert runner.stopped.is_set()
     clock[0] += timedelta(seconds=16)
-    resumed = await repo.begin_attempt(
+    resumed = await repo.claim_preparation(
         intent.id, 0, "replacement-activity", now=clock[0]
     )
-    assert resumed.intent.attempt == 2 and resumed.intent.status == "resolving"
+    assert not resumed.newly_claimed and resumed.intent.attempt == 1
+    final = await executor.execute(InspectionCommand(str(intent.id), 0), "reconcile")
+    assert final.status == "failed"
+    assert (
+        await repo.get(intent.id, TEST_USER.owner_hash)
+    ).latest_failure.failure_class == "outcome_unknown"
 
 
 async def test_transient_failure_is_task_state_not_http_failure(postgres_engine):
     class Unavailable(FakeRunner):
-        async def inspect(self, url, *, access_policy):
-            raise MediaInspectionTemporarilyUnavailable
+        async def inspect(self, url, *, access_policy, execution=None):
+            raise MediaInspectionTemporarilyUnavailable(
+                failure=ProviderFailure.for_code("network_transient")
+            )
 
     service, repo, executor, clock, _ = components(
         postgres_engine, Unavailable(runner_result())
@@ -481,7 +489,7 @@ async def test_login_control_is_bound_to_owned_current_wait(postgres_engine):
     opener = AsyncMock()
     service._open_login = opener
     intent = await service.create(URL, TEST_USER.owner_hash, "login-control")
-    operation = await repo.begin_attempt(intent.id, 0, "prepare", now=clock[0])
+    operation = await repo.claim_preparation(intent.id, 0, "prepare", now=clock[0])
     waiting = await repo.fail(
         operation.intent, now=clock[0], reason_code="provider_auth_required"
     )

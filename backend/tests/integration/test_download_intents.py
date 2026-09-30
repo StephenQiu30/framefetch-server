@@ -22,10 +22,12 @@ from app.services.downloads.inspection_models import (
 )
 from app.services.downloads.intent_models import IntentCreate, IntentSnapshot
 from app.services.provider_access import ProviderAccessPolicy
+from app.services.provider_failures import ProviderFailure
 from sqlalchemy import event, func, select, text, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncEngine, async_sessionmaker
 from tests.postgres import isolated_postgres_engine
+from tests.resolution import start_attempt
 
 NOW = datetime(2026, 9, 22, tzinfo=UTC)
 OWNER = "a" * 64
@@ -134,40 +136,32 @@ async def test_outbox_write_failure_rolls_back_acceptance(
     assert await count(postgres_engine, OutboxEventRow) == 0
 
 
-async def test_worker_restart_fences_old_completion_and_keeps_one_result(
-    postgres_engine: AsyncEngine,
-) -> None:
+async def test_duplicate_delivery_cannot_replace_a_live_operation(postgres_engine):
     repo = repository(postgres_engine)
     accepted = await repo.accept(command(), now=NOW)
     claims = await asyncio.gather(
-        *(repo.begin_attempt(accepted.id, 0, "operation-1", now=NOW) for _ in range(20))
+        *(
+            start_attempt(repo, accepted.id, 0, "operation-1", now=NOW)
+            for _ in range(20)
+        )
     )
-    assert len({claim.intent.fence for claim in claims}) == 1
-    first = claims[0]
-    assert first.intent.attempt == 1
-    # A new Temporal attempt supersedes the old one without a lease scan.
-    second = await repo.begin_attempt(accepted.id, 0, "operation-2", now=NOW + LEASE)
-    assert second.intent.fence > first.intent.fence
-    assert second.intent.attempt == 2
-    assert second.intent.deadline == accepted.deadline
-    with pytest.raises(RepositoryConflict):
-        await repo.complete(first.intent, inspection(first.intent), now=NOW + LEASE)
-    result = inspection(second.intent)
-    completed = await repo.complete(
-        second.intent, result, now=NOW + LEASE + timedelta(seconds=1)
+    fresh = [claim for claim in claims if claim is not None]
+    assert len(fresh) == 1 and fresh[0].intent.attempt == 1
+    first = fresh[0]
+    assert (
+        await start_attempt(repo, accepted.id, 0, "operation-2", now=NOW + LEASE)
+        is None
     )
+    recovered = await repository(postgres_engine).running_operation(accepted.id, 0)
+    assert recovered.execution == first.execution
+    result = inspection(first.intent)
+    completed = await repo.complete(first.intent, result, now=NOW + LEASE)
     assert completed.status == "ready" and completed.inspection_id == result.id
-    assert completed.operation_id is None
+    assert await repo.complete(first.intent, result, now=NOW + LEASE) == completed
     assert await count(postgres_engine, MediaInspectionRow) == 1
     assert await count(postgres_engine, MediaFormatRow) == 1
-    # ACK loss and later sweeps cannot execute a completed result again.
     assert (
-        await repo.begin_attempt(
-            accepted.id,
-            (await repo.execution_state(accepted.id)).generation,
-            str(uuid4()),
-            now=NOW + LEASE,
-        )
+        await start_attempt(repo, accepted.id, 0, "after-ack-loss", now=NOW + LEASE)
         is None
     )
 
@@ -177,7 +171,8 @@ async def test_result_transaction_failure_keeps_intent_recoverable(
 ) -> None:
     repo = repository(postgres_engine)
     accepted = await repo.accept(command(), now=NOW)
-    lease = await repo.begin_attempt(
+    lease = await start_attempt(
+        repo,
         accepted.id,
         (await repo.execution_state(accepted.id)).generation,
         str(uuid4()),
@@ -199,11 +194,15 @@ async def test_result_transaction_failure_keeps_intent_recoverable(
     assert await count(postgres_engine, MediaFormatRow) == 0
     assert (await repo.get(accepted.id, OWNER)).status == "resolving"
     assert (
-        await repo.begin_attempt(
-            accepted.id, 0, "after-commit-failure", now=NOW + LEASE
+        await start_attempt(
+            repo, accepted.id, 0, "after-commit-failure", now=NOW + LEASE
         )
-        is not None
+        is None
     )
+    result = inspection(lease.intent)
+    ready = await repo.complete(lease.intent, result, now=NOW + LEASE)
+    assert ready.status == "ready"
+    assert await count(postgres_engine, MediaInspectionRow) == 1
 
 
 async def test_cancel_completion_race_never_revives_intent(
@@ -211,7 +210,8 @@ async def test_cancel_completion_race_never_revives_intent(
 ) -> None:
     repo = repository(postgres_engine)
     accepted = await repo.accept(command(), now=NOW)
-    lease = await repo.begin_attempt(
+    lease = await start_attempt(
+        repo,
         accepted.id,
         (await repo.execution_state(accepted.id)).generation,
         str(uuid4()),
@@ -233,7 +233,8 @@ async def test_cancel_completion_race_never_revives_intent(
     with pytest.raises(RepositoryConflict):
         await repo.fail(lease.intent, now=NOW, reason_code="inspection_failed")
     assert (
-        await repo.begin_attempt(
+        await start_attempt(
+            repo,
             accepted.id,
             (await repo.execution_state(accepted.id)).generation,
             str(uuid4()),
@@ -250,7 +251,8 @@ async def test_retry_wait_budget_and_queue_deadline_are_not_reset(
     accepted = await repo.accept(command(), now=NOW)
     for attempt in range(3):
         now = NOW + timedelta(seconds=attempt * 10)
-        lease = await repo.begin_attempt(
+        lease = await start_attempt(
+            repo,
             accepted.id,
             (await repo.execution_state(accepted.id)).generation,
             str(uuid4()),
@@ -266,16 +268,17 @@ async def test_retry_wait_budget_and_queue_deadline_are_not_reset(
         if attempt < 2:
             assert failed.status == "retry_wait"
             with pytest.raises(RepositoryConflict, match="timer"):
-                await repo.begin_attempt(
-                    accepted.id, 0, "too-early", now=now + timedelta(seconds=9)
+                await start_attempt(
+                    repo, accepted.id, 0, "too-early", now=now + timedelta(seconds=9)
                 )
         else:
             assert failed.status == "failed"
-    assert failed.remaining_budget_ms == 160000
+    assert failed.remaining_budget_ms == 180000
     assert failed.deadline == accepted.deadline
     queued = await repo.accept(replace(command(), idempotency_key="queued"), now=NOW)
     assert (
-        await repo.begin_attempt(
+        await start_attempt(
+            repo,
             queued.id,
             (await repo.execution_state(queued.id)).generation,
             str(uuid4()),
@@ -286,16 +289,17 @@ async def test_retry_wait_budget_and_queue_deadline_are_not_reset(
     assert (await repo.get(queued.id, OWNER)).status == "expired"
 
 
-async def test_guest_media_failures_still_consume_three_attempts(
+async def test_network_failures_still_consume_three_attempts(
     postgres_engine: AsyncEngine,
 ) -> None:
     repo = repository(postgres_engine)
     accepted = await repo.accept(
-        replace(command(), access_policy=ProviderAccessPolicy.PUBLIC_SESSION), now=NOW
+        replace(command(), access_policy=ProviderAccessPolicy.PUBLIC), now=NOW
     )
     for attempt in range(3):
         now = NOW + timedelta(seconds=attempt * 15)
-        lease = await repo.begin_attempt(
+        lease = await start_attempt(
+            repo,
             accepted.id,
             (await repo.execution_state(accepted.id)).generation,
             str(uuid4()),
@@ -305,7 +309,8 @@ async def test_guest_media_failures_still_consume_three_attempts(
         failed = await repo.fail(
             lease.intent,
             now=now,
-            reason_code="provider_guest_context_required",
+            reason_code="provider_temporarily_unavailable",
+            failure=ProviderFailure.for_code("network_transient"),
             retry_at=now + timedelta(seconds=15),
         )
         if attempt < 2:
@@ -320,7 +325,7 @@ async def test_session_preparation_wait_preserves_cancellation_and_deadline(
     waiting = await repo.accept(
         replace(command(), access_policy=ProviderAccessPolicy.OPERATOR_PUBLIC), now=NOW
     )
-    lease = await repo.begin_attempt(
+    lease = await repo.claim_preparation(
         waiting.id,
         (await repo.execution_state(waiting.id)).generation,
         str(uuid4()),
@@ -337,7 +342,7 @@ async def test_session_preparation_wait_preserves_cancellation_and_deadline(
     cancelled = await repo.cancel(waiting.id, OWNER, now=NOW + timedelta(seconds=5))
     assert cancelled.status == "cancelled"
     assert (
-        await repo.begin_attempt(
+        await repo.claim_preparation(
             waiting.id,
             (await repo.execution_state(waiting.id)).generation,
             str(uuid4()),
@@ -355,7 +360,7 @@ async def test_session_preparation_wait_preserves_cancellation_and_deadline(
         ),
         now=NOW,
     )
-    lease = await repo.begin_attempt(
+    lease = await repo.claim_preparation(
         expired.id,
         (await repo.execution_state(expired.id)).generation,
         str(uuid4()),
@@ -366,7 +371,7 @@ async def test_session_preparation_wait_preserves_cancellation_and_deadline(
         lease.intent, now=NOW, reason_code="provider_session_not_ready"
     )
     assert (
-        await repo.begin_attempt(
+        await repo.claim_preparation(
             expired.id, 0, "no-auto-retry", now=NOW + timedelta(minutes=5)
         )
         is None
@@ -399,7 +404,8 @@ async def test_foreign_inspection_cannot_be_attached(
 ) -> None:
     repo = repository(postgres_engine)
     accepted = await repo.accept(command(), now=NOW)
-    lease = await repo.begin_attempt(
+    lease = await start_attempt(
+        repo,
         accepted.id,
         (await repo.execution_state(accepted.id)).generation,
         str(uuid4()),
@@ -460,7 +466,8 @@ async def test_sql_bootstrap_and_repeat_preserve_intent_and_outbox() -> None:
         await apply_schema()
         repo = repository(engine)
         accepted = await repo.accept(command(), now=NOW)
-        lease = await repo.begin_attempt(
+        lease = await start_attempt(
+            repo,
             accepted.id,
             (await repo.execution_state(accepted.id)).generation,
             str(uuid4()),
@@ -500,13 +507,13 @@ async def test_cold_session_wait_keeps_one_intent_and_does_not_spend_parse_attem
     accepted = await repo.accept(replace(command(), access_policy=policy), now=NOW)
     for index in range(5):
         now = NOW + timedelta(seconds=index * 15)
-        lease = await repo.begin_attempt(
+        lease = await repo.claim_preparation(
             accepted.id,
             (await repo.execution_state(accepted.id)).generation,
             str(uuid4()),
             now=now,
         )
-        assert lease is not None and lease.intent.attempt == 1
+        assert lease is not None and lease.intent.attempt == 0
         waiting = await repo.fail(
             lease.intent,
             now=now,
@@ -520,7 +527,8 @@ async def test_cold_session_wait_keeps_one_intent_and_does_not_spend_parse_attem
             waiting.id, OWNER, waiting.authorization_id, now=now + timedelta(seconds=14)
         )
     now = NOW + timedelta(seconds=75)
-    lease = await repo.begin_attempt(
+    lease = await start_attempt(
+        repo,
         accepted.id,
         (await repo.execution_state(accepted.id)).generation,
         str(uuid4()),
@@ -537,7 +545,7 @@ async def test_late_result_at_deadline_expires_without_leaving_running_projectio
 ):
     repo = repository(postgres_engine)
     accepted = await repo.accept(command(), now=NOW)
-    operation = await repo.begin_attempt(accepted.id, 0, "attempt-1", now=NOW)
+    operation = await start_attempt(repo, accepted.id, 0, "attempt-1", now=NOW)
     final = await repo.complete(
         operation.intent, inspection(operation.intent), now=accepted.deadline
     )
@@ -547,14 +555,17 @@ async def test_late_result_at_deadline_expires_without_leaving_running_projectio
     assert await count(postgres_engine, MediaInspectionRow) == 0
 
 
-async def test_late_failure_cannot_invalidate_replacement_activity(postgres_engine):
+async def test_unknown_outcome_cannot_be_replaced_or_refreshed(postgres_engine):
     repo = repository(postgres_engine)
     accepted = await repo.accept(command(), now=NOW)
-    first = await repo.begin_attempt(accepted.id, 0, "old", now=NOW)
-    current = await repo.begin_attempt(accepted.id, 0, "new", now=NOW)
+    first = await start_attempt(repo, accepted.id, 0, "old", now=NOW)
+    assert await start_attempt(repo, accepted.id, 0, "new", now=NOW) is None
+    final = await repo.fail_generation(accepted.id, 0, now=NOW)
+    assert final.latest_failure.failure_class == "outcome_unknown"
     with pytest.raises(RepositoryConflict):
-        await repo.fail(first.intent, now=NOW, reason_code="inspection_timeout")
-    assert await repo.execution_state(accepted.id) == current.intent
+        await repo.complete(first.intent, inspection(first.intent), now=NOW)
+    with pytest.raises(RepositoryConflict, match="unconfirmed"):
+        await repo.refresh(accepted.id, OWNER, now=NOW)
 
 
 async def test_login_resume_is_owned_atomic_idempotent_and_preserves_budget(
@@ -562,9 +573,10 @@ async def test_login_resume_is_owned_atomic_idempotent_and_preserves_budget(
 ):
     repo = repository(postgres_engine)
     accepted = await repo.accept(
-        replace(command(), access_policy=ProviderAccessPolicy.OPERATOR_PUBLIC), now=NOW
+        replace(command(), access_policy=ProviderAccessPolicy.PERSONAL_ENTITLED),
+        now=NOW,
     )
-    operation = await repo.begin_attempt(accepted.id, 0, "first", now=NOW)
+    operation = await start_attempt(repo, accepted.id, 0, "first", now=NOW)
     waiting = await repo.fail(
         operation.intent,
         now=NOW + timedelta(seconds=10),
@@ -605,8 +617,13 @@ async def test_login_resume_is_owned_atomic_idempotent_and_preserves_budget(
         await repo.complete(
             operation.intent, inspection(operation.intent), now=NOW + timedelta(hours=2)
         )
-    second = await repo.begin_attempt(
-        waiting.id, 0, "second", now=NOW + timedelta(hours=2)
+    second = await start_attempt(
+        repo,
+        waiting.id,
+        0,
+        "second",
+        now=NOW + timedelta(hours=2),
+        credential="changed-session",
     )
     again = await repo.fail(
         second.intent,
@@ -636,9 +653,10 @@ async def test_login_resume_is_owned_atomic_idempotent_and_preserves_budget(
 async def test_resume_outbox_failure_leaves_task_waiting(postgres_engine):
     repo = repository(postgres_engine)
     accepted = await repo.accept(
-        replace(command(), access_policy=ProviderAccessPolicy.OPERATOR_PUBLIC), now=NOW
+        replace(command(), access_policy=ProviderAccessPolicy.PERSONAL_ENTITLED),
+        now=NOW,
     )
-    operation = await repo.begin_attempt(accepted.id, 0, "first", now=NOW)
+    operation = await start_attempt(repo, accepted.id, 0, "first", now=NOW)
     waiting = await repo.fail(
         operation.intent, now=NOW, reason_code="provider_auth_required"
     )

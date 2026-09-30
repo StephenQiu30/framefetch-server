@@ -1294,6 +1294,51 @@ CREATE INDEX IF NOT EXISTS ix_download_intents_deadline
 CREATE UNIQUE INDEX IF NOT EXISTS uq_download_intents_inspection
     ON download_intents (inspection_id);
 
+ALTER TABLE download_intents ADD COLUMN IF NOT EXISTS resolution_plan JSONB;
+ALTER TABLE download_intents ADD COLUMN IF NOT EXISTS next_strategy_id VARCHAR(128);
+ALTER TABLE download_intents ADD COLUMN IF NOT EXISTS selected_operation_id VARCHAR(64);
+ALTER TABLE download_intents ADD COLUMN IF NOT EXISTS latest_failure JSONB;
+
+CREATE TABLE IF NOT EXISTS resolution_attempts (
+    operation_id VARCHAR(64) PRIMARY KEY,
+    intent_id UUID NOT NULL REFERENCES download_intents (id) ON DELETE CASCADE,
+    generation INTEGER NOT NULL,
+    attempt_no INTEGER NOT NULL,
+    fence INTEGER NOT NULL,
+    strategy_id VARCHAR(128) NOT NULL,
+    plan_revision VARCHAR(64) NOT NULL,
+    plan_snapshot JSONB,
+    context_key VARCHAR(64) NOT NULL,
+    access_context JSONB NOT NULL,
+    runner_instance_id VARCHAR(32) NOT NULL,
+    deadline_at TIMESTAMPTZ NOT NULL,
+    started_at TIMESTAMPTZ NOT NULL,
+    finished_at TIMESTAMPTZ,
+    duration_ms INTEGER,
+    status VARCHAR(24) NOT NULL,
+    failure JSONB,
+    evidence_signature VARCHAR(64),
+    inspection_id UUID REFERENCES media_inspections (id),
+    CONSTRAINT uq_resolution_attempt_number UNIQUE (intent_id, generation, attempt_no),
+    CONSTRAINT ck_resolution_attempt_identity CHECK (
+        generation >= 0 AND attempt_no BETWEEN 1 AND 3 AND fence > 0
+    ),
+    CONSTRAINT ck_resolution_attempt_status CHECK (
+        status IN ('started','succeeded','failed','abandoned','outcome_unknown')
+    ),
+    CONSTRAINT ck_resolution_attempt_finished CHECK (
+        (status = 'started') = (finished_at IS NULL)
+    ),
+    CONSTRAINT ck_resolution_attempt_duration CHECK (
+        duration_ms IS NULL OR duration_ms BETWEEN 0 AND 180000
+    ),
+    CONSTRAINT ck_resolution_attempt_result CHECK (
+        status <> 'succeeded' OR inspection_id IS NOT NULL
+    )
+);
+CREATE INDEX IF NOT EXISTS ix_resolution_attempt_intent_started
+    ON resolution_attempts (intent_id, started_at);
+
 CREATE TABLE IF NOT EXISTS rabbitmq_dlq_replays (
     id UUID PRIMARY KEY,
     source_queue VARCHAR(64) NOT NULL,

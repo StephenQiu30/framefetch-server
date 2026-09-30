@@ -260,6 +260,7 @@ _define(
     FailureClass.OUTCOME_UNKNOWN,
     FailureScope.RUNTIME,
 )
+_define(("outcome_unknown",), FailureClass.OUTCOME_UNKNOWN, FailureScope.RUNTIME)
 
 
 def failure_definition(code: str) -> tuple[FailureClass, FailureScope, FailurePhase]:

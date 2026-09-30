@@ -22,7 +22,7 @@ from app.models.document import (
 )
 from app.models.document_import import DocumentImportAttemptRow
 from app.models.download import ArtifactRow, DownloadJobRow
-from app.models.download_intent import DownloadIntentRow
+from app.models.download_intent import DownloadIntentRow, ResolutionAttemptRow
 from app.models.email_verification import EmailVerificationRow
 from app.models.media import (
     DownloadThumbnailRow,
@@ -62,6 +62,7 @@ __all__ = [
     "AnalysisStepResultRow",
     "DownloadJobRow",
     "DownloadIntentRow",
+    "ResolutionAttemptRow",
     "DownloadThumbnailRow",
     "DocumentArtifactRow",
     "DocumentImportAttemptRow",

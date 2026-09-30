@@ -118,7 +118,9 @@ async def test_silent_remux_does_not_require_an_audio_stream(tmp_path: Path) -> 
     assert "1:a:0" not in supervisor.argv
 
 
-def test_provider_retry_budget_applies_to_inspect_and_download(tmp_path: Path) -> None:
+def test_inspection_has_no_hidden_retries_and_transfer_keeps_fragment_budget(
+    tmp_path: Path,
+) -> None:
     builder = YtDlpCommandBuilder(settings(tmp_path), tmp_path)
     commands = (
         builder.inspect(
@@ -142,11 +144,13 @@ def test_provider_retry_budget_applies_to_inspect_and_download(tmp_path: Path) -
         ).argv,
     )
 
-    for command, expected in zip(commands, ("0", "0", "3", "3"), strict=True):
+    for command, expected in zip(commands, ("0", "0", "0", "3"), strict=True):
         assert "--no-warnings" not in command
-        for option in ("--retries", "--fragment-retries", "--extractor-retries"):
+        for option in ("--retries", "--fragment-retries"):
             assert command.count(option) == 1
             assert command[command.index(option) + 1] == expected
+        assert command.count("--extractor-retries") == 1
+        assert command[command.index("--extractor-retries") + 1] == "0"
 
     assert "--ignore-no-formats-error" in commands[0]
     assert "--ignore-no-formats-error" in commands[2]

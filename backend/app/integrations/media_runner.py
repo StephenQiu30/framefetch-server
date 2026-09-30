@@ -28,6 +28,7 @@ from app.integrations.media_runner_models import (
     download_stage,
 )
 from app.schemas.engine_catalog import EngineCatalogResponse
+from app.schemas.resolution import RunnerEngineCatalogResponse
 from app.services.downloads.errors import (
     MediaInspectionAuthRequired,
     MediaInspectionContentRestricted,
@@ -49,6 +50,12 @@ from app.services.downloads.errors import (
     MediaInspectionVerificationFailed,
 )
 from app.services.downloads.inspection_models import RunnerFormat, RunnerInspection
+from app.services.downloads.resolution import (
+    ResolutionCapability,
+    ResolutionExecution,
+    ResolutionPlan,
+    ResolutionPreparation,
+)
 from app.services.downloads.rules.content_restrictions import ContentRestriction
 from app.services.downloads.rules.enums import MediaKind
 from app.services.downloads.rules.formats import DownloadPlan
@@ -73,6 +80,7 @@ from app.workers.runner.contracts import (
     DownloadPlanContract,
     DownloadRequest,
     DownloadResponse,
+    InspectionOperationResponse,
     InspectRequest,
     InspectResponse,
     ProviderAccessContextContract,
@@ -106,8 +114,23 @@ class MediaRunnerClient(Protocol):
 
     async def engine_catalog(self) -> EngineCatalogResponse: ...
 
+    async def resolution_capability(self, url: str) -> ResolutionCapability: ...
+
+    async def prepare_resolution(
+        self, url: str, plan: ResolutionPlan, strategy_id: str
+    ) -> ResolutionPreparation: ...
+
+    async def reconcile_inspection(
+        self, url: str, execution: ResolutionExecution
+    ) -> RunnerInspection: ...
+
+    async def cancel_inspection(self, execution: ResolutionExecution) -> bool: ...
+
     async def context(
-        self, url: str, *, access_mode: ProviderAccessMode | None = None
+        self,
+        url: str,
+        *,
+        access_mode: ProviderAccessMode | None = None,
     ) -> ProviderAccessContextRef: ...
 
     async def contexts_for_providers(
@@ -118,7 +141,11 @@ class MediaRunnerClient(Protocol):
     ) -> tuple[ProviderAccessContextRef, ...]: ...
 
     async def inspect(
-        self, url: str, *, access_mode: ProviderAccessMode | None = None
+        self,
+        url: str,
+        *,
+        access_mode: ProviderAccessMode | None = None,
+        execution: ResolutionExecution | None = None,
     ) -> RunnerInspection: ...
 
     async def download(
@@ -170,14 +197,55 @@ class MediaRunnerHttpClient:
         self._client = client or httpx.AsyncClient(base_url=base_url)
 
     async def engine_catalog(self) -> EngineCatalogResponse:
+        snapshot = await self._resolution_catalog()
+        return EngineCatalogResponse.model_validate(
+            snapshot.model_dump(exclude={"resolution_capabilities"})
+        )
+
+    async def _resolution_catalog(self) -> RunnerEngineCatalogResponse:
         return await self._request(
             "GET",
             "/internal/engine-catalog",
             b"",
-            EngineCatalogResponse,
+            RunnerEngineCatalogResponse,
             15.0,
             timeout_code="engine_catalog_unavailable",
         )
+
+    async def resolution_capability(self, url: str) -> ResolutionCapability:
+        provider_key = provider_profile(url).key
+        snapshot = await self._resolution_catalog()
+        matches = tuple(
+            item
+            for item in snapshot.resolution_capabilities
+            if item.provider_key == provider_key
+        )
+        if len(matches) != 1:
+            raise MediaInspectionUnsupported
+        return matches[0]
+
+    async def prepare_resolution(
+        self, url: str, plan: ResolutionPlan, strategy_id: str
+    ) -> ResolutionPreparation:
+        try:
+            strategy = plan.strategy(strategy_id)
+            context = await self.context(url, access_mode=strategy.access_mode)
+            if (
+                context.strategy_id != strategy_id
+                or context.adapter_revision != strategy.adapter_revision
+            ):
+                raise MediaRunnerClientError("context_changed", 409)
+            runtime = await self._request(
+                "GET",
+                "/internal/runtime",
+                b"",
+                RuntimeResponse,
+                5.0,
+                timeout_code="runner_unavailable",
+            )
+            return ResolutionPreparation(context, runtime.instance_id)
+        except MediaRunnerClientError as exc:
+            raise _inspection_error(exc, before_media_io=True) from exc
 
     async def context(
         self, url: str, *, access_mode: ProviderAccessMode | None = None
@@ -226,22 +294,33 @@ class MediaRunnerHttpClient:
         return tuple(_context_to_domain(context) for context in response.contexts)
 
     async def inspect(
-        self, url: str, *, access_mode: ProviderAccessMode | None = None
+        self,
+        url: str,
+        *,
+        access_mode: ProviderAccessMode | None = None,
+        execution: ResolutionExecution | None = None,
     ) -> RunnerInspection:
         context_ready = False
         context = None
         try:
             context = (
-                await self.context(url, access_mode=access_mode)
-                if self._admission is not None
-                or self._expected_access_mode is not None
-                or access_mode is not None
-                else None
+                execution.context
+                if execution is not None
+                else await self.context(url, access_mode=access_mode)
             )
+            if execution is None:
+                capability = await self.resolution_capability(url)
+                revision = capability.revision
+            else:
+                revision = execution.plan_revision
             context_ready = context is not None
             if self._admission is None:
                 response = await self._inspect_response(
-                    url, context, allow_session_fallback=access_mode is None
+                    url,
+                    context,
+                    execution.deadline_at if execution else None,
+                    plan_revision=revision,
+                    execution=execution,
                 )
             else:
                 assert context is not None
@@ -250,8 +329,11 @@ class MediaRunnerHttpClient:
                     lambda deadline: self._inspect_response(
                         url,
                         context,
-                        deadline,
-                        allow_session_fallback=access_mode is None,
+                        min(deadline, execution.deadline_at)
+                        if execution and deadline
+                        else (execution.deadline_at if execution else deadline),
+                        plan_revision=revision,
+                        execution=execution,
                     ),
                 )
         except RouteCoolingDown as exc:
@@ -261,84 +343,128 @@ class MediaRunnerHttpClient:
         except RouteAdmissionUnavailable as exc:
             raise MediaInspectionTemporarilyUnavailable from exc
         except MediaRunnerClientError as exc:
+            if execution is not None and (
+                exc.failure is not None
+                and exc.failure.evidence_kind is FailureEvidenceKind.TRANSPORT
+                or exc.code == "invalid_runner_response"
+            ):
+                return await self.reconcile_inspection(url, execution)
             raise _inspection_error(exc, before_media_io=not context_ready) from exc
-        return RunnerInspection(
-            extractor_key=response.media.extractor_key,
-            provider_media_id=response.media.provider_media_id,
-            title=response.media.title,
-            duration_seconds=math.ceil(response.media.duration_seconds),
-            formats=tuple(
-                RunnerFormat(
-                    item.label,
-                    None if item.plan is None else item.plan.to_domain(),
-                    item.media_kind,
-                    item.asset_count,
+        return _inspection_result(response)
+
+    async def cancel_inspection(self, execution: ResolutionExecution) -> bool:
+        try:
+            receipt = await self._request(
+                "POST",
+                f"/internal/inspection-operations/{execution.operation_id}/cancel",
+                CancelCommand().model_dump_json().encode(),
+                InspectionOperationResponse,
+                25.0,
+                timeout_code="runner_unavailable",
+                runtime_instance_id=execution.runner_instance_id,
+            )
+        except MediaRunnerClientError:
+            return False
+        return receipt.status in {"succeeded", "failed", "cancelled"}
+
+    async def reconcile_inspection(
+        self, url: str, execution: ResolutionExecution
+    ) -> RunnerInspection:
+        try:
+            target = f"/internal/inspection-operations/{execution.operation_id}"
+            while True:
+                receipt = await self._request(
+                    "GET",
+                    target,
+                    b"",
+                    InspectionOperationResponse,
+                    5.0,
+                    timeout_code="runner_unavailable",
+                    runtime_instance_id=execution.runner_instance_id,
                 )
-                for item in response.options
-            ),
-            access_context=_context_to_domain(response.access_context),
-            thumbnail_data_url=response.media.thumbnail_data_url,
-            media_kind=response.media.media_kind,
-            asset_count=response.media.asset_count,
+                remaining = (execution.deadline_at - datetime.now(UTC)).total_seconds()
+                if receipt.status != "active" or remaining <= 0:
+                    break
+                # Local receipt polling consumes no new platform call. A lost
+                # ACK or duplicate delivery must not cancel a healthy owner.
+                await asyncio.sleep(min(1, remaining))
+            if receipt.status == "active":
+                receipt = await self._request(
+                    "POST",
+                    f"{target}/cancel",
+                    CancelCommand().model_dump_json().encode(),
+                    InspectionOperationResponse,
+                    25.0,
+                    timeout_code="runner_unavailable",
+                    runtime_instance_id=execution.runner_instance_id,
+                )
+            if receipt.result is not None:
+                self._validate_inspection_context(receipt.result, execution.context)
+                return _inspection_result(receipt.result)
+            if receipt.status == "failed" and receipt.failure is not None:
+                fact = receipt.failure.to_domain()
+                raise MediaRunnerClientError(
+                    fact.code, 502, failure=fact, retry_at=fact.retry_after
+                )
+            if receipt.status == "cancelled":
+                fact = ProviderFailure.for_code(
+                    "inspection_timeout", evidence_kind=FailureEvidenceKind.TRANSPORT
+                )
+                raise MediaRunnerClientError(fact.code, 504, failure=fact)
+        except MediaRunnerClientError as exc:
+            if exc.code not in {
+                "runner_restarted",
+                "runner_unavailable",
+                "invalid_runner_response",
+            }:
+                raise _inspection_error(exc, before_media_io=False) from exc
+        fact = ProviderFailure.for_code(
+            "outcome_unknown", evidence_kind=FailureEvidenceKind.RUNTIME
+        ).with_context(
+            strategy_id=execution.strategy_id,
+            context_key=execution.context.generation_id,
         )
+        raise MediaInspectionTemporarilyUnavailable(failure=fact)
+
+    @staticmethod
+    def _validate_inspection_context(
+        response: InspectResponse, context: ProviderAccessContextRef
+    ) -> None:
+        if _context_to_domain(response.access_context) != context:
+            raise MediaRunnerClientError("client_context_mismatch", 422)
+        if not response.options:
+            raise MediaRunnerClientError("format_unavailable", 422)
 
     async def _inspect_response(
         self,
         url: str,
-        context: ProviderAccessContextRef | None = None,
+        context: ProviderAccessContextRef,
         deadline_at: datetime | None = None,
         *,
-        allow_session_fallback: bool = True,
+        plan_revision: str,
+        execution: ResolutionExecution | None = None,
     ) -> InspectResponse:
+        if context.strategy_id is None:
+            raise MediaRunnerClientError("client_context_mismatch", 422)
         response = await self._request(
             "POST",
             "/internal/inspect",
             InspectRequest(
                 url=url,
-                access_context=(
-                    None
-                    if context is None
-                    else ProviderAccessContextContract.from_domain(context)
-                ),
+                access_context=ProviderAccessContextContract.from_domain(context),
                 deadline_at=deadline_at,
-                allow_session_fallback=allow_session_fallback,
+                strategy_id=context.strategy_id,
+                plan_revision=plan_revision,
+                operation_id=execution.operation_id if execution else None,
             )
             .model_dump_json()
             .encode(),
             InspectResponse,
             self._inspect_timeout,
             timeout_code="inspection_timeout",
+            runtime_instance_id=execution.runner_instance_id if execution else None,
         )
-        if context is not None:
-            returned_context = _context_to_domain(response.access_context)
-            if returned_context != context:
-                from dataclasses import replace
-
-                from app.services.provider_access import ProviderAccessPolicy
-                from app.workers.runner.release_identity import runtime_code_sha256
-
-                profile = provider_profile(url)
-                upgrade = (
-                    allow_session_fallback
-                    and profile.access_policy is ProviderAccessPolicy.OPERATOR_PUBLIC
-                    and context.access_mode is ProviderAccessMode.ANONYMOUS
-                    and returned_context.access_mode
-                    is ProviderAccessMode.OPERATOR_MANAGED
-                    and returned_context.credential_version_id is not None
-                    and replace(
-                        context,
-                        access_mode=returned_context.access_mode,
-                        credential_version_id=returned_context.credential_version_id,
-                        runtime_revision=runtime_code_sha256(
-                            profile.key, access_mode=returned_context.access_mode
-                        ),
-                    )
-                    == returned_context
-                )
-                if not upgrade:
-                    raise MediaRunnerClientError("client_context_mismatch", 422)
-            if not response.options:
-                raise MediaRunnerClientError("format_unavailable", 422)
+        self._validate_inspection_context(response, context)
         return response
 
     async def download(
@@ -381,6 +507,12 @@ class MediaRunnerHttpClient:
                 timeout_code="download_timeout",
             )
 
+        async def probe(deadline: datetime | None) -> InspectResponse:
+            capability = await self.resolution_capability(url)
+            return await self._inspect_response(
+                url, access_context, deadline, plan_revision=capability.revision
+            )
+
         response = (
             await execute()
             if self._admission is None
@@ -388,9 +520,7 @@ class MediaRunnerHttpClient:
                 access_context,
                 execute,
                 owner=task_id,
-                probe=lambda deadline: self._inspect_response(
-                    url, access_context, deadline
-                ),
+                probe=probe,
             )
         )
         workspace = Path(response.workspace_path).resolve()
@@ -459,9 +589,13 @@ class MediaRunnerHttpClient:
         timeout: float,
         *,
         timeout_code: str,
+        runtime_instance_id: str | None = None,
     ) -> ResponseModel:
-        instance_id = None
-        if target in {"/internal/inspect", "/internal/download"}:
+        instance_id = runtime_instance_id
+        if instance_id is None and target in {
+            "/internal/inspect",
+            "/internal/download",
+        }:
             # Bind this one execution, never transparently replay it after a boot.
             runtime = await self._request(
                 "GET",
@@ -537,6 +671,28 @@ class MediaRunnerHttpClient:
             raise ValueError("invalid runner task id")
 
 
+def _inspection_result(response: InspectResponse) -> RunnerInspection:
+    return RunnerInspection(
+        extractor_key=response.media.extractor_key,
+        provider_media_id=response.media.provider_media_id,
+        title=response.media.title,
+        duration_seconds=math.ceil(response.media.duration_seconds),
+        formats=tuple(
+            RunnerFormat(
+                item.label,
+                None if item.plan is None else item.plan.to_domain(),
+                item.media_kind,
+                item.asset_count,
+            )
+            for item in response.options
+        ),
+        access_context=_context_to_domain(response.access_context),
+        thumbnail_data_url=response.media.thumbnail_data_url,
+        media_kind=response.media.media_kind,
+        asset_count=response.media.asset_count,
+    )
+
+
 class MediaRunnerRouter:
     """Route online media exclusively through the deployment session Runner."""
 
@@ -560,10 +716,41 @@ class MediaRunnerRouter:
     async def engine_catalog(self) -> EngineCatalogResponse:
         return await self._session.engine_catalog()
 
-    async def inspect(
-        self, url: str, *, access_policy: ProviderAccessPolicy | None = None
+    async def resolution_capability(
+        self, url: str, *, access_policy: ProviderAccessPolicy
+    ) -> ResolutionCapability:
+        try:
+            selected = await self.resolve_access_policy(url, access_policy)
+            capability = await self._session.resolution_capability(url)
+            if capability.access_policy != selected:
+                raise MediaInspectionPolicyNotAllowed
+            return capability
+        except MediaRunnerClientError as exc:
+            raise _inspection_error(exc, before_media_io=True) from exc
+
+    async def prepare_resolution(
+        self, url: str, plan: ResolutionPlan, strategy_id: str
+    ) -> ResolutionPreparation:
+        return await self._session.prepare_resolution(url, plan, strategy_id)
+
+    async def reconcile_inspection(
+        self, url: str, execution: ResolutionExecution
     ) -> RunnerInspection:
-        return await self._inspection_pipeline.inspect(url, access_policy=access_policy)
+        return await self._session.reconcile_inspection(url, execution)
+
+    async def cancel_inspection(self, execution: ResolutionExecution) -> bool:
+        return await self._session.cancel_inspection(execution)
+
+    async def inspect(
+        self,
+        url: str,
+        *,
+        access_policy: ProviderAccessPolicy | None = None,
+        execution: ResolutionExecution | None = None,
+    ) -> RunnerInspection:
+        return await self._inspection_pipeline.inspect(
+            url, access_policy=access_policy, execution=execution
+        )
 
     async def context(
         self, url: str, access_mode: ProviderAccessMode
