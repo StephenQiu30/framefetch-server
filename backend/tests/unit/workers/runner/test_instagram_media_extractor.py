@@ -92,7 +92,9 @@ async def test_photo_pipeline_skips_video_probes_and_downloads_zip(tmp_path) -> 
             provider_request("https://www.instagram.com/p/example/"),
             workspace,
             context=SimpleNamespace(
-                provider_key="instagram", access_mode=ProviderAccessMode.ANONYMOUS
+                provider_key="instagram",
+                access_mode=ProviderAccessMode.ANONYMOUS,
+                strategy_id=None,
             ),
             cookie_jar=None,
         )

@@ -75,6 +75,16 @@ class RunnerSettings(ProviderEgressSettings):
     runner_ffmpeg_bin: str = "ffmpeg"
     runner_ffprobe_bin: str = "ffprobe"
 
+    runner_browser_enabled: bool = False
+    runner_browser_profile_root: Path = Path("/var/lib/video-browser")
+    runner_browser_temp_root: Path = Path("/tmp/video-browser")
+    runner_browser_lock_wait_seconds: float = Field(default=5, gt=0, le=30)
+    runner_browser_launch_timeout_seconds: float = Field(default=30, gt=0, le=60)
+    runner_browser_page_timeout_seconds: float = Field(default=45, gt=0, le=120)
+    runner_browser_max_profile_bytes: int = Field(
+        default=512 * 1024**2, ge=16 * 1024**2, le=2 * 1024**3
+    )
+
     runner_signature_max_age_seconds: int = Field(default=30, ge=1, le=300)
     runner_signature_future_skew_seconds: int = Field(default=5, ge=0, le=60)
     runner_nonce_ttl_seconds: int = Field(default=60, ge=2, le=600)
@@ -129,6 +139,8 @@ class RunnerSettings(ProviderEgressSettings):
     @field_validator(
         "runner_workspace_root",
         "runner_provider_session_temp_root",
+        "runner_browser_profile_root",
+        "runner_browser_temp_root",
     )
     @classmethod
     def resolve_workspace(cls, value: Path) -> Path:

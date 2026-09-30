@@ -147,6 +147,9 @@ def create_app(
         try:
             yield
         finally:
+            if service is None:
+                assert isinstance(runner, MediaRunnerService)
+                await runner.close()
             await sessions.close()
 
     app = FastAPI(

@@ -32,6 +32,7 @@ dependencies = [
   "pillow>=12,<13",
   "tldextract>=5.3,<6",
   "temporalio==1.33.0",
+  "playwright==1.63.0",
 ]
 
 [dependency-groups]

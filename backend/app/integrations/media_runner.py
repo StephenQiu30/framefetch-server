@@ -949,6 +949,10 @@ def _inspection_error(
             "runner_release_mismatch": MediaInspectionTemporarilyUnavailable,
             "runner_release_changed": MediaInspectionTemporarilyUnavailable,
             "runner_restarted": MediaInspectionTemporarilyUnavailable,
+            "browser_unavailable": MediaInspectionTemporarilyUnavailable,
+            "browser_release_changed": MediaInspectionTemporarilyUnavailable,
+            "browser_capacity_exhausted": MediaInspectionTemporarilyUnavailable,
+            "browser_profile_limit": MediaInspectionTemporarilyUnavailable,
         }.get(code, MediaInspectionFailure)
         failure = error_type(code)
     return failure.with_failure(error.failure)

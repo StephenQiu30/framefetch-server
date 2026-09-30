@@ -85,7 +85,9 @@ async def test_authenticated_x_resolves_missing_audio_without_forwarding_cookies
             provider_request("https://x.com/user/status/123"),
             workspace,
             context=SimpleNamespace(
-                provider_key="x", access_mode=ProviderAccessMode.OPERATOR_MANAGED
+                provider_key="x",
+                access_mode=ProviderAccessMode.OPERATOR_MANAGED,
+                strategy_id=None,
             ),
             cookie_jar=jar,
         )

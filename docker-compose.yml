@@ -7,13 +7,14 @@ x-provider-session-runner: &provider-session-runner
   image: video-server:local
   restart: unless-stopped
   stop_grace_period: 90s
+  shm_size: 256m
   networks:
     - runner_rpc_net
     - runner_egress_net
   extra_hosts:
     - "host.docker.internal:host-gateway"
   tmpfs:
-    - /tmp:rw,noexec,nosuid,size=64m
+    - /tmp:rw,noexec,nosuid,size=512m
     - /run/provider-session:rw,noexec,nosuid,size=16m,mode=0700,uid=10001,gid=10001
   depends_on:
     egress-proxy:
@@ -58,6 +59,8 @@ x-provider-session-environment: &provider-session-environment
   RUNNER_MAX_OUTPUT_BYTES: "${RUNNER_MAX_OUTPUT_BYTES:-21474836480}"
   RUNNER_MAX_WORKSPACE_BYTES: "${RUNNER_MAX_WORKSPACE_BYTES:-42949672960}"
   RUNNER_PROVIDER_SESSION_TEMP_ROOT: /run/provider-session
+  RUNNER_BROWSER_ENABLED: "${RUNNER_BROWSER_ENABLED:-true}"
+  RUNNER_BROWSER_PROFILE_ROOT: /var/lib/video-browser
   PEERTUBE_ALLOWED_INSTANCES: "${PEERTUBE_ALLOWED_INSTANCES:-[]}"
 
 x-temporal-database: &temporal-database
@@ -514,6 +517,7 @@ services:
       - youtube_pot_net
     volumes:
       - runner_work:/work
+      - browser_profiles:/var/lib/video-browser
     depends_on:
       egress-proxy:
         condition: service_healthy
@@ -557,6 +561,7 @@ services:
 
 volumes:
   runner_work:
+  browser_profiles:
 
 networks:
   app_net:

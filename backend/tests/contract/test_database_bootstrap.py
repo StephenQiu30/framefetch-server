@@ -456,8 +456,8 @@ def test_site_session_services_relay_live_chrome_without_storing_it() -> None:
         broker = services["session-broker"]
         runner = services["session-runner"]
 
-        # No stored copy and no second browser: login state is read from the
-        # dedicated platform browser by the host agent on each operation.
+        # The existing Runner owns browser execution. The broker keeps no
+        # session copy; approved Chrome material is still leased per operation.
         assert "session-browser" not in services
         for config in services.values():
             assert "SITE_SESSION_ENCRYPTION_KEY" not in config.get("environment", {})
@@ -474,7 +474,17 @@ def test_site_session_services_relay_live_chrome_without_storing_it() -> None:
             "runner_egress_net",
             "youtube_pot_net",
         }
-        assert runner["volumes"] == ["runner_work:/work"]
+        assert runner["volumes"] == [
+            "runner_work:/work",
+            "browser_profiles:/var/lib/video-browser",
+        ]
+        assert environment["RUNNER_BROWSER_PROFILE_ROOT"] == "/var/lib/video-browser"
+        assert runner["shm_size"] == "256m"
+        assert all(
+            "browser_profiles" not in str(config.get("volumes", []))
+            for name, config in services.items()
+            if name != "session-runner"
+        )
         assert environment["RUNNER_SESSION_BROKER_URL"] == "http://session-broker:19200"
         assert "DATABASE_URL" not in environment
         assert "SITE_SESSION_AGENT_SECRET" not in environment

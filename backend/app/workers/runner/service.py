@@ -13,6 +13,7 @@ from app.services.downloads.rules.selection import select_streams
 from app.services.provider_failures import FailurePhase
 from app.services.provider_types import ProviderAccessContextRef, ProviderAccessMode
 from app.workers.runner.active_tasks import ActiveTaskRegistry
+from app.workers.runner.browser_runtime import BrowserRuntime
 from app.workers.runner.collection import download_video_collection_zip
 from app.workers.runner.command_support import default_supervisor
 from app.workers.runner.commands import MediaCommands, ProcessRunner
@@ -71,6 +72,7 @@ class MediaRunnerService:
         session_store: ProviderSessionStore | None = None,
     ) -> None:
         self._settings = settings
+        self._browser = BrowserRuntime(settings)
         self._commands = MediaCommands(
             settings,
             supervisor or default_supervisor(settings),
@@ -90,6 +92,9 @@ class MediaRunnerService:
             settings.runner_max_active_tasks
         )
         self._sessions = session_store or ProviderSessionStore(settings)
+
+    async def close(self) -> None:
+        await self._browser.close()
 
     async def context(
         self, url: str, *, access_mode: ProviderAccessMode | None = None

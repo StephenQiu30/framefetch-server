@@ -27,6 +27,7 @@ FROM python:3.12-slim-bookworm@sha256:392307d22300de8b5986851a12d9176dfc0fc073e6
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
+    PLAYWRIGHT_BROWSERS_PATH=/opt/playwright \
     PATH="/app/backend/.venv/bin:${PATH}"
 WORKDIR /app/backend
 
@@ -43,6 +44,11 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
 
 COPY --link --from=backend-builder --chown=10001:10001 /app/backend /app/backend
 COPY --link --from=node-runtime /usr/local/bin/node /usr/local/bin/node
+
+# The Python lock pins the driver and its exact Chromium revision together.
+RUN python -m playwright install --with-deps --no-shell chromium \
+    && chmod -R a+rX /opt/playwright \
+    && install -d -o 10001 -g 10001 -m 0700 /var/lib/video-browser
 
 USER appuser
 EXPOSE 8111

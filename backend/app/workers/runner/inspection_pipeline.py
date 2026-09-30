@@ -8,7 +8,11 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 
 from app.services.provider_failures import FailurePhase
-from app.services.provider_types import ProviderAccessContextRef, ProviderAccessMode
+from app.services.provider_types import (
+    ProviderAccessContextRef,
+    ProviderAccessMode,
+    ResolutionExecutionKind,
+)
 from app.workers.runner.commands import MediaCommands
 from app.workers.runner.entitlements import enforce_media_rights
 from app.workers.runner.errors import RunnerFailure
@@ -75,6 +79,23 @@ class RunnerInspectionPipeline:
         cookie_jar: Path | None,
         probe_failures: list[RunnerFailure],
     ) -> MediaInspection:
+        selected = next(
+            (
+                item
+                for item in source.profile.resolution_strategies
+                if item.strategy_id == context.strategy_id
+            ),
+            None,
+        )
+        if (
+            selected is not None
+            and selected.execution_kind is ResolutionExecutionKind.BROWSER
+        ):
+            # Resource availability is not a platform adapter. A browser route
+            # remains unavailable until its fixed page/media handler is shipped.
+            raise RunnerFailure("provider_unsupported", status=422).attributed_to(
+                context
+            )
         payload = await self._commands.inspect(
             source, workspace.path, cookie_jar=cookie_jar
         )

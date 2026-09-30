@@ -10,6 +10,8 @@ FastAPI API、下载/分析领域逻辑、异步 Worker、当前态数据库 SQL
 
 接入与安装命令统一见[根 README](../README.md)，职责、错误与尚未解决的限制见[平台会话设计](../docs/design/08-平台会话.md)。
 
+Runner 镜像随锁文件安装配套 Playwright/Chromium。业务 Compose 通过 `RUNNER_BROWSER_ENABLED` 控制浏览器资源能力，仅 `session-runner` 挂载 `browser_profiles` 卷；该卷保存浏览器原生 Profile，不保存业务任务。匿名与 Chrome 租约上下文在 `/tmp` 临时目录中执行并清理；持久 Profile 使用平台/来源隔离与进程锁。浏览器与 HTTP 复用 Provider 出口，缺浏览器、资源忙和页面响应分别分类。当前 Registry 尚未启用平台浏览器解析策略，普通 HTTP 解析继续按既有声明执行；启用条件与真实文件证据统一见[设计 17](../docs/design/17-通用解析架构与实施计划.md)。
+
 ## 目录约定
 
 ```text

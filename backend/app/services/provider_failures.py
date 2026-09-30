@@ -261,6 +261,18 @@ _define(
     FailureScope.RUNTIME,
 )
 _define(("outcome_unknown",), FailureClass.OUTCOME_UNKNOWN, FailureScope.RUNTIME)
+_define(
+    ("browser_unavailable", "browser_release_changed"),
+    FailureClass.RUNTIME_UNAVAILABLE,
+    FailureScope.RUNTIME,
+    FailurePhase.PREPARE_CONTEXT,
+)
+_define(
+    ("browser_capacity_exhausted", "browser_profile_limit"),
+    FailureClass.CAPACITY_EXHAUSTED,
+    FailureScope.RUNTIME,
+    FailurePhase.PREPARE_CONTEXT,
+)
 
 
 def failure_definition(code: str) -> tuple[FailureClass, FailureScope, FailurePhase]:
