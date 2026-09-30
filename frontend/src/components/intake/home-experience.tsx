@@ -38,7 +38,7 @@ export function HomeExperience({
   return (
     <div
       aria-busy={(loading && !resolvedView) || undefined}
-      className="relative flex min-h-[60vh] flex-1 flex-col"
+      className="flex flex-1 flex-col"
       data-auth-pending={loading || undefined}
       data-home-phase={loading ? 'resolving' : 'ready'}
       data-slot="home-experience"

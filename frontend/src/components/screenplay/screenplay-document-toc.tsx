@@ -97,15 +97,14 @@ export function ScreenplayDocumentToc({
                 <NavigationMenuLink
                   asChild
                   className={cn(
-                    'block rounded-md py-1.5 text-sm leading-5 text-muted-foreground transition-colors hover:bg-muted/60 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
-                    heading.level === 1
-                      ? 'px-3'
-                      : heading.level === 2
-                        ? 'pr-3 pl-6 text-[13px]'
-                        : 'pr-3 pl-9 text-xs',
+                    'min-w-0',
+                    heading.level === 2 && 'ml-3',
+                    heading.level === 3 && 'ml-6',
                   )}
                 >
-                  <Link href={`#${heading.id}`}>{heading.text}</Link>
+                  <Link className="break-words" href={`#${heading.id}`}>
+                    {heading.text}
+                  </Link>
                 </NavigationMenuLink>
               </NavigationMenuItem>
             ))}

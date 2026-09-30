@@ -26,7 +26,7 @@ export default function AnalysisStructuredReportView({
         />
       </div>
       <div className="mt-8 w-full">
-        <h3 className="text-xl font-medium tracking-[-0.02em]">摘要</h3>
+        <h3 className="text-xl font-medium tracking-tight">摘要</h3>
         <p className="mt-3 whitespace-pre-line text-base leading-8 text-muted-foreground">
           {result.summary}
         </p>

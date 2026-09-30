@@ -288,7 +288,7 @@ export function QuickParseDialog() {
       </Button>
       <Dialog onOpenChange={setOpen} open={open}>
         <DialogContent
-          className="max-h-[calc(100svh-2rem)] overflow-y-auto sm:max-w-2xl"
+          className="max-h-svh overflow-y-auto overscroll-contain sm:max-w-2xl"
           onCloseAutoFocus={(event) => {
             event.preventDefault();
             if (returnFocus.current?.isConnected)

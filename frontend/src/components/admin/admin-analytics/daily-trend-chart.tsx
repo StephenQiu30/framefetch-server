@@ -1,3 +1,4 @@
+import { PageEmptyNotice } from '@/components/layout/page-empty-notice';
 import { DailyTrendDataTable } from './daily-trend-data-table';
 import { DailyTrendPlot } from './daily-trend-plot';
 
@@ -12,7 +13,7 @@ export function DailyTrendChart({ daily }: { daily: DailyPoint[] }) {
     <div className="w-full">
       <div className="flex flex-col gap-2">
         <h2
-          className="text-xl font-medium tracking-[-0.025em]"
+          className="text-xl font-medium tracking-tight"
           id="daily-trend-title"
         >
           每日下载趋势
@@ -26,13 +27,13 @@ export function DailyTrendChart({ daily }: { daily: DailyPoint[] }) {
           两层面积分别表示全部任务与成功任务，可悬浮或使用键盘读取单日数据，失败与取消的精确数值见图表后的数据表。
         </p>
         {points.length > 0 ? (
-          <div className="h-[280px] w-full sm:h-[320px]">
-            <DailyTrendPlot points={points} />
-          </div>
+          <DailyTrendPlot points={points} />
         ) : (
-          <p className="py-12 text-sm text-muted-foreground">
-            当前周期还没有下载数据
-          </p>
+          <PageEmptyNotice
+            compact
+            title="当前周期还没有下载数据"
+            description="切换统计周期，或创建下载任务后再查看。"
+          />
         )}
         <DailyTrendDataTable points={points} />
       </div>

@@ -52,7 +52,7 @@ export function ScreenplayDocumentPreview({
     >
       <div className="flex items-baseline justify-between gap-4">
         <h2
-          className="text-lg font-medium tracking-[-0.02em]"
+          className="text-lg font-medium tracking-tight"
           id="screenplay-preview-title"
         >
           规范化剧本
@@ -65,7 +65,7 @@ export function ScreenplayDocumentPreview({
         <>
           <article
             aria-label="规范化剧本 Markdown 预览"
-            className="mt-4 max-h-dvh overflow-y-auto overscroll-contain bg-surface px-5 py-6 text-[15px] leading-7 text-foreground scrollbar-thin sm:px-8 sm:py-8 lg:min-h-0"
+            className="mt-4 max-h-dvh overflow-y-auto overscroll-contain bg-surface px-5 py-6 text-base leading-7 text-foreground scrollbar-thin sm:px-8 sm:py-8 lg:min-h-0"
             data-testid="screenplay-markdown-reader"
           >
             <ReactMarkdown
@@ -102,7 +102,7 @@ export function ScreenplayDocumentPreview({
                   </blockquote>
                 ),
                 code: ({ children }) => (
-                  <code className="font-mono text-[0.92em] text-foreground">
+                  <code className="font-mono text-sm text-foreground">
                     {children}
                   </code>
                 ),
@@ -111,7 +111,7 @@ export function ScreenplayDocumentPreview({
                     headingCursor,
                     headings,
                     'h2',
-                    'mb-6 mt-2 scroll-mt-8 text-2xl font-medium tracking-[-0.03em] sm:text-3xl',
+                    'mb-6 mt-2 scroll-mt-8 text-2xl font-medium tracking-tight sm:text-3xl',
                     children,
                   ),
                 h2: ({ children }) =>
@@ -119,7 +119,7 @@ export function ScreenplayDocumentPreview({
                     headingCursor,
                     headings,
                     'h3',
-                    'mb-4 mt-10 scroll-mt-8 text-xl font-medium tracking-[-0.02em] sm:text-2xl',
+                    'mb-4 mt-10 scroll-mt-8 text-xl font-medium tracking-tight sm:text-2xl',
                     children,
                   ),
                 h3: ({ children }) =>
@@ -127,11 +127,11 @@ export function ScreenplayDocumentPreview({
                     headingCursor,
                     headings,
                     'h4',
-                    'mb-3 mt-8 scroll-mt-8 text-base font-semibold uppercase tracking-[0.08em] sm:text-lg',
+                    'mb-3 mt-8 scroll-mt-8 text-base font-semibold uppercase tracking-wider sm:text-lg',
                     children,
                   ),
                 h4: ({ children }) => (
-                  <h5 className="mb-2 mt-6 scroll-mt-8 text-sm font-semibold uppercase tracking-[0.06em]">
+                  <h5 className="mb-2 mt-6 scroll-mt-8 text-sm font-semibold uppercase tracking-wide">
                     {children}
                   </h5>
                 ),

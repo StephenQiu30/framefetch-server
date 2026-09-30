@@ -44,7 +44,6 @@ export function ScreenplayDocumentList({
             getRowId={(document) => document.id}
             getRowLabel={(document) => document.title}
             caption="剧本文档列表"
-            className="table-fixed sm:min-w-[900px]"
             columns={DocumentRowColumns(onDelete, pendingDeleteId)}
           />
         ) : null}
@@ -80,7 +79,7 @@ function DocumentRowColumns(
             >
               {document.title}
             </Link>
-            <span className="truncate text-xs text-muted-foreground">
+            <span className="line-clamp-2 break-all text-xs text-muted-foreground">
               {document.original_filename}
             </span>
             <Badge
@@ -96,7 +95,7 @@ function DocumentRowColumns(
     {
       id: '格式与更新时间',
       header: '格式与更新时间',
-      className: 'hidden w-[15%] whitespace-normal sm:table-cell',
+      className: 'hidden whitespace-normal sm:table-cell',
       cell: (document) => {
         return (
           <div className="flex flex-col gap-1">
@@ -111,7 +110,7 @@ function DocumentRowColumns(
     {
       id: '内容统计',
       header: '内容统计',
-      className: 'hidden w-[22%] whitespace-normal sm:table-cell',
+      className: 'hidden whitespace-normal sm:table-cell',
       cell: (document) => {
         return (
           <div className="flex flex-col gap-1">
@@ -130,7 +129,7 @@ function DocumentRowColumns(
       id: '状态',
       header: '状态',
       // Shown inside the document cell on narrow screens.
-      className: 'hidden w-[13%] whitespace-normal sm:table-cell',
+      className: 'hidden whitespace-normal sm:table-cell',
       cell: (document) => {
         return (
           <Badge variant={documentStatusVariant(document.status)}>
@@ -142,7 +141,7 @@ function DocumentRowColumns(
     {
       id: '操作',
       header: '操作',
-      className: 'w-24 text-right whitespace-normal sm:w-[16%]',
+      className: 'text-right',
       cell: (document) => {
         const pending = pendingDeleteId === document.id;
         return (
@@ -166,7 +165,7 @@ function LoadingRows() {
       <div aria-hidden className="flex flex-col gap-2">
         {['first', 'second', 'third'].map((key) => (
           <div
-            className="grid grid-cols-[minmax(0,1fr)_5rem] gap-5 py-6"
+            className="grid grid-cols-[minmax(0,1fr)_auto] gap-5 py-6"
             key={key}
           >
             <div className="flex flex-col gap-2">

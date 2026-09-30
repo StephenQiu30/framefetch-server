@@ -24,9 +24,9 @@ export function FindingList({
 }) {
   return (
     <div className={className}>
-      <h3 className="mb-4 text-lg font-medium tracking-[-0.02em]">{heading}</h3>
+      <h3 className="mb-4 text-lg font-medium tracking-tight">{heading}</h3>
       {items.length ? (
-        <ul className="space-y-2">
+        <ul className="flex flex-col gap-2">
           {items.map((item) => (
             <Item asChild className="block" key={item.id}>
               <li>

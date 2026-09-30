@@ -112,11 +112,11 @@ describe('MediaCover', () => {
     });
     expect(fallback).not.toHaveClass('border');
     expect(screen.getByText('链接下载')).toHaveClass(
-      'text-[10px]',
+      'text-xs',
       'text-foreground/70',
     );
     expect(screen.getByText('1080p MP4').parentElement).toHaveClass(
-      'text-[10px]',
+      'text-xs',
       'text-foreground/70',
     );
   });

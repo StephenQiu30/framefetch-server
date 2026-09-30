@@ -1,6 +1,5 @@
 'use client';
 
-import { CaretDownIcon } from '@phosphor-icons/react';
 import { useState } from 'react';
 
 import AnalysisReportPreview from '@/components/analysis/analysis-report-preview';
@@ -15,12 +14,12 @@ import {
   Metric,
   ResultTab,
 } from '@/components/screenplay/screenplay-result-primitives';
-import { Button } from '@/components/ui/button';
 import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from '@/components/ui/collapsible';
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from '@/components/ui/accordion';
 import { ItemGroup } from '@/components/ui/item';
 import { Tabs, TabsContent, TabsList } from '@/components/ui/tabs';
 
@@ -37,41 +36,37 @@ function SceneReviewList({
   const visibleScenes = scenes.slice(first, first + pageSize);
 
   return (
-    <div className="space-y-6">
+    <div className="flex flex-col gap-6">
       <p className="text-muted-foreground text-sm">
         共 {scenes.length} 场。按原剧本顺序查看；展开场景可阅读具体判断。
       </p>
-      <ol className="space-y-3" start={first + 1}>
-        {visibleScenes.map((scene, index) => (
-          <li key={scene.id}>
-            <Collapsible>
-              <CollapsibleTrigger asChild>
-                <Button
-                  className="h-auto w-full justify-between py-4 text-left whitespace-normal"
-                  variant="ghost"
-                >
+      <Accordion type="multiple">
+        <ol className="flex flex-col gap-3" start={first + 1}>
+          {visibleScenes.map((scene, index) => (
+            <li key={scene.id}>
+              <AccordionItem value={scene.id}>
+                <AccordionTrigger>
                   场景 {first + index + 1} · {scene.purpose || '未说明场景作用'}
-                  <CaretDownIcon aria-hidden data-icon="inline-end" />
-                </Button>
-              </CollapsibleTrigger>
-              <CollapsibleContent className="pt-2 pb-4">
-                <ItemGroup className="grid gap-4 sm:grid-cols-3">
-                  <Detail label="冲突">{scene.conflict}</Detail>
-                  <Detail label="变化">{scene.turn}</Detail>
-                  <Detail label="节奏">{scene.pacing}</Detail>
-                </ItemGroup>
-                {scene.findings.length > 0 && (
-                  <ul className="mt-4 list-disc space-y-1 pl-5 text-sm text-muted-foreground">
-                    {scene.findings.map((finding) => (
-                      <li key={finding}>{finding}</li>
-                    ))}
-                  </ul>
-                )}
-              </CollapsibleContent>
-            </Collapsible>
-          </li>
-        ))}
-      </ol>
+                </AccordionTrigger>
+                <AccordionContent>
+                  <ItemGroup className="grid gap-4 sm:grid-cols-3">
+                    <Detail label="冲突">{scene.conflict}</Detail>
+                    <Detail label="变化">{scene.turn}</Detail>
+                    <Detail label="节奏">{scene.pacing}</Detail>
+                  </ItemGroup>
+                  {scene.findings.length > 0 && (
+                    <ul className="mt-4 list-disc flex flex-col gap-1 pl-5 text-sm text-muted-foreground">
+                      {scene.findings.map((finding) => (
+                        <li key={finding}>{finding}</li>
+                      ))}
+                    </ul>
+                  )}
+                </AccordionContent>
+              </AccordionItem>
+            </li>
+          ))}
+        </ol>
+      </Accordion>
       {scenes.length > 0 && (
         <PagePagination
           ariaLabel="场景分页"
@@ -97,10 +92,10 @@ export default function ScreenplayAnalysisResultView({
   result: API.ScreenplayAnalysisResultResponse;
 }) {
   return (
-    <div className="mt-10 space-y-10">
+    <div className="mt-10 flex flex-col gap-10">
       <section
         aria-labelledby="screenplay-review-heading"
-        className="space-y-6"
+        className="flex flex-col gap-6"
       >
         <div>
           <h2
@@ -125,7 +120,7 @@ export default function ScreenplayAnalysisResultView({
         />
       </section>
 
-      <section className="space-y-4" aria-label="故事概览">
+      <section className="flex flex-col gap-4" aria-label="故事概览">
         <div className="grid gap-4 sm:grid-cols-3">
           <Metric label="场景" value={String(result.scenes.length)} />
           <Metric label="人物" value={String(result.characters.length)} />
@@ -148,7 +143,7 @@ export default function ScreenplayAnalysisResultView({
           <ResultTab value="scenes">场景</ResultTab>
           {reportMarkdown && <ResultTab value="report">完整报告</ResultTab>}
         </TabsList>
-        <TabsContent value="structure" className="space-y-6">
+        <TabsContent value="structure" className="flex flex-col gap-6">
           <ItemGroup>
             <Detail label="节奏概览">{result.structure.pacing_summary}</Detail>
           </ItemGroup>
@@ -165,9 +160,9 @@ export default function ScreenplayAnalysisResultView({
         </TabsContent>
         <TabsContent value="characters">
           {result.characters.length ? (
-            <ul className="space-y-6">
+            <ul className="flex flex-col gap-6">
               {result.characters.map((character) => (
-                <li key={character.id} className="space-y-4 py-4">
+                <li key={character.id} className="flex flex-col gap-4 py-4">
                   <h3 className="font-semibold">{character.name}</h3>
                   <ItemGroup className="grid gap-4 sm:grid-cols-3">
                     <Detail label="目标">{character.goal}</Detail>
@@ -181,7 +176,7 @@ export default function ScreenplayAnalysisResultView({
             <p className="text-muted-foreground">本次结果没有独立人物条目。</p>
           )}
         </TabsContent>
-        <TabsContent value="dialogue" className="space-y-6">
+        <TabsContent value="dialogue" className="flex flex-col gap-6">
           <FindingList
             heading="对白发现"
             items={result.dialogue_findings}

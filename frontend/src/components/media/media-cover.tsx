@@ -5,6 +5,7 @@ import { cn } from 'cn';
 import Image from 'next/image';
 import { useEffect, useState } from 'react';
 import { AspectRatio } from '@/components/ui/aspect-ratio';
+import { Skeleton } from '@/components/ui/skeleton';
 import {
   isPrivateThumbnailPath,
   loadPrivateThumbnail,
@@ -87,20 +88,20 @@ export default function MediaCover({
       ratio={mediaFrameAspectRatio}
     >
       {loading ? (
-        <div
+        <Skeleton
           aria-label={`${alt}（封面加载中）`}
-          className="size-full animate-pulse bg-muted"
+          className="size-full rounded-none"
           role="img"
         />
       ) : generating ? (
-        <div
+        <Skeleton
           aria-label={`${alt}（封面生成中）`}
-          className="flex size-full animate-pulse flex-col items-center justify-center gap-3 text-foreground"
+          className="flex size-full flex-col items-center justify-center gap-3 rounded-none"
           role="img"
         >
           <ImageIcon aria-hidden className="size-7" />
           <span className="text-xs">封面生成中</span>
-        </div>
+        </Skeleton>
       ) : unavailable || !resolvedSource ? (
         <MediaCoverFallback
           compact={compact}
@@ -151,7 +152,7 @@ function MediaCoverFallback({
           className={cn(
             'truncate font-medium',
             compact
-              ? 'text-[10px] leading-tight text-foreground/70'
+              ? 'text-xs leading-tight text-foreground/70'
               : 'text-xs text-foreground/70',
           )}
         >
@@ -162,7 +163,7 @@ function MediaCoverFallback({
             className={cn(
               'font-medium tracking-tight text-foreground',
               compact
-                ? 'line-clamp-1 text-[11px] leading-tight'
+                ? 'line-clamp-1 text-xs leading-tight'
                 : 'line-clamp-2 text-sm leading-snug sm:text-base',
             )}
           >
@@ -173,7 +174,7 @@ function MediaCoverFallback({
           className={cn(
             'min-w-0',
             compact
-              ? 'text-[10px] leading-none text-foreground/70'
+              ? 'text-xs leading-none text-foreground/70'
               : 'text-xs leading-4 text-foreground/70',
           )}
         >

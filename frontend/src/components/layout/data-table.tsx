@@ -116,7 +116,7 @@ export function DataTable<T extends RowData>({
         {toolbar ?? bulkSelection?.toolbar}
       </div>
       <div className="min-w-0">
-        <Table className={cn('table-borderless table-fixed', className)}>
+        <Table className={cn('table-borderless', className)}>
           <TableCaption className="sr-only">{caption}</TableCaption>
           <TableHeader>
             {table.getHeaderGroups().map((group) => (
@@ -144,17 +144,18 @@ export function DataTable<T extends RowData>({
                 {group.headers.map((header) => (
                   <TableHead
                     key={header.id}
-                    className={
+                    className={cn(
+                      'whitespace-normal',
                       columns.find((column) => column.id === header.column.id)
-                        ?.className
-                    }
+                        ?.className,
+                    )}
                   >
                     {header.isPlaceholder ? null : (
                       <table.FlexRender header={header} />
                     )}
                   </TableHead>
                 ))}
-                <TableHead className="w-10 text-right">
+                <TableHead className="hidden w-10 text-right sm:table-cell">
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
                       <Button
@@ -216,15 +217,16 @@ export function DataTable<T extends RowData>({
                 {row.getVisibleCells().map((cell) => (
                   <TableCell
                     key={cell.id}
-                    className={
+                    className={cn(
+                      'whitespace-normal [overflow-wrap:anywhere]',
                       columns.find((column) => column.id === cell.column.id)
-                        ?.className
-                    }
+                        ?.className,
+                    )}
                   >
                     <table.FlexRender cell={cell} />
                   </TableCell>
                 ))}
-                <TableCell aria-hidden />
+                <TableCell aria-hidden className="hidden sm:table-cell" />
               </TableRow>
             ))}
           </TableBody>

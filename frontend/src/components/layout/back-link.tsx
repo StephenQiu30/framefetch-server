@@ -1,7 +1,6 @@
 'use client';
 
 import { ArrowLeftIcon } from '@phosphor-icons/react';
-import { cn } from 'cn';
 import Link from 'next/link';
 import type { MouseEvent } from 'react';
 import {
@@ -45,11 +44,7 @@ export function BackLink({
   }
 
   return (
-    <Button
-      asChild
-      className={cn('text-muted-foreground hover:text-foreground', className)}
-      variant="ghost"
-    >
+    <Button asChild className={className} variant="ghost">
       <Link data-navigation-back="" href={fallbackHref} onClick={navigateBack}>
         <ArrowLeftIcon aria-hidden data-icon="inline-start" />
         {label}

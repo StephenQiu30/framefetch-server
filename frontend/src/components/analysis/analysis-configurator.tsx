@@ -109,7 +109,7 @@ export default function AnalysisConfigurator({
               <>
                 Skill 清单加载失败。{' '}
                 <Button
-                  className="h-auto align-baseline"
+                  className="align-baseline"
                   onClick={() => void catalog.retry()}
                   variant="link"
                   type="button"

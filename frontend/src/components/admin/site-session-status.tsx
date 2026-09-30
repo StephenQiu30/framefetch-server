@@ -29,7 +29,10 @@ export function SiteSessionStatus() {
     refetchIntervalInBackground: false,
   });
   return (
-    <section aria-labelledby="site-session-heading" className="mt-10 space-y-4">
+    <section
+      aria-labelledby="site-session-heading"
+      className="mt-10 flex flex-col gap-4"
+    >
       <div className="flex flex-wrap items-center justify-between gap-4">
         <h2 id="site-session-heading">平台会话</h2>
         <Button
@@ -57,9 +60,9 @@ export function SiteSessionStatus() {
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>站点</TableHead>
-              <TableHead>状态</TableHead>
-              <TableHead>恢复操作</TableHead>
+              <TableHead className="whitespace-normal">站点</TableHead>
+              <TableHead className="whitespace-normal">状态</TableHead>
+              <TableHead className="whitespace-normal">恢复操作</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -67,11 +70,13 @@ export function SiteSessionStatus() {
               .filter((item) => item.session_site)
               .map((item) => (
                 <TableRow key={item.provider_key}>
-                  <TableCell>{item.session_site}</TableCell>
-                  <TableCell>
+                  <TableCell className="whitespace-normal [overflow-wrap:anywhere]">
+                    {item.session_site}
+                  </TableCell>
+                  <TableCell className="whitespace-normal">
                     <Badge variant="outline">{labels[item.login_state]}</Badge>
                   </TableCell>
-                  <TableCell>
+                  <TableCell className="whitespace-normal [overflow-wrap:anywhere]">
                     {item.login_state === 'unavailable'
                       ? '检查本机 Chrome 登录、读取权限和登录态服务是否运行。'
                       : item.login_state === 'signed_in'

@@ -54,7 +54,7 @@ export default function ScreenplayRewriteResultView({
       <TabsContent value="summary">
         <div>
           <h3
-            className="text-xl font-medium tracking-[-0.02em]"
+            className="text-xl font-medium tracking-tight"
             id="rewrite-glossary-title"
           >
             统一术语
@@ -95,7 +95,7 @@ export default function ScreenplayRewriteResultView({
         </div>
         <div className="mt-10 max-w-4xl">
           <h3
-            className="text-xl font-medium tracking-[-0.02em]"
+            className="text-xl font-medium tracking-tight"
             id="rewrite-summary-title"
           >
             修改摘要

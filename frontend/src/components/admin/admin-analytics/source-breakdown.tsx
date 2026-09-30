@@ -2,6 +2,7 @@
 
 import { ChartBarIcon } from '@phosphor-icons/react';
 import { Bar, BarChart, CartesianGrid, XAxis, YAxis } from 'recharts';
+import { PageEmptyNotice } from '@/components/layout/page-empty-notice';
 
 import {
   type ChartConfig,
@@ -43,7 +44,7 @@ export function SourceBreakdown({
   return (
     <div className="w-full">
       <h2
-        className="flex items-center gap-2 text-xl font-medium tracking-[-0.025em]"
+        className="flex items-center gap-2 text-xl font-medium tracking-tight"
         id="source-breakdown-title"
       >
         <ChartBarIcon aria-hidden className="size-4 text-muted-foreground" />
@@ -53,21 +54,21 @@ export function SourceBreakdown({
         对比主要视频源的任务量与占比。
       </p>
       {sorted.length === 0 ? (
-        <p className="py-12 text-sm text-muted-foreground">暂无来源数据。</p>
+        <PageEmptyNotice
+          compact
+          title="暂无来源数据"
+          description="有下载记录后，可在这里比较各来源的任务量。"
+        />
       ) : (
         <>
           <ChartContainer
             aria-describedby="source-breakdown-description"
             aria-label="视频来源任务贡献条形图"
-            className="mt-8 h-64 w-full aspect-auto sm:h-80"
+            className="mt-8 w-full md:aspect-[3/1]"
             config={sourceConfig}
             role="img"
           >
-            <BarChart
-              accessibilityLayer
-              data={visible}
-              margin={{ left: 0, right: 4, top: 8 }}
-            >
+            <BarChart accessibilityLayer data={visible}>
               <CartesianGrid stroke="var(--border)" vertical={false} />
               <XAxis
                 axisLine={false}
@@ -82,7 +83,7 @@ export function SourceBreakdown({
                 axisLine={false}
                 allowDecimals={false}
                 tickLine={false}
-                width={32}
+                width="auto"
               />
               <ChartTooltip
                 content={

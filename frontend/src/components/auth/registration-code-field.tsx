@@ -74,8 +74,15 @@ export function RegistrationCodeField({
       onCodeChange('');
       onVerifiedChange(false);
       setSent(true);
-      setUntil(Date.now() + (result.retry_after_seconds ?? 60) * 1000);
-      setMessage('验证码已发送，10 分钟内有效。未收到时请检查垃圾邮件。');
+      setUntil(
+        Date.now() + Math.max(0, result.retry_after_seconds ?? 0) * 1000,
+      );
+      const seconds = result.expires_in_seconds;
+      const expiry =
+        seconds && seconds > 0
+          ? `有效期 ${new Intl.NumberFormat('zh-CN').format(seconds % 60 === 0 ? seconds / 60 : seconds)} ${seconds % 60 === 0 ? '分钟' : '秒'}。`
+          : '有效期请查看邮件说明。';
+      setMessage(`验证码已发送，${expiry}未收到时请检查垃圾邮件。`);
     } catch (failure) {
       if (mounted.current) setMessage(displayError(failure));
     } finally {

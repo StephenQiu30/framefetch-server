@@ -39,7 +39,7 @@ export function AiProviderEditor({
       }}
     >
       <DialogContent
-        className="max-h-[calc(100svh-2rem)] overflow-y-auto sm:max-w-[600px]"
+        className="max-h-svh overflow-y-auto overscroll-contain sm:max-w-xl"
         onCloseAutoFocus={(event) => {
           if (onRestoreFocus) {
             event.preventDefault();

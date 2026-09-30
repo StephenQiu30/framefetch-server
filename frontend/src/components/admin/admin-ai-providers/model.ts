@@ -25,7 +25,7 @@ export const EMPTY_AI_PROVIDER_EDITOR: AiProviderEditorState = {
   engine: 'codex',
   authMode: 'host_login',
   baseUrl: '',
-  model: 'gpt-5.6-sol',
+  model: '',
   apiKey: '',
   credentialConfigured: false,
   error: '',
@@ -38,33 +38,48 @@ export function providerEngineDefaults(
   if (engine === 'openrouter' || engine === 'openai') {
     return {
       authMode: 'api_key',
-      baseUrl:
-        engine === 'openrouter'
-          ? 'https://openrouter.ai/api/v1'
-          : 'https://api.openai.com/v1',
+      baseUrl: providerApiBaseUrl(engine),
       model: '',
     };
   }
   if (engine === 'deepseek') {
     return {
       authMode: 'api_key',
-      baseUrl: 'https://api.deepseek.com',
+      baseUrl: providerApiBaseUrl(engine),
+      // The backend vision adapter accepts this model exclusively.
       model: 'deepseek-v4-flash-vision-exp',
     };
   }
   return {
     authMode: 'host_login',
     baseUrl: '',
-    model: engine === 'codex' ? 'gpt-5.6-sol' : 'sonnet',
+    model: '',
   };
 }
 
 export function providerEngineLabel(engine: API.AiProviderEngine): string {
-  if (engine === 'codex') return 'Codex';
-  if (engine === 'claude') return 'Claude';
-  if (engine === 'openrouter') return 'OpenRouter';
-  if (engine === 'openai') return 'OpenAI 兼容 API';
-  return 'DeepSeek';
+  return ENGINE_LABELS[engine];
+}
+
+const ENGINE_LABELS = {
+  codex: 'Codex',
+  claude: 'Claude',
+  openrouter: 'OpenRouter',
+  openai: 'OpenAI 兼容 API',
+  deepseek: 'DeepSeek',
+} satisfies Record<API.AiProviderEngine, string>;
+
+// Protocol endpoints are shared by the editor defaults and URL hints.
+const API_BASE_URLS = {
+  codex: 'https://api.openai.com/v1',
+  claude: 'https://api.anthropic.com',
+  openrouter: 'https://openrouter.ai/api/v1',
+  openai: 'https://api.openai.com/v1',
+  deepseek: 'https://api.deepseek.com',
+} satisfies Record<API.AiProviderEngine, string>;
+
+export function providerApiBaseUrl(engine: API.AiProviderEngine): string {
+  return API_BASE_URLS[engine];
 }
 
 export function isDirectApiEngine(engine: API.AiProviderEngine): boolean {

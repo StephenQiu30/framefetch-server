@@ -92,47 +92,59 @@ export function UserList({
         .map((item) => item.id)}
       options={bulk}
     >
-      <div className="overflow-x-auto rounded-md">
+      <div className="min-w-0">
         <DataTable<API.ManagedUserResponse>
           data={items}
           getRowId={(item) => item.id}
           getRowLabel={(item) => item.username}
           caption="用户账户列表"
-          className="min-w-[760px] table-fixed"
           columns={[
             {
               id: '用户名',
               header: '用户名',
+              hideable: false,
               className: 'whitespace-normal',
               cell: (item) => (
-                <span className="break-all">{item.username}</span>
+                <div className="flex min-w-0 flex-col gap-2">
+                  <span className="break-all">{item.username}</span>
+                  <div className="flex flex-col gap-2 lg:hidden">
+                    <span className="break-all text-xs text-muted-foreground">
+                      {item.email}
+                    </span>
+                    {badges(item)}
+                    <time
+                      className="text-xs text-muted-foreground"
+                      dateTime={item.created_at}
+                    >
+                      {formatUserDate(item.created_at)}
+                    </time>
+                  </div>
+                </div>
               ),
             },
             {
               id: '邮箱',
               header: '邮箱',
-              cell: (item) => (
-                <span className="block truncate" title={item.email}>
-                  {item.email}
-                </span>
-              ),
+              className: 'hidden lg:table-cell',
+              cell: (item) => <span className="break-all">{item.email}</span>,
             },
             {
               id: '身份与状态',
               header: '身份与状态',
-              className: 'whitespace-normal',
+              className: 'hidden lg:table-cell',
               cell: (item) => <> {badges(item)} </>,
             },
             {
               id: '注册日期',
               header: '注册日期',
-              className: 'tabular-nums whitespace-normal',
+              className: 'hidden tabular-nums lg:table-cell',
               cell: (item) => <> {formatUserDate(item.created_at)} </>,
             },
             {
               id: '操作',
               header: '操作',
-              className: 'text-right whitespace-nowrap whitespace-normal',
+              hideable: false,
+              className: 'text-right',
               cell: (item) => <> {action(item)} </>,
             },
           ]}

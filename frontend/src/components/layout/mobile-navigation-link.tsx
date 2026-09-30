@@ -1,4 +1,3 @@
-import { cn } from 'cn';
 import Link from 'next/link';
 import type { ReactNode } from 'react';
 import {
@@ -22,10 +21,7 @@ export function MobileNavigationLink({
         <NavigationMenuLink
           active={active}
           asChild
-          className={cn(
-            'h-9 w-full justify-start rounded-md px-4 py-2 text-sm font-medium',
-            active && 'bg-accent text-accent-foreground',
-          )}
+          className="w-full justify-start"
         >
           <Link aria-current={active ? 'page' : undefined} href={href}>
             {children}

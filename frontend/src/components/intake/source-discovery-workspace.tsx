@@ -52,7 +52,7 @@ export function SourceDiscoveryWorkspace({
       <div className="flex flex-wrap items-end justify-between gap-3 pb-5">
         <div>
           <h2
-            className="text-xl font-medium tracking-[-0.025em]"
+            className="text-xl font-medium tracking-tight"
             id="source-discovery-title"
           >
             {discovery.title}

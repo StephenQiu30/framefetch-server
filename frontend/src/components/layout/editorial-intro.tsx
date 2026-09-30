@@ -39,7 +39,7 @@ export function EditorialIntro({
         className={cn(
           as === 'h1'
             ? 'editorial-title'
-            : 'text-balance text-[clamp(1.5rem,3vw,2rem)] font-semibold leading-10 tracking-[-0.04em]',
+            : 'text-balance text-2xl font-semibold tracking-tight sm:text-3xl',
           eyebrow && 'mt-5',
           titleClassName,
         )}

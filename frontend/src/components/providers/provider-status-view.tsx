@@ -130,20 +130,18 @@ export function ProviderStatusView() {
             </div>
             {visibleProviders.length > 0 ? (
               <div className="flex flex-col gap-5">
-                <Table className="table-borderless table-fixed sm:min-w-[980px]">
+                <Table className="table-borderless">
                   <TableCaption className="sr-only">平台能力状态</TableCaption>
                   <TableHeader>
                     <TableRow>
-                      <TableHead className="w-[35%] sm:w-[27%]">平台</TableHead>
-                      <TableHead className="w-[40%] sm:w-[24%]">
+                      <TableHead className="whitespace-normal">平台</TableHead>
+                      <TableHead className="whitespace-normal">
                         状态与接入
                       </TableHead>
-                      <TableHead className="hidden w-[34%] sm:table-cell">
+                      <TableHead className="hidden sm:table-cell">
                         已登记能力
                       </TableHead>
-                      <TableHead className="w-[25%] text-right sm:w-[15%]">
-                        操作
-                      </TableHead>
+                      <TableHead className="text-right">操作</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -229,7 +227,7 @@ function StatusMessage({ label }: { label: string }) {
       className="flex min-h-40 items-center gap-2 text-sm text-muted-foreground"
       role="status"
     >
-      <Spinner aria-hidden className="size-5" />
+      <Spinner aria-hidden />
       <span>{label}</span>
     </div>
   );

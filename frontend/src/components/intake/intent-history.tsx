@@ -216,7 +216,6 @@ export function IntentHistory({
             <DataTable
               data={history.data.items}
               caption="解析任务列表"
-              className="sm:min-w-[760px]"
               getRowId={(item) => `${item.record_type}:${item.id}`}
               getRowLabel={(item) => item.title || '媒体解析'}
               selection={{

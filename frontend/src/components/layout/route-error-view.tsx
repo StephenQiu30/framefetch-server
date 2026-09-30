@@ -17,14 +17,11 @@ export function RouteErrorView({
 }) {
   return (
     <div
-      className={cn(
-        'flex min-h-[calc(100svh-9rem)] items-center py-14 sm:py-20',
-        className,
-      )}
+      className={cn('flex flex-1 items-center py-14 sm:py-20', className)}
       data-slot="route-error"
     >
       <PageErrorNotice
-        className="min-h-0 flex-1 py-0"
+        className="flex-1"
         message={displayError(error)}
         onRetry={reset}
         retryLabel="重新尝试"

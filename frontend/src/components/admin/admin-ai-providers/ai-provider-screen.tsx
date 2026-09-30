@@ -143,7 +143,7 @@ export function AiProviderScreen({
       <div>
         <div className="mb-5 flex items-center justify-between gap-4">
           <h2
-            className="text-xl font-medium tracking-[-0.025em]"
+            className="text-xl font-medium tracking-tight"
             id="ai-provider-list"
           >
             Provider 配置

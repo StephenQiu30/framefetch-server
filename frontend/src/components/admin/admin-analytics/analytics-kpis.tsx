@@ -56,7 +56,7 @@ export function AnalyticsKpis({
     <div>
       <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between sm:gap-6">
         <div>
-          <h2 className="text-xl font-medium tracking-[-0.025em]">周期概览</h2>
+          <h2 className="text-xl font-medium tracking-tight">周期概览</h2>
           <p className="mt-1 text-sm leading-6 text-muted-foreground">
             当前统计周期的核心下载指标。
           </p>
@@ -76,7 +76,7 @@ export function AnalyticsKpis({
                   <metric.icon aria-hidden className="size-4" />
                   {metric.label}
                 </ItemTitle>
-                <p className="mt-3 text-[clamp(2rem,4vw,3rem)] font-semibold leading-none tracking-[-0.05em] tabular-nums">
+                <p className="mt-3 text-3xl sm:text-4xl font-semibold leading-none tracking-tight tabular-nums">
                   {metric.value}
                 </p>
                 <ItemDescription className="mt-3 min-h-9 sm:min-h-0">

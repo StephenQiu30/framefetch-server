@@ -47,11 +47,11 @@ export function MobileNavigation({
           size="icon"
           variant="ghost"
         >
-          <ListIcon aria-hidden className="size-5" />
+          <ListIcon aria-hidden />
         </Button>
       </SheetTrigger>
       <SheetContent
-        className="w-[min(88vw,360px)] overflow-y-auto overscroll-contain"
+        className="overflow-y-auto overscroll-contain"
         onOpenAutoFocus={(event) => {
           event.preventDefault();
           navigationTitleRef.current?.focus();

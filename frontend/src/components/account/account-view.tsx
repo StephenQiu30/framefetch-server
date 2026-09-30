@@ -218,7 +218,7 @@ export function AccountView() {
         <SplitLayout columns="sidebar-start">
           <Card className="ring-0">
             <CardHeader className="justify-items-center gap-3 text-center">
-              <Avatar aria-hidden className="size-24">
+              <Avatar aria-hidden size="lg">
                 <AvatarImage alt="" src={avatarUrl(user)} />
                 <AvatarFallback>{initials}</AvatarFallback>
               </Avatar>
@@ -229,7 +229,7 @@ export function AccountView() {
               <Badge variant="secondary">{role}</Badge>
             </CardHeader>
             <CardContent>
-              <input
+              <Input
                 accept="image/jpeg,image/png,image/webp"
                 aria-describedby={
                   avatarError ? 'avatar-help avatar-error' : 'avatar-help'
@@ -237,7 +237,7 @@ export function AccountView() {
                 aria-invalid={avatarError ? true : undefined}
                 aria-label="选择头像图片"
                 aria-hidden="true"
-                className="sr-only"
+                className="hidden"
                 disabled={avatarBusy}
                 id="avatar-image"
                 onChange={uploadAvatar}

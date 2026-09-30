@@ -46,7 +46,7 @@ export function ProviderCatalogEditor({
         if (!open && !editor.saving) onClose();
       }}
     >
-      <DialogContent className="max-h-[calc(100svh-2rem)] overflow-y-auto sm:max-w-[540px]">
+      <DialogContent className="max-h-svh overflow-y-auto overscroll-contain sm:max-w-lg">
         <DialogHeader>
           <p className="mb-4 text-sm font-medium">平台目录</p>
           <DialogTitle>

@@ -15,7 +15,7 @@ type Source = API.DownloadAnalyticsResponse['sources'][number];
 export function SourcePerformanceDetails({ sources }: { sources: Source[] }) {
   return (
     <div className="mt-7">
-      <Table className="min-w-[900px] table-fixed">
+      <Table className="table-borderless">
         <TableCaption className="sr-only">各视频源下载表现</TableCaption>
         <TableHeader>
           <TableRow>
@@ -32,7 +32,7 @@ export function SourcePerformanceDetails({ sources }: { sources: Source[] }) {
             <TableRow key={source.source_key}>
               <TableHead className="text-left whitespace-normal" scope="row">
                 <p className="truncate font-medium">{sourceLabel(source)}</p>
-                <p className="mt-1 truncate font-mono text-[11px] text-muted-foreground">
+                <p className="mt-1 truncate font-mono text-xs text-muted-foreground">
                   {source.source_key}
                 </p>
               </TableHead>

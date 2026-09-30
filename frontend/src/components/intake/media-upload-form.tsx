@@ -10,6 +10,7 @@ import {
 } from '@/components/intake/intake-control-row';
 import { Button } from '@/components/ui/button';
 import { Form } from '@/components/ui/form';
+import { Input } from '@/components/ui/input';
 import { Progress } from '@/components/ui/progress';
 import { Spinner } from '@/components/ui/spinner';
 import { formatFileSize } from '@/lib/format';
@@ -90,10 +91,10 @@ export function MediaUploadForm({
           {busy ? '处理中…' : '上传视频'}
         </IntakeSubmitButton>
       </IntakeControlRow>
-      <input
+      <Input
         accept="video/mp4,.mp4"
         aria-label="选择本地 MP4 视频文件"
-        className="sr-only"
+        className="hidden"
         disabled={busy}
         onChange={(event) => onFileSelect(event.target.files?.[0] ?? null)}
         onClick={(event) => {

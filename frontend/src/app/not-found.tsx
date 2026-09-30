@@ -5,12 +5,12 @@ export default function NotFound() {
   return (
     <PageEmptyNotice
       action={<NotFoundActions />}
-      className="min-h-[calc(100svh-9rem)] py-14 sm:py-20"
+      className="py-14 sm:py-20"
       description="这个地址可能已经移动或失效。返回上一步，或回到首页重新粘贴一个公开视频链接。"
       eyebrow="404"
       title="页面，没有找到。"
       titleAs="h1"
-      titleClassName="text-[clamp(2.5rem,4vw,3rem)] font-semibold leading-none tracking-[-0.05em]"
+      titleClassName="text-4xl leading-none tracking-tight sm:text-5xl"
     />
   );
 }

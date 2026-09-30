@@ -2,7 +2,11 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { importScreenplayDocument } from '@/lib/upload/document-import';
 import { importLocalVideo } from '@/lib/upload/media-import';
 import { hashFileSha256, uploadMultipartFile } from '@/lib/upload/media-upload';
-import { httpRequests, mockHttpResponses } from '../helpers/http';
+import {
+  httpRequests,
+  mockHttpError,
+  mockHttpResponses,
+} from '../helpers/http';
 
 const ETAG = '0123456789abcdef0123456789abcdef';
 
@@ -199,6 +203,45 @@ describe('local media import transport', () => {
         url: `/api/documents/${resource.id}/complete`,
       },
     ]);
+  });
+
+  it('lets the server accept a document above its default size limit', async () => {
+    const file = new File([new Uint8Array(51 * 1024 ** 2)], 'story.fountain');
+    const resource = {
+      ...documentImportResponse('verifying'),
+      declared_size_bytes: file.size,
+    };
+    mockHttpResponses(resource);
+
+    const result = await importScreenplayDocument(
+      file,
+      'configured-document-limit',
+      { onPhase: vi.fn(), onProgress: vi.fn(), onResource: vi.fn() },
+      new AbortController().signal,
+    );
+
+    expect(result).toEqual(resource);
+    expect(httpRequests()).toMatchObject([
+      { url: '/api/documents', data: { declared_size_bytes: file.size } },
+    ]);
+    expect(FakeXMLHttpRequest.instances).toHaveLength(0);
+  });
+
+  it('stops before uploading when the server rejects a document', async () => {
+    const error = new Error('deployment document size limit exceeded');
+    mockHttpError(error);
+
+    await expect(
+      importScreenplayDocument(
+        new File(['story'], 'story.fountain'),
+        'configured-document-limit',
+        { onPhase: vi.fn(), onProgress: vi.fn(), onResource: vi.fn() },
+        new AbortController().signal,
+      ),
+    ).rejects.toBe(error);
+
+    expect(httpRequests()).toHaveLength(1);
+    expect(FakeXMLHttpRequest.instances).toHaveLength(0);
   });
 
   it('recovers an idempotent document whose completion response was lost', async () => {

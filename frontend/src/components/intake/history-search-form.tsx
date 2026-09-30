@@ -20,6 +20,10 @@ function parseDate(value: string) {
   return isValid(date) ? date : undefined;
 }
 
+const dateLabelFormatter = new Intl.DateTimeFormat('zh-CN', {
+  dateStyle: 'medium',
+});
+
 export function HistorySearchForm({
   query,
   from,
@@ -49,7 +53,7 @@ export function HistorySearchForm({
         });
       }}
     >
-      <FieldGroup className="grid grid-cols-2 items-end gap-3 lg:grid-cols-[minmax(0,1fr)_10rem_10rem_auto]">
+      <FieldGroup className="grid grid-cols-2 items-end gap-3 lg:grid-cols-[minmax(0,2fr)_repeat(2,minmax(0,1fr))_auto]">
         <Field className="col-span-2 min-w-0 lg:col-span-1">
           <FieldLabel htmlFor="history-title">内容标题</FieldLabel>
           <Input
@@ -125,10 +129,10 @@ function HistoryDatePicker({
             type="button"
             variant="outline"
             className="w-full justify-start"
-            aria-label={`${label}：${value ? format(value, 'yyyy-MM-dd') : '选择日期'}`}
+            aria-label={`${label}：${value ? dateLabelFormatter.format(value) : '选择日期'}`}
           >
             <CalendarBlank aria-hidden data-icon="inline-start" />
-            {value ? format(value, 'yyyy-MM-dd') : '选择日期'}
+            {value ? dateLabelFormatter.format(value) : '选择日期'}
           </Button>
         </PopoverTrigger>
         <PopoverContent align="start" className="w-auto" aria-label={label}>

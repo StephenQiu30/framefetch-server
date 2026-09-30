@@ -34,7 +34,7 @@ export function PublicHomeCapabilities({
               {eyebrow}
             </span>
           </div>
-          <h3 className="text-xl font-semibold leading-7 tracking-[-0.03em]">
+          <h3 className="text-xl font-semibold leading-7 tracking-tight">
             {title}
           </h3>
           <p className="text-sm leading-6 text-muted-foreground">
@@ -79,7 +79,7 @@ export function PublicHomeWorkflow({
       {items.map(([title, description], index) => (
         <Item
           asChild
-          className="grid grid-cols-[2rem_1fr] items-start gap-3"
+          className="grid grid-cols-[auto_minmax(0,1fr)] items-start gap-3"
           key={title}
         >
           <li>

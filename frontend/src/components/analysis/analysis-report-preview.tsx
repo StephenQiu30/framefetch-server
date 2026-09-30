@@ -41,7 +41,7 @@ export default function AnalysisReportPreview({
   return (
     <article
       aria-label="Markdown 分析报告预览"
-      className="w-full text-[15px] leading-7"
+      className="w-full text-base leading-7"
     >
       <ReactMarkdown
         allowedElements={allowedElements}
@@ -52,12 +52,12 @@ export default function AnalysisReportPreview({
             </blockquote>
           ),
           h1: ({ children }) => (
-            <h3 className="mb-5 text-2xl font-medium tracking-[-0.03em]">
+            <h3 className="mb-5 text-2xl font-medium tracking-tight">
               {children}
             </h3>
           ),
           h2: ({ children }) => (
-            <h4 className="mt-10 pb-3 text-lg font-medium tracking-[-0.02em]">
+            <h4 className="mt-10 pb-3 text-lg font-medium tracking-tight">
               {children}
             </h4>
           ),

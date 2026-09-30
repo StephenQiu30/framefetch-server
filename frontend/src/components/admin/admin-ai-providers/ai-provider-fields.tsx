@@ -19,6 +19,7 @@ import {
   type AiProviderEditorState,
   isDirectApiEngine,
   isLocalCodexProvider,
+  providerApiBaseUrl,
   providerEngineDefaults,
   providerEngineLabel,
 } from './model';
@@ -114,7 +115,7 @@ export function AiProviderFields({
                 authMode,
                 baseUrl:
                   authMode === 'api_key'
-                    ? providerEngineDefaults(editor.engine).baseUrl
+                    ? providerApiBaseUrl(editor.engine)
                     : '',
                 apiKey: '',
               })
@@ -155,8 +156,7 @@ export function AiProviderFields({
           placeholder={
             editor.engine === 'openrouter'
               ? 'provider/model'
-              : providerEngineDefaults(editor.engine).model ||
-                '填写服务支持的模型 ID'
+              : '填写所用 CLI 或服务支持的模型 ID'
           }
           required
           value={editor.model}
@@ -214,15 +214,7 @@ function ApiKeyFields({
               credentialConfigured: false,
             })
           }
-          placeholder={
-            editor.engine === 'openrouter'
-              ? 'https://openrouter.ai/api/v1'
-              : editor.engine === 'codex' || editor.engine === 'openai'
-                ? 'https://api.openai.com/v1'
-                : editor.engine === 'claude'
-                  ? 'https://api.anthropic.com'
-                  : 'https://api.deepseek.com'
-          }
+          placeholder={providerApiBaseUrl(editor.engine)}
           required
           type="url"
           value={editor.baseUrl}

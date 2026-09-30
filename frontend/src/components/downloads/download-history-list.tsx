@@ -51,7 +51,6 @@ export default function DownloadHistoryList({
           data={data.items}
           getRowId={(item) => item.id}
           getRowLabel={(item) => item.title}
-          className="sm:min-w-[760px]"
           selection={
             selection
               ? {
@@ -87,7 +86,7 @@ export default function DownloadHistoryList({
             {
               id: 'actions',
               header: '操作',
-              className: 'w-20 text-right sm:w-[240px]',
+              className: 'text-right',
               hideable: false,
               cell: (item) => (
                 <HistoryActions
@@ -123,7 +122,7 @@ function HistoryContent({ item }: { item: API.DownloadHistoryItemResponse }) {
   return (
     <Link
       aria-label={item.title}
-      className="focus-ring grid min-w-0 grid-cols-1 items-center gap-3 sm:grid-cols-[96px_minmax(0,1fr)]"
+      className="focus-ring grid min-w-0 grid-cols-1 items-center gap-3 sm:grid-cols-[auto_minmax(0,1fr)]"
       href={detailHref}
     >
       <div className="hidden sm:block">
@@ -258,7 +257,7 @@ function LoadingRows() {
       <div aria-hidden className="flex flex-col gap-2">
         {['first', 'second', 'third'].map((key) => (
           <div
-            className="grid grid-cols-[96px_minmax(0,1fr)] items-center gap-4 py-5 sm:grid-cols-[128px_minmax(0,1fr)_auto] sm:gap-6 sm:py-6"
+            className="grid grid-cols-[auto_minmax(0,1fr)] items-center gap-4 py-5 sm:grid-cols-[auto_minmax(0,1fr)_auto] sm:gap-6 sm:py-6"
             key={key}
           >
             <Skeleton className="h-16 w-24 sm:w-32" />

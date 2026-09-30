@@ -60,7 +60,7 @@ export function UserEditor({
         if (!open) onClose();
       }}
     >
-      <DialogContent className="max-h-[calc(100svh-2rem)] overflow-y-auto sm:max-w-[520px]">
+      <DialogContent className="max-h-svh overflow-y-auto overscroll-contain sm:max-w-lg">
         <DialogHeader>
           <p className="mb-4 text-sm font-medium">账户权限</p>
           <DialogTitle>

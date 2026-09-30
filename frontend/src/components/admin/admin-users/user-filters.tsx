@@ -42,7 +42,7 @@ export function UserFilters({
 
   return (
     <Form onSubmit={submit}>
-      <FieldGroup className="grid items-end gap-4 md:grid-cols-2 lg:grid-cols-[minmax(220px,1fr)_160px_160px_auto]">
+      <FieldGroup className="grid items-end gap-4 md:grid-cols-2 lg:grid-cols-[minmax(0,2fr)_repeat(2,minmax(0,1fr))_auto]">
         <Field>
           <FieldLabel htmlFor="user-search">搜索用户名或邮箱</FieldLabel>
           <InputGroup>

@@ -27,7 +27,7 @@ export function PublicHomeFaq() {
             aria-labelledby={`${id}-title`}
           >
             <h3
-              className="text-xl font-semibold leading-7 tracking-[-0.03em]"
+              className="text-xl font-semibold leading-7 tracking-tight"
               id={`${id}-title`}
             >
               {question}

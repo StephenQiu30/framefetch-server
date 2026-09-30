@@ -16,12 +16,12 @@ export default function AnalysisSceneList({
       {scenes.map((scene) => (
         <Item
           asChild
-          className="grid gap-4 sm:grid-cols-[72px_minmax(0,1fr)]"
+          className="grid gap-4 sm:grid-cols-[auto_minmax(0,1fr)]"
           key={scene.id}
         >
           <li>
             <Button
-              className="h-auto w-fit tabular-nums self-baseline justify-start hover:no-underline"
+              className="w-fit tabular-nums self-baseline justify-start"
               disabled={!onSelectTime}
               onClick={() => onSelectTime?.(scene.start_ms)}
               type="button"

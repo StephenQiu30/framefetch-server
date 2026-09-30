@@ -14,14 +14,14 @@ import { MobileNavigation } from '@/components/layout/mobile-navigation';
 import { ThemeToggle } from '@/components/layout/theme-toggle';
 import { Button } from '@/components/ui/button';
 import { displayError } from '@/lib/request-error';
-import { isPublicPage } from '@/lib/site';
+import { isPublicPage, siteConfig } from '@/lib/site';
 
 export function BrandLink({ className }: { className?: string }) {
   return (
     <Link
       aria-label="帧取首页"
       className={cn(
-        'focus-ring inline-flex min-h-9 items-center gap-3 rounded-md text-[17px] font-semibold tracking-[-0.02em]',
+        'focus-ring inline-flex min-h-9 items-center gap-3 rounded-md text-lg font-semibold tracking-tight',
         className,
       )}
       href="/"
@@ -87,7 +87,7 @@ export function SiteHeader() {
           {headerAuthPending ? (
             <div
               aria-hidden
-              className="h-9 w-[clamp(7rem,9vw,12rem)]"
+              className="h-9 w-32"
               data-slot="header-auth-pending"
             />
           ) : (
@@ -117,7 +117,7 @@ export function SiteHeader() {
                     >
                       <a
                         aria-label="在 GitHub 查看 FrameFetch 源代码"
-                        href="https://github.com/StephenQiu30/video-server"
+                        href={siteConfig.repositoryUrl}
                         rel="noreferrer"
                         target="_blank"
                       >

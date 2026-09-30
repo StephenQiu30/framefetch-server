@@ -6,6 +6,8 @@ import { Label, Pie, PieChart } from 'recharts';
 import {
   type ChartConfig,
   ChartContainer,
+  ChartLegend,
+  ChartLegendContent,
   ChartTooltip,
   ChartTooltipContent,
 } from '@/components/ui/chart';
@@ -80,7 +82,7 @@ export function StatusDistributionChart({
   return (
     <div className="w-full">
       <h2
-        className="flex items-center gap-2 text-xl font-medium tracking-[-0.025em]"
+        className="flex items-center gap-2 text-xl font-medium tracking-tight"
         id="status-distribution-title"
       >
         <CheckCircleIcon aria-hidden className="size-4 text-muted-foreground" />
@@ -89,10 +91,10 @@ export function StatusDistributionChart({
       <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">
         当前周期的完成结构与异常占比。
       </p>
-      <div className="mt-8 grid gap-10 sm:grid-cols-[minmax(16rem,18rem)_minmax(0,1fr)] sm:items-center sm:gap-14">
+      <div className="mt-8 grid gap-10 lg:grid-cols-[minmax(0,1fr)_minmax(0,3fr)] lg:items-center lg:gap-14">
         <ChartContainer
           aria-label="下载任务状态环形图"
-          className="mx-auto h-64 w-full max-w-72 aspect-square sm:mx-0"
+          className="mx-auto w-full max-w-xs aspect-square lg:mx-0"
           config={statusConfig}
           role="img"
         >
@@ -104,10 +106,10 @@ export function StatusDistributionChart({
             <Pie
               data={data}
               dataKey="value"
-              innerRadius={78}
+              innerRadius="60%"
               isAnimationActive={false}
               nameKey="status"
-              outerRadius={108}
+              outerRadius="85%"
               stroke="var(--background)"
               strokeWidth={3}
             >
@@ -127,13 +129,14 @@ export function StatusDistributionChart({
                         className="fill-foreground text-2xl font-medium tabular-nums"
                         x={viewBox.cx}
                         y={viewBox.cy}
+                        dy="-0.25em"
                       >
                         {formatInteger(summary.total)}
                       </tspan>
                       <tspan
-                        className="fill-muted-foreground text-[11px]"
+                        className="fill-muted-foreground text-xs"
                         x={viewBox.cx}
-                        y={(viewBox.cy ?? 0) + 21}
+                        dy="1.75em"
                       >
                         全部任务
                       </tspan>
@@ -142,6 +145,7 @@ export function StatusDistributionChart({
                 }}
               />
             </Pie>
+            <ChartLegend content={<ChartLegendContent nameKey="status" />} />
           </PieChart>
         </ChartContainer>
         <ItemGroup className="grid grid-cols-2 gap-x-8 gap-y-8 sm:grid-cols-4 sm:gap-x-10">
@@ -153,11 +157,6 @@ export function StatusDistributionChart({
             >
               <ItemContent className="gap-0">
                 <ItemTitle className="flex items-center gap-2">
-                  <span
-                    aria-hidden
-                    className="size-1.5 rounded-full"
-                    style={{ backgroundColor: statusConfig[item.status].color }}
-                  />
                   {statusConfig[item.status].label}
                 </ItemTitle>
                 <ItemActions className="mt-2 items-baseline gap-2 tabular-nums">

@@ -18,7 +18,7 @@ export default function GlobalError({
   return (
     <html lang="zh-CN" suppressHydrationWarning>
       <body>
-        <main className="min-h-svh bg-background px-6 text-foreground sm:px-10">
+        <main className="flex min-h-svh flex-col bg-background px-6 text-foreground sm:px-10">
           <RouteErrorView error={error} reset={reset} />
         </main>
       </body>

@@ -49,7 +49,7 @@ export function MediaResult({
         <CardContent className="px-0">{frame}</CardContent>
         <CardHeader className="mt-5 px-0">
           <CardTitle>
-            <Heading className="break-words text-pretty text-xl font-semibold leading-7 tracking-[-0.03em] sm:text-2xl sm:leading-8">
+            <Heading className="break-words text-pretty text-xl font-semibold leading-7 tracking-tight sm:text-2xl sm:leading-8">
               {title}
             </Heading>
           </CardTitle>

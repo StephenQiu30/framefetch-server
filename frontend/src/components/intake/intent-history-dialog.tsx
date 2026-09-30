@@ -79,7 +79,7 @@ export function IntentHistoryDialog({
   return (
     <Dialog open={!!item} onOpenChange={(open) => !open && onClose()}>
       <DialogContent
-        className="max-h-[calc(100svh-2rem)] overflow-y-auto sm:max-w-xl"
+        className="max-h-svh overflow-y-auto overscroll-contain sm:max-w-xl"
         onCloseAutoFocus={(event) => {
           if (!triggerRef.current?.isConnected) return;
           event.preventDefault();

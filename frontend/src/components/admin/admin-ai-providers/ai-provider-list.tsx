@@ -60,6 +60,7 @@ function ProviderRowColumns(
     {
       id: '服务',
       header: '服务',
+      hideable: false,
       className: 'whitespace-normal',
       cell: (item) => {
         const localCodex = isLocalCodexProvider(item.key);
@@ -72,7 +73,13 @@ function ProviderRowColumns(
               ) : null}
               {localCodex ? <Badge variant="secondary">系统兜底</Badge> : null}
             </div>
-            <p className="truncate text-xs text-muted-foreground">{item.key}</p>
+            <p className="break-all text-xs text-muted-foreground">
+              {item.key}
+            </p>
+            <p className="break-all text-xs text-muted-foreground lg:hidden">
+              {providerEngineLabel(item.engine)} · {item.model} ·{' '}
+              {connectionLabel(item)}
+            </p>
           </div>
         );
       },
@@ -80,17 +87,13 @@ function ProviderRowColumns(
     {
       id: '模型与连接',
       header: '模型与连接',
-      className: 'w-[32%] whitespace-normal',
+      className: 'hidden lg:table-cell',
       cell: (item) => {
         return (
           <div className="flex min-w-0 flex-col gap-1">
-            <span className="truncate font-mono text-xs">{item.model}</span>
-            <span className="truncate text-sm text-muted-foreground">
-              {item.auth_mode === 'host_login'
-                ? '本机账号登录'
-                : `${item.base_url} · ${
-                    item.credential_configured ? '凭据已配置' : '缺少凭据'
-                  }`}
+            <span className="break-all font-mono text-xs">{item.model}</span>
+            <span className="break-all text-muted-foreground">
+              {connectionLabel(item)}
             </span>
           </div>
         );
@@ -99,7 +102,7 @@ function ProviderRowColumns(
     {
       id: '执行引擎',
       header: '执行引擎',
-      className: 'w-[16%] whitespace-normal',
+      className: 'hidden lg:table-cell',
       cell: (item) => {
         return (
           <Badge variant="secondary">{providerEngineLabel(item.engine)}</Badge>
@@ -109,7 +112,8 @@ function ProviderRowColumns(
     {
       id: '操作',
       header: '操作',
-      className: 'w-[27%] text-right whitespace-nowrap whitespace-normal',
+      hideable: false,
+      className: 'text-right',
       cell: (item) => {
         const localCodex = isLocalCodexProvider(item.key);
         return (
@@ -148,6 +152,12 @@ function ProviderRowColumns(
   ];
 }
 
+function connectionLabel(item: API.AiProviderProfileResponse) {
+  return item.auth_mode === 'host_login'
+    ? '本机账号登录'
+    : `${item.base_url || '未配置地址'} · ${item.credential_configured ? '凭据已配置' : '缺少凭据'}`;
+}
+
 export function ProviderTable({
   bulk,
   items,
@@ -173,7 +183,6 @@ export function ProviderTable({
         getRowId={(item) => item.key}
         getRowLabel={(item) => item.display_name}
         caption="AI Provider 配置列表"
-        className="min-w-[780px] table-fixed"
         columns={ProviderRowColumns(onActivate, onDelete, onEdit)}
       />
     </BulkDeleteSelection>
@@ -187,7 +196,7 @@ function RouteNode({ icon, label }: { icon: React.ReactNode; label: string }) {
         {icon}
       </ItemMedia>
       <ItemContent className="min-w-0">
-        <ItemTitle className="max-w-64 truncate">{label}</ItemTitle>
+        <ItemTitle className="break-all">{label}</ItemTitle>
       </ItemContent>
     </Item>
   );

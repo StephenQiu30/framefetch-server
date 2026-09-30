@@ -25,15 +25,11 @@ export function DailyTrendPlot({ points }: { points: DailyPoint[] }) {
     <ChartContainer
       aria-describedby="daily-trend-description"
       aria-label="每日下载任务交互趋势图"
-      className="h-full w-full aspect-auto"
+      className="w-full md:aspect-[3/1]"
       config={trendConfig}
       role="img"
     >
-      <AreaChart
-        accessibilityLayer
-        data={points}
-        margin={{ left: 8, right: 8 }}
-      >
+      <AreaChart accessibilityLayer data={points}>
         <defs>
           <linearGradient id="fillTotal" x1="0" y1="0" x2="0" y2="1">
             <stop
@@ -64,10 +60,8 @@ export function DailyTrendPlot({ points }: { points: DailyPoint[] }) {
         <XAxis
           axisLine={false}
           dataKey="date"
-          minTickGap={32}
           tickFormatter={formatShortDate}
           tickLine={false}
-          tickMargin={8}
         />
         <ChartTooltip
           content={

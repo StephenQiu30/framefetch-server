@@ -24,13 +24,13 @@ export function AnalyticsLoading() {
           </div>
         ))}
       </div>
-      <Skeleton className="h-72 sm:h-80" />
+      <Skeleton className="w-full aspect-video md:aspect-[3/1]" />
       <div className="flex flex-col gap-20 sm:gap-28">
         {['status', 'completion', 'sources'].map((key) => (
           <div key={key}>
             <Skeleton className="h-6 w-32" />
             <Skeleton className="mt-2 h-4 w-56 max-w-full" />
-            <Skeleton className="mt-8 h-64 sm:h-80" />
+            <Skeleton className="mt-8 w-full aspect-video md:aspect-[3/1]" />
           </div>
         ))}
       </div>

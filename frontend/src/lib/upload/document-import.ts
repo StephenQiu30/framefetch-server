@@ -12,7 +12,6 @@ import {
   uploadMultipartFile,
 } from '@/lib/upload/media-upload';
 
-const MAX_DOCUMENT_BYTES = 50 * 1024 * 1024;
 const formats = new Map<string, API.DocumentSourceFormat>([
   ['.docx', 'docx'],
   ['.fountain', 'fountain'],
@@ -24,7 +23,8 @@ const formats = new Map<string, API.DocumentSourceFormat>([
 
 export function validateScreenplayDocument(file: File): string | null {
   if (file.size <= 0) return '请选择包含内容的剧本文档。';
-  if (file.size > MAX_DOCUMENT_BYTES) return '剧本文档不能超过 50 MB。';
+  // The deployment's document_import_max_bytes is enforced when creating
+  // the import, before an upload session can be issued.
   if (!documentSourceFormat(file.name)) {
     return '支持 DOCX、PDF、TXT、Markdown 和 Fountain 文件。';
   }

@@ -6,7 +6,6 @@ import {
   HouseIcon,
   PulseIcon,
 } from '@phosphor-icons/react';
-import { cn } from 'cn';
 import Link from 'next/link';
 import type { ReactNode } from 'react';
 import {
@@ -16,6 +15,7 @@ import {
   NavigationMenuList,
   navigationMenuTriggerStyle,
 } from '@/components/ui/navigation-menu';
+import { siteConfig } from '@/lib/site';
 
 type DesktopNavigationProps = {
   documentsActive: boolean;
@@ -43,7 +43,7 @@ export function DesktopNavigation({
           <>
             <NavigationLink href="/#capabilities">产品能力</NavigationLink>
             <NavigationLink href="/#architecture">自托管架构</NavigationLink>
-            <NavigationLink href="https://github.com/StephenQiu30/video-server">
+            <NavigationLink href={siteConfig.repositoryUrl}>
               <GithubLogoIcon aria-hidden />
               GitHub
               <ArrowUpRightIcon aria-hidden />
@@ -90,7 +90,7 @@ function NavigationLink({
       <NavigationMenuLink
         active={active}
         asChild
-        className={cn(navigationMenuTriggerStyle(), active && 'bg-accent')}
+        className={navigationMenuTriggerStyle()}
       >
         <Link
           aria-current={active ? 'page' : undefined}

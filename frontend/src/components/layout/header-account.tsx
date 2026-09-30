@@ -85,7 +85,7 @@ export function HeaderAccount({
       data-slot="header-account"
     >
       {loading ? (
-        <Skeleton aria-hidden className="h-9 w-[clamp(4.5rem,5vw,5.5rem)]" />
+        <Skeleton aria-hidden className="h-9 w-20" />
       ) : user ? (
         <DropdownMenu
           modal={false}
@@ -99,7 +99,6 @@ export function HeaderAccount({
           <DropdownMenuTrigger asChild>
             <Button
               aria-label="打开账户菜单"
-              className="rounded-full p-0"
               onKeyDown={() => {
                 cancelHoverClose();
                 openedByHover.current = false;
@@ -228,7 +227,7 @@ export function HeaderAccount({
       ) : (
         <Button asChild className="w-full" size="lg" variant="ghost">
           <Link href={`/user/login?redirect=${encodeURIComponent(pathname)}`}>
-            <UserCircleIcon aria-hidden className="size-[21px]" />
+            <UserCircleIcon aria-hidden className="" />
             <span>账户</span>
           </Link>
         </Button>

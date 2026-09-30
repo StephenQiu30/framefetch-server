@@ -48,7 +48,7 @@ export function ProviderCatalogList({
         <Button
           aria-label={`删除平台 ${item.display_name}`}
           onClick={() => onDelete(item)}
-          size="icon-lg"
+          size="icon"
           type="button"
           variant="ghost"
         >
@@ -65,35 +65,46 @@ export function ProviderCatalogList({
         getRowId={(item) => item.key}
         getRowLabel={(item) => item.display_name}
         caption="平台目录列表"
-        className="min-w-[720px] table-fixed"
         columns={[
           {
             id: '平台',
             header: '平台',
+            hideable: false,
             className: 'whitespace-normal',
-            cell: (item) => <> {item.display_name} </>,
+            cell: (item) => (
+              <div className="flex min-w-0 flex-col gap-2">
+                <span>{item.display_name}</span>
+                <div className="flex flex-col gap-2 lg:hidden">
+                  <span className="break-all text-xs text-muted-foreground">
+                    {item.key} · 排序 {item.sort_order}
+                  </span>
+                  {badges(item)}
+                </div>
+              </div>
+            ),
           },
           {
             id: '目录键',
             header: '目录键',
-            className: 'whitespace-normal',
+            className: 'hidden lg:table-cell',
             cell: (item) => <> {item.key} </>,
           },
           {
             id: '注册与可见性',
             header: '注册与可见性',
-            className: 'whitespace-normal',
+            className: 'hidden lg:table-cell',
             cell: (item) => <> {badges(item)} </>,
           },
           {
             id: '排序',
             header: '排序',
-            className: 'text-right tabular-nums whitespace-normal',
+            className: 'hidden text-right tabular-nums lg:table-cell',
             cell: (item) => <> {item.sort_order} </>,
           },
           {
             id: '操作',
             header: '操作',
+            hideable: false,
             className: 'text-right whitespace-normal',
             cell: (item) => <> {actions(item)} </>,
           },

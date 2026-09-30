@@ -33,7 +33,7 @@ export function ProviderCatalogFilters({
   onVisibilityChange,
 }: ProviderCatalogFiltersProps) {
   return (
-    <FieldGroup className="grid gap-4 sm:grid-cols-[minmax(0,1fr)_12rem]">
+    <FieldGroup className="grid gap-4 sm:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
       <Field>
         <FieldLabel htmlFor="provider-catalog-search">搜索平台</FieldLabel>
         <InputGroup>

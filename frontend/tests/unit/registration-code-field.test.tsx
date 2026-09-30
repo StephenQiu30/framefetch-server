@@ -51,6 +51,39 @@ describe('registration email proof', () => {
     );
     expect(screen.getByRole('button', { name: '获取验证码' })).toBeEnabled();
   });
+
+  it.each([
+    [180, '3 分钟'],
+    [95, '95 秒'],
+  ])('uses the server validity of %i seconds', async (expires, label) => {
+    vi.mocked(requestRegistrationCode).mockResolvedValue({
+      email_sent: true,
+      retry_after_seconds: 35,
+      expires_in_seconds: expires,
+    });
+    field();
+    fireEvent.click(screen.getByRole('button', { name: '获取验证码' }));
+    await waitFor(() =>
+      expect(screen.getByRole('status')).toHaveTextContent(`有效期 ${label}`),
+    );
+    expect(
+      await screen.findByRole('button', { name: '35 秒后可重发' }),
+    ).toBeDisabled();
+  });
+
+  it('does not invent expiry or cooldown when the server omits them', async () => {
+    vi.mocked(requestRegistrationCode).mockResolvedValue({ email_sent: true });
+    field();
+    fireEvent.click(screen.getByRole('button', { name: '获取验证码' }));
+    await waitFor(() =>
+      expect(screen.getByRole('status')).toHaveTextContent(
+        '有效期请查看邮件说明',
+      ),
+    );
+    expect(
+      screen.getByRole('button', { name: '重新获取验证码' }),
+    ).toBeEnabled();
+  });
   it('checks the email before sending', async () => {
     vi.mocked(requestRegistrationCode).mockClear();
     field('bad-email');

@@ -13,8 +13,13 @@ describe('AI Provider editor model', () => {
     expect(providerEngineDefaults('codex')).toEqual({
       authMode: 'host_login',
       baseUrl: '',
-      model: 'gpt-5.6-sol',
+      model: '',
     });
+  });
+
+  it('requires the configured model instead of guessing a CLI default', () => {
+    expect(providerEngineDefaults('codex').model).toBe('');
+    expect(providerEngineDefaults('claude').model).toBe('');
   });
 
   it('configures DeepSeek through the Web API profile', () => {

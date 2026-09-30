@@ -175,7 +175,7 @@ export default function DownloadHistoryView() {
         title="下载记录"
       />
 
-      <FieldGroup className="mt-6 grid gap-3 sm:grid-cols-[minmax(0,1fr)_11rem_auto] sm:items-end">
+      <FieldGroup className="mt-6 grid gap-3 sm:grid-cols-[minmax(0,2fr)_minmax(0,1fr)_auto] sm:items-end">
         <Field>
           <FieldLabel className="sr-only" htmlFor="history-search">
             搜索下载记录

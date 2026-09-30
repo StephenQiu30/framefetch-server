@@ -54,7 +54,7 @@ export function ScreenplayDocumentMetadata({
     <div className="mt-8 py-5 sm:mt-10 sm:py-6">
       <div className="flex items-baseline justify-between gap-4">
         <h2
-          className="text-lg font-medium tracking-[-0.02em]"
+          className="text-lg font-medium tracking-tight"
           id="document-metadata-title"
         >
           文档信息

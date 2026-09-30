@@ -63,7 +63,7 @@ export default function DownloadState({
         {statusLabels[job.status]}
       </Badge>
       <h2
-        className="mt-4 text-2xl font-medium leading-tight tracking-[-0.035em] sm:text-[32px]"
+        className="mt-4 text-2xl font-medium leading-tight tracking-tight sm:text-3xl"
         id="download-status-title"
       >
         {statusHeading(job)}
@@ -75,7 +75,7 @@ export default function DownloadState({
       {showProgress ? (
         <>
           <div className="mt-7 flex items-end justify-between gap-5">
-            <span className="text-3xl font-medium leading-none tracking-[-0.045em] tabular-nums">
+            <span className="text-3xl font-medium leading-none tracking-tight tabular-nums">
               {job.progress}%
             </span>
             <span className="text-sm text-muted-foreground">

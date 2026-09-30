@@ -21,7 +21,7 @@ describe('history date filters', () => {
   it('keeps dates as drafts until submit and clears an end before the new start', () => {
     const onApply = renderForm();
     fireEvent.click(
-      screen.getByRole('button', { name: '开始日期：2026-09-20' }),
+      screen.getByRole('button', { name: '开始日期：2026年9月20日' }),
     );
     fireEvent.click(
       screen.getByRole('button', { name: /2026年9月24日 星期四$/ }),
@@ -52,7 +52,7 @@ describe('history date filters', () => {
   it('prevents an end date before the draft start and permits clearing dates', () => {
     const onApply = renderForm();
     fireEvent.click(
-      screen.getByRole('button', { name: '结束日期：2026-09-23' }),
+      screen.getByRole('button', { name: '结束日期：2026年9月23日' }),
     );
     const dialog = screen.getByRole('dialog', { name: '结束日期' });
     expect(

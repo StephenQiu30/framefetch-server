@@ -11,6 +11,7 @@ import {
 import { FeedbackNotice } from '@/components/layout/feedback-notice';
 import { Button } from '@/components/ui/button';
 import { Form } from '@/components/ui/form';
+import { Input } from '@/components/ui/input';
 import { Progress } from '@/components/ui/progress';
 import { Spinner } from '@/components/ui/spinner';
 import { formatFileSize } from '@/lib/format';
@@ -82,10 +83,10 @@ export function ScreenplayUploadForm({
     </IntakePickerButton>
   );
   const fileInput = (
-    <input
+    <Input
       accept=".docx,.pdf,.txt,.md,.markdown,.fountain"
       aria-label="选择剧本文档文件"
-      className="sr-only"
+      className="hidden"
       disabled={busy}
       onChange={(event) => onFileSelect(event.target.files?.[0] ?? null)}
       onClick={(event) => {

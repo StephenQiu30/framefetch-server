@@ -43,7 +43,7 @@ export function CompletionRateChart({ daily }: { daily: DailyPoint[] }) {
   return (
     <div className="w-full">
       <h2
-        className="flex items-center gap-2 text-xl font-medium tracking-[-0.025em]"
+        className="flex items-center gap-2 text-xl font-medium tracking-tight"
         id="completion-rate-title"
       >
         <TrendUpIcon aria-hidden className="size-4 text-muted-foreground" />
@@ -54,20 +54,15 @@ export function CompletionRateChart({ daily }: { daily: DailyPoint[] }) {
       </p>
       <ChartContainer
         aria-label="每日下载成功率面积图"
-        className="mt-8 h-64 w-full aspect-auto sm:h-80"
+        className="mt-8 w-full md:aspect-[3/1]"
         config={completionConfig}
         role="img"
       >
-        <AreaChart
-          accessibilityLayer
-          data={points}
-          margin={{ left: 0, right: 8, top: 8 }}
-        >
+        <AreaChart accessibilityLayer data={points}>
           <CartesianGrid stroke="var(--border)" vertical={false} />
           <XAxis
             axisLine={false}
             dataKey="date"
-            minTickGap={40}
             tickFormatter={formatShortDate}
             tickLine={false}
           />
@@ -76,8 +71,7 @@ export function CompletionRateChart({ daily }: { daily: DailyPoint[] }) {
             domain={[0, 100]}
             tickFormatter={(value) => `${value}%`}
             tickLine={false}
-            ticks={[0, 50, 100]}
-            width={40}
+            width="auto"
           />
           <ChartTooltip
             content={

@@ -22,6 +22,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Field, FieldGroup, FieldLabel } from '@/components/ui/field';
+import { Form } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
 import {
   Select,
@@ -125,7 +126,7 @@ export function OperationLogsView() {
           }
         />
       </div>
-      <form
+      <Form
         onSubmit={(event) => {
           event.preventDefault();
           setQ(search.trim());
@@ -222,7 +223,7 @@ export function OperationLogsView() {
             />
           </Field>
         </FieldGroup>
-      </form>
+      </Form>
       <p className="text-sm text-muted-foreground">
         展示日志启用后的操作。请求结果与系统任务状态分别记录；“结果未确认”表示请求尚未结束或执行曾中断。
       </p>
@@ -245,7 +246,6 @@ export function OperationLogsView() {
               getRowId={(item) => item.id}
               getRowLabel={(item) => item.description}
               caption="系统操作日志"
-              className="min-w-[900px]"
               columns={[
                 {
                   id: '时间',
@@ -362,6 +362,7 @@ export function OperationLogsView() {
         }}
       >
         <DialogContent
+          className="max-h-svh overflow-y-auto overscroll-contain"
           onCloseAutoFocus={(event) => {
             event.preventDefault();
             detailTrigger.current?.focus();
