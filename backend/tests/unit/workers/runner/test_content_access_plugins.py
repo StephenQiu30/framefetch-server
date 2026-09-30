@@ -25,6 +25,17 @@ from yt_dlp import YoutubeDL
 from yt_dlp.utils import ExtractorError
 
 
+@pytest.fixture(autouse=True)
+def offline_visitor_session(monkeypatch: pytest.MonkeyPatch) -> None:
+    # Visitor initialization has its own tests; these exercise page parsing.
+    for module in ("douyin_share", "douyin_note"):
+        monkeypatch.setattr(
+            f"app.workers.runner.plugins.yt_dlp_plugins.extractor.{module}"
+            ".ensure_visitor_cookies",
+            lambda *_args: None,
+        )
+
+
 @pytest.mark.parametrize(
     ("item", "reason"),
     [

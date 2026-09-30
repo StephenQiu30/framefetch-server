@@ -13,6 +13,7 @@ from yt_dlp.utils import ExtractorError  # type: ignore[import-untyped]
 from ._content_access import (
     enforce_douyin_access,
 )
+from ._douyin_visitor import ensure_visitor_cookies
 
 _NOTE_URL = r"https?://(?:www\.)?(?:douyin|iesdouyin)\.com/(?:share/)?note/(?P<id>\d+)/?(?:[?#].*)?$"
 _SLIDES_INFO = "https://www.iesdouyin.com/web/api/v2/aweme/slidesinfo/"
@@ -40,6 +41,7 @@ class DouyinNoteIE(DouyinIE):  # type: ignore[misc]
 
     def _real_extract(self, url: str) -> dict[str, Any]:
         note_id = self._match_id(url)
+        ensure_visitor_cookies(self, note_id)
         share_query = _share_query(url)
         item = self._slides_item(note_id, share_query)
         if item is None:

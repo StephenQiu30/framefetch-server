@@ -319,12 +319,6 @@ PROVIDER_FAILURE_RULES: tuple[FailureRule, ...] = (
         authenticated=True,
     ),
     FailureRule(
-        "provider_temporarily_unavailable",
-        503,
-        all_stderr=(b"fresh cookies", b"needed"),
-        providers=frozenset({ProviderKey.DOUYIN}),
-    ),
-    FailureRule(
         "provider_rate_limited",
         429,
         any_stderr=(b"http error 429", b"too many requests"),
@@ -341,7 +335,7 @@ PROVIDER_FAILURE_RULES: tuple[FailureRule, ...] = (
         any_stderr=(b"no video formats found",),
         providers=frozenset({ProviderKey.INSTAGRAM}),
     ),
-    # An ambiguous cookie request is not sufficient to upgrade an anonymous route.
+    # An anonymous cookie demand is cleared by the provider's session route.
     FailureRule(
         "provider_session_not_ready",
         503,

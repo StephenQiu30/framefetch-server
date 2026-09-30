@@ -193,7 +193,7 @@ def test_collection_download_enables_playlist_with_bounded_output(
 @pytest.mark.parametrize(
     ("authenticated", "expected_code", "expected_status"),
     (
-        (False, "provider_temporarily_unavailable", 503),
+        (False, "provider_session_not_ready", 503),
         (True, "credential_expired", 422),
     ),
 )

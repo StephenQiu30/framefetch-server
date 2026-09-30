@@ -1396,8 +1396,8 @@ async def test_full_playlist_probes_clear_segment_and_preserves_duration(
     "code,status",
     [
         ("provider_rate_limited", 429),
-        ("egress_challenged", 422),
         ("content_private", 422),
+        ("provider_temporarily_unavailable", 503),
     ],
 )
 async def test_anonymous_failures_never_read_chrome_session(
@@ -1481,3 +1481,28 @@ async def test_auth_failure_reads_chrome_once_and_freezes_final_account_route(tm
         path.is_file()
         for path in configured.runner_provider_session_temp_root.rglob("*")
     )
+
+
+@pytest.mark.parametrize(
+    "code",
+    ["credential_required", "egress_challenged", "provider_session_not_ready"],
+)
+async def test_anonymous_session_walls_continue_with_chrome_session(tmp_path, code):
+    from unittest.mock import AsyncMock
+
+    configured = operator_settings(tmp_path)
+    sessions = operator_session_store(configured)
+    service = MediaRunnerService(
+        configured,
+        supervisor=FixtureSupervisor(split_media_info()),
+        session_store=sessions,
+    )
+    service._inspection.inspect = AsyncMock(side_effect=RunnerFailure(code, status=422))
+    sessions._site_sessions.ready_revision = AsyncMock(
+        side_effect=RunnerFailure("provider_session_not_ready", status=503)
+    )
+    with pytest.raises(RunnerFailure) as caught:
+        await service.inspect("https://www.youtube.com/watch?v=owned")
+    # The task went on to the Chrome session instead of failing anonymously.
+    sessions._site_sessions.ready_revision.assert_awaited_once()
+    assert caught.value.code == "provider_session_not_ready"

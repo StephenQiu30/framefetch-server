@@ -14,6 +14,7 @@ from yt_dlp.utils import ExtractorError, int_or_none  # type: ignore[import-unty
 from ._content_access import (
     enforce_douyin_access,
 )
+from ._douyin_visitor import ensure_visitor_cookies
 from .douyin_note import DouyinNoteIE
 
 _SHARE_PAGE = "https://www.iesdouyin.com/share/video/{video_id}/"
@@ -136,6 +137,7 @@ class _DouyinSharePageIE(DouyinIE, plugin_name="share_page"):  # type: ignore[mi
 
     def _real_extract(self, url: str) -> dict[str, Any]:
         video_id = self._match_id(url)
+        ensure_visitor_cookies(self, video_id)
         webpage = self._download_webpage(
             _SHARE_PAGE.format(video_id=video_id),
             video_id,

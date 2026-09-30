@@ -23,6 +23,18 @@ from yt_dlp.extractor.tiktok import DouyinIE
 from yt_dlp.networking.exceptions import TransportError  # type: ignore[import-untyped]
 from yt_dlp.utils import ExtractorError  # type: ignore[import-untyped]
 
+
+@pytest.fixture(autouse=True)
+def offline_visitor_session(monkeypatch: pytest.MonkeyPatch) -> None:
+    # Visitor initialization has its own tests; these exercise page parsing.
+    for module in ("douyin_share", "douyin_note"):
+        monkeypatch.setattr(
+            f"app.workers.runner.plugins.yt_dlp_plugins.extractor.{module}"
+            ".ensure_visitor_cookies",
+            lambda *_args: None,
+        )
+
+
 VIDEO_ID = "7662711608636889201"
 URL = f"https://www.douyin.com/video/{VIDEO_ID}"
 SHORT_URL = "https://v.douyin.com/Tq0eYJRMYRk/"

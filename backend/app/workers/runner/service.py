@@ -57,6 +57,11 @@ from app.workers.runner.workspace import (
     WorkspaceViolation,
 )
 
+# Anonymous failures that the provider's session route is expected to clear.
+_SESSION_UPGRADE_CODES = frozenset(
+    {"credential_required", "egress_challenged", "provider_session_not_ready"}
+)
+
 
 class MediaRunnerService:
     def __init__(
@@ -147,12 +152,14 @@ class MediaRunnerService:
                                 cookie_jar=cookie_jar,
                             )
                         except RunnerFailure as error:
-                            # Only an explicit authentication response can request
-                            # the already-approved public-account route. 429,
-                            # private content, network/attestation failures cannot.
+                            # A login wall, bot challenge or cookie demand hands the
+                            # task to the user's own Chrome session without asking.
+                            # 429, private content and network failures cannot.
                             if (
                                 not allow_session_fallback
-                                or error.code != "credential_required"
+                                or error.code not in _SESSION_UPGRADE_CODES
+                                or self._settings.runner_access_mode
+                                is not ProviderAccessMode.OPERATOR_MANAGED
                                 or context.access_mode
                                 is not ProviderAccessMode.ANONYMOUS
                                 or source.profile.access_policy
