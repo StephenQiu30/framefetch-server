@@ -5,16 +5,23 @@ from datetime import datetime
 from pathlib import Path
 
 from app.services.downloads.rules.enums import DownloadStage, MediaKind
+from app.services.provider_failures import ProviderFailure
 from app.workers.runner.contracts import RunnerTaskStage
 
 
 class MediaRunnerClientError(RuntimeError):
     def __init__(
-        self, code: str, status: int, *, retry_at: datetime | None = None
+        self,
+        code: str,
+        status: int,
+        *,
+        retry_at: datetime | None = None,
+        failure: ProviderFailure | None = None,
     ) -> None:
         self.code = code
         self.status = status
         self.retry_at = retry_at
+        self.failure = failure or ProviderFailure.for_code(code, retry_after=retry_at)
         super().__init__(code)
 
 

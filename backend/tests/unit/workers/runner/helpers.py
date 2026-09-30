@@ -77,6 +77,12 @@ def download_request(height: int = 1080, width: int = 1920) -> DownloadRequest:
                 "runtime_revision": runtime_code_sha256(
                     "generic", access_mode=ProviderAccessMode.ANONYMOUS
                 ),
+                "strategy_id": "yt-dlp-anonymous",
+                "adapter_revision": "default",
+                "session_source_id": None,
+                "browser_context_revision": None,
+                "protocol_capabilities": ["http-media"],
+                "egress_observation_ref": None,
             },
             "plan": {
                 "height": height,

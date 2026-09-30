@@ -6,7 +6,7 @@ from app.workers.runner.errors import RunnerFailure
 from app.workers.runner.inspection_pipeline import RunnerInspectionPipeline
 from app.workers.runner.provider_registry import provider_request
 from app.workers.runner.workspace import WorkspaceManager
-from helpers import settings, split_media_info
+from helpers import download_request, settings, split_media_info
 
 
 async def test_provider_probe_failure_is_not_downgraded_to_incomplete_metadata(
@@ -30,9 +30,7 @@ async def test_provider_probe_failure_is_not_downgraded_to_incomplete_metadata(
             await RunnerInspectionPipeline(settings(tmp_path), Commands()).inspect(
                 provider_request("https://media.example.com/video"),
                 workspace,
-                context=SimpleNamespace(
-                    provider_key="generic", access_mode=ProviderAccessMode.ANONYMOUS
-                ),
+                context=download_request().access_context.to_domain(),
                 cookie_jar=None,
             )
         assert caught.value.code == "provider_rate_limited"

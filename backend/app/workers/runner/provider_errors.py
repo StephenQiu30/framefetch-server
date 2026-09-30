@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from app.services.downloads.rules.content_restrictions import ContentRestriction
+from app.services.provider_failures import FailureClass, failure_definition
 from app.services.provider_types import ProviderKey
 
 
@@ -43,6 +44,11 @@ class FailureRule:
 
 
 PROVIDER_FAILURE_RULES: tuple[FailureRule, ...] = (
+    FailureRule(
+        "content_deleted",
+        422,
+        any_stderr=(b"this video has been removed", b"this video has been deleted"),
+    ),
     *(
         FailureRule(
             code,
@@ -175,7 +181,7 @@ PROVIDER_FAILURE_RULES: tuple[FailureRule, ...] = (
         providers=frozenset({ProviderKey.DOUYIN}),
     ),
     FailureRule(
-        "provider_link_unavailable",
+        "extractor_regression",
         422,
         any_stderr=(b"unable to extract initial state",),
         providers=frozenset({ProviderKey.XIAOHONGSHU, ProviderKey.KUAISHOU}),
@@ -293,16 +299,6 @@ PROVIDER_FAILURE_RULES: tuple[FailureRule, ...] = (
         all_stderr=(b"po token",),
     ),
     FailureRule(
-        "egress_challenged",
-        422,
-        any_stderr=(
-            b"unable to download video data: http error 403",
-            b"http error 403: forbidden",
-        ),
-        providers=frozenset({ProviderKey.YOUTUBE}),
-        authenticated=False,
-    ),
-    FailureRule(
         "provider_temporarily_unavailable",
         503,
         any_stderr=(
@@ -313,10 +309,9 @@ PROVIDER_FAILURE_RULES: tuple[FailureRule, ...] = (
         authenticated=False,
     ),
     FailureRule(
-        "credential_expired",
-        422,
+        "upstream_unclassified",
+        502,
         all_stderr=(b"fresh cookies", b"needed"),
-        authenticated=True,
     ),
     FailureRule(
         "provider_rate_limited",
@@ -325,8 +320,8 @@ PROVIDER_FAILURE_RULES: tuple[FailureRule, ...] = (
         all_stderr=(b"rate-limit reached or login required",),
     ),
     FailureRule(
-        "provider_temporarily_unavailable",
-        503,
+        "upstream_unclassified",
+        502,
         any_stderr=(b"rate-limit reached or login required",),
     ),
     FailureRule(
@@ -334,13 +329,6 @@ PROVIDER_FAILURE_RULES: tuple[FailureRule, ...] = (
         409,
         any_stderr=(b"no video formats found",),
         providers=frozenset({ProviderKey.INSTAGRAM}),
-    ),
-    # An anonymous cookie demand is cleared by the provider's session route.
-    FailureRule(
-        "provider_session_not_ready",
-        503,
-        all_stderr=(b"fresh cookies", b"needed"),
-        authenticated=False,
     ),
     FailureRule(
         "credential_required",
@@ -400,7 +388,81 @@ PROVIDER_FAILURE_RULES: tuple[FailureRule, ...] = (
             b"universal data for rehydration",
         ),
     ),
+    FailureRule(
+        "egress_denied",
+        502,
+        any_stderr=(
+            b"http error 407",
+            b"proxy authentication required",
+            b"tunnel connection failed",
+            b"proxy connection refused",
+        ),
+    ),
+    FailureRule(
+        "network_transient",
+        503,
+        any_stderr=(
+            b"connection timed out",
+            b"read timed out",
+            b"connection reset",
+            b"name or service not known",
+            b"temporary failure in name resolution",
+            b"certificate verify failed",
+            b"ssl handshake",
+            b"failed to resolve",
+            b"network is unreachable",
+            b"http error 500",
+            b"http error 502",
+            b"http error 503",
+            b"http error 504",
+        ),
+    ),
+    FailureRule(
+        "engine_unavailable",
+        503,
+        any_stderr=(b"no supported javascript runtime could be found",),
+    ),
+    FailureRule(
+        "protocol_unavailable",
+        422,
+        any_stderr=(b"unsupported protocol", b"sabr is not supported", b"sabr-only"),
+    ),
+    FailureRule(
+        "upstream_unclassified",
+        502,
+        any_stderr=(
+            b"http error 403",
+            b"failed to parse json",
+            b"empty response",
+            b"no json object could be decoded",
+        ),
+    ),
 )
+
+
+def _rule_priority(rule: FailureRule) -> int:
+    kind, _, _ = failure_definition(rule.code)
+    if kind in {FailureClass.CONTENT_UNAVAILABLE, FailureClass.CONTENT_RESTRICTED}:
+        return 0
+    if kind in {FailureClass.TOKEN_UNAVAILABLE, FailureClass.TOKEN_REJECTED}:
+        return 1
+    if kind in {
+        FailureClass.AUTH_REQUIRED,
+        FailureClass.SESSION_EXPIRED,
+        FailureClass.CHALLENGE_REQUIRED,
+    }:
+        return 2
+    if kind is FailureClass.RATE_LIMITED:
+        return 3
+    if kind in {
+        FailureClass.EGRESS_DENIED,
+        FailureClass.NETWORK_TRANSIENT,
+        FailureClass.RUNTIME_UNAVAILABLE,
+    }:
+        return 4
+    if kind is FailureClass.UPSTREAM_UNCLASSIFIED:
+        return 6
+    return 5
 
 
 def classify_provider_failure(
@@ -408,7 +470,37 @@ def classify_provider_failure(
     stderr: bytes,
 ) -> tuple[str, int] | None:
     normalized = stderr.lower()
-    for rule in PROVIDER_FAILURE_RULES:
+    errors = b"\n".join(
+        line
+        for line in normalized.splitlines()
+        if b"error:" in line and b"warning:" not in line
+    )
+
+    def priority(rule: FailureRule) -> int:
+        # Fatal 429 beats an ambiguous login hint. An earlier warning cannot
+        # replace a clear terminal content or authentication diagnosis.
+        if (
+            rule.code == "provider_rate_limited"
+            and errors
+            and rule.matches(context, errors)
+        ):
+            return 1
+        if (
+            rule.code == "provider_link_unavailable"
+            and context.provider_key == ProviderKey.YOUTUBE
+            and b"video unavailable" in rule.any_stderr
+            and any(
+                limit.code == "provider_rate_limited"
+                and limit.matches(context, normalized)
+                for limit in PROVIDER_FAILURE_RULES
+            )
+        ):
+            # YouTube's generic unavailable fallback does not establish that
+            # the item was removed when the same execution observed a 429.
+            return 4
+        return _rule_priority(rule)
+
+    for rule in sorted(PROVIDER_FAILURE_RULES, key=priority):
         if rule.matches(context, normalized):
             return rule.code, rule.status
     return None

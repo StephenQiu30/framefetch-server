@@ -29,6 +29,7 @@ _PROVIDER_PLUGINS = {
     "bilibili_access.py": "bilibili",
     "douyin_note.py": "douyin",
     "douyin_share.py": "douyin",
+    "_douyin_visitor.py": "douyin",
     "facebook_post.py": "facebook",
     "hongguo_official_share.py": "hongguo_web",
     "instagram_media.py": "instagram",
@@ -49,6 +50,7 @@ _SHARED_PROVIDER_SERVICES = frozenset(
         "provider_access.py",
         "provider_route_admission.py",
         "provider_types.py",
+        "provider_failures.py",
         "site_sessions.py",
     }
 )

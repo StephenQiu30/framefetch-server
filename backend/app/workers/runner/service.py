@@ -10,6 +10,7 @@ from app.services.downloads.rules.errors import FormatSelectionError
 from app.services.downloads.rules.formats import CandidateStream, ProviderHints
 from app.services.downloads.rules.selection import select_streams
 from app.services.provider_access import ProviderAccessPolicy
+from app.services.provider_failures import FailurePhase
 from app.services.provider_types import ProviderAccessContextRef, ProviderAccessMode
 from app.workers.runner.active_tasks import ActiveTaskRegistry
 from app.workers.runner.collection import download_video_collection_zip
@@ -58,9 +59,7 @@ from app.workers.runner.workspace import (
 )
 
 # Anonymous failures that the provider's session route is expected to clear.
-_SESSION_UPGRADE_CODES = frozenset(
-    {"credential_required", "egress_challenged", "provider_session_not_ready"}
-)
+_SESSION_UPGRADE_CODES = frozenset({"credential_required", "egress_challenged"})
 
 
 class MediaRunnerService:
@@ -152,12 +151,14 @@ class MediaRunnerService:
                                 cookie_jar=cookie_jar,
                             )
                         except RunnerFailure as error:
-                            # A login wall, bot challenge or cookie demand hands the
-                            # task to the user's own Chrome session without asking.
+                            # Only explicit login or challenge evidence can enter
+                            # the provider's approved account route.
                             # 429, private content and network failures cannot.
                             if (
                                 not allow_session_fallback
                                 or error.code not in _SESSION_UPGRADE_CODES
+                                or error.failure.phase
+                                is not FailurePhase.FETCH_METADATA
                                 or self._settings.runner_access_mode
                                 is not ProviderAccessMode.OPERATOR_MANAGED
                                 or context.access_mode
@@ -204,7 +205,12 @@ class MediaRunnerService:
                             thumbnail_data_url=thumbnail_data_url,
                         )
             except TimeoutError as exc:
-                raise RunnerFailure("inspection_timeout", status=504) from exc
+                raise RunnerFailure("inspection_timeout", status=504).attributed_to(
+                    context
+                ) from exc
+            except RunnerFailure as error:
+                error.attributed_to(context)
+                raise
         finally:
             workspace.cleanup()
 
@@ -214,6 +220,19 @@ class MediaRunnerService:
             raise RunnerFailure("internal_error", status=500)
         self._active.register(request.task_id, task)
         workspace = None
+        context = None
+        phase = FailurePhase.PREPARE_CONTEXT
+
+        def current_phase() -> FailurePhase:
+            snapshot = self._active.status(request.task_id)
+            if snapshot is None:
+                return phase
+            return {
+                RunnerTaskStage.DOWNLOADING: FailurePhase.TRANSFER,
+                RunnerTaskStage.REMUXING: FailurePhase.VALIDATE,
+                RunnerTaskStage.VERIFYING: FailurePhase.VALIDATE,
+            }.get(snapshot.stage, phase)
+
         succeeded = False
         try:
             async with asyncio.timeout(self._settings.runner_download_timeout_seconds):
@@ -225,6 +244,7 @@ class MediaRunnerService:
                 )
                 workspace = self._workspaces.create(request.task_id)
                 async with self._sessions.operation(context) as cookie_jar:
+                    phase = FailurePhase.FETCH_METADATA
                     response = await self._download_in_workspace(
                         request,
                         source,
@@ -236,11 +256,21 @@ class MediaRunnerService:
             succeeded = True
             return response
         except asyncio.CancelledError as exc:
-            raise RunnerFailure("cancelled", status=409) from exc
+            raise RunnerFailure(
+                "cancelled", status=409, phase=current_phase()
+            ).attributed_to(context) from exc
         except TimeoutError as exc:
-            raise RunnerFailure("download_timeout", status=504) from exc
+            raise RunnerFailure(
+                "download_timeout", status=504, phase=current_phase()
+            ).attributed_to(context) from exc
         except WorkspaceViolation as exc:
-            raise RunnerFailure("workspace_limit_exceeded", status=413) from exc
+            raise RunnerFailure(
+                "workspace_limit_exceeded", status=413, phase=current_phase()
+            ).attributed_to(context) from exc
+        except RunnerFailure as error:
+            if context is not None:
+                error.attributed_to(context)
+            raise
         finally:
             self._active.discard(request.task_id, task)
             if workspace is not None and not succeeded:
@@ -435,12 +465,18 @@ class MediaRunnerService:
             ),
             failure_context=failure_context,
         )
-        output = workspace.validate_outputs([artifact.name])[0]
+        try:
+            output = workspace.validate_outputs([artifact.name])[0]
+        except WorkspaceViolation as exc:
+            raise RunnerFailure(
+                "invalid_artifact", status=502, phase=FailurePhase.VALIDATE
+            ) from exc
         self._active.update(request.task_id, RunnerTaskStage.VERIFYING, 85)
         probe_payload = await self._commands.probe(
             artifact,
             workspace.path,
             failure_context=failure_context,
+            phase=FailurePhase.VALIDATE,
         )
         verification_plan = plan
         if selection.video.width is not None and selection.video.height is not None:

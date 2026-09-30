@@ -5,7 +5,7 @@ import re
 import time
 from collections.abc import AsyncIterator, Awaitable
 from contextlib import asynccontextmanager
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Protocol
 from uuid import uuid4
 
@@ -22,7 +22,9 @@ from app.workers.runner.contracts import (
     ProviderContextRequest,
     ProviderContextsRequest,
     ProviderContextsResponse,
+    ProviderFailureContract,
     ProviderLoginRequest,
+    RunnerErrorContract,
     RuntimeResponse,
     TaskStatusResponse,
 )
@@ -147,16 +149,32 @@ def create_app(
 
     @app.exception_handler(RunnerFailure)
     async def runner_failure(_: Request, exc: RunnerFailure) -> JSONResponse:
+        retry_after = exc.failure.retry_after
+        headers = (
+            {}
+            if retry_after is None
+            else {
+                "Retry-After": str(
+                    max(0, int((retry_after - datetime.now(UTC)).total_seconds()))
+                )
+            }
+        )
         return JSONResponse(
             status_code=exc.status,
-            content={"error": {"code": exc.code, "message": exc.message}},
+            content={
+                "error": RunnerErrorContract(
+                    code=exc.code,
+                    message=exc.message,
+                    failure=ProviderFailureContract.from_domain(exc.failure),
+                ).model_dump(mode="json")
+            },
+            headers=headers,
         )
 
     @app.exception_handler(Exception)
-    async def unexpected_failure(_: Request, __: Exception) -> JSONResponse:
-        return JSONResponse(
-            status_code=500,
-            content={"error": {"code": "internal_error", "message": "internal error"}},
+    async def unexpected_failure(request: Request, __: Exception) -> JSONResponse:
+        return await runner_failure(
+            request, RunnerFailure("internal_error", status=500)
         )
 
     @app.get("/health/live")

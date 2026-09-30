@@ -9,9 +9,10 @@ from app.core.db import create_session_factory
 from app.integrations.media_runner import MediaRunnerHttpClient
 from app.repositories.providers.route_cooldowns import SqlAlchemyProviderRouteCooldowns
 from app.services.downloads.errors import (
+    MediaInspectionFailure,
     MediaInspectionRateLimited,
-    MediaInspectionVerificationFailed,
 )
+from app.services.provider_failures import FailureClass, FailurePhase, FailureScope
 from app.services.provider_route_admission import ProviderRouteAdmission
 from app.services.provider_types import ProviderAccessMode
 from tests.unit.integrations.test_media_runner_client import _access_context
@@ -82,8 +83,13 @@ async def test_wrong_runner_role_is_rejected_before_any_platform_request():
             client=http,
             expected_access_mode=ProviderAccessMode.ANONYMOUS,
         )
-        with pytest.raises(MediaInspectionVerificationFailed):
+        with pytest.raises(MediaInspectionFailure) as caught:
             await client.inspect("https://media.example/owned")
+    assert caught.value.failure is not None
+    assert caught.value.failure.code == "client_context_mismatch"
+    assert caught.value.failure.failure_class is FailureClass.CONTEXT_CHANGED
+    assert caught.value.failure.phase is FailurePhase.PREPARE_CONTEXT
+    assert caught.value.failure.scope is FailureScope.ROUTE
     assert calls == ["/internal/context"]
 
 

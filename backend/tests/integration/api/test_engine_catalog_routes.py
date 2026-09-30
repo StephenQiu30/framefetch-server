@@ -59,11 +59,11 @@ def test_runner_failure_is_a_service_outage_not_identity_expiry(tmp_path):
     )
 
     async def failed():
-        raise MediaRunnerClientError("private-runner-detail", 401)
+        raise MediaRunnerClientError("private_runner_detail", 401)
 
     browser.app.state.services.engine_catalog_reader = failed
     with browser:
         response = browser.get("/api/admin/provider-runtime/engine-catalog")
     assert response.status_code == 503
     assert response.json()["code"] == "service_unavailable"
-    assert "private-runner-detail" not in response.text
+    assert "private_runner_detail" not in response.text

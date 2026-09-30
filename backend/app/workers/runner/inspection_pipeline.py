@@ -7,6 +7,7 @@ import math
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
+from app.services.provider_failures import FailurePhase
 from app.services.provider_types import ProviderAccessContextRef, ProviderAccessMode
 from app.workers.runner.commands import MediaCommands
 from app.workers.runner.entitlements import enforce_media_rights
@@ -45,6 +46,35 @@ class RunnerInspectionPipeline:
         context: ProviderAccessContextRef,
         cookie_jar: Path | None,
     ) -> MediaInspection:
+        probe_failures: list[RunnerFailure] = []
+        try:
+            return await self._inspect(
+                source,
+                workspace,
+                context=context,
+                cookie_jar=cookie_jar,
+                probe_failures=probe_failures,
+            )
+        except RunnerFailure as error:
+            if (
+                error.code in {"format_unavailable", "inspection_failed"}
+                and probe_failures
+            ):
+                raise probe_failures[-1].attributed_to(context) from error
+            if error.failure.phase is FailurePhase.RECOGNIZE:
+                error.during(FailurePhase.FETCH_METADATA)
+            error.attributed_to(context)
+            raise
+
+    async def _inspect(
+        self,
+        source: ProviderRequest,
+        workspace: TaskWorkspace,
+        *,
+        context: ProviderAccessContextRef,
+        cookie_jar: Path | None,
+        probe_failures: list[RunnerFailure],
+    ) -> MediaInspection:
         payload = await self._inspect_with_retry(source, workspace, cookie_jar)
         _require_generic_source_identity(source, payload)
         failure_context = _failure_context(source, context)
@@ -68,6 +98,7 @@ class RunnerInspectionPipeline:
                 source,
                 workspace,
                 failure_context=failure_context,
+                probe_failures=probe_failures,
             )
         if payload.get("direct") is True and cookie_jar is None:
             probe = await self._commands.probe_remote(
@@ -86,6 +117,7 @@ class RunnerInspectionPipeline:
                 cookie_jar=cookie_jar,
                 probe_authenticated_media=source.profile.probe_authenticated_media,
                 failure_context=failure_context,
+                probe_failures=probe_failures,
             )
             duration = payload.get("duration")
             if not isinstance(duration, (int, float)) or duration <= 0:
@@ -95,6 +127,7 @@ class RunnerInspectionPipeline:
                     workspace,
                     cookie_jar=cookie_jar,
                     failure_context=failure_context,
+                    probe_failures=probe_failures,
                 )
         formats = payload.get("formats")
         if isinstance(formats, list) and any(_unknown_audio(raw) for raw in formats):
@@ -108,6 +141,7 @@ class RunnerInspectionPipeline:
                 probe_authenticated_media=source.profile.probe_authenticated_media,
                 unknown_audio_only=True,
                 failure_context=failure_context,
+                probe_failures=probe_failures,
             )
             streams = normalize_for_settings(payload, self._settings).streams
             if not any(stream.audio_codec_family is not None for stream in streams):
@@ -122,6 +156,7 @@ class RunnerInspectionPipeline:
             cookie_jar=cookie_jar,
             probe_authenticated_media=source.profile.probe_authenticated_media,
             failure_context=failure_context,
+            probe_failures=probe_failures,
         )
         inspection = self._usable_inspection(enriched)
         if inspection is not None:
@@ -132,6 +167,7 @@ class RunnerInspectionPipeline:
             workspace,
             cookie_jar=cookie_jar,
             failure_context=failure_context,
+            probe_failures=probe_failures,
         )
         return normalize_for_settings(sampled, self._settings)
 
@@ -142,10 +178,11 @@ class RunnerInspectionPipeline:
         workspace: TaskWorkspace,
         *,
         failure_context: ProviderFailureContext,
+        probe_failures: list[RunnerFailure],
     ) -> dict[str, object]:
         formats = payload.get("formats")
         if not isinstance(formats, list):
-            raise RunnerFailure("inspection_failed", status=502)
+            raise RunnerFailure("format_unavailable", status=409)
 
         attempts = 0
         for index, value in enumerate(formats):
@@ -162,8 +199,10 @@ class RunnerInspectionPipeline:
                 )
                 duration = _probe_duration(probe)
             except RunnerFailure as exc:
+                exc.during(FailurePhase.PROBE_MEDIA)
                 if not _is_soft_probe_failure(exc):
                     raise
+                probe_failures.append(exc)
                 duration = None
             except ValueError:
                 duration = None
@@ -176,7 +215,11 @@ class RunnerInspectionPipeline:
                 return enriched_payload
             if attempts == _MAX_DURATION_PROBE_ATTEMPTS:
                 break
-        raise RunnerFailure("inspection_failed", status=502)
+        if probe_failures:
+            raise probe_failures[-1]
+        raise RunnerFailure(
+            "media_probe_failed", status=502, cause_code="invalid_inspection_response"
+        )
 
     async def _inspect_with_retry(
         self,
@@ -225,6 +268,7 @@ class RunnerInspectionPipeline:
         probe_authenticated_media: bool,
         unknown_audio_only: bool = False,
         failure_context: ProviderFailureContext,
+        probe_failures: list[RunnerFailure],
     ) -> dict[str, object]:
         if cookie_jar is not None and not probe_authenticated_media:
             return payload
@@ -268,8 +312,10 @@ class RunnerInspectionPipeline:
                     )
                 return index, enrich_format_metadata(raw, probe), _probe_duration(probe)
             except RunnerFailure as exc:
+                exc.during(FailurePhase.PROBE_MEDIA)
                 if not _is_soft_probe_failure(exc):
                     raise
+                probe_failures.append(exc)
                 return index, raw, None
             except ValueError:
                 return index, raw, None
@@ -301,6 +347,7 @@ class RunnerInspectionPipeline:
         *,
         cookie_jar: Path | None,
         failure_context: ProviderFailureContext,
+        probe_failures: list[RunnerFailure],
     ) -> dict[str, object]:
         formats = payload.get("formats")
         if not isinstance(formats, list):
@@ -358,11 +405,17 @@ class RunnerInspectionPipeline:
                     enriched_payload["duration"] = probed_duration
                 return enriched_payload
             except RunnerFailure as exc:
+                exc.during(FailurePhase.PROBE_MEDIA)
                 if not _is_soft_probe_failure(exc):
                     raise
+                probe_failures.append(exc)
                 continue
-            except OSError:
-                continue
+            except OSError as exc:
+                raise RunnerFailure(
+                    "runner_dependency_unavailable",
+                    status=503,
+                    phase=FailurePhase.PROBE_MEDIA,
+                ) from exc
         return payload
 
 

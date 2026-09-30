@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import re
+from dataclasses import asdict
 from enum import StrEnum
 from typing import Self
 
@@ -19,6 +20,13 @@ from app.services.downloads.rules.formats import (
     CandidateStream,
     DownloadPlan,
     ProviderHints,
+)
+from app.services.provider_failures import (
+    FailureClass,
+    FailureEvidenceKind,
+    FailurePhase,
+    FailureScope,
+    ProviderFailure,
 )
 from app.services.provider_types import ProviderAccessContextRef, ProviderAccessMode
 from pydantic import (
@@ -41,6 +49,40 @@ class RuntimeResponse(ContractModel):
     instance_id: str = Field(pattern=r"^[0-9a-f]{32}$")
 
 
+class ProviderFailureContract(ContractModel):
+    code: str = Field(pattern=r"^[a-z][a-z0-9_]{0,63}$")
+    phase: FailurePhase
+    scope: FailureScope
+    failure_class: FailureClass
+    evidence_kind: FailureEvidenceKind
+    observed_at: AwareDatetime
+    strategy_id: str | None = Field(default=None, max_length=128)
+    context_key: str | None = Field(default=None, pattern=r"^[0-9a-f]{64}$")
+    retry_after: AwareDatetime | None = None
+    diagnostic_ref: str | None = Field(default=None, max_length=128)
+    cause_code: str | None = Field(default=None, pattern=r"^[a-z][a-z0-9_]{0,63}$")
+
+    def to_domain(self) -> ProviderFailure:
+        return ProviderFailure(**self.model_dump())
+
+    @classmethod
+    def from_domain(cls, failure: ProviderFailure) -> Self:
+        return cls(**asdict(failure))
+
+
+class RunnerErrorContract(ContractModel):
+    code: str = Field(pattern=r"^[a-z][a-z0-9_]{0,63}$")
+    message: str = Field(max_length=256)
+    failure: ProviderFailureContract
+
+    @model_validator(mode="after")
+    def _matching_code(self) -> Self:
+        if self.code != self.failure.code:
+            raise ValueError("runner error code does not match failure facts")
+        self.failure.to_domain()
+        return self
+
+
 class ProviderHintsContract(ContractModel):
     video_id: str | None = Field(default=None, max_length=128)
     audio_id: str | None = Field(default=None, max_length=128)
@@ -56,18 +98,52 @@ class ProviderAccessContextContract(ContractModel):
     attestation_provider_version: str | None = Field(default=None, max_length=128)
     engine_commit: str = Field(min_length=1, max_length=128)
     runtime_revision: str | None = Field(default=None, pattern=r"^[0-9a-f]{64}$")
+    strategy_id: str | None = Field(default=None, max_length=128)
+    adapter_revision: str | None = Field(default=None, max_length=128)
+    session_source_id: str | None = Field(default=None, max_length=128)
+    browser_context_revision: str | None = Field(default=None, max_length=128)
+    protocol_capabilities: tuple[str, ...] = Field(default=(), max_length=32)
+    egress_observation_ref: str | None = Field(default=None, max_length=128)
+
+    @model_validator(mode="after")
+    def _valid_context(self) -> Self:
+        self.to_domain()
+        return self
 
     @model_serializer(mode="wrap")
     def _serialize(self, handler: SerializerFunctionWrapHandler) -> dict[str, object]:
         document: dict[str, object] = handler(self)
         if self.runtime_revision is None:
             document.pop("runtime_revision", None)
+        if self.strategy_id is None:
+            for name in (
+                "strategy_id",
+                "adapter_revision",
+                "session_source_id",
+                "browser_context_revision",
+                "protocol_capabilities",
+                "egress_observation_ref",
+            ):
+                document.pop(name, None)
         return document
 
     def to_domain(self) -> ProviderAccessContextRef:
         return ProviderAccessContextRef(
-            **self.model_dump(exclude={"runtime_revision"}),
+            provider_key=self.provider_key,
+            profile_version=self.profile_version,
+            access_mode=self.access_mode,
+            credential_version_id=self.credential_version_id,
+            egress_affinity_id=self.egress_affinity_id,
+            client_profile_id=self.client_profile_id,
+            attestation_provider_version=self.attestation_provider_version,
+            engine_commit=self.engine_commit,
             runtime_revision=self.runtime_revision or "legacy",
+            strategy_id=self.strategy_id,
+            adapter_revision=self.adapter_revision,
+            session_source_id=self.session_source_id,
+            browser_context_revision=self.browser_context_revision,
+            protocol_capabilities=self.protocol_capabilities,
+            egress_observation_ref=self.egress_observation_ref,
         )
 
     @classmethod
@@ -84,6 +160,12 @@ class ProviderAccessContextContract(ContractModel):
             runtime_revision=(
                 None if value.runtime_revision == "legacy" else value.runtime_revision
             ),
+            strategy_id=value.strategy_id,
+            adapter_revision=value.adapter_revision,
+            session_source_id=value.session_source_id,
+            browser_context_revision=value.browser_context_revision,
+            protocol_capabilities=value.protocol_capabilities,
+            egress_observation_ref=value.egress_observation_ref,
         )
 
 

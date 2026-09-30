@@ -100,6 +100,7 @@ class ProviderSessionStore:
             credential_version = context_version(site, revision)
         elif mode not in profile.access_modes:
             raise RunnerFailure("provider_session_not_allowed", status=422)
+        strategy = profile.strategy_for(mode)
         return ProviderAccessContextRef(
             provider_key=profile.key,
             profile_version=profile.version,
@@ -115,6 +116,14 @@ class ProviderSessionStore:
             ),
             engine_commit=self._settings.runner_ytdlp_commit,
             runtime_revision=runtime_code_sha256(profile.key, access_mode=mode),
+            strategy_id=strategy.strategy_id,
+            adapter_revision=strategy.adapter_revision,
+            session_source_id=(
+                None
+                if credential_version is None
+                else f"chrome_source:{self._site_for(profile, url)}"
+            ),
+            protocol_capabilities=("http-media",),
         )
 
     async def validate_context(
@@ -131,14 +140,20 @@ class ProviderSessionStore:
             expected.runtime_revision != current.runtime_revision
             and replace(expected, runtime_revision=current.runtime_revision) == current
         ):
-            raise RunnerFailure("runner_release_changed", status=409)
+            raise RunnerFailure("runner_release_changed", status=409).attributed_to(
+                expected
+            )
         if current.access_mode is ProviderAccessMode.ANONYMOUS:
             if current != expected:
-                raise RunnerFailure("client_context_mismatch", status=409)
+                raise RunnerFailure(
+                    "client_context_mismatch", status=409
+                ).attributed_to(expected)
             return current
         if expected != current:
             # A re-import changes the frozen revision: the inspection is stale.
-            raise RunnerFailure("credential_revoked", status=422)
+            raise RunnerFailure("credential_revoked", status=422).attributed_to(
+                expected
+            )
         return current
 
     @asynccontextmanager

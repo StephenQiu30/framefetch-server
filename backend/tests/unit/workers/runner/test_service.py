@@ -1029,7 +1029,7 @@ async def test_douyin_inspect_fails_closed_without_media_duration(
     with pytest.raises(RunnerFailure) as caught:
         await service.inspect("https://www.douyin.com/video/7662711608636889201")
 
-    assert caught.value.code == "inspection_failed"
+    assert caught.value.code == "media_probe_failed"
     assert list(tmp_path.iterdir()) == []
 
 
@@ -1357,7 +1357,12 @@ async def test_personal_full_duration_is_not_replaced_by_probe_preview(
         if use_local_sample
         else FixtureSupervisor(info)
     )
-    service = MediaRunnerService(settings(tmp_path), supervisor=supervisor)
+    configured = operator_settings(tmp_path)
+    sessions = operator_session_store(configured)
+    sessions._site_sessions.revisions.update({"youku.com": 1, "v.qq.com": 1})
+    service = MediaRunnerService(
+        configured, supervisor=supervisor, session_store=sessions
+    )
     response = await service.inspect("https://v.youku.com/v_show/id_fixture.html")
     assert response.media.duration_seconds == 1800
     assert response.streams[0].height == 1080
@@ -1383,7 +1388,12 @@ async def test_full_playlist_probes_clear_segment_and_preserves_duration(
         "app.workers.runner.commands.httpx.AsyncClient", lambda **_: client
     )
     supervisor = FixtureSupervisor(info)
-    service = MediaRunnerService(settings(tmp_path), supervisor=supervisor)
+    configured = operator_settings(tmp_path)
+    sessions = operator_session_store(configured)
+    sessions._site_sessions.revisions.update({"youku.com": 1, "v.qq.com": 1})
+    service = MediaRunnerService(
+        configured, supervisor=supervisor, session_store=sessions
+    )
     response = await service.inspect("https://v.qq.com/x/page/q326831cny0.html")
     assert response.media.duration_seconds == 1800
     probes = [command for command, _ in supervisor.calls if command[0] == "ffprobe"]
@@ -1485,7 +1495,7 @@ async def test_auth_failure_reads_chrome_once_and_freezes_final_account_route(tm
 
 @pytest.mark.parametrize(
     "code",
-    ["credential_required", "egress_challenged", "provider_session_not_ready"],
+    ["credential_required", "egress_challenged"],
 )
 async def test_anonymous_session_walls_continue_with_chrome_session(tmp_path, code):
     from unittest.mock import AsyncMock

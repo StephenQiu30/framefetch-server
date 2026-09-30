@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from app.services.downloads.rules.content_restrictions import ContentRestriction
 from app.services.downloads.rules.enums import DownloadErrorCode
+from app.services.provider_failures import ProviderFailure
 
 
 class ExecutionPersistenceUnavailable(RuntimeError):
@@ -31,6 +32,10 @@ class ArtifactValidationError(RuntimeError):
 class LegacyContextChanged(RuntimeError):
     code = "client_context_mismatch"
 
+    def __init__(self) -> None:
+        self.failure = ProviderFailure.for_code(self.code)
+        super().__init__(self.code)
+
 
 _RUNNER_CODES = {
     **{
@@ -58,11 +63,11 @@ _RUNNER_CODES = {
     ),
     "credential_expired": DownloadErrorCode.PROVIDER_SESSION_EXPIRED,
     "credential_rejected": DownloadErrorCode.PROVIDER_SESSION_EXPIRED,
-    "credential_revoked": DownloadErrorCode.PROVIDER_SESSION_EXPIRED,
+    "credential_revoked": DownloadErrorCode.FORMAT_UNAVAILABLE,
     "egress_challenged": DownloadErrorCode.PROVIDER_VERIFICATION_FAILED,
-    "pot_required": DownloadErrorCode.PROVIDER_VERIFICATION_FAILED,
-    "pot_rejected": DownloadErrorCode.PROVIDER_VERIFICATION_FAILED,
-    "client_context_mismatch": DownloadErrorCode.PROVIDER_VERIFICATION_FAILED,
+    "pot_required": DownloadErrorCode.PROVIDER_TEMPORARILY_UNAVAILABLE,
+    "pot_rejected": DownloadErrorCode.PROVIDER_TEMPORARILY_UNAVAILABLE,
+    "client_context_mismatch": DownloadErrorCode.FORMAT_UNAVAILABLE,
     "provider_rate_limited": DownloadErrorCode.PROVIDER_RATE_LIMITED,
     "provider_geo_restricted": DownloadErrorCode.PROVIDER_GEO_RESTRICTED,
     "provider_link_unavailable": DownloadErrorCode.PROVIDER_LINK_UNAVAILABLE,
@@ -77,6 +82,10 @@ _RUNNER_CODES = {
     "pot_provider_release_mismatch": DownloadErrorCode.PROVIDER_TEMPORARILY_UNAVAILABLE,
     "provider_session_unavailable": DownloadErrorCode.PROVIDER_TEMPORARILY_UNAVAILABLE,
     "provider_session_not_ready": DownloadErrorCode.PROVIDER_SESSION_NOT_READY,
+    "egress_denied": DownloadErrorCode.PROVIDER_TEMPORARILY_UNAVAILABLE,
+    "network_transient": DownloadErrorCode.PROVIDER_TEMPORARILY_UNAVAILABLE,
+    "upstream_unclassified": DownloadErrorCode.PROVIDER_TEMPORARILY_UNAVAILABLE,
+    "protocol_unavailable": DownloadErrorCode.FORMAT_UNAVAILABLE,
     "extractor_regression": DownloadErrorCode.PROVIDER_TEMPORARILY_UNAVAILABLE,
     "download_failed": DownloadErrorCode.PROVIDER_TEMPORARILY_UNAVAILABLE,
     "runner_dependency_unavailable": DownloadErrorCode.WORKER_LOST,

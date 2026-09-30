@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import logging
 from collections.abc import Awaitable, Callable, Mapping, Sequence
+from datetime import UTC, datetime
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from typing import Any, Protocol
@@ -10,6 +11,13 @@ from typing import Any, Protocol
 import httpx
 from app.services.downloads.rules.content_restrictions import ContentRestriction
 from app.services.downloads.rules.enums import Container, MediaKind
+from app.services.provider_failures import (
+    FailureClass,
+    FailureEvidenceKind,
+    FailurePhase,
+    failure_definition,
+    parse_retry_after,
+)
 from app.services.provider_types import ProviderKey
 from app.workers.runner.command_support import child_environment, json_object
 from app.workers.runner.errors import RunnerFailure
@@ -81,6 +89,7 @@ class MediaCommands:
             self._settings.runner_inspect_timeout_seconds,
             timeout_code="inspection_timeout",
             failure_code="inspection_failed",
+            phase=FailurePhase.FETCH_METADATA,
             egress_proxy=command.egress_proxy,
             failure_context=command.failure_context,
         )
@@ -93,7 +102,12 @@ class MediaCommands:
             restriction[0] in ContentRestriction
             or not _inspection_payload_has_media(payload)
         ):
-            raise RunnerFailure(restriction[0], status=restriction[1])
+            raise RunnerFailure(
+                restriction[0],
+                status=restriction[1],
+                phase=FailurePhase.FETCH_METADATA,
+                evidence_kind=FailureEvidenceKind.UPSTREAM_RESPONSE,
+            )
         return payload
 
     async def probe_remote(
@@ -127,11 +141,12 @@ class MediaCommands:
             cwd,
             self._settings.runner_inspect_timeout_seconds,
             timeout_code="inspection_timeout",
-            failure_code="inspection_failed",
+            failure_code="media_probe_failed",
+            phase=FailurePhase.PROBE_MEDIA,
             egress_proxy=egress_proxy,
             failure_context=failure_context,
         )
-        return json_object(result.stdout, "invalid_inspection_response")
+        return json_object(result.stdout, "media_probe_failed")
 
     async def probe_remote_prefix(
         self,
@@ -167,13 +182,22 @@ class MediaCommands:
             raise self._provider_failure(
                 failure_context,
                 f"http error {exc.response.status_code}".encode(),
-                fallback_code="inspection_failed",
+                fallback_code="media_probe_failed",
                 fallback_status=502,
+                phase=FailurePhase.PROBE_MEDIA,
+                retry_after=parse_retry_after(
+                    exc.response.headers.get("Retry-After"), datetime.now(UTC)
+                ),
             ) from exc
         except httpx.HTTPError as exc:
-            raise RunnerFailure("inspection_failed", status=502) from exc
+            raise RunnerFailure(
+                "network_transient",
+                status=503,
+                phase=FailurePhase.PROBE_MEDIA,
+                evidence_kind=FailureEvidenceKind.TRANSPORT,
+            ) from exc
         if not data:
-            raise RunnerFailure("inspection_failed", status=502)
+            raise RunnerFailure("media_probe_failed", status=502)
         with TemporaryDirectory(prefix="segment-probe-", dir=cwd) as directory:
             sample = Path(directory) / "prefix.input"
             sample.write_bytes(data)
@@ -207,6 +231,7 @@ class MediaCommands:
             self._settings.runner_download_timeout_seconds,
             timeout_code="download_timeout",
             failure_code="download_failed",
+            phase=FailurePhase.TRANSFER,
             monitor_workspace=True,
             egress_proxy=command.egress_proxy,
             failure_context=command.failure_context,
@@ -238,6 +263,7 @@ class MediaCommands:
             self._settings.runner_download_timeout_seconds,
             timeout_code="download_timeout",
             failure_code="download_failed",
+            phase=FailurePhase.TRANSFER,
             monitor_workspace=True,
             egress_proxy=command.egress_proxy,
             failure_context=command.failure_context,
@@ -280,6 +306,10 @@ class MediaCommands:
                             f"http error {response.status_code}".encode(),
                             fallback_code="download_failed",
                             fallback_status=502,
+                            phase=FailurePhase.TRANSFER,
+                            retry_after=parse_retry_after(
+                                response.headers.get("Retry-After"), datetime.now(UTC)
+                            ),
                         )
                     content_length = response.headers.get("content-length")
                     if content_length is not None:
@@ -301,7 +331,12 @@ class MediaCommands:
                             handle.write(chunk)
                     return str(response.headers.get("content-type", ""))
         except httpx.HTTPError as exc:
-            raise RunnerFailure("download_failed", status=502) from exc
+            raise RunnerFailure(
+                "network_transient",
+                status=503,
+                phase=FailurePhase.TRANSFER,
+                evidence_kind=FailureEvidenceKind.TRANSPORT,
+            ) from exc
 
     async def download_probe_sample(
         self,
@@ -326,6 +361,7 @@ class MediaCommands:
             self._settings.runner_inspect_timeout_seconds,
             timeout_code="inspection_timeout",
             failure_code="inspection_failed",
+            phase=FailurePhase.PROBE_MEDIA,
             monitor_workspace=True,
             workspace_limit_bytes=self._settings.runner_max_probe_sample_bytes,
             egress_proxy=command.egress_proxy,
@@ -373,6 +409,7 @@ class MediaCommands:
             self._settings.runner_download_timeout_seconds,
             timeout_code="download_timeout",
             failure_code="remux_failed",
+            phase=FailurePhase.VALIDATE,
             monitor_workspace=True,
             failure_context=failure_context,
         )
@@ -383,6 +420,7 @@ class MediaCommands:
         cwd: Path,
         *,
         failure_context: ProviderFailureContext | None = None,
+        phase: FailurePhase = FailurePhase.PROBE_MEDIA,
     ) -> dict[str, Any]:
         command = (
             self._settings.runner_ffprobe_bin,
@@ -402,9 +440,14 @@ class MediaCommands:
             self._settings.runner_inspect_timeout_seconds,
             timeout_code="inspection_timeout",
             failure_code="media_probe_failed",
+            phase=phase,
             failure_context=failure_context,
         )
-        return json_object(result.stdout, "media_probe_failed")
+        try:
+            return json_object(result.stdout, "media_probe_failed")
+        except RunnerFailure as error:
+            error.during(phase)
+            raise
 
     async def _run(
         self,
@@ -414,13 +457,16 @@ class MediaCommands:
         *,
         timeout_code: str,
         failure_code: str,
+        phase: FailurePhase,
         monitor_workspace: bool = False,
         workspace_limit_bytes: int | None = None,
         egress_proxy: str | None = None,
         failure_context: ProviderFailureContext | None = None,
     ) -> ProcessResult:
         selected_proxy = egress_proxy or self._settings.runner_egress_proxy
-        await self._ensure_youtube_pot_provider(failure_context)
+        needs_attestation = command[0] == self._settings.runner_ytdlp_bin
+        if needs_attestation:
+            await self._ensure_youtube_pot_provider(failure_context)
         try:
             operation = self._supervisor.run(
                 command,
@@ -444,20 +490,43 @@ class MediaCommands:
             else:
                 result = await operation
         except ProcessTimeoutError as exc:
-            raise RunnerFailure(timeout_code, status=504) from exc
+            raise RunnerFailure(
+                timeout_code,
+                status=504,
+                phase=phase,
+                evidence_kind=FailureEvidenceKind.RUNTIME,
+            ) from exc
         except WorkspaceLimitExceeded as exc:
-            raise RunnerFailure("workspace_limit_exceeded", status=413) from exc
+            raise RunnerFailure(
+                "workspace_limit_exceeded",
+                status=413,
+                phase=phase,
+                evidence_kind=FailureEvidenceKind.RUNTIME,
+            ) from exc
         except OSError as exc:
-            raise RunnerFailure("runner_dependency_unavailable", status=503) from exc
+            raise RunnerFailure(
+                "runner_dependency_unavailable",
+                status=503,
+                phase=phase,
+                evidence_kind=FailureEvidenceKind.RUNTIME,
+            ) from exc
         if result.returncode != 0:
             # Close the small race where the sidecar dies after the preflight
             # but before yt-dlp asks it for a token.
-            await self._ensure_youtube_pot_provider(failure_context)
             provider_failure = (
                 classify_provider_failure(failure_context, result.stderr)
                 if failure_context is not None
                 else None
             )
+            if needs_attestation and (
+                provider_failure is None
+                or failure_definition(provider_failure[0])[0]
+                not in {
+                    FailureClass.CONTENT_UNAVAILABLE,
+                    FailureClass.CONTENT_RESTRICTED,
+                }
+            ):
+                await self._ensure_youtube_pot_provider(failure_context)
             if provider_failure is not None:
                 code, status = provider_failure
                 _log_command_failure(
@@ -471,7 +540,12 @@ class MediaCommands:
                     returncode=result.returncode,
                     stderr_truncated=result.stderr_truncated,
                 )
-                raise RunnerFailure(code, status=status)
+                raise RunnerFailure(
+                    code,
+                    status=status,
+                    phase=phase,
+                    evidence_kind=FailureEvidenceKind.UPSTREAM_RESPONSE,
+                )
             _log_command_failure(
                 operation=failure_code,
                 provider=(
@@ -483,7 +557,12 @@ class MediaCommands:
                 returncode=result.returncode,
                 stderr_truncated=result.stderr_truncated,
             )
-            raise RunnerFailure(failure_code, status=502)
+            raise RunnerFailure(
+                failure_code,
+                status=502,
+                phase=phase,
+                evidence_kind=FailureEvidenceKind.UPSTREAM_RESPONSE,
+            )
         return result
 
     async def _ensure_youtube_pot_provider(
@@ -529,12 +608,25 @@ class MediaCommands:
         *,
         fallback_code: str,
         fallback_status: int,
+        phase: FailurePhase,
+        retry_after: datetime | None = None,
     ) -> RunnerFailure:
         provider_failure = classify_provider_failure(context, stderr)
         if provider_failure is not None:
             code, status = provider_failure
-            return RunnerFailure(code, status=status)
-        return RunnerFailure(fallback_code, status=fallback_status)
+            return RunnerFailure(
+                code,
+                status=status,
+                phase=phase,
+                evidence_kind=FailureEvidenceKind.UPSTREAM_RESPONSE,
+                retry_after=retry_after,
+            )
+        return RunnerFailure(
+            fallback_code,
+            status=fallback_status,
+            phase=phase,
+            evidence_kind=FailureEvidenceKind.UPSTREAM_RESPONSE,
+        )
 
 
 def _inspection_payload_has_media(payload: Mapping[str, Any]) -> bool:

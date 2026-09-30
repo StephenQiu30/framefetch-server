@@ -193,11 +193,11 @@ def test_collection_download_enables_playlist_with_bounded_output(
 @pytest.mark.parametrize(
     ("authenticated", "expected_code", "expected_status"),
     (
-        (False, "provider_session_not_ready", 503),
-        (True, "credential_expired", 422),
+        (False, "upstream_unclassified", 502),
+        (True, "upstream_unclassified", 502),
     ),
 )
-async def test_douyin_fresh_cookie_hint_distinguishes_session_contexts(
+async def test_douyin_ambiguous_cookie_hint_does_not_prove_session_state(
     tmp_path: Path,
     authenticated: bool,
     expected_code: str,
@@ -241,7 +241,7 @@ async def test_explicit_rate_limit_precedes_ambiguous_login_hint(
 
 
 @pytest.mark.asyncio
-async def test_ambiguous_rate_limit_or_login_hint_is_temporary(
+async def test_ambiguous_rate_limit_or_login_hint_is_unclassified(
     tmp_path: Path,
 ) -> None:
     commands = MediaCommands(
@@ -252,8 +252,31 @@ async def test_ambiguous_rate_limit_or_login_hint_is_temporary(
     with pytest.raises(RunnerFailure) as caught:
         await commands.inspect("https://x.com/example/status/123", tmp_path)
 
-    assert caught.value.code == "provider_temporarily_unavailable"
-    assert caught.value.status == 503
+    assert caught.value.code == "upstream_unclassified"
+    assert caught.value.status == 502
+
+
+@pytest.mark.asyncio
+async def test_local_media_probe_does_not_depend_on_youtube_attestation(tmp_path: Path):
+    supervisor = RecordingSupervisor()
+
+    async def unavailable(*_args):
+        raise AssertionError("local ffprobe cannot require a PO Token provider")
+
+    configured = settings(tmp_path).model_copy(
+        update={
+            "runner_youtube_pot_base_url": "http://youtube-pot-provider:4416",
+        }
+    )
+    commands = MediaCommands(configured, supervisor, pot_provider_probe=unavailable)
+    await commands.probe(
+        tmp_path / "artifact.mp4",
+        tmp_path,
+        failure_context=ProviderFailureContext(
+            "youtube", "https://youtu.be/owned", True
+        ),
+    )
+    assert supervisor.argv[0] == "ffprobe"
 
 
 @pytest.mark.asyncio
@@ -409,7 +432,7 @@ async def test_authenticated_cookie_rotation_failure_is_expired_session(
 ) -> None:
     commands = MediaCommands(
         session_settings(tmp_path),
-        FailingSupervisor(b"ERROR: Fresh cookies are needed"),
+        FailingSupervisor(b"ERROR: Account cookies are no longer valid"),
     )
 
     with pytest.raises(RunnerFailure) as caught:
@@ -489,7 +512,7 @@ async def test_youtube_rate_limit_precedes_unavailable_fallback(tmp_path: Path) 
             "credential_expired",
             422,
         ),
-        (b"ERROR: Fresh cookies are needed", "provider_session_not_ready", 503),
+        (b"ERROR: Fresh cookies are needed", "provider_rate_limited", 429),
     ),
 )
 async def test_youtube_terminal_failure_precedes_rate_limit_warning(
@@ -644,7 +667,7 @@ async def test_inspection_classifies_tiktok_player_schema_regression(
 
 
 @pytest.mark.asyncio
-async def test_anonymous_youtube_media_403_is_an_egress_challenge(
+async def test_anonymous_youtube_media_403_does_not_prove_a_challenge(
     tmp_path: Path,
 ) -> None:
     commands = MediaCommands(
@@ -662,8 +685,8 @@ async def test_anonymous_youtube_media_403_is_an_egress_challenge(
             tmp_path,
         )
 
-    assert caught.value.code == "egress_challenged"
-    assert caught.value.status == 422
+    assert caught.value.code == "upstream_unclassified"
+    assert caught.value.status == 502
 
 
 @pytest.mark.asyncio
@@ -1085,7 +1108,7 @@ async def test_non_ytdlp_failures_keep_their_original_code(tmp_path: Path) -> No
     with pytest.raises(RunnerFailure) as caught:
         await commands.probe_remote("https://media.example/video", tmp_path)
 
-    assert caught.value.code == "inspection_failed"
+    assert caught.value.code == "media_probe_failed"
     assert caught.value.status == 502
 
 
@@ -1132,8 +1155,8 @@ async def test_remux_preserves_provider_failure_context(
             ),
         )
 
-    assert caught.value.code == "egress_challenged"
-    assert caught.value.status == 422
+    assert caught.value.code == "upstream_unclassified"
+    assert caught.value.status == 502
 
 
 @pytest.mark.asyncio
@@ -1212,7 +1235,7 @@ async def test_douyin_official_note_is_classified_as_media_unsupported(
 
 
 @pytest.mark.asyncio
-async def test_xhs_share_link_without_token_is_classified_as_unavailable(
+async def test_xhs_missing_initial_state_is_structure_failure(
     tmp_path: Path,
 ) -> None:
     commands = MediaCommands(
@@ -1223,7 +1246,7 @@ async def test_xhs_share_link_without_token_is_classified_as_unavailable(
     with pytest.raises(RunnerFailure) as caught:
         await commands.inspect("https://xhslink.com/m/expired", tmp_path)
 
-    assert caught.value.code == "provider_link_unavailable"
+    assert caught.value.code == "extractor_regression"
     assert caught.value.status == 422
 
 
@@ -1437,10 +1460,10 @@ async def test_segment_prefix_probe_bounds_bytes_uses_proxy_and_cleans_up(
 
 
 @pytest.mark.asyncio
-async def test_platform_without_guest_route_asks_for_a_deployment_session(
+async def test_platform_cookie_hint_is_not_proof_of_authentication(
     tmp_path: Path,
 ) -> None:
-    # WeChat Channels has no anonymous path: it needs an administrator login.
+    # Cookie text does not establish the selected route or session state.
     commands = MediaCommands(
         settings(tmp_path),
         FailingSupervisor(
@@ -1452,6 +1475,6 @@ async def test_platform_without_guest_route_asks_for_a_deployment_session(
         await commands.inspect("https://weixin.qq.com/sph/Az42YceBcb", tmp_path)
 
     assert (caught.value.code, caught.value.status) == (
-        "provider_session_not_ready",
-        503,
+        "upstream_unclassified",
+        502,
     )

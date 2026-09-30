@@ -63,7 +63,7 @@ async def test_unresolved_advertised_audio_does_not_become_silent_success(
         await MediaRunnerService(settings(tmp_path), supervisor=supervisor).inspect(
             "https://vimeo.com/123456"
         )
-    assert caught.value.code == "format_unavailable"
+    assert caught.value.code == ("media_probe_failed" if url else "format_unavailable")
     assert list(tmp_path.iterdir()) == []
 
 

@@ -2,12 +2,15 @@
 
 from __future__ import annotations
 
+import json
 import re
 from dataclasses import dataclass
 from datetime import datetime
 from enum import StrEnum
 from hashlib import sha256
 from typing import Self
+
+from app.services.provider_failures import FailureClass
 
 _REFERENCE = re.compile(r"[A-Za-z0-9][A-Za-z0-9._:-]{0,127}")
 
@@ -109,6 +112,59 @@ class ProviderCapability(StrEnum):
     PLAYLIST = "playlist"
 
 
+class ResolutionExecutionKind(StrEnum):
+    HTTP = "http"
+    BROWSER = "browser"
+
+
+class ProviderSessionSource(StrEnum):
+    NONE = "none"
+    CHROME_SOURCE = "chrome_source"
+    MANAGED_BROWSER = "managed_browser"
+
+
+class MediaHandoff(StrEnum):
+    HTTP_TRANSFERABLE = "http_transferable"
+    BROWSER_TRANSFERABLE = "browser_transferable"
+    UNSUPPORTED = "unsupported"
+
+
+@dataclass(frozen=True, slots=True)
+class ResolutionStrategy:
+    strategy_id: str
+    adapter_id: str
+    adapter_revision: str
+    execution_kind: ResolutionExecutionKind
+    access_mode: ProviderAccessMode
+    session_source: ProviderSessionSource
+    context_requirements: tuple[str, ...]
+    allowed_failure_classes: frozenset[FailureClass]
+    media_handoff: MediaHandoff
+    validator: str
+    step_timeout_ms: int = 180_000
+    enabled: bool = True
+
+    def __post_init__(self) -> None:
+        references = (
+            self.strategy_id,
+            self.adapter_id,
+            self.adapter_revision,
+            self.validator,
+            *self.context_requirements,
+        )
+        if any(_REFERENCE.fullmatch(value) is None for value in references):
+            raise ValueError("resolution strategy contains an invalid reference")
+        if len(set(self.context_requirements)) != len(self.context_requirements):
+            raise ValueError("resolution strategy repeats a context requirement")
+        if not 0 < self.step_timeout_ms <= 180_000:
+            raise ValueError("resolution strategy timeout is invalid")
+        if self.access_mode is ProviderAccessMode.GUEST:
+            raise ValueError("retired guest strategies cannot be declared")
+        anonymous = self.access_mode is ProviderAccessMode.ANONYMOUS
+        if anonymous != (self.session_source is ProviderSessionSource.NONE):
+            raise ValueError("resolution strategy source does not match access mode")
+
+
 class ProviderSupportStatus(StrEnum):
     UNKNOWN = "unknown"
     VERIFIED = "verified"
@@ -198,6 +254,13 @@ class ProviderAccessContextRef:
     engine_commit: str
     # Historical records have no release digest and cannot match a new Runner.
     runtime_revision: str = "legacy"
+    strategy_id: str | None = None
+    adapter_revision: str | None = None
+    session_source_id: str | None = None
+    browser_context_revision: str | None = None
+    protocol_capabilities: tuple[str, ...] = ()
+    # None means no reliable public-egress observation, not a fixed public IP.
+    egress_observation_ref: str | None = None
 
     def __post_init__(self) -> None:
         values = (
@@ -208,7 +271,16 @@ class ProviderAccessContextRef:
             self.engine_commit,
             self.runtime_revision,
         )
-        optional = (self.credential_version_id, self.attestation_provider_version)
+        optional = (
+            self.credential_version_id,
+            self.attestation_provider_version,
+            self.strategy_id,
+            self.adapter_revision,
+            self.session_source_id,
+            self.browser_context_revision,
+            self.egress_observation_ref,
+            *self.protocol_capabilities,
+        )
         if any(_REFERENCE.fullmatch(value) is None for value in values):
             raise ValueError("provider access context contains an invalid reference")
         if any(
@@ -220,9 +292,37 @@ class ProviderAccessContextRef:
         needs_context_material = self.access_mode is not ProviderAccessMode.ANONYMOUS
         if has_context_material != needs_context_material:
             raise ValueError("provider credential reference does not match access mode")
+        if (self.strategy_id is None) != (self.adapter_revision is None):
+            raise ValueError("provider strategy revision is incomplete")
+        if self.session_source_id is not None and not needs_context_material:
+            raise ValueError("anonymous context cannot contain an account source")
+        if self.strategy_id is None and any(
+            (
+                self.session_source_id,
+                self.browser_context_revision,
+                self.protocol_capabilities,
+                self.egress_observation_ref,
+            )
+        ):
+            raise ValueError("provider context requires a strategy identity")
+        if self.strategy_id is not None and self.runtime_revision == "legacy":
+            raise ValueError("provider strategy context requires a runtime revision")
+        if (
+            self.strategy_id is not None
+            and needs_context_material
+            and self.session_source_id is None
+        ):
+            raise ValueError("provider strategy context requires an account source")
+        if not isinstance(self.protocol_capabilities, tuple):
+            raise ValueError("provider protocols must be immutable")
+        if len(set(self.protocol_capabilities)) != len(self.protocol_capabilities):
+            raise ValueError("provider context repeats a protocol capability")
+        object.__setattr__(
+            self, "protocol_capabilities", tuple(sorted(self.protocol_capabilities))
+        )
 
-    def to_document(self) -> dict[str, str | None]:
-        document = {
+    def to_document(self) -> dict[str, object]:
+        document: dict[str, object] = {
             "provider_key": self.provider_key,
             "profile_version": self.profile_version,
             "access_mode": self.access_mode.value,
@@ -234,6 +334,15 @@ class ProviderAccessContextRef:
         }
         if self.runtime_revision != "legacy":
             document["runtime_revision"] = self.runtime_revision
+        if self.strategy_id is not None:
+            document.update(
+                strategy_id=self.strategy_id,
+                adapter_revision=self.adapter_revision,
+                session_source_id=self.session_source_id,
+                browser_context_revision=self.browser_context_revision,
+                protocol_capabilities=list(self.protocol_capabilities),
+                egress_observation_ref=self.egress_observation_ref,
+            )
         return document
 
     @property
@@ -251,6 +360,21 @@ class ProviderAccessContextRef:
         )
         if self.runtime_revision != "legacy":
             values += (self.runtime_revision,)
+        if self.strategy_id is not None:
+            values += (
+                json.dumps(
+                    {
+                        "strategy_id": self.strategy_id,
+                        "adapter_revision": self.adapter_revision,
+                        "session_source_id": self.session_source_id,
+                        "browser_context_revision": self.browser_context_revision,
+                        "protocol_capabilities": sorted(self.protocol_capabilities),
+                        "egress_observation_ref": self.egress_observation_ref,
+                    },
+                    sort_keys=True,
+                    separators=(",", ":"),
+                ),
+            )
         return sha256("\x1f".join(values).encode()).hexdigest()
 
     @classmethod
@@ -268,7 +392,15 @@ class ProviderAccessContextRef:
             "engine_commit",
             "runtime_revision",
         }
-        if set(value) not in (keys, keys - {"runtime_revision"}):
+        strategy_keys = {
+            "strategy_id",
+            "adapter_revision",
+            "session_source_id",
+            "browser_context_revision",
+            "protocol_capabilities",
+            "egress_observation_ref",
+        }
+        if set(value) not in (keys, keys - {"runtime_revision"}, keys | strategy_keys):
             raise ValueError("provider access context fields are invalid")
 
         def required(name: str) -> str:
@@ -278,11 +410,16 @@ class ProviderAccessContextRef:
             return item
 
         def optional(name: str) -> str | None:
-            item = value[name]
+            item = value.get(name)
             if item is not None and not isinstance(item, str):
                 raise ValueError("provider access context field is invalid")
             return item
 
+        protocols = value.get("protocol_capabilities", [])
+        if not isinstance(protocols, list) or any(
+            not isinstance(item, str) for item in protocols
+        ):
+            raise ValueError("provider protocols must be a list of references")
         return cls(
             provider_key=required("provider_key"),
             profile_version=required("profile_version"),
@@ -297,4 +434,10 @@ class ProviderAccessContextRef:
                 if "runtime_revision" in value
                 else "legacy"
             ),
+            strategy_id=optional("strategy_id"),
+            adapter_revision=optional("adapter_revision"),
+            session_source_id=optional("session_source_id"),
+            browser_context_revision=optional("browser_context_revision"),
+            protocol_capabilities=tuple(protocols),
+            egress_observation_ref=optional("egress_observation_ref"),
         )

@@ -12,7 +12,11 @@ from app.integrations.site_session_catalog import (
 )
 from app.services.downloads.errors import MediaInspectionPolicyNotAllowed
 from app.services.provider_access import ProviderAccessPolicy as Policy
-from app.services.provider_types import ProviderSupportStatus
+from app.services.provider_types import (
+    ProviderAccessMode,
+    ProviderSupportStatus,
+    ResolutionExecutionKind,
+)
 from app.services.site_sessions import SessionEntitlement, SiteSessionPolicy
 from app.workers.runner import provider_registry
 from app.workers.runner.provider_errors import FailureRule, ProviderFailureContext
@@ -148,6 +152,42 @@ def test_all_23_execution_policies_preserve_approved_scope() -> None:
         "reddit",
         "pinterest",
     }
+
+
+def test_registry_strategies_preserve_existing_execution_modes():
+    for profile in default_provider_registry().profiles:
+        expected = tuple(
+            dict.fromkeys((profile.initial_access_mode, profile.execution_access_mode))
+        )
+        assert tuple(s.access_mode for s in profile.resolution_strategies) == expected
+        assert all(
+            s.execution_kind is ResolutionExecutionKind.HTTP
+            for s in profile.resolution_strategies
+        )
+        assert profile.strategy_for(profile.initial_access_mode).enabled
+        if profile.access_policy is Policy.PERSONAL_ENTITLED:
+            assert all(
+                s.access_mode is ProviderAccessMode.OPERATOR_MANAGED
+                for s in profile.resolution_strategies
+            )
+
+
+def test_registry_rejects_duplicate_and_unapproved_strategies():
+    profile = standard_provider("example", "Example", ("example.com",))
+    strategy = profile.resolution_strategies[0]
+    with pytest.raises(ValueError, match="strategy ids"):
+        ProviderRegistry(
+            (replace(profile, resolution_strategies=(strategy, strategy)),)
+        )
+    from app.services.provider_types import ProviderSessionSource
+
+    account = replace(
+        strategy,
+        access_mode=ProviderAccessMode.OPERATOR_MANAGED,
+        session_source=ProviderSessionSource.CHROME_SOURCE,
+    )
+    with pytest.raises(ValueError, match="unapproved strategy"):
+        ProviderRegistry((replace(profile, resolution_strategies=(account,)),))
 
 
 def test_registry_rejects_engine_and_execution_policy_conflicts() -> None:

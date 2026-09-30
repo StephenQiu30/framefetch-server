@@ -148,7 +148,7 @@ class DownloadExecution:
                 if candidate == current_context:
                     access_context = current_context
                 elif access_context.runtime_revision == "legacy":
-                    raise LegacyContextChanged("legacy context route changed")
+                    raise LegacyContextChanged
                 await monitor.run_fixed(
                     lambda: self._repository.record_execution_context(
                         job_id,

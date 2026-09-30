@@ -109,7 +109,8 @@ async def test_legacy_job_with_changed_route_fails_without_retry(tmp_path) -> No
 
     assert await case.execution.execute(case.job_id) is ExecutionDisposition.ACK
     assert case.runner.download_arguments is None
-    assert case.repository.failure["error_code"] == "provider_verification_failed"
+    assert case.repository.failure["error_code"] == "format_unavailable"
+    assert case.repository.failure["error_message"] == "client_context_mismatch"
     assert case.repository.failure["retryable"] is False
 
 

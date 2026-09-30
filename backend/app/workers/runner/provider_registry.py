@@ -8,11 +8,16 @@ from typing import Protocol
 from urllib.parse import SplitResult, urlsplit
 
 from app.services.provider_access import ProviderAccessPolicy
+from app.services.provider_failures import FailureClass
 from app.services.provider_types import (
+    MediaHandoff,
     ProviderAccessMode,
     ProviderCapability,
     ProviderProfileVersion,
+    ProviderSessionSource,
     ProviderSupportStatus,
+    ResolutionExecutionKind,
+    ResolutionStrategy,
 )
 from app.services.site_sessions import SessionEntitlement, SiteSessionPolicy
 from app.workers.runner.errors import RunnerFailure
@@ -82,6 +87,68 @@ class ProviderProfile:
     probe_authenticated_media: bool = False
     probe_media_duration: bool = False
     normalize_url: UrlNormalizer = identity_url
+    resolution_strategies: tuple[ResolutionStrategy, ...] = ()
+
+    def __post_init__(self) -> None:
+        if self.resolution_strategies:
+            return
+        # Describe the existing routes. This does not enable another engine or
+        # change Runner fallback; the persistent selector is introduced in P02.
+        modes = tuple(
+            dict.fromkeys((self.initial_access_mode, self.execution_access_mode))
+        )
+        strategies = tuple(
+            ResolutionStrategy(
+                strategy_id=(
+                    "yt-dlp-anonymous"
+                    if mode is ProviderAccessMode.ANONYMOUS
+                    else "yt-dlp-session"
+                ),
+                adapter_id="yt-dlp",
+                adapter_revision=self.version,
+                execution_kind=ResolutionExecutionKind.HTTP,
+                access_mode=mode,
+                session_source=(
+                    ProviderSessionSource.NONE
+                    if mode is ProviderAccessMode.ANONYMOUS
+                    else ProviderSessionSource.CHROME_SOURCE
+                ),
+                context_requirements=(
+                    (
+                        ()
+                        if mode is ProviderAccessMode.ANONYMOUS
+                        else ("approved_session",)
+                    )
+                    + (
+                        ()
+                        if self.attestation_policy == "none"
+                        else (self.attestation_policy,)
+                    )
+                ),
+                allowed_failure_classes=(
+                    frozenset()
+                    if mode is self.initial_access_mode
+                    else frozenset(
+                        {FailureClass.AUTH_REQUIRED, FailureClass.CHALLENGE_REQUIRED}
+                    )
+                ),
+                media_handoff=MediaHandoff.HTTP_TRANSFERABLE,
+                validator="semantic-media-and-artifact",
+            )
+            for mode in modes
+            if mode in self.access_modes
+        )
+        object.__setattr__(self, "resolution_strategies", strategies)
+
+    def strategy_for(self, mode: ProviderAccessMode) -> ResolutionStrategy:
+        matches = tuple(
+            strategy
+            for strategy in self.resolution_strategies
+            if strategy.enabled and strategy.access_mode is mode
+        )
+        if len(matches) != 1:
+            raise RunnerFailure("provider_unsupported", status=422)
+        return matches[0]
 
     @property
     def execution_access_mode(self) -> ProviderAccessMode:
@@ -183,6 +250,19 @@ class ProviderRegistry:
                 raise ValueError(
                     f"provider {profile.key} cannot probe authenticated media"
                 )
+            strategy_ids = tuple(s.strategy_id for s in profile.resolution_strategies)
+            if not strategy_ids or len(set(strategy_ids)) != len(strategy_ids):
+                raise ValueError(f"provider {profile.key} has invalid strategy ids")
+            for strategy in profile.resolution_strategies:
+                if strategy.access_mode not in profile.access_modes:
+                    raise ValueError(f"provider {profile.key} has unapproved strategy")
+                if (
+                    profile.access_policy is ProviderAccessPolicy.PERSONAL_ENTITLED
+                    and strategy.access_mode is ProviderAccessMode.ANONYMOUS
+                ):
+                    raise ValueError(
+                        f"provider {profile.key} has anonymous personal route"
+                    )
             for host in profile.hosts:
                 if host in by_host:
                     raise ValueError(f"provider host is registered twice: {host}")

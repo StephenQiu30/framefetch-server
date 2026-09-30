@@ -149,39 +149,42 @@ class InspectMedia:
                 validated_url, access_policy=selected_policy
             )
         except MediaInspectionConfigurationMissing as exc:
-            raise ApplicationError(
-                ApplicationErrorCode.PROVIDER_CONFIGURATION_MISSING
+            raise ApplicationError.from_inspection(
+                ApplicationErrorCode.PROVIDER_CONFIGURATION_MISSING, exc
             ) from exc
         except MediaInspectionPolicyNotAllowed as exc:
-            raise ApplicationError(
-                ApplicationErrorCode.PROVIDER_ACCESS_POLICY_NOT_ALLOWED
+            raise ApplicationError.from_inspection(
+                ApplicationErrorCode.PROVIDER_ACCESS_POLICY_NOT_ALLOWED, exc
             ) from exc
         except MediaInspectionDurationLimitExceeded as exc:
-            raise ApplicationError(
-                ApplicationErrorCode.DURATION_LIMIT_EXCEEDED
+            raise ApplicationError.from_inspection(
+                ApplicationErrorCode.DURATION_LIMIT_EXCEEDED, exc
             ) from exc
         except MediaInspectionAuthRequired as exc:
-            raise ApplicationError(ApplicationErrorCode.PROVIDER_AUTH_REQUIRED) from exc
+            raise ApplicationError.from_inspection(
+                ApplicationErrorCode.PROVIDER_AUTH_REQUIRED, exc
+            ) from exc
         except MediaInspectionSessionExpired as exc:
-            raise ApplicationError(
-                ApplicationErrorCode.PROVIDER_SESSION_EXPIRED
+            raise ApplicationError.from_inspection(
+                ApplicationErrorCode.PROVIDER_SESSION_EXPIRED, exc
             ) from exc
         except MediaInspectionSessionNotReady as exc:
-            raise ApplicationError(
+            raise ApplicationError.from_inspection(
                 ApplicationErrorCode.PROVIDER_SESSION_NOT_READY,
+                exc,
                 preparation_wait=exc.before_media_io,
             ) from exc
         except MediaInspectionVerificationFailed as exc:
-            raise ApplicationError(
-                ApplicationErrorCode.PROVIDER_VERIFICATION_FAILED
+            raise ApplicationError.from_inspection(
+                ApplicationErrorCode.PROVIDER_VERIFICATION_FAILED, exc
             ) from exc
         except MediaInspectionRateLimited as exc:
-            raise ApplicationError(
-                ApplicationErrorCode.PROVIDER_RATE_LIMITED, retry_at=exc.retry_at
+            raise ApplicationError.from_inspection(
+                ApplicationErrorCode.PROVIDER_RATE_LIMITED, exc
             ) from exc
         except MediaInspectionGeoRestricted as exc:
-            raise ApplicationError(
-                ApplicationErrorCode.PROVIDER_GEO_RESTRICTED
+            raise ApplicationError.from_inspection(
+                ApplicationErrorCode.PROVIDER_GEO_RESTRICTED, exc
             ) from exc
         except MediaInspectionPaidContentRestricted as exc:
             return self._restricted_command(
@@ -192,31 +195,41 @@ class InspectMedia:
                 access_policy=selected_policy,
             )
         except MediaInspectionContentRestricted as exc:
-            raise ApplicationError(
-                ApplicationErrorCode.PROVIDER_CONTENT_RESTRICTED
+            raise ApplicationError.from_inspection(
+                ApplicationErrorCode.PROVIDER_CONTENT_RESTRICTED, exc
             ) from exc
         except MediaInspectionDrmProtected as exc:
-            raise ApplicationError(ApplicationErrorCode.PROVIDER_DRM_PROTECTED) from exc
+            raise ApplicationError.from_inspection(
+                ApplicationErrorCode.PROVIDER_DRM_PROTECTED, exc
+            ) from exc
         except MediaInspectionTemporarilyUnavailable as exc:
-            raise ApplicationError(
-                ApplicationErrorCode.PROVIDER_TEMPORARILY_UNAVAILABLE
+            raise ApplicationError.from_inspection(
+                ApplicationErrorCode.PROVIDER_TEMPORARILY_UNAVAILABLE, exc
             ) from exc
         except MediaInspectionLinkUnavailable as exc:
-            raise ApplicationError(
-                ApplicationErrorCode.PROVIDER_LINK_UNAVAILABLE
+            raise ApplicationError.from_inspection(
+                ApplicationErrorCode.PROVIDER_LINK_UNAVAILABLE, exc
             ) from exc
         except MediaInspectionMediaUnsupported as exc:
-            raise ApplicationError(
-                ApplicationErrorCode.PROVIDER_MEDIA_UNSUPPORTED
+            raise ApplicationError.from_inspection(
+                ApplicationErrorCode.PROVIDER_MEDIA_UNSUPPORTED, exc
             ) from exc
         except MediaInspectionFormatUnavailable as exc:
-            raise ApplicationError(ApplicationErrorCode.FORMAT_UNAVAILABLE) from exc
+            raise ApplicationError.from_inspection(
+                ApplicationErrorCode.FORMAT_UNAVAILABLE, exc
+            ) from exc
         except MediaInspectionUnsupported as exc:
-            raise ApplicationError(ApplicationErrorCode.PROVIDER_UNSUPPORTED) from exc
+            raise ApplicationError.from_inspection(
+                ApplicationErrorCode.PROVIDER_UNSUPPORTED, exc
+            ) from exc
         except MediaInspectionTimeout as exc:
-            raise ApplicationError(ApplicationErrorCode.INSPECTION_TIMEOUT) from exc
+            raise ApplicationError.from_inspection(
+                ApplicationErrorCode.INSPECTION_TIMEOUT, exc
+            ) from exc
         except MediaInspectionFailure as exc:
-            raise ApplicationError(ApplicationErrorCode.INSPECTION_FAILED) from exc
+            raise ApplicationError.from_inspection(
+                ApplicationErrorCode.INSPECTION_FAILED, exc
+            ) from exc
         if result.media_kind is MediaKind.VIDEO and result.duration_seconds <= 0:
             raise ApplicationError(ApplicationErrorCode.INSPECTION_FAILED)
         if (

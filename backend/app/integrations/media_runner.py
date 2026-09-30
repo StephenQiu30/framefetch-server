@@ -9,8 +9,8 @@ import re
 import secrets
 import time
 from collections.abc import Callable, Mapping
-from datetime import UTC, datetime, timedelta
-from email.utils import parsedate_to_datetime
+from dataclasses import replace
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Protocol, TypeVar
 
@@ -53,6 +53,13 @@ from app.services.downloads.rules.content_restrictions import ContentRestriction
 from app.services.downloads.rules.enums import MediaKind
 from app.services.downloads.rules.formats import DownloadPlan
 from app.services.provider_access import ProviderAccessPolicy
+from app.services.provider_failures import (
+    FailureEvidenceKind,
+    FailurePhase,
+    FailureScope,
+    ProviderFailure,
+    parse_retry_after,
+)
 from app.services.provider_route_admission import (
     ProviderRouteAdmission,
     RouteAdmissionUnavailable,
@@ -74,6 +81,7 @@ from app.workers.runner.contracts import (
     ProviderContextsResponse,
     ProviderLoginRequest,
     ProviderLoginResponse,
+    RunnerErrorContract,
     RuntimeResponse,
     TaskStatusResponse,
 )
@@ -253,76 +261,7 @@ class MediaRunnerHttpClient:
         except RouteAdmissionUnavailable as exc:
             raise MediaInspectionTemporarilyUnavailable from exc
         except MediaRunnerClientError as exc:
-            if exc.code in ContentRestriction:
-                raise MediaInspectionPaidContentRestricted(
-                    ContentRestriction(exc.code)
-                ) from exc
-            if exc.code == "duration_limit_exceeded":
-                raise MediaInspectionDurationLimitExceeded from exc
-            if exc.code == "credential_required":
-                raise MediaInspectionAuthRequired from exc
-            if exc.code == "provider_session_not_allowed":
-                raise MediaInspectionPolicyNotAllowed from exc
-            if exc.code in {
-                "provider_session_not_ready",
-                "provider_session_unavailable",
-            }:
-                raise MediaInspectionSessionNotReady(
-                    before_media_io=not context_ready
-                ) from exc
-            if exc.code in {
-                "credential_expired",
-                "credential_rejected",
-                "credential_revoked",
-                "credential_entitlement_drift",
-            }:
-                raise MediaInspectionSessionExpired from exc
-            if exc.code in {
-                "egress_challenged",
-                "pot_required",
-                "pot_rejected",
-                "client_context_mismatch",
-            }:
-                raise MediaInspectionVerificationFailed from exc
-            if exc.code == "provider_rate_limited":
-                raise MediaInspectionRateLimited from exc
-            if exc.code == "provider_geo_restricted":
-                raise MediaInspectionGeoRestricted from exc
-            if exc.code in {
-                "content_private",
-                "content_not_entitled",
-                "content_entitlement_unknown",
-            }:
-                raise MediaInspectionContentRestricted from exc
-            if exc.code == "drm_protected":
-                raise MediaInspectionDrmProtected from exc
-            if exc.code in {
-                "pot_provider_unavailable",
-                "pot_provider_release_mismatch",
-                "extractor_regression",
-                "provider_temporarily_unavailable",
-                "provider_session_unavailable",
-                "runner_unavailable",
-                "runner_release_mismatch",
-                "runner_release_changed",
-                "runner_restarted",
-            }:
-                raise MediaInspectionTemporarilyUnavailable from exc
-            if exc.code == "provider_link_unavailable":
-                raise MediaInspectionLinkUnavailable from exc
-            if exc.code == "provider_media_unsupported":
-                raise MediaInspectionMediaUnsupported from exc
-            if exc.code == "unsupported_source":
-                # Preserve the selected route's diagnosis; never retry it
-                # with a different account or access policy.
-                raise MediaInspectionMediaUnsupported from exc
-            if exc.code == "format_unavailable":
-                raise MediaInspectionFormatUnavailable from exc
-            if exc.code == "provider_unsupported":
-                raise MediaInspectionUnsupported from exc
-            if exc.code == "inspection_timeout":
-                raise MediaInspectionTimeout from exc
-            raise MediaInspectionFailure(exc.code) from exc
+            raise _inspection_error(exc, before_media_io=not context_ready) from exc
         return RunnerInspection(
             extractor_key=response.media.extractor_key,
             provider_media_id=response.media.provider_media_id,
@@ -559,14 +498,33 @@ class MediaRunnerHttpClient:
                 timeout=timeout,
             )
         except httpx.TimeoutException as exc:
-            raise MediaRunnerClientError(timeout_code, 504) from exc
-        except httpx.HTTPError as exc:
-            raise MediaRunnerClientError("runner_unavailable", 503) from exc
-        if response.is_error:
             raise MediaRunnerClientError(
-                _error_code(response),
+                timeout_code,
+                504,
+                failure=ProviderFailure.for_code(
+                    timeout_code,
+                    phase=_request_phase(target),
+                    scope=FailureScope.RUNTIME,
+                    evidence_kind=FailureEvidenceKind.TRANSPORT,
+                ),
+            ) from exc
+        except httpx.HTTPError as exc:
+            raise MediaRunnerClientError(
+                "runner_unavailable",
+                503,
+                failure=ProviderFailure.for_code(
+                    "runner_unavailable",
+                    phase=_request_phase(target),
+                    evidence_kind=FailureEvidenceKind.TRANSPORT,
+                ),
+            ) from exc
+        if response.is_error:
+            failure = _response_failure(response, phase=_request_phase(target))
+            raise MediaRunnerClientError(
+                failure.code,
                 response.status_code,
-                retry_at=_retry_after(response.headers.get("Retry-After")),
+                retry_at=failure.retry_after,
+                failure=failure,
             )
         try:
             return model.model_validate_json(response.content)
@@ -721,20 +679,96 @@ def _error_code(response: httpx.Response) -> str:
         value = response.json()["error"]["code"]
     except (KeyError, TypeError, ValueError):
         return "runner_failed"
-    return value if isinstance(value, str) and value else "runner_failed"
+    return (
+        value
+        if isinstance(value, str) and re.fullmatch(r"[a-z][a-z0-9_]{0,63}", value)
+        else "runner_failed"
+    )
+
+
+def _request_phase(target: str) -> FailurePhase:
+    if target == "/internal/inspect":
+        return FailurePhase.FETCH_METADATA
+    if target == "/internal/download":
+        return FailurePhase.TRANSFER
+    return FailurePhase.PREPARE_CONTEXT
+
+
+def _response_failure(
+    response: httpx.Response, *, phase: FailurePhase
+) -> ProviderFailure:
+    try:
+        document = response.json().get("error")
+    except (AttributeError, ValueError):
+        document = None
+    if isinstance(document, dict) and "failure" in document:
+        try:
+            failure = RunnerErrorContract.model_validate(document).failure.to_domain()
+        except (ValueError, ValidationError) as exc:
+            raise MediaRunnerClientError("invalid_runner_response", 502) from exc
+    else:
+        # Authentication/protocol failures may not carry execution facts. Their
+        # evidence remains unknown; do not manufacture a platform observation.
+        failure = ProviderFailure.for_code(_error_code(response), phase=phase)
+    retry_after = _retry_after(response.headers.get("Retry-After"))
+    return (
+        failure
+        if failure.retry_after is not None or retry_after is None
+        else replace(
+            failure,
+            retry_after=retry_after,
+        )
+    )
+
+
+def _inspection_error(
+    error: MediaRunnerClientError, *, before_media_io: bool
+) -> MediaInspectionFailure:
+    code = error.code
+    if code in ContentRestriction:
+        failure: MediaInspectionFailure = MediaInspectionPaidContentRestricted(
+            ContentRestriction(code)
+        )
+    elif code == "provider_rate_limited":
+        failure = MediaInspectionRateLimited(retry_at=error.retry_at)
+    elif code in {"provider_session_not_ready", "provider_session_unavailable"}:
+        failure = MediaInspectionSessionNotReady(before_media_io=before_media_io)
+    else:
+        error_type = {
+            "duration_limit_exceeded": MediaInspectionDurationLimitExceeded,
+            "credential_required": MediaInspectionAuthRequired,
+            "provider_session_not_allowed": MediaInspectionPolicyNotAllowed,
+            "credential_expired": MediaInspectionSessionExpired,
+            "credential_rejected": MediaInspectionSessionExpired,
+            "egress_challenged": MediaInspectionVerificationFailed,
+            "provider_geo_restricted": MediaInspectionGeoRestricted,
+            "content_private": MediaInspectionContentRestricted,
+            "content_not_entitled": MediaInspectionContentRestricted,
+            "content_entitlement_unknown": MediaInspectionContentRestricted,
+            "credential_entitlement_drift": MediaInspectionContentRestricted,
+            "drm_protected": MediaInspectionDrmProtected,
+            "provider_link_unavailable": MediaInspectionLinkUnavailable,
+            "content_deleted": MediaInspectionLinkUnavailable,
+            "provider_media_unsupported": MediaInspectionMediaUnsupported,
+            "unsupported_source": MediaInspectionMediaUnsupported,
+            "format_unavailable": MediaInspectionFormatUnavailable,
+            "provider_unsupported": MediaInspectionUnsupported,
+            "inspection_timeout": MediaInspectionTimeout,
+            "pot_provider_unavailable": MediaInspectionTemporarilyUnavailable,
+            "pot_provider_release_mismatch": MediaInspectionTemporarilyUnavailable,
+            "extractor_regression": MediaInspectionTemporarilyUnavailable,
+            "provider_temporarily_unavailable": MediaInspectionTemporarilyUnavailable,
+            "runner_unavailable": MediaInspectionTemporarilyUnavailable,
+            "runner_release_mismatch": MediaInspectionTemporarilyUnavailable,
+            "runner_release_changed": MediaInspectionTemporarilyUnavailable,
+            "runner_restarted": MediaInspectionTemporarilyUnavailable,
+        }.get(code, MediaInspectionFailure)
+        failure = error_type(code)
+    return failure.with_failure(error.failure)
 
 
 def _retry_after(value: str | None) -> datetime | None:
-    if value is None or len(value) > 128:
-        return None
-    now = datetime.now(UTC)
-    try:
-        if value.isascii() and value.isdigit():
-            return now + timedelta(seconds=int(value))
-        result = parsedate_to_datetime(value)
-        return result if result.tzinfo is not None and result > now else None
-    except (ValueError, TypeError, OverflowError):
-        return None
+    return parse_retry_after(value, datetime.now(UTC))
 
 
 def _context_to_domain(

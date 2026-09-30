@@ -305,6 +305,9 @@ class ProviderCanaryService:
 
 
 def _stable_error(exc: Exception) -> str:
+    if isinstance(exc, (MediaRunnerClientError, MediaInspectionFailure)):
+        if exc.failure is not None:
+            return exc.failure.code
     if isinstance(
         exc,
         (

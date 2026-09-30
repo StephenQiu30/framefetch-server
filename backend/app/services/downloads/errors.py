@@ -5,6 +5,7 @@ from enum import StrEnum
 from typing import Self
 
 from app.services.downloads.rules.content_restrictions import ContentRestriction
+from app.services.provider_failures import ProviderFailure
 from app.services.provider_types import ProviderAccessMode
 
 
@@ -48,11 +49,28 @@ class ApplicationError(RuntimeError):
         *,
         retry_at: datetime | None = None,
         preparation_wait: bool = False,
+        failure: ProviderFailure | None = None,
     ) -> None:
         self.code = code
         self.retry_at = retry_at
         self.preparation_wait = preparation_wait
+        self.failure = failure
         super().__init__(code.value)
+
+    @classmethod
+    def from_inspection(
+        cls,
+        code: ApplicationErrorCode,
+        error: MediaInspectionFailure,
+        *,
+        preparation_wait: bool = False,
+    ) -> Self:
+        return cls(
+            code,
+            failure=error.failure,
+            retry_at=getattr(error, "retry_at", None),
+            preparation_wait=preparation_wait,
+        )
 
 
 class PersistenceIdempotencyConflict(RuntimeError):
@@ -74,13 +92,19 @@ class MediaInspectionFailure(RuntimeError):
         self,
         *args: object,
         access_mode: ProviderAccessMode | None = None,
+        failure: ProviderFailure | None = None,
     ) -> None:
         self.access_mode = access_mode
+        self.failure = failure
         super().__init__(*args)
 
     def attributed_to(self, access_mode: ProviderAccessMode) -> Self:
         """Attach the concrete attempt without changing the public error type."""
         self.access_mode = access_mode
+        return self
+
+    def with_failure(self, failure: ProviderFailure) -> Self:
+        self.failure = failure
         return self
 
 
