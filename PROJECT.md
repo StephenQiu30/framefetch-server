@@ -20,7 +20,9 @@
 
 具体版本通过依赖清单与锁文件固定；禁止在本文维护另一份版本快照。新依赖必须承担明确职责，不因脚手架默认包含就保留。
 
-媒体获取重设计继续使用现有技术栈；通过轻量 Chrome 扩展与现有 Python Native Messaging 来源按任务复用日常 Chrome 会话，删除 Playwright 专用浏览器依赖，不引入 SQLite 或新的任务存储。PostgreSQL 是业务事实来源，Temporal／RabbitMQ 各自拥有既定任务；执行进程不复制业务状态机。媒体执行保留容器隔离；宿主不建立第二份任务状态。
+媒体获取面向单人自部署使用，不计划提供互联网服务。当前通过 Chrome 扩展与 Python Native Messaging 复用日常会话；[设计 17](docs/design/17-通用解析架构与实施计划.md)规定下一阶段的通用策略、服务侧持久 Browser Runtime、失败分类与人工恢复，允许为真实页面执行配套引入固定版本 Playwright/Chromium。该目标尚未实施，不将现有 Cookie 接入视为完整浏览器执行能力。
+
+平台策略统一声明于 Provider Registry，失败后的备用路径串行执行并共享预算；结果成功后冻结最终策略与上下文。浏览器原生 Profile 可持久保存平台状态，chrome_source 为明确选择的可选来源，单平台不自动混用来源；不新增自建 SQLite、Cookie 数据库或任务存储。PostgreSQL 是业务事实来源，Temporal／RabbitMQ 各自拥有既定任务；执行进程不复制业务状态机。媒体执行保留容器与出口边界，不为隐私合规、多租户或公开运营增加本轮架构要求。
 
 ## 2. FastAPI 工程结构
 
