@@ -62,7 +62,7 @@ const localizedErrorMessages: Record<string, string> = {
   not_found: '任务或相关资源不存在，请返回下载记录确认。',
   output_limit_exceeded: '下载文件超过大小限制，请选择更小的规格。',
   provider_auth_required:
-    '该链接明确需要平台账号权限，请使用部署方提供的受控授权路线或更换公开链接。',
+    '系统无法取得此内容所需的平台会话，本次自动解析已停止。可上传已取得的授权文件。',
   provider_catalog_conflict: '相同标识的平台配置已经存在。',
   provider_catalog_not_found: '平台配置不存在或已被删除。',
   provider_content_restricted:
@@ -76,17 +76,35 @@ const localizedErrorMessages: Record<string, string> = {
   provider_media_unsupported: '该链接不包含受支持的可下载视频，请更换链接。',
   provider_rate_limited: '平台请求过于频繁，请稍后重试。',
   provider_session_expired:
-    '平台登录状态已失效，请打开平台专用浏览器重新登录，然后继续原任务。',
+    '平台拒绝了当前会话，系统未能自动恢复，本次解析已停止。',
   provider_session_not_ready:
-    '平台登录来源暂不可用。请确认专用浏览器来源服务正在运行，处理后继续原任务。',
+    '批准的平台会话来源仍不可用，自动恢复已结束，本次解析已停止。',
   provider_configuration_missing:
-    '平台尚未登录，请打开平台专用浏览器完成登录，然后继续原任务。',
+    '当前部署缺少此平台的自动访问配置，无法继续解析。',
   provider_access_policy_not_allowed:
     '该来源尚未接入可验证的平台会话，当前无法解析。',
   provider_temporarily_unavailable: '平台服务暂时不可用，请稍后重试。',
   provider_unsupported: '当前暂不支持该视频平台。',
   provider_verification_failed:
-    '平台要求额外验证，当前访问路线暂不可用，请稍后重试或更换公开链接。',
+    '平台要求当前系统无法自动完成的验证，本次解析已停止。',
+  credential_required: '系统无法取得此内容所需的平台会话，本次自动解析已停止。',
+  credential_expired: '平台会话已失效，系统未能自动恢复，本次解析已停止。',
+  credential_rejected: '平台拒绝了当前会话，本次自动解析已停止。',
+  challenge_required: '平台要求当前系统无法自动完成的验证，本次解析已停止。',
+  egress_challenged: '平台拒绝了当前访问环境，本次自动解析已停止。',
+  pot_required: '平台访问令牌尚不可用，系统无法继续读取此内容。',
+  pot_provider_unavailable: '平台访问令牌服务暂不可用。',
+  pot_rejected: '平台拒绝了当前访问令牌。',
+  browser_unavailable: '浏览器解析环境暂不可用。',
+  browser_release_changed: '浏览器解析环境已变化，需要重新解析。',
+  browser_capacity_exhausted: '浏览器解析资源正忙，请稍后重试。',
+  browser_profile_limit: '浏览器解析环境的存储空间不足。',
+  context_changed: '解析环境已变化，需要更新结果并重新确认规格。',
+  extractor_regression: '平台页面结构已变化，当前无法读取媒体。',
+  media_probe_failed: '作品信息已读取，但媒体地址未通过可用性检查。',
+  egress_denied: '当前出口无法连接媒体平台。',
+  network_transient: '连接媒体平台时发生临时网络故障。',
+  outcome_unknown: '执行中断且无法确认结果，系统已停止重复请求。',
   rate_limited: '操作过于频繁，请稍后再试。',
   rate_limiter_unavailable: '请求限制服务暂时不可用，请稍后重试。',
   request_timeout: '请求处理超时，请稍后重试。',

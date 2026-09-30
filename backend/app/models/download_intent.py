@@ -75,12 +75,6 @@ class DownloadIntentRow(Base):
             f"status <> '{IntentStatus.HANDED_OFF.value}' OR job_id IS NOT NULL",
             name="ck_download_intents_handoff",
         ),
-        CheckConstraint(
-            f"status <> '{IntentStatus.ACTION_REQUIRED.value}' "
-            "OR (authorization_id IS NOT NULL "
-            "AND authorization_deadline IS NOT NULL)",
-            name="ck_download_intents_action",
-        ),
         Index("ix_download_intents_owner_created", "owner_hash", "created_at"),
         Index("ix_download_intents_deadline", "status", "deadline"),
         Index("uq_download_intents_inspection", "inspection_id", unique=True),
@@ -109,10 +103,6 @@ class DownloadIntentRow(Base):
     generation: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     operation_id: Mapped[str | None] = mapped_column(String(128))
     retry_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
-    authorization_id: Mapped[UUID | None] = mapped_column(Uuid)
-    authorization_deadline: Mapped[datetime | None] = mapped_column(
-        DateTime(timezone=True)
-    )
     inspection_id: Mapped[UUID | None] = mapped_column(
         Uuid, ForeignKey("media_inspections.id")
     )

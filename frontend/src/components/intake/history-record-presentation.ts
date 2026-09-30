@@ -55,7 +55,5 @@ export function historyRecordHref(
 }
 export function historyPollingInterval(items: HistoryRecord[]) {
   if (items.some((item) => item.status_group === 'processing')) return 3000;
-  return items.some((item) => item.status_group === 'action_required')
-    ? 10000
-    : false;
+  return false;
 }

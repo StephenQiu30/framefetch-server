@@ -7,13 +7,12 @@ import {
   createDownloadIntent,
   findDownloadIntent,
   getDownloadIntent,
-  openDownloadIntentLogin,
   refreshDownloadIntent,
-  resumeDownloadIntent,
 } from '@/api/downloadIntents';
 import { getInspection } from '@/api/inspections';
 import { useAuth } from '@/components/auth/auth-provider';
 import { useIntakeDraft } from '@/components/intake/intake-draft-provider';
+import { intentPollingInterval } from '@/components/intake/intent-polling';
 import {
   IntentStatusCode,
   isTerminalIntentStatus,
@@ -42,7 +41,6 @@ export function useDownloadIntent() {
   const writing = useRef(false);
   const [restored, setRestored] = useState(false);
   const [operationError, setOperationError] = useState<string | null>(null);
-  const [openingLogin, setOpeningLogin] = useState(false);
   const [cancelling, setCancelling] = useState(false);
   const intentRoot = privateQueryKey('download-intent');
   const key = [
@@ -114,17 +112,7 @@ export function useDownloadIntent() {
       return remember(latest);
     },
     refetchInterval: (query) =>
-      query.state.error ||
-      (query.state.data &&
-        (isTerminalIntentStatus(query.state.data.status) ||
-          Date.parse(
-            query.state.data.status === IntentStatusCode.ActionRequired
-              ? (query.state.data.authorization_deadline ??
-                  query.state.data.deadline)
-              : query.state.data.deadline,
-          ) <= Date.now()))
-        ? false
-        : 2_000,
+      intentPollingInterval(query.state.data, query.state.error),
     refetchOnWindowFocus: true,
     staleTime: 2_000,
   });
@@ -219,23 +207,7 @@ export function useDownloadIntent() {
     }
   }
 
-  async function openLogin() {
-    if (!intent.data?.authorization_id || openingLogin) return;
-    setOpeningLogin(true);
-    setOperationError(null);
-    try {
-      await openDownloadIntentLogin(
-        { intent_id: intent.data.id },
-        { authorization_id: intent.data.authorization_id },
-      );
-    } catch (error) {
-      setOperationError(displayError(error));
-    } finally {
-      setOpeningLogin(false);
-    }
-  }
-
-  async function refresh(resume = false) {
+  async function refresh() {
     if (
       !intent.data ||
       !attempt ||
@@ -251,13 +223,7 @@ export function useDownloadIntent() {
     let accepted = false;
     try {
       await queries.cancelQueries({ queryKey: intentRoot });
-      const result =
-        resume && intent.data.authorization_id
-          ? await resumeDownloadIntent(
-              { intent_id: intent.data.id },
-              { authorization_id: intent.data.authorization_id },
-            )
-          : await refreshDownloadIntent({ intent_id: intent.data.id });
+      const result = await refreshDownloadIntent({ intent_id: intent.data.id });
       queries.setQueryData(key, remember(result));
       accepted = true;
     } catch (error) {
@@ -313,13 +279,10 @@ export function useDownloadIntent() {
       intent.error instanceof ApiError &&
       intent.error.status === 404,
     cancelling,
-    openingLogin,
-    openLogin,
     restored,
     submit,
     cancel,
     refresh,
-    resume: () => refresh(true),
     clear,
     error:
       operationError ??
@@ -333,11 +296,7 @@ export function useDownloadIntent() {
           ? displayError(inspection.error)
           : intent.data &&
               pending &&
-              Date.parse(
-                intent.data.status === IntentStatusCode.ActionRequired
-                  ? (intent.data.authorization_deadline ?? intent.data.deadline)
-                  : intent.data.deadline,
-              ) <= Date.now()
+              Date.parse(intent.data.deadline) <= Date.now()
             ? '等待时间已到，请查询后台任务的最终状态。'
             : null),
     retry: async () => {

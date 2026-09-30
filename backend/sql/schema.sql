@@ -1233,8 +1233,6 @@ CREATE TABLE IF NOT EXISTS download_intents (
     generation INTEGER NOT NULL DEFAULT 0,
     operation_id VARCHAR(128),
     retry_at TIMESTAMPTZ,
-    authorization_id UUID,
-    authorization_deadline TIMESTAMPTZ,
     inspection_id UUID REFERENCES media_inspections (id),
     job_id UUID REFERENCES download_jobs (id),
     reason_code VARCHAR(64),
@@ -1243,7 +1241,7 @@ CREATE TABLE IF NOT EXISTS download_intents (
     CONSTRAINT uq_download_intents_owner_key UNIQUE (owner_hash, idempotency_key),
     CONSTRAINT uq_download_intents_job UNIQUE (job_id),
     CONSTRAINT ck_download_intents_status CHECK (status IN (
-        'queued','preparing','resolving','retry_wait','action_required',
+        'queued','preparing','resolving','retry_wait',
         'ready','handed_off','cancelled','expired','failed'
     )),
     CONSTRAINT ck_download_intents_mode CHECK (mode = 'inspect'),
@@ -1261,10 +1259,7 @@ CREATE TABLE IF NOT EXISTS download_intents (
     ),
     CONSTRAINT ck_download_intents_retry CHECK ((status = 'retry_wait') = (retry_at IS NOT NULL)),
     CONSTRAINT ck_download_intents_result CHECK (status <> 'ready' OR inspection_id IS NOT NULL),
-    CONSTRAINT ck_download_intents_handoff CHECK (status <> 'handed_off' OR job_id IS NOT NULL),
-    CONSTRAINT ck_download_intents_action CHECK (
-        status <> 'action_required' OR (authorization_id IS NOT NULL AND authorization_deadline IS NOT NULL)
-    )
+    CONSTRAINT ck_download_intents_handoff CHECK (status <> 'handed_off' OR job_id IS NOT NULL)
 );
 CREATE INDEX IF NOT EXISTS ix_download_intents_owner_created
     ON download_intents (owner_hash, created_at);
@@ -1298,6 +1293,36 @@ ALTER TABLE download_intents ADD COLUMN IF NOT EXISTS resolution_plan JSONB;
 ALTER TABLE download_intents ADD COLUMN IF NOT EXISTS next_strategy_id VARCHAR(128);
 ALTER TABLE download_intents ADD COLUMN IF NOT EXISTS selected_operation_id VARCHAR(64);
 ALTER TABLE download_intents ADD COLUMN IF NOT EXISTS latest_failure JSONB;
+
+-- Retire unsupported manual waits behind the existing fence. The deployment
+-- drains/ends old waiting Workflows before switching Worker code; cancellation
+-- commands remain durable so no old execution can revive the intent.
+ALTER TABLE download_intents DROP CONSTRAINT IF EXISTS ck_download_intents_action;
+ALTER TABLE download_intents DROP CONSTRAINT IF EXISTS ck_download_intents_status;
+WITH retired AS (
+    UPDATE download_intents
+    SET status = 'failed', reason_code = COALESCE(reason_code, 'provider_session_not_ready'),
+        operation_id = NULL, retry_at = NULL, fence = fence + 1, version = version + 1,
+        updated_at = CURRENT_TIMESTAMP
+    WHERE status = 'action_required'
+    RETURNING id, generation, version
+)
+INSERT INTO outbox_events (
+    id, aggregate_type, aggregate_id, aggregate_version, event_type, payload,
+    available_at, created_at
+)
+SELECT gen_random_uuid(), 'download_intent', id, version, 'download.intent.cancelled',
+       jsonb_build_object('intent_id', id::text, 'generation', generation),
+       CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+FROM retired
+ON CONFLICT DO NOTHING;
+UPDATE outbox_events SET published_at = CURRENT_TIMESTAMP
+WHERE event_type = 'download.intent.resumed' AND published_at IS NULL;
+ALTER TABLE download_intents DROP COLUMN IF EXISTS authorization_id;
+ALTER TABLE download_intents DROP COLUMN IF EXISTS authorization_deadline;
+ALTER TABLE download_intents ADD CONSTRAINT ck_download_intents_status CHECK (status IN (
+    'queued','preparing','resolving','retry_wait','ready','handed_off','cancelled','expired','failed'
+));
 
 CREATE TABLE IF NOT EXISTS resolution_attempts (
     operation_id VARCHAR(64) PRIMARY KEY,

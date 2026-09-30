@@ -23,7 +23,6 @@ from app.services.provider_failures import (
 from app.workers.download.workflows import (
     InspectionCommand,
     InspectionOutcome,
-    InspectionWait,
 )
 from temporalio import activity
 from temporalio.exceptions import ApplicationError as TemporalApplicationError
@@ -239,25 +238,6 @@ class InspectionActivities:
         except PersistenceConflict:
             return outcome(await self._repository.execution_state(intent_id))
 
-    @activity.defn(name="expire_inspection_wait")
-    async def expire_inspection_wait(
-        self, command: InspectionWait
-    ) -> InspectionOutcome:
-        try:
-            return outcome(
-                await self._repository.expire_wait(
-                    UUID(command.intent_id),
-                    command.generation,
-                    UUID(command.authorization_id),
-                    now=self._clock(),
-                )
-            )
-        except Exception:
-            raise TemporalApplicationError(
-                "inspection wait reconciliation unavailable",
-                type="InspectionInfrastructure",
-            ) from None
-
     @activity.defn(name="finish_inspection")
     async def finish_inspection(self, command: InspectionCommand) -> InspectionOutcome:
         try:
@@ -273,8 +253,4 @@ def outcome(snapshot: IntentSnapshot) -> InspectionOutcome:
         snapshot.status.value,
         str(snapshot.inspection_id) if snapshot.inspection_id else None,
         snapshot.retry_at.timestamp() if snapshot.retry_at else None,
-        str(snapshot.authorization_id) if snapshot.authorization_id else None,
-        snapshot.authorization_deadline.timestamp()
-        if snapshot.authorization_deadline
-        else None,
     )

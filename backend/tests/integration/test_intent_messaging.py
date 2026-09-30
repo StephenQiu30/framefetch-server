@@ -32,7 +32,6 @@ def worker(client, activities):
         activities=[
             activities.inspect_media,
             activities.finish_inspection,
-            activities.expire_inspection_wait,
         ],
         max_concurrent_activities=2,
         graceful_shutdown_timeout=timedelta(seconds=1),
@@ -169,7 +168,7 @@ async def test_lost_activity_reply_recovers_original_receipt_and_commits_once(
     )
 
 
-async def test_login_wait_survives_worker_restart_and_durable_resume(
+async def test_automatic_session_wait_survives_worker_restart_without_user_command(
     postgres_engine, temporal_client
 ):
     from datetime import UTC, datetime
@@ -177,12 +176,12 @@ async def test_login_wait_survives_worker_restart_and_durable_resume(
     from tests.integration.api.test_download_intent_routes import PreparingSessionRunner
 
     runner = PreparingSessionRunner()
-    runner.waits = 3  # One unavailable source response, then a real pipeline result.
+    runner.waits = 3
     service, repo, activities, clock, sessions = components(
         postgres_engine, runner, operator_providers=frozenset({"youtube"})
     )
     clock[0] = datetime.now(UTC)
-    intent = await service.create(URL, TEST_USER.owner_hash, "login-wait")
+    intent = await service.create(URL, TEST_USER.owner_hash, "automatic-wait")
     loop = dispatch(repo, sessions, clock, temporal_client)
     handle = temporal_client.get_workflow_handle(
         InspectionCommand(str(intent.id), 0).workflow_id
@@ -192,33 +191,36 @@ async def test_login_wait_survives_worker_restart_and_durable_resume(
         async with asyncio.timeout(15):
             while True:
                 waiting = await repo.get(intent.id, TEST_USER.owner_hash)
-                if waiting.status == "action_required":
+                if waiting.status == "retry_wait":
                     break
                 await asyncio.sleep(0.05)
         assert waiting.operation_id is None and waiting.attempt == 0
-    # User acts while the worker is offline. PG/outbox commits without waiting
-    # for a Workflow Update response, and no new workflow/generation is created.
-    clock[0] = datetime.now(UTC)
-    await service.resume(intent.id, TEST_USER.owner_hash, waiting.authorization_id)
+        assert waiting.deadline == intent.deadline
+    # Temporal's timer is durable; no login/resume write or new outbox is needed.
+    clock[0] = waiting.retry_at
     async with worker(temporal_client, activities):
-        assert await loop.run_once() == 1
-        result = await asyncio.wait_for(handle.result(), 15)
+        assert await loop.run_once() == 0
+        result = await asyncio.wait_for(handle.result(), 25)
     assert result["status"] == "ready"
     state = await repo.get(intent.id, TEST_USER.owner_hash)
-    assert state.attempt == 1 and state.generation == 0
+    assert (
+        state.attempt == 1
+        and state.generation == 0
+        and state.deadline == intent.deadline
+    )
     assert await runner_result_count(sessions) == 1
     await Replayer(workflows=[InspectionWorkflow]).replay_workflow(
         await handle.fetch_history()
     )
-    # Redelivery after the workflow closed is a no-op, not a new execution.
     async with sessions() as session, session.begin():
         event = await session.scalar(
             select(OutboxEventRow).where(
-                OutboxEventRow.event_type == "download.intent.resumed"
+                OutboxEventRow.event_type == "download.intent.requested"
             )
         )
         event.published_at = None
     assert await loop.run_once() == 1
+    assert await runner_result_count(sessions) == 1
 
 
 async def runner_result_count(sessions):

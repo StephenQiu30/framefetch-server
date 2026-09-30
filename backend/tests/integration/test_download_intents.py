@@ -338,7 +338,7 @@ async def test_session_preparation_wait_preserves_cancellation_and_deadline(
         reason_code="provider_session_not_ready",
         retry_at=NOW + timedelta(seconds=15),
     )
-    assert deferred.status == "action_required" and deferred.attempt == 0
+    assert deferred.status == "retry_wait" and deferred.attempt == 0
     cancelled = await repo.cancel(waiting.id, OWNER, now=NOW + timedelta(seconds=5))
     assert cancelled.status == "cancelled"
     assert (
@@ -376,10 +376,7 @@ async def test_session_preparation_wait_preserves_cancellation_and_deadline(
         )
         is None
     )
-    assert (await repo.get(expired.id, OWNER)).status == "action_required"
-    result = await repo.expire_wait(
-        expired.id, 0, waiting.authorization_id, now=NOW + timedelta(hours=24)
-    )
+    result = await repo.get(expired.id, OWNER)
     assert result.status == "expired" and result.remaining_budget_ms == 180000
 
 
@@ -494,6 +491,88 @@ async def test_sql_bootstrap_and_repeat_preserve_intent_and_outbox() -> None:
             )
         assert columns == set(DownloadIntentRow.__table__.columns.keys())
         assert "url" not in columns
+        # Simulate an accepted manual wait from the version being replaced.
+        # Current DDL must converge it once, preserving facts and cancellation.
+        old = await repo.accept(
+            replace(command(), id=uuid4(), idempotency_key="retired-wait"), now=NOW
+        )
+        async with engine.begin() as connection:
+            await connection.execute(
+                text(
+                    "ALTER TABLE download_intents DROP CONSTRAINT "
+                    "ck_download_intents_status"
+                )
+            )
+            await connection.execute(
+                text("ALTER TABLE download_intents ADD COLUMN authorization_id UUID")
+            )
+            await connection.execute(
+                text(
+                    "ALTER TABLE download_intents ADD COLUMN "
+                    "authorization_deadline TIMESTAMPTZ"
+                )
+            )
+            await connection.execute(
+                text(
+                    "UPDATE download_intents SET status='action_required', "
+                    "reason_code='provider_session_not_ready', "
+                    "authorization_id=:wait_id, "
+                    "authorization_deadline=:wait_deadline WHERE id=:id"
+                ),
+                {
+                    "id": old.id,
+                    "wait_id": uuid4(),
+                    "wait_deadline": NOW + timedelta(hours=24),
+                },
+            )
+        resumed_event_id = uuid4()
+        resumed_event = OutboxEventRow(
+            id=resumed_event_id,
+            aggregate_type="download_intent",
+            aggregate_id=old.id,
+            aggregate_version=1,
+            event_type="download.intent.resumed",
+            payload={
+                "intent_id": str(old.id),
+                "generation": 0,
+                "wait_id": str(uuid4()),
+            },
+            available_at=NOW,
+            created_at=NOW,
+        )
+        async with async_sessionmaker(engine)() as session, session.begin():
+            session.add(resumed_event)
+        await apply_schema()
+        retired = await repo.get(old.id, OWNER)
+        assert (
+            retired.status == "failed"
+            and retired.reason_code == "provider_session_not_ready"
+        )
+        assert retired.fence == old.fence + 1 and retired.generation == old.generation
+        assert (
+            retired.deadline == old.deadline
+            and retired.remaining_budget_ms == old.remaining_budget_ms
+        )
+        async with async_sessionmaker(engine)() as session:
+            cancelled = (
+                await session.scalars(
+                    select(OutboxEventRow).where(
+                        OutboxEventRow.aggregate_id == old.id,
+                        OutboxEventRow.event_type == "download.intent.cancelled",
+                    )
+                )
+            ).all()
+            assert len(cancelled) == 1 and cancelled[0].payload == {
+                "intent_id": str(old.id),
+                "generation": 0,
+            }
+            assert (
+                await session.get(OutboxEventRow, resumed_event_id)
+            ).published_at is not None
+        await apply_schema()
+        assert await repo.get(old.id, OWNER) == retired
+        assert (await repo.get(accepted.id, OWNER)).status == "ready"
+        assert await count(engine, MediaInspectionRow) == 1
 
 
 @pytest.mark.parametrize(
@@ -520,12 +599,10 @@ async def test_cold_session_wait_keeps_one_intent_and_does_not_spend_parse_attem
             reason_code="provider_session_not_ready",
             retry_at=now + timedelta(seconds=15),
         )
-        assert waiting.attempt == 0 and waiting.status == "action_required"
-        assert waiting.id == accepted.id
-        assert waiting.authorization_deadline == NOW + timedelta(hours=24)
-        await repo.resume(
-            waiting.id, OWNER, waiting.authorization_id, now=now + timedelta(seconds=14)
-        )
+        assert waiting.attempt == 0 and waiting.status == "retry_wait"
+        assert waiting.id == accepted.id and waiting.generation == 0
+        assert waiting.deadline == accepted.deadline
+        assert waiting.retry_at == now + timedelta(seconds=15)
     now = NOW + timedelta(seconds=75)
     lease = await start_attempt(
         repo,
@@ -538,6 +615,34 @@ async def test_cold_session_wait_keeps_one_intent_and_does_not_spend_parse_attem
     ready = await repo.complete(lease.intent, inspection(lease.intent), now=now)
     assert ready.status == "ready" and ready.attempt == 1
     assert await count(postgres_engine, DownloadIntentRow) == 1
+
+
+async def test_unavailable_source_stops_with_its_cause_before_original_deadline(
+    postgres_engine,
+):
+    repo = repository(postgres_engine)
+    accepted = await repo.accept(
+        replace(command(), access_policy=ProviderAccessPolicy.OPERATOR_PUBLIC), now=NOW
+    )
+    for index in range(12):
+        now = NOW + timedelta(seconds=index * 15)
+        preparing = await repo.claim_preparation(
+            accepted.id, 0, f"automatic-preparation-{index}", now=now
+        )
+        stopped = await repo.fail(
+            preparing.intent, now=now, reason_code="provider_session_not_ready"
+        )
+        assert stopped.attempt == 0 and stopped.remaining_budget_ms == 180000
+        assert stopped.deadline == accepted.deadline and stopped.generation == 0
+    assert stopped.status == "failed" and stopped.retry_at is None
+    assert stopped.reason_code == "provider_session_not_ready"
+    assert stopped.latest_failure.code == "provider_session_not_ready"
+    assert (
+        await repo.claim_preparation(
+            accepted.id, 0, "after-stop", now=NOW + timedelta(seconds=170)
+        )
+        is None
+    )
 
 
 async def test_late_result_at_deadline_expires_without_leaving_running_projection(
@@ -568,7 +673,7 @@ async def test_unknown_outcome_cannot_be_replaced_or_refreshed(postgres_engine):
         await repo.refresh(accepted.id, OWNER, now=NOW)
 
 
-async def test_login_resume_is_owned_atomic_idempotent_and_preserves_budget(
+async def test_automatic_changed_session_recovery_is_owned_fenced_and_keeps_budget(
     postgres_engine,
 ):
     repo = repository(postgres_engine)
@@ -582,75 +687,52 @@ async def test_login_resume_is_owned_atomic_idempotent_and_preserves_budget(
         now=NOW + timedelta(seconds=10),
         reason_code="provider_auth_required",
     )
-    assert waiting.remaining_budget_ms == 170000
-    assert waiting.operation_id is None and waiting.retry_at is None
-    with pytest.raises(RepositoryNotFound):
-        await repo.resume(waiting.id, "f" * 64, waiting.authorization_id, now=NOW)
-    with pytest.raises(RepositoryConflict):
-        await repo.resume(waiting.id, OWNER, uuid4(), now=NOW)
-    resumed = await asyncio.gather(
-        *(
-            repo.resume(
-                waiting.id,
-                OWNER,
-                waiting.authorization_id,
-                now=NOW + timedelta(hours=2),
-            )
-            for _ in range(10)
-        )
+    assert waiting.status == "retry_wait" and waiting.retry_at == NOW + timedelta(
+        seconds=25
     )
-    assert all(r == resumed[0] for r in resumed)
-    assert resumed[0].generation == 0 and resumed[0].remaining_budget_ms == 170000
-    assert resumed[0].deadline == NOW + timedelta(hours=2, seconds=170)
-    async with async_sessionmaker(postgres_engine)() as session:
-        events = (
-            await session.scalars(
-                select(OutboxEventRow).where(
-                    OutboxEventRow.event_type == "download.intent.resumed"
-                )
-            )
-        ).all()
-        assert len(events) == 1
-        assert events[0].payload["wait_id"] == str(waiting.authorization_id)
-    # Late completion from before the wait is fenced out.
+    assert (
+        waiting.remaining_budget_ms == 170000 and waiting.deadline == accepted.deadline
+    )
+    assert waiting.operation_id is None and waiting.generation == 0
+    with pytest.raises(RepositoryNotFound):
+        await repo.get(waiting.id, "f" * 64)
+    with pytest.raises(RepositoryConflict, match="timer"):
+        await repo.claim_preparation(
+            waiting.id, 0, "too-soon", now=NOW + timedelta(seconds=24)
+        )
     with pytest.raises(RepositoryConflict):
         await repo.complete(
-            operation.intent, inspection(operation.intent), now=NOW + timedelta(hours=2)
+            operation.intent,
+            inspection(operation.intent),
+            now=NOW + timedelta(seconds=25),
         )
     second = await start_attempt(
         repo,
         waiting.id,
         0,
-        "second",
-        now=NOW + timedelta(hours=2),
+        "changed-source",
+        now=NOW + timedelta(seconds=25),
         credential="changed-session",
     )
-    again = await repo.fail(
-        second.intent,
-        now=NOW + timedelta(hours=2, seconds=10),
-        reason_code="provider_auth_required",
+    assert second.intent.attempt == 2 and second.intent.remaining_budget_ms == 170000
+    assert second.intent.deadline == accepted.deadline
+    ready = await repo.complete(
+        second.intent, inspection(second.intent), now=NOW + timedelta(seconds=30)
     )
-    assert again.authorization_id != waiting.authorization_id
-    assert again.authorization_deadline == waiting.authorization_deadline
-    assert again.remaining_budget_ms == 160000
-    with pytest.raises(RepositoryConflict):
-        await repo.resume(
-            waiting.id, OWNER, waiting.authorization_id, now=NOW + timedelta(hours=3)
-        )
-    # A timer for the preceding wait cannot expire a newer one.
     assert (
-        await repo.expire_wait(
-            waiting.id, 0, waiting.authorization_id, now=NOW + timedelta(days=2)
+        ready.status == "ready"
+        and ready.generation == 0
+        and ready.remaining_budget_ms == 165000
+    )
+    async with async_sessionmaker(postgres_engine)() as session:
+        assert (
+            await session.scalar(select(func.count()).select_from(OutboxEventRow)) == 1
         )
-    ).status == "action_required"
-    assert (
-        await repo.resume(
-            again.id, OWNER, again.authorization_id, now=NOW + timedelta(days=2)
-        )
-    ).status == "expired"
 
 
-async def test_resume_outbox_failure_leaves_task_waiting(postgres_engine):
+async def test_unchanged_approved_session_stops_without_another_platform_call(
+    postgres_engine,
+):
     repo = repository(postgres_engine)
     accepted = await repo.accept(
         replace(command(), access_policy=ProviderAccessPolicy.PERSONAL_ENTITLED),
@@ -660,20 +742,24 @@ async def test_resume_outbox_failure_leaves_task_waiting(postgres_engine):
     waiting = await repo.fail(
         operation.intent, now=NOW, reason_code="provider_auth_required"
     )
-
-    def fail_outbox(_connection, _cursor, statement, _parameters, _context, _many):
-        if statement.startswith("INSERT INTO outbox_events"):
-            raise RuntimeError("injected outbox failure")
-
-    event.listen(postgres_engine.sync_engine, "before_cursor_execute", fail_outbox)
-    try:
-        with pytest.raises(RuntimeError, match="injected"):
-            await repo.resume(
-                waiting.id,
-                OWNER,
-                waiting.authorization_id,
-                now=NOW + timedelta(hours=1),
-            )
-    finally:
-        event.remove(postgres_engine.sync_engine, "before_cursor_execute", fail_outbox)
-    assert await repo.get(waiting.id, OWNER) == waiting
+    assert waiting.status == "retry_wait" and waiting.attempt == 1
+    assert (
+        await start_attempt(repo, accepted.id, 0, "same-source", now=waiting.retry_at)
+        is None
+    )
+    stopped = await repo.get(accepted.id, OWNER)
+    assert stopped.status == "failed" and stopped.attempt == 1
+    assert stopped.latest_failure.code == "provider_auth_required"
+    assert (
+        stopped.remaining_budget_ms == 180000 and stopped.deadline == accepted.deadline
+    )
+    assert (
+        await repo.claim_preparation(
+            accepted.id, 0, "later", now=NOW + timedelta(seconds=30)
+        )
+        is None
+    )
+    async with async_sessionmaker(postgres_engine)() as session:
+        assert (
+            await session.scalar(select(func.count()).select_from(OutboxEventRow)) == 1
+        )

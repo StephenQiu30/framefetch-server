@@ -120,10 +120,9 @@ async def test_session_preparation_wait_keeps_original_intent_and_attempt_budget
     for _ in range(4):
         await executor.execute(InspectionCommand(str(intent.id), 0), str(uuid4()))
         waiting = await repo.get(intent.id, TEST_USER.owner_hash)
-        assert waiting.status == "action_required"
+        assert waiting.status == "retry_wait"
         assert waiting.attempt == 0
         clock[0] += timedelta(seconds=15)
-        await service.resume(intent.id, TEST_USER.owner_hash, waiting.authorization_id)
     await executor.execute(InspectionCommand(str(intent.id), 0), str(uuid4()))
     ready = await repo.get(intent.id, TEST_USER.owner_hash)
     assert ready.status == "ready" and ready.attempt == 1
@@ -480,18 +479,27 @@ async def test_expired_result_refresh_is_an_owned_202_on_the_same_intent(
         assert (await client.post(path)).status_code == 409
 
 
-async def test_login_control_is_bound_to_owned_current_wait(postgres_engine):
-    from unittest.mock import AsyncMock
+async def test_manual_routes_removed_and_automatic_wait_exposes_typed_failure(
+    postgres_engine,
+):
+    from app.schemas.download_intents import IntentResponse
 
     service, repo, _, clock, _ = components(
         postgres_engine, operator_providers=frozenset({"youtube"})
     )
-    opener = AsyncMock()
-    service._open_login = opener
-    intent = await service.create(URL, TEST_USER.owner_hash, "login-control")
+    intent = await service.create(URL, TEST_USER.owner_hash, "automatic-source")
     operation = await repo.claim_preparation(intent.id, 0, "prepare", now=clock[0])
     waiting = await repo.fail(
-        operation.intent, now=clock[0], reason_code="provider_auth_required"
+        operation.intent, now=clock[0], reason_code="provider_session_not_ready"
+    )
+    response = IntentResponse.from_snapshot(waiting)
+    assert response.status == "retry_wait" and response.next_action == "wait"
+    assert response.phase.value == "prepare_context"
+    assert response.failure.code == "provider_session_not_ready"
+    assert response.failure.scope.value == "session"
+    assert (
+        not {"authorization_id", "authorization_deadline"}
+        & response.model_dump().keys()
     )
     app = create_app(Settings(app_env="test"))
     app.state.services.intent_service = service
@@ -499,27 +507,16 @@ async def test_login_control_is_bound_to_owned_current_wait(postgres_engine):
     async with httpx.AsyncClient(
         transport=httpx.ASGITransport(app=app), base_url="http://testserver"
     ) as client:
-        rejected = await client.post(
-            f"/api/download-intents/{intent.id}/login",
-            json={"authorization_id": str(uuid4())},
+        for action in ("login", "resume"):
+            assert (
+                await client.post(
+                    f"/api/download-intents/{intent.id}/{action}", json={}
+                )
+            ).status_code == 404
+        observed = (await client.get(f"/api/download-intents/{intent.id}")).json()[
+            "data"
+        ]
+        assert observed["failure"]["code"] == "provider_session_not_ready"
+        assert observed["deadline"] == intent.deadline.isoformat().replace(
+            "+00:00", "Z"
         )
-        assert rejected.status_code == 409
-        opener.assert_not_awaited()
-        opened = await client.post(
-            f"/api/download-intents/{intent.id}/login",
-            json={"authorization_id": str(waiting.authorization_id)},
-        )
-        assert opened.status_code == 204 and not opened.content
-        opener.assert_awaited_once_with(URL)
-        resumed = await client.post(
-            f"/api/download-intents/{intent.id}/resume",
-            json={"authorization_id": str(waiting.authorization_id)},
-        )
-        assert resumed.status_code == 202
-        assert (await repo.get(intent.id, TEST_USER.owner_hash)).status == "queued"
-        stale = await client.post(
-            f"/api/download-intents/{intent.id}/login",
-            json={"authorization_id": str(waiting.authorization_id)},
-        )
-        assert stale.status_code == 409
-        opener.assert_awaited_once()

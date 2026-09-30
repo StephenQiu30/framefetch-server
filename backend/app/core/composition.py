@@ -504,14 +504,6 @@ def build_api_runtime(settings: Settings) -> ApiRuntime:
                 ApplicationErrorCode.PROVIDER_ACCESS_POLICY_NOT_ALLOWED
             ) from exc
 
-    async def open_platform_login(url: str) -> None:
-        try:
-            await runner.login(url)
-        except Exception:
-            raise ApplicationError(
-                ApplicationErrorCode.PROVIDER_SESSION_NOT_READY
-            ) from None
-
     return ApiRuntime(
         services=ApiServices(
             engine_catalog_reader=runner.engine_catalog,
@@ -523,7 +515,6 @@ def build_api_runtime(settings: Settings) -> ApiRuntime:
                 now=clock,
                 new_id=uuid4,
                 select_policy=select_intent_policy,
-                open_login=open_platform_login,
             ),
             history_record_service=HistoryRecordService(
                 SqlAlchemyHistoryRecordRepository(sessions), envelope, fingerprinter

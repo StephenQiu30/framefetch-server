@@ -16,7 +16,6 @@ class IntentStatus(StrEnum):
     PREPARING = "preparing"
     RESOLVING = "resolving"
     RETRY_WAIT = "retry_wait"
-    ACTION_REQUIRED = "action_required"
     READY = "ready"
     HANDED_OFF = "handed_off"
     CANCELLED = "cancelled"
@@ -38,7 +37,6 @@ ACTIVE_INTENT_STATUSES = (
     IntentStatus.QUEUED,
     *RUNNING_INTENT_STATUSES,
     IntentStatus.RETRY_WAIT,
-    IntentStatus.ACTION_REQUIRED,
 )
 
 
@@ -72,8 +70,6 @@ class IntentSnapshot:
     reason_code: str | None
     created_at: datetime
     updated_at: datetime
-    authorization_id: UUID | None = None
-    authorization_deadline: datetime | None = None
     resolution_plan: ResolutionPlan | None = None
     next_strategy_id: str | None = None
     selected_operation_id: str | None = None

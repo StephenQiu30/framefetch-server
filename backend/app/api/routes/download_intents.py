@@ -17,7 +17,6 @@ from app.schemas.download_intents import (
     IntentHistoryResponse,
     IntentRequest,
     IntentResponse,
-    IntentResumeRequest,
 )
 from app.schemas.history_records import HistoryRecordPageResponse
 from app.services.analysis.rules.enums import AnalysisResultContract
@@ -212,7 +211,7 @@ async def get_intent(
     response_model=IntentResponse,
     operation_id="refreshDownloadIntent",
     dependencies=[Depends(RateLimitAdmission("inspect"))],
-    summary="在原意图与剩余预算内更新过期解析结果",
+    summary="在原意图中重新解析并确认过期结果",
 )
 async def refresh_intent(
     intent_id: UUID, user: User, service: Service, response: Response
@@ -237,38 +236,3 @@ async def cancel_intent(
     return IntentResponse.from_snapshot(
         await service.cancel(intent_id, user.owner_hash)
     )
-
-
-@router.post(
-    "/{intent_id}/resume",
-    status_code=202,
-    response_model=IntentResponse,
-    operation_id="resumeDownloadIntent",
-    dependencies=[Depends(RateLimitAdmission("inspect"))],
-    summary="完成登录后继续原解析任务并重新验证来源",
-)
-async def resume_intent(
-    intent_id: UUID,
-    body: IntentResumeRequest,
-    user: User,
-    service: Service,
-    response: Response,
-) -> IntentResponse:
-    response.headers["Cache-Control"] = "no-store"
-    return IntentResponse.from_snapshot(
-        await service.resume(intent_id, user.owner_hash, body.authorization_id)
-    )
-
-
-@router.post(
-    "/{intent_id}/login",
-    status_code=204,
-    operation_id="openDownloadIntentLogin",
-    dependencies=[Depends(RateLimitAdmission("inspect"))],
-    summary="打开当前任务的平台专用登录浏览器",
-)
-async def open_intent_login(
-    intent_id: UUID, body: IntentResumeRequest, user: User, service: Service
-) -> Response:
-    await service.login(intent_id, user.owner_hash, body.authorization_id)
-    return Response(status_code=204, headers={"Cache-Control": "no-store"})

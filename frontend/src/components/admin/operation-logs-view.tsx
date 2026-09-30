@@ -57,7 +57,6 @@ const taskStates: Record<string, string> = {
   verifying: '校验中',
   uploading: '上传中',
   retry_wait: '等待重试',
-  action_required: '需要处理',
 };
 const resultLabel = (item: API.OperationLogResponse) =>
   item.source === 'task'

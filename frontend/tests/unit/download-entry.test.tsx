@@ -208,15 +208,25 @@ it('shows parse failures once in Sonner without an inline status panel', async (
   );
 });
 
-it('restores a login wait after the execution deadline and resumes the original intent', async () => {
+it('restores automatic recovery without login or resume and cancels the original intent', async () => {
   const waiting = intentFixture({
-    status: 'action_required',
+    status: 'retry_wait',
     inspection_id: null,
-    next_action: 'login',
+    next_action: 'wait',
+    phase: 'prepare_context',
     reason_code: 'provider_session_not_ready',
-    deadline: new Date(Date.now() - 10000).toISOString(),
-    authorization_id: '55555555-5555-4555-8555-555555555555',
-    authorization_deadline: new Date(Date.now() + 3600000).toISOString(),
+    retry_at: new Date(Date.now() + 15000).toISOString(),
+    failure: {
+      code: 'provider_session_not_ready',
+      phase: 'prepare_context',
+      scope: 'session',
+      failure_class: 'runtime_unavailable',
+      evidence_kind: 'runtime',
+      cause_code: null,
+      observed_at: new Date().toISOString(),
+      retry_after: null,
+      diagnostic_ref: null,
+    },
   });
   sessionStorage.setItem(
     'framefetch-active-intent',
@@ -224,54 +234,23 @@ it('restores a login wait after the execution deadline and resumes the original 
   );
   mockHttpResponses(
     waiting,
-    null,
-    intentFixture({ status: 'queued', inspection_id: null }),
+    intentFixture({ status: 'cancelled', inspection_id: null, version: 3 }),
   );
   renderEntry();
-  const resume = await screen.findByRole('button', {
-    name: '已处理，继续解析',
-  });
-  expect(document.getElementById('parse-intent-status')).toHaveTextContent(
-    '需要处理平台会话',
-  );
+  await screen.findByText('正在自动恢复');
   expect(
-    screen.queryByText('等待时间已到，请查询后台任务的最终状态。'),
+    screen.queryByRole('button', { name: /Chrome|已处理|登录平台/ }),
   ).toBeNull();
+  expect(httpRequests().filter((r) => r.method === 'POST')).toHaveLength(0);
+  fireEvent.click(screen.getByRole('button', { name: '取消解析' }));
   await waitFor(() =>
-    expect(
-      document.querySelector(
-        '[data-sonner-toast][data-type="loading"]:not([data-removed="true"])',
-      ),
-    ).toBeNull(),
-  );
-  fireEvent.click(screen.getByRole('button', { name: '在 Chrome 中打开平台' }));
-  await waitFor(() =>
-    expect(httpRequests()).toContainEqual(
+    expect(httpRequests().filter((r) => r.method === 'POST')).toEqual([
       expect.objectContaining({
-        method: 'POST',
-        url: `/api/download-intents/${waiting.id}/login`,
-        data: { authorization_id: waiting.authorization_id },
+        url: `/api/download-intents/${waiting.id}/cancel`,
       }),
-    ),
-  );
-  await waitFor(() =>
-    expect(
-      screen.getByRole('button', { name: '在 Chrome 中打开平台' }),
-    ).toBeEnabled(),
-  );
-  fireEvent.click(resume);
-  await waitFor(() =>
-    expect(httpRequests()).toContainEqual(
-      expect.objectContaining({
-        method: 'POST',
-        url: `/api/download-intents/${waiting.id}/resume`,
-        data: { authorization_id: waiting.authorization_id },
-      }),
-    ),
+    ]),
   );
   expect(
-    httpRequests().filter(
-      (r) => r.url === '/api/download-intents' && r.method === 'POST',
-    ),
-  ).toHaveLength(0);
+    httpRequests().some((r) => /\/(login|resume)$/.test(r.url ?? '')),
+  ).toBe(false);
 });

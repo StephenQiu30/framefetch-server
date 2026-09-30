@@ -17,6 +17,7 @@ from app.services.analysis.errors import (
 from app.services.downloads.inspection_models import EncryptedUrl
 from app.services.downloads.ports import RequestFingerprinter, UrlCipher
 from app.services.downloads.validation import validate_owner_hash
+from app.services.provider_failures import ProviderFailure
 
 
 class HistoryRecordKind(StrEnum):
@@ -28,7 +29,6 @@ class HistoryRecordKind(StrEnum):
 
 class HistoryStatusGroup(StrEnum):
     PROCESSING = "processing"
-    ACTION_REQUIRED = "action_required"
     COMPLETED = "completed"
     FAILED = "failed"
     CANCELLED = "cancelled"
@@ -45,7 +45,7 @@ class HistoryAvailability(StrEnum):
 def history_status_group(status: str) -> HistoryStatusGroup:
     if status in {"ready", "handed_off", "succeeded"}:
         return HistoryStatusGroup.COMPLETED
-    if status in {"action_required", "failed", "cancelled", "expired"}:
+    if status in {"failed", "cancelled", "expired"}:
         return HistoryStatusGroup(status)
     return HistoryStatusGroup.PROCESSING
 
@@ -93,6 +93,7 @@ class HistoryRecordSnapshot:
     result_availability: HistoryAvailability = HistoryAvailability.UNKNOWN
     version: int | None = None
     reason_code: str | None = None
+    latest_failure: ProviderFailure | None = None
     retry_at: datetime | None = None
     deadline: datetime | None = None
     inspection_id: UUID | None = None

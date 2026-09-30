@@ -1273,6 +1273,55 @@ declare namespace API {
     analysis_id: string;
   };
 
+  type FailureClass =
+    | "auth_required"
+    | "session_expired"
+    | "challenge_required"
+    | "token_unavailable"
+    | "token_rejected"
+    | "extractor_changed"
+    | "protocol_unavailable"
+    | "format_unavailable"
+    | "media_probe_failed"
+    | "egress_denied"
+    | "network_transient"
+    | "rate_limited"
+    | "content_unavailable"
+    | "content_restricted"
+    | "context_changed"
+    | "runtime_unavailable"
+    | "capacity_exhausted"
+    | "invalid_input"
+    | "source_unsupported"
+    | "artifact_invalid"
+    | "storage_unavailable"
+    | "outcome_unknown"
+    | "upstream_unclassified";
+
+  type FailureEvidenceKind =
+    | "upstream_response"
+    | "transport"
+    | "local_validation"
+    | "runtime"
+    | "unknown";
+
+  type FailurePhase =
+    | "recognize"
+    | "prepare_context"
+    | "fetch_metadata"
+    | "select_format"
+    | "probe_media"
+    | "transfer"
+    | "validate"
+    | "publish";
+
+  type FailureScope =
+    | "content"
+    | "session"
+    | "route"
+    | "dependency"
+    | "runtime";
+
   type findDownloadIntentParams = {
     idempotency_key: string;
   };
@@ -1398,7 +1447,6 @@ declare namespace API {
 
   type HistoryStatusGroup =
     | "processing"
-    | "action_required"
     | "completed"
     | "failed"
     | "cancelled"
@@ -1474,6 +1522,23 @@ declare namespace API {
     access_policy_id: ProviderAccessPolicy | null;
   };
 
+  type IntentFailureResponse = {
+    /** Code */
+    code: string;
+    phase: FailurePhase;
+    scope: FailureScope;
+    failure_class: FailureClass;
+    /** Cause Code */
+    cause_code: string | null;
+    evidence_kind: FailureEvidenceKind;
+    /** Observed At */
+    observed_at: string;
+    /** Retry After */
+    retry_after: string | null;
+    /** Diagnostic Ref */
+    diagnostic_ref: string | null;
+  };
+
   type IntentHistoryItemResponse = {
     /** Id */
     id: string;
@@ -1482,12 +1547,10 @@ declare namespace API {
     status: IntentStatus;
     /** Reason Code */
     reason_code: string | null;
+    phase: FailurePhase | null;
+    failure: IntentFailureResponse | null;
     /** Next Action */
-    next_action?: "none" | "login";
-    /** Authorization Id */
-    authorization_id?: string | null;
-    /** Authorization Deadline */
-    authorization_deadline?: string | null;
+    next_action?: "none" | "wait" | "refresh_result" | "import_file";
     /** Retry At */
     retry_at: string | null;
     /** Deadline */
@@ -1522,12 +1585,10 @@ declare namespace API {
     status: IntentStatus;
     /** Reason Code */
     reason_code: string | null;
+    phase: FailurePhase | null;
+    failure: IntentFailureResponse | null;
     /** Next Action */
-    next_action?: "none" | "login";
-    /** Authorization Id */
-    authorization_id?: string | null;
-    /** Authorization Deadline */
-    authorization_deadline?: string | null;
+    next_action?: "none" | "wait" | "refresh_result" | "import_file";
     /** Retry At */
     retry_at: string | null;
     /** Deadline */
@@ -1538,17 +1599,11 @@ declare namespace API {
     job_id: string | null;
   };
 
-  type IntentResumeRequest = {
-    /** Authorization Id */
-    authorization_id: string;
-  };
-
   type IntentStatus =
     | "queued"
     | "preparing"
     | "resolving"
     | "retry_wait"
-    | "action_required"
     | "ready"
     | "handed_off"
     | "cancelled"
@@ -1734,10 +1789,6 @@ declare namespace API {
     refresh_expires_at: string;
   };
 
-  type openDownloadIntentLoginParams = {
-    intent_id: string;
-  };
-
   type OperationLogPageResponse = {
     /** Items */
     items: OperationLogResponse[];
@@ -1797,12 +1848,10 @@ declare namespace API {
     status: IntentStatus;
     /** Reason Code */
     reason_code: string | null;
+    phase: FailurePhase | null;
+    failure: IntentFailureResponse | null;
     /** Next Action */
-    next_action?: "none" | "login";
-    /** Authorization Id */
-    authorization_id?: string | null;
-    /** Authorization Deadline */
-    authorization_deadline?: string | null;
+    next_action?: "none" | "wait" | "refresh_result" | "import_file";
     /** Retry At */
     retry_at: string | null;
     /** Deadline */
@@ -2055,10 +2104,6 @@ declare namespace API {
   type RegistrationCodeVerificationResponse = {
     /** Verified */
     verified?: boolean;
-  };
-
-  type resumeDownloadIntentParams = {
-    intent_id: string;
   };
 
   type retryAnalysisParams = {

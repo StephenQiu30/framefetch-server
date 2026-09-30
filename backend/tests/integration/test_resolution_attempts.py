@@ -56,8 +56,9 @@ async def test_plan_is_committed_before_platform_claim_and_cannot_change(
     assert (await repo.running_operation(accepted.id, 0)).execution == execution
 
 
-async def test_ordered_session_transition_and_unchanged_resume_does_not_submit(
-    postgres_engine,
+@pytest.mark.parametrize("changed", [False, True])
+async def test_ordered_automatic_session_transition_requires_changed_evidence(
+    postgres_engine, changed
 ):
     repo = repository(postgres_engine)
     accepted = await repo.accept(
@@ -84,46 +85,29 @@ async def test_ordered_session_transition_and_unchanged_resume_does_not_submit(
         reason_code="provider_auth_required",
         failure=ProviderFailure.for_code("credential_required"),
     )
-    assert waiting.status == "action_required" and waiting.attempt == 2
-    assert waiting.remaining_budget_ms == 170000
-    resumed = await repo.resume(
-        accepted.id, OWNER, waiting.authorization_id, now=NOW + timedelta(hours=2)
-    )
-    assert resumed.attempt == 2 and resumed.remaining_budget_ms == 170000
+    assert waiting.status == "retry_wait" and waiting.attempt == 2
+    assert waiting.retry_at == NOW + timedelta(seconds=25)
     assert (
-        await start_attempt(
-            repo, accepted.id, 0, "unchanged-click", now=NOW + timedelta(hours=2)
-        )
-        is None
+        waiting.remaining_budget_ms == 170000 and waiting.deadline == accepted.deadline
     )
-    unchanged = await repo.get(accepted.id, OWNER)
-    assert unchanged.status == "action_required" and unchanged.attempt == 2
-    assert unchanged.authorization_deadline == waiting.authorization_deadline
-    assert unchanged.authorization_id == waiting.authorization_id
-    await repo.resume(
-        accepted.id, OWNER, waiting.authorization_id, now=NOW + timedelta(hours=2)
+    third = await start_attempt(
+        repo,
+        accepted.id,
+        0,
+        "automatic-prepare",
+        now=waiting.retry_at,
+        credential="actually-changed" if changed else "fixture-session",
     )
-    preparing = await repo.claim_preparation(
-        accepted.id, 0, "changed-session", now=NOW + timedelta(hours=2)
+    if not changed:
+        assert third is None
+        stopped = await repo.get(accepted.id, OWNER)
+        assert stopped.status == "failed" and stopped.attempt == 2
+        assert stopped.latest_failure == waiting.latest_failure
+        return
+    assert third.intent.attempt == 3 and third.intent.generation == 0
+    ready = await repo.complete(
+        third.intent, inspection(third.intent), now=waiting.retry_at
     )
-    third = await repo.begin_attempt(
-        preparing.intent,
-        preparation_for(
-            preparing.intent.resolution_plan,
-            "yt-dlp-session",
-            credential="actually-changed",
-        ),
-        now=NOW + timedelta(hours=2),
-    )
-    assert third.intent.attempt == 3
-    result = inspection(third.intent)
-    expires = NOW + timedelta(hours=3)
-    result = replace(
-        result,
-        expires_at=expires,
-        formats=tuple(replace(item, expires_at=expires) for item in result.formats),
-    )
-    ready = await repo.complete(third.intent, result, now=NOW + timedelta(hours=2))
     assert (
         ready.status == "ready"
         and ready.selected_operation_id == third.execution.operation_id

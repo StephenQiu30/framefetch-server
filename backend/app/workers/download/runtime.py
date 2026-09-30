@@ -184,7 +184,6 @@ async def _serve(runtime: DownloadWorkerRuntime, stop: asyncio.Event) -> None:
         activities=[
             runtime.inspection_activities.inspect_media,
             runtime.inspection_activities.finish_inspection,
-            runtime.inspection_activities.expire_inspection_wait,
         ],
         max_concurrent_activities=2,
         graceful_shutdown_timeout=timedelta(seconds=30),

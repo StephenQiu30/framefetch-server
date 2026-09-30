@@ -23,7 +23,7 @@ from sqlalchemy import (
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from sqlalchemy.sql.selectable import Select, Subquery
 
-from app.core.db import utc_now
+from app.core.db import JSON_DOCUMENT, utc_now
 from app.models.analysis import AnalysisJobRow
 from app.models.analysis_report import AnalysisReportVersionRow
 from app.models.analysis_run import AnalysisRunRow
@@ -32,6 +32,7 @@ from app.models.download import ArtifactRow, DownloadJobRow
 from app.models.download_intent import DownloadIntentRow
 from app.models.media import MediaInspectionRow
 from app.models.media_import import MediaImportRow
+from app.schemas.resolution import PROVIDER_FAILURE
 from app.services.downloads.inspection_models import EncryptedUrl
 from app.services.history_records import (
     DEFAULT_HISTORY_FILTERS,
@@ -66,6 +67,7 @@ class SqlAlchemyHistoryRecordRepository:
                 DownloadIntentRow.status.label("status"),
                 DownloadIntentRow.version.label("version"),
                 DownloadIntentRow.reason_code.label("reason_code"),
+                DownloadIntentRow.latest_failure.label("latest_failure"),
                 DownloadIntentRow.retry_at.label("retry_at"),
                 DownloadIntentRow.deadline.label("deadline"),
                 DownloadIntentRow.inspection_id.label("inspection_id"),
@@ -120,6 +122,7 @@ class SqlAlchemyHistoryRecordRepository:
                 AnalysisJobRow.status.label("status"),
                 AnalysisJobRow.version.label("version"),
                 cast(null(), String).label("reason_code"),
+                cast(null(), JSON_DOCUMENT).label("latest_failure"),
                 cast(null(), DateTime(timezone=True)).label("retry_at"),
                 cast(null(), DateTime(timezone=True)).label("deadline"),
                 cast(null(), Uuid).label("inspection_id"),
@@ -239,6 +242,7 @@ class SqlAlchemyHistoryRecordRepository:
                 DocumentRow.status.label("status"),
                 DocumentRow.version.label("version"),
                 cast(null(), String).label("reason_code"),
+                cast(null(), JSON_DOCUMENT).label("latest_failure"),
                 cast(null(), DateTime(timezone=True)).label("retry_at"),
                 cast(null(), DateTime(timezone=True)).label("deadline"),
                 cast(null(), Uuid).label("inspection_id"),
@@ -322,6 +326,9 @@ class SqlAlchemyHistoryRecordRepository:
                 result_availability=HistoryAvailability(row["result_availability"]),
                 version=row["version"],
                 reason_code=row["reason_code"],
+                latest_failure=None
+                if row["latest_failure"] is None
+                else PROVIDER_FAILURE.validate_python(row["latest_failure"]),
                 retry_at=row["retry_at"],
                 deadline=row["deadline"],
                 inspection_id=row["inspection_id"],
@@ -446,9 +453,7 @@ def _page_statement(
                 "completed",
             ),
             (
-                records.c.status.in_(
-                    ["action_required", "failed", "cancelled", "expired"]
-                ),
+                records.c.status.in_(["failed", "cancelled", "expired"]),
                 records.c.status,
             ),
             else_="processing",

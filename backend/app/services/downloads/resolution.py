@@ -147,7 +147,7 @@ _TRANSIENT = frozenset(
         FailureClass.CAPACITY_EXHAUSTED,
     }
 )
-_HUMAN = frozenset(
+_SESSION_FAILURES = frozenset(
     {
         FailureClass.AUTH_REQUIRED,
         FailureClass.SESSION_EXPIRED,
@@ -176,14 +176,18 @@ def decide_resolution(
         and failure.scope is FailureScope.SESSION
         and current.session_source is not ProviderSessionSource.NONE
     ):
-        return ResolutionDecision(ResolutionAction.WAIT, strategy_id)
+        return ResolutionDecision(
+            ResolutionAction.WAIT, strategy_id, now + timedelta(seconds=15)
+        )
     if kind in _TRANSIENT:
         delay = timedelta(seconds=min(30, 2 ** max(1, attempt)))
         retry_at = max(now + delay, failure.retry_after or now)
         return ResolutionDecision(ResolutionAction.RETRY, strategy_id, retry_at)
     # Session escalation requires metadata evidence; a media probe cannot
     # silently replace the already selected request environment.
-    eligible_phase = kind not in _HUMAN or failure.phase is FailurePhase.FETCH_METADATA
+    eligible_phase = (
+        kind not in _SESSION_FAILURES or failure.phase is FailurePhase.FETCH_METADATA
+    )
     if eligible_phase:
         after_current = False
         for candidate in plan.capability.strategies:
@@ -198,8 +202,13 @@ def decide_resolution(
                 return ResolutionDecision(
                     ResolutionAction.CONTINUE, candidate.strategy_id
                 )
-    if kind in _HUMAN and current.session_source is not ProviderSessionSource.NONE:
-        return ResolutionDecision(ResolutionAction.WAIT, strategy_id)
+    if (
+        kind in _SESSION_FAILURES
+        and current.session_source is not ProviderSessionSource.NONE
+    ):
+        return ResolutionDecision(
+            ResolutionAction.WAIT, strategy_id, now + timedelta(seconds=15)
+        )
     return stop
 
 
@@ -224,5 +233,5 @@ def failure_signature(failure: ProviderFailure) -> str:
     return sha256("\0".join(facts).encode()).hexdigest()
 
 
-def unchanged_failure_requires_wait(failure: ProviderFailure) -> bool:
+def unchanged_failure_is_terminal(failure: ProviderFailure) -> bool:
     return failure.failure_class not in _TRANSIENT

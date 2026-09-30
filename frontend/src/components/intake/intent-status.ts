@@ -5,7 +5,6 @@ export enum IntentStatusCode {
   Preparing = 'preparing',
   Resolving = 'resolving',
   RetryWait = 'retry_wait',
-  ActionRequired = 'action_required',
   Ready = 'ready',
   HandedOff = 'handed_off',
   Cancelled = 'cancelled',
@@ -52,15 +51,6 @@ const intentStatusPresentation = {
     description: activeDescription,
     historyActionLabel: '查看进度',
     variant: 'secondary',
-    active: true,
-    terminal: false,
-  },
-  [IntentStatusCode.ActionRequired]: {
-    title: '需要处理平台会话',
-    description: () =>
-      '请确认 Chrome 会话扩展已连接，并在日常 Chrome 中登录该平台，然后继续此任务。等待期间不会占用解析执行资源。',
-    historyActionLabel: '继续处理',
-    variant: 'outline',
     active: true,
     terminal: false,
   },
@@ -121,8 +111,17 @@ export function intentTitle(status?: API.IntentStatus): string {
 }
 
 export function intentDescription(intent: API.IntentResponse): string {
-  if (intent.status === IntentStatusCode.ActionRequired)
-    return intentStatusPresentation[intent.status].description();
+  if (
+    intent.status === IntentStatusCode.RetryWait &&
+    intent.failure?.scope === 'session'
+  )
+    return '系统正在恢复平台会话，将在本次解析期限内自动继续。无需重复提交链接。';
+  if (isActiveIntentStatus(intent.status))
+    return intentStatusPresentation[intent.status].description(intent);
+  if (intent.failure?.code) {
+    const reason = localizedErrorMessage(intent.failure.code);
+    if (reason) return reason;
+  }
   if (intent.reason_code) {
     const reason = localizedErrorMessage(intent.reason_code);
     if (reason) return reason;

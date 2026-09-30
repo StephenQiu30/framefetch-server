@@ -98,3 +98,23 @@ def test_clock_change_does_not_manufacture_failure_evidence_or_operation_identit
     assert operation_id(intent_id, 0, 1) != operation_id(intent_id, 1, 1)
     with pytest.raises(ValueError):
         operation_id(intent_id, 0, 4)
+
+
+def test_session_recovery_has_a_finite_automatic_timer_on_the_same_strategy():
+    plan = ResolutionPlan(capability_for(ProviderAccessPolicy.PERSONAL_ENTITLED), 0)
+    for code in (
+        "provider_session_not_ready",
+        "credential_expired",
+        "credential_required",
+    ):
+        decision = decide_resolution(
+            plan,
+            "yt-dlp-session",
+            ProviderFailure.for_code(code),
+            attempt=1,
+            remaining_budget_ms=170000,
+            now=NOW,
+        )
+        assert decision.action is ResolutionAction.WAIT
+        assert decision.retry_at == NOW + timedelta(seconds=15)
+        assert decision.strategy_id == "yt-dlp-session"

@@ -180,7 +180,6 @@ export function HistoryRecordFilters({
           options={[
             ['all', '全部状态'],
             ['processing', '处理中'],
-            ['action_required', '等待操作'],
             ['completed', '已完成'],
             ['failed', '失败'],
             ['cancelled', '已取消'],

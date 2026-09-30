@@ -17,6 +17,7 @@ import { ContentIntakeHero } from '@/components/intake/content-intake-hero';
 import { useIntakeDraft } from '@/components/intake/intake-draft-provider';
 import {
   IntentStatusCode,
+  intentDescription,
   intentTitle,
   isActiveIntentStatus,
 } from '@/components/intake/intent-status';
@@ -34,7 +35,6 @@ import { FeedbackNotice } from '@/components/layout/feedback-notice';
 import { markNavigationPush } from '@/components/layout/navigation-history';
 import { ScreenplayUploadForm } from '@/components/screenplay/screenplay-upload-form';
 import { Button } from '@/components/ui/button';
-import { localizedErrorMessage } from '@/lib/error-messages';
 import { privateQueryKey } from '@/lib/query-keys';
 import { displayError } from '@/lib/request-error';
 import { createUuid as createIdempotencyKey } from '@/lib/uuid';
@@ -69,11 +69,7 @@ export default function DownloadWorkspace() {
   const showTerminalStatus =
     (!!intent.attempt && intent.attempt.input !== null) ||
     (!!snapshot && observedActiveIntentId.current === snapshot.id);
-  const showPendingToast =
-    !!intent.attempt &&
-    intent.pending &&
-    !intent.error &&
-    snapshot?.status !== IntentStatusCode.ActionRequired;
+  const showPendingToast = !!intent.attempt && intent.pending && !intent.error;
   const showSubmittingToast = busy === 'inspect' && !showPendingToast;
   const canCancelToast = showPendingToast && !!snapshot;
   const showFailureToast =
@@ -86,7 +82,6 @@ export default function DownloadWorkspace() {
     !!intent.attempt &&
     (intent.resultExpired ||
       !!intent.error ||
-      snapshot?.status === IntentStatusCode.ActionRequired ||
       (showTerminalStatus &&
         !showFailureToast &&
         (snapshot?.status === IntentStatusCode.Failed ||
@@ -112,19 +107,9 @@ export default function DownloadWorkspace() {
       ? '正在更新解析结果，请稍候。'
       : intent.resultExpired
         ? '更新后请重新确认下载规格，无需再次粘贴原链接。'
-        : snapshot?.status === IntentStatusCode.ActionRequired
-          ? '请处理平台登录后继续原任务。任务最多保留 24 小时，等待期间不占用解析执行资源。'
-          : snapshot?.reason_code
-            ? localizedErrorMessage(snapshot.reason_code)
-            : !snapshot
-              ? '正在确认接单，请稍候，无需重复提交。'
-              : intent.pending
-                ? '后台处理中，可继续浏览。'
-                : snapshot.status === IntentStatusCode.Ready
-                  ? intent.inspection
-                    ? '解析已完成，正在打开结果页。'
-                    : '正在读取解析结果，请稍候。'
-                  : '本次解析已结束。');
+        : snapshot
+          ? intentDescription(snapshot)
+          : '正在确认接单，请稍候，无需重复提交。');
   const cancelFromToast = useEffectEvent(() => {
     void intent.cancel();
   });
@@ -405,33 +390,8 @@ export default function DownloadWorkspace() {
           action={
             (intent.resultExpired && !intent.pending) ||
             intent.error ||
-            (snapshot &&
-              (intent.pending ||
-                snapshot.status === IntentStatusCode.ActionRequired)) ? (
+            (snapshot && intent.pending) ? (
               <>
-                {snapshot?.status === IntentStatusCode.ActionRequired ? (
-                  <>
-                    <Button
-                      disabled={intent.openingLogin || intent.cancelling}
-                      onClick={() => void intent.openLogin()}
-                      size="sm"
-                      variant="outline"
-                    >
-                      {intent.openingLogin
-                        ? '正在打开…'
-                        : '在 Chrome 中打开平台'}
-                    </Button>
-                    <Button
-                      disabled={
-                        intent.cancelling || !!intent.attempt?.submitting
-                      }
-                      onClick={() => void intent.resume()}
-                      size="sm"
-                    >
-                      已处理，继续解析
-                    </Button>
-                  </>
-                ) : null}
                 {intent.resultExpired && !intent.pending ? (
                   <Button
                     onClick={() => void intent.refresh()}
@@ -449,9 +409,7 @@ export default function DownloadWorkspace() {
                     恢复任务
                   </Button>
                 ) : null}
-                {snapshot &&
-                (intent.pending ||
-                  snapshot.status === IntentStatusCode.ActionRequired) ? (
+                {snapshot && intent.pending ? (
                   <Button
                     disabled={intent.cancelling}
                     onClick={() => void intent.cancel()}

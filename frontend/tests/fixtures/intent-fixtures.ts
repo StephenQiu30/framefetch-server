@@ -6,6 +6,8 @@ export function intentFixture(
     version: 2,
     status: 'ready',
     reason_code: null,
+    phase: 'select_format',
+    failure: null,
     next_action: 'none',
     retry_at: null,
     deadline: new Date(Date.now() + 180_000).toISOString(),
