@@ -11,7 +11,6 @@ from typing import Annotated, Final
 from pydantic import BaseModel, ConfigDict, Field, StringConstraints
 
 STATUS_PATH: Final = "/internal/site-sessions/status"
-LOGIN_PATH: Final = "/internal/site-sessions/login"
 LEASE_PATH: Final = "/internal/site-sessions/lease"
 
 Site = Annotated[str, StringConstraints(pattern=r"^[a-z0-9.-]{3,253}$")]
@@ -30,15 +29,6 @@ class _Strict(BaseModel):
 
 class StatusRequest(_Strict):
     site: Site
-
-
-class LoginRequest(StatusRequest):
-    finish: bool = False
-
-
-class LoginResponse(_Strict):
-    site: Site
-    opened: bool
 
 
 class StatusResponse(_Strict):

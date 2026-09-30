@@ -97,13 +97,27 @@ class MediaRunnerService:
         await self._browser.close()
 
     async def context(
-        self, url: str, *, access_mode: ProviderAccessMode | None = None
+        self,
+        url: str,
+        *,
+        access_mode: ProviderAccessMode | None = None,
+        strategy_id: str | None = None,
+        plan_revision: str | None = None,
     ) -> ProviderAccessContextRef:
         safe_url = safe_media_url(url)
         source = provider_request(safe_url)
+        if (strategy_id is None) != (plan_revision is None):
+            raise RunnerFailure("invalid_request", status=422)
+        if strategy_id is not None and plan_revision is not None:
+            require_resolution_strategy(
+                source.profile, self._settings, strategy_id, plan_revision
+            )
         await self._require_companion(source.profile.key)
         return await self._sessions.context_for(
-            source.profile, url=safe_url, access_mode=access_mode
+            source.profile,
+            url=safe_url,
+            access_mode=access_mode,
+            **({"strategy_id": strategy_id} if strategy_id is not None else {}),
         )
 
     async def contexts_for_providers(

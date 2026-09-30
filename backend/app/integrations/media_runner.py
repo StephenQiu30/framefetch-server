@@ -87,8 +87,6 @@ from app.workers.runner.contracts import (
     ProviderContextRequest,
     ProviderContextsRequest,
     ProviderContextsResponse,
-    ProviderLoginRequest,
-    ProviderLoginResponse,
     RunnerErrorContract,
     RuntimeResponse,
     TaskStatusResponse,
@@ -108,8 +106,6 @@ ResponseModel = TypeVar("ResponseModel", bound=BaseModel)
 
 
 class MediaRunnerClient(Protocol):
-    async def login(self, url: str, *, finish: bool = False) -> None: ...
-
     """Runner strategy used by the routing facade."""
 
     async def engine_catalog(self) -> EngineCatalogResponse: ...
@@ -131,6 +127,8 @@ class MediaRunnerClient(Protocol):
         url: str,
         *,
         access_mode: ProviderAccessMode | None = None,
+        strategy_id: str | None = None,
+        plan_revision: str | None = None,
     ) -> ProviderAccessContextRef: ...
 
     async def contexts_for_providers(
@@ -229,7 +227,12 @@ class MediaRunnerHttpClient:
     ) -> ResolutionPreparation:
         try:
             strategy = plan.strategy(strategy_id)
-            context = await self.context(url, access_mode=strategy.access_mode)
+            context = await self.context(
+                url,
+                access_mode=strategy.access_mode,
+                strategy_id=strategy_id,
+                plan_revision=plan.revision,
+            )
             if (
                 context.strategy_id != strategy_id
                 or context.adapter_revision != strategy.adapter_revision
@@ -248,13 +251,23 @@ class MediaRunnerHttpClient:
             raise _inspection_error(exc, before_media_io=True) from exc
 
     async def context(
-        self, url: str, *, access_mode: ProviderAccessMode | None = None
+        self,
+        url: str,
+        *,
+        access_mode: ProviderAccessMode | None = None,
+        strategy_id: str | None = None,
+        plan_revision: str | None = None,
     ) -> ProviderAccessContextRef:
         provider_key = provider_profile(url).key
         response = await self._request(
             "POST",
             "/internal/context",
-            ProviderContextRequest(url=url, access_mode=access_mode)
+            ProviderContextRequest(
+                url=url,
+                access_mode=access_mode,
+                strategy_id=strategy_id,
+                plan_revision=plan_revision,
+            )
             .model_dump_json(exclude_none=True)
             .encode(),
             ProviderAccessContextContract,
@@ -267,8 +280,10 @@ class MediaRunnerHttpClient:
             if self._expected_access_mode is ProviderAccessMode.OPERATOR_MANAGED
             else self._expected_access_mode
         )
-        if context.provider_key != provider_key or (
-            expected_mode is not None and context.access_mode is not expected_mode
+        if (
+            context.provider_key != provider_key
+            or (expected_mode is not None and context.access_mode is not expected_mode)
+            or (strategy_id is not None and context.strategy_id != strategy_id)
         ):
             raise MediaRunnerClientError("client_context_mismatch", 502)
         return context
@@ -543,16 +558,6 @@ class MediaRunnerHttpClient:
             asset_count=response.artifact.asset_count,
         )
 
-    async def login(self, url: str, *, finish: bool = False) -> None:
-        await self._request(
-            "POST",
-            "/internal/site-sessions/login",
-            ProviderLoginRequest(url=url, finish=finish).model_dump_json().encode(),
-            ProviderLoginResponse,
-            40,
-            timeout_code="provider_session_not_ready",
-        )
-
     async def status(self, task_id: str) -> RunnerProgress:
         self._validate_task_id(task_id)
         response = await self._request(
@@ -704,9 +709,6 @@ class MediaRunnerRouter:
             session, session_routes=session_routes
         )
         self._active: dict[str, MediaRunnerClient] = {}
-
-    async def login(self, url: str, *, finish: bool = False) -> None:
-        await self._session.login(url, finish=finish)
 
     async def resolve_access_policy(
         self, url: str, requested: ProviderAccessPolicy | None = None
@@ -953,6 +955,10 @@ def _inspection_error(
             "browser_release_changed": MediaInspectionTemporarilyUnavailable,
             "browser_capacity_exhausted": MediaInspectionTemporarilyUnavailable,
             "browser_profile_limit": MediaInspectionTemporarilyUnavailable,
+            "credential_access_denied": MediaInspectionTemporarilyUnavailable,
+            "source_read_timeout": MediaInspectionTemporarilyUnavailable,
+            "source_read_failed": MediaInspectionTemporarilyUnavailable,
+            "chrome_profile_unavailable": MediaInspectionTemporarilyUnavailable,
         }.get(code, MediaInspectionFailure)
         failure = error_type(code)
     return failure.with_failure(error.failure)

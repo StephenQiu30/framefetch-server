@@ -48,6 +48,7 @@ from app.services.downloads.resolution import (
     ResolutionPreparation,
     decide_resolution,
     failure_signature,
+    preparation_failure_is_terminal,
     unchanged_failure_is_terminal,
 )
 from app.services.downloads.resolution import (
@@ -640,6 +641,9 @@ class IntentRepository:
             )
             if _remaining(row, now) == 0:
                 _expire(row, now)
+                return _snapshot(row)
+            if preparation_failure_is_terminal(fact):
+                _transition(row, IntentStatus.FAILED, now, reason_code)
                 return _snapshot(row)
             plan = _snapshot(row).resolution_plan
             if (

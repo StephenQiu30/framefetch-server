@@ -12,6 +12,7 @@ from api_helpers import (
     settings,
     signed_headers,
 )
+from app.services.provider_types import ProviderAccessMode
 from app.workers.runner.main import create_app
 from fastapi.testclient import TestClient
 
@@ -32,7 +33,6 @@ def test_internal_media_contract_has_only_direct_operation_paths(tmp_path):
         "/internal/engine-catalog",
         "/internal/runtime",
         "/internal/context",
-        "/internal/site-sessions/login",
         "/internal/contexts",
         "/internal/inspect",
         "/internal/download",
@@ -63,6 +63,51 @@ def test_signed_inspect_forwards_frozen_context_and_aware_deadline(tmp_path):
     assert response.status_code == 200
     assert service.inspected_context.to_document() == anonymous_access_context()
     assert service.inspect_deadline == deadline
+
+
+def test_selected_context_forwards_strategy_and_plan_as_one_pair(tmp_path):
+    service = FakeService()
+    client = TestClient(create_app(settings(tmp_path), service=service))
+    path = "/internal/context"
+    body = json.dumps(
+        {
+            "url": "https://media.example.com/video",
+            "access_mode": "anonymous",
+            "strategy_id": "yt-dlp-anonymous",
+            "plan_revision": "b" * 64,
+        }
+    ).encode()
+    response = client.post(
+        path, content=body, headers=signed_headers(path, body, "selected_context_12345")
+    )
+    assert response.status_code == 200
+    assert service.prepared_route == (
+        ProviderAccessMode.ANONYMOUS,
+        "yt-dlp-anonymous",
+        "b" * 64,
+    )
+
+
+@pytest.mark.parametrize(
+    "selection", [{"strategy_id": "yt-dlp-anonymous"}, {"plan_revision": "a" * 64}]
+)
+def test_incomplete_context_selection_is_rejected_before_preparation(
+    tmp_path, selection
+):
+    service = FakeService()
+    client = TestClient(create_app(settings(tmp_path), service=service))
+    path = "/internal/context"
+    body = json.dumps({"url": "https://media.example.com/video", **selection}).encode()
+    response = client.post(
+        path, content=body, headers=signed_headers(path, body, "partial_context_12345")
+    )
+    assert response.status_code == 422
+    assert service.context_requests == []
+
+
+def test_manual_platform_login_endpoint_is_removed(tmp_path):
+    client = TestClient(create_app(settings(tmp_path), service=FakeService()))
+    assert client.post("/internal/site-sessions/login", json={}).status_code == 404
 
 
 def test_health_is_public_and_inspect_requires_valid_raw_body_signature(

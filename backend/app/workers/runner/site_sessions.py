@@ -8,18 +8,16 @@ import time
 
 import httpx
 from app.integrations.site_session_catalog import site_target
+from app.services.provider_failures import FailurePhase
 from app.workers.runner.errors import RunnerFailure
 from app.workers.runner.netscape_cookie import serialize_cookies
 from app.workers.runner.provider_session_files import validated_cookie_payload
 from app.workers.runner.provider_session_headers import yuanbao_session_cookie_jar
 from app.workers.session.contracts import (
     LEASE_PATH,
-    LOGIN_PATH,
     STATUS_PATH,
     LeaseRequest,
     LeaseResponse,
-    LoginRequest,
-    LoginResponse,
     StatusRequest,
     StatusResponse,
     lease_associated_data,
@@ -52,14 +50,6 @@ class SiteSessionClient:
     def __init__(self, base_url: str, secret: bytes) -> None:
         self._http = httpx.AsyncClient(base_url=base_url, timeout=_TIMEOUT_SECONDS)
         self._client = SignedClient(self._http, secret)
-
-    async def login(self, site: str, *, finish: bool = False) -> None:
-        try:
-            await self._client.post(
-                LOGIN_PATH, LoginRequest(site=site, finish=finish), LoginResponse
-            )
-        except RpcError as exc:
-            raise _failure(exc) from exc
 
     async def ready_revision(self, site: str) -> int:
         try:
@@ -132,11 +122,14 @@ class SiteSessionClient:
 
 
 def _failure(error: RpcError) -> RunnerFailure:
-    if error.code == "credential_required":
-        # The operator is not logged in to this dedicated site profile.
-        return RunnerFailure("credential_required", status=422)
-    if error.code == "credential_revoked":
-        return RunnerFailure("credential_revoked", status=422)
-    if error.code == "provider_session_not_ready":
-        return RunnerFailure("provider_session_not_ready", status=503)
+    if error.code in {"credential_required", "credential_revoked"}:
+        return RunnerFailure(error.code, status=422, phase=FailurePhase.PREPARE_CONTEXT)
+    if error.code in {
+        "provider_session_not_ready",
+        "credential_access_denied",
+        "source_read_timeout",
+        "source_read_failed",
+        "chrome_profile_unavailable",
+    }:
+        return RunnerFailure(error.code, status=error.status)
     return RunnerFailure("provider_session_unavailable", status=503)

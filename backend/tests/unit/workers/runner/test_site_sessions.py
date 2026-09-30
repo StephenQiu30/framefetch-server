@@ -4,6 +4,7 @@ import time
 
 import httpx
 import pytest
+from app.services.provider_failures import FailureClass, FailurePhase, FailureScope
 from app.services.provider_types import ProviderAccessMode
 from app.workers.runner.errors import RunnerFailure
 from app.workers.runner.provider_credential_lease import ProviderCredentialLocks
@@ -115,3 +116,42 @@ async def test_operation_preserves_failure_and_cleans_material(leased_store):
     assert caught.value is failure
     assert not temporary_directory.exists()
     assert requests == [STATUS_PATH, LEASE_PATH]
+
+
+@pytest.mark.parametrize("operation", ["status", "lease"])
+@pytest.mark.parametrize(
+    ("code", "status"),
+    [
+        ("credential_access_denied", 403),
+        ("source_read_timeout", 504),
+        ("source_read_failed", 503),
+        ("chrome_profile_unavailable", 503),
+    ],
+)
+async def test_source_failure_keeps_its_preparation_reason_across_signed_rpc(
+    operation, code, status
+):
+    requested = []
+
+    async def respond(request):
+        requested.append(request.url.path)
+        return httpx.Response(status, json={"detail": code})
+
+    client = SiteSessionClient("http://broker", SECRET)
+    await client.close()
+    async with httpx.AsyncClient(
+        base_url="http://broker", transport=httpx.MockTransport(respond)
+    ) as http:
+        client._client = SignedClient(http, SECRET)
+        with pytest.raises(RunnerFailure) as caught:
+            if operation == "status":
+                await client.ready_revision("youtube.com")
+            else:
+                await client.lease("youtube.com", 1)
+    failure = caught.value
+    assert failure.code == code
+    assert failure.status == status
+    assert failure.failure.phase is FailurePhase.PREPARE_CONTEXT
+    assert failure.failure.scope is FailureScope.SESSION
+    assert failure.failure.failure_class is FailureClass.RUNTIME_UNAVAILABLE
+    assert requested == [STATUS_PATH if operation == "status" else LEASE_PATH]

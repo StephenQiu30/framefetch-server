@@ -286,16 +286,18 @@ class InspectionOperationResponse(ContractModel):
 
 class ProviderContextRequest(ContractModel):
     access_mode: ProviderAccessMode | None = None
+    strategy_id: str | None = Field(
+        default=None, pattern=r"^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$"
+    )
+    plan_revision: str | None = Field(default=None, pattern=r"^[0-9a-f]{64}$")
     # The URL, not the provider key: a site session is keyed by the URL's site.
     url: str = Field(min_length=1, max_length=4096)
 
-
-class ProviderLoginResponse(ContractModel):
-    opened: bool
-
-
-class ProviderLoginRequest(ProviderContextRequest):
-    finish: bool = False
+    @model_validator(mode="after")
+    def _selected_route(self) -> Self:
+        if (self.strategy_id is None) != (self.plan_revision is None):
+            raise ValueError("selected context requires its plan revision")
+        return self
 
 
 class ProviderContextsRequest(ContractModel):

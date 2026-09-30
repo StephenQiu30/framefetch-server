@@ -154,6 +154,16 @@ _SESSION_FAILURES = frozenset(
         FailureClass.CHALLENGE_REQUIRED,
     }
 )
+_UNRECOVERABLE_SOURCE_CODES = frozenset(
+    {"credential_access_denied", "chrome_profile_unavailable", "source_read_failed"}
+)
+
+
+def preparation_failure_is_terminal(failure: ProviderFailure) -> bool:
+    return (
+        failure.phase is FailurePhase.PREPARE_CONTEXT
+        and failure.code in _UNRECOVERABLE_SOURCE_CODES
+    )
 
 
 def decide_resolution(
@@ -168,7 +178,11 @@ def decide_resolution(
     """No platform I/O, ambient Registry lookup or account inference."""
     current = plan.strategy(strategy_id)
     stop = ResolutionDecision(ResolutionAction.STOP, strategy_id)
-    if attempt >= plan.max_attempts or remaining_budget_ms <= 0:
+    if (
+        attempt >= plan.max_attempts
+        or remaining_budget_ms <= 0
+        or preparation_failure_is_terminal(failure)
+    ):
         return stop
     kind = failure.failure_class
     if (
@@ -234,4 +248,7 @@ def failure_signature(failure: ProviderFailure) -> str:
 
 
 def unchanged_failure_is_terminal(failure: ProviderFailure) -> bool:
-    return failure.failure_class not in _TRANSIENT
+    return (
+        preparation_failure_is_terminal(failure)
+        or failure.failure_class not in _TRANSIENT
+    )

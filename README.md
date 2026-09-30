@@ -36,16 +36,15 @@
 
 ## 最新动态
 
-**Chrome 会话复用与原任务恢复**
+**宿主 Chrome 会话复用与自动解析**
 
-- 删除日常 Chrome 数据库与钥匙串读取，改用Chrome 会话来源；缺登录时保留原任务等待处理。
-- 新增 `migrate` 容器应用数据库结构，冷启动只需 `docker compose up -d --wait`。
+- 平台来源按任务通过 yt-dlp 官方能力读取宿主固定 Chrome Profile，沿现有短期租约交给 Runner；不要求扩展、平台登录窗口或点击继续。实施和冷启动验收状态见[设计 17](docs/design/17-通用解析架构与实施计划.md)。
+- `migrate` 容器幂等应用当前数据库结构，普通重启复用已有基础环境与配置。
 - TikTok 改走 yt-dlp 官方维护的提取器；金丝雀默认探测仓库自带的公开样例。
 
 **[v0.2.0](https://github.com/StephenQiu30/video-server/releases/tag/v0.2.0) · 容器自持平台会话**
 
-- 平台账号来源按需提供，不自动保活；当前 Chrome 会话与任务恢复的实施状态见[设计文档](docs/design/15-工作流与平台下载目标.md)。
-- 在线解析统一走站点会话路线，移除匿名与访客执行路线，结果以真实文件验收为准。
+- 媒体执行复用隔离 Runner 与受控出口，平台能力以真实文件验收为准。
 - Web 体验：头像上传与个人资料、统一的解析结果双栏卡片、可恢复错误提示与 shadcn 组件整理。
 
 从 v0.1.0 升级前请先阅读 [Release 说明](https://github.com/StephenQiu30/video-server/releases/tag/v0.2.0)中的不兼容变更。
@@ -126,7 +125,7 @@ Web 实例提供公开页面：`/guide/` 使用指南、`/self-hosting/` 自托�
 ### 前置条件
 
 - Docker Engine 与 Docker Compose
-- macOS 会话来源需要 uv（Python 3.12）、日常 Chrome 和帧取扩展
+- macOS 会话来源需要 uv（Python 3.12）、已登录的固定 Chrome Profile，以及宿主用户已有的非交互 Keychain 读取权限
 - 本机已运行 PostgreSQL、RabbitMQ、Redis 和 MinIO，已有配置直接复用
 - 用于生产部署时，需要自行提供强随机密钥和公开访问地址
 
@@ -139,7 +138,7 @@ test -f .env || cp .env.example .env
 
 # 确认 .env 连接本机已运行的 PostgreSQL、RabbitMQ、Redis 与 MinIO
 
-# 一次性：安装 Chrome 会话来源（用户登录后自启、崩溃自动重启）
+# 一次性：安装宿主 Chrome 会话来源（macOS 用户登录后自启、崩溃自动重启）
 uv run --project backend python -m app.workers.session.source_cli install --env-file .env
 
 # 启动：migrate 容器先应用幂等的 backend/sql/schema.sql，其余服务随后启动
@@ -156,7 +155,7 @@ rabbitmqctl set_permissions -p video video-worker "$DL" "$DL" "$DL|^video\.impor
 
 `--remove-orphans` 会移除已退役的 `outbox`、`worker-*`、`provider-canary`、`provider-lease-redis` 与 `workspace-init` 容器，旧的 outbox／download／import／report 账号随后可删除。
 
-安装后按命令输出的目录加载 Chrome 扩展；`source_cli check` 按需检查当前 Chrome，未连接和未登录会返回不同原因。公开解析先匿名尝试。
+安装只注册宿主来源服务，不操作 Chrome。固定 Profile 与按需诊断说明见下方；固定公开线路不需要账号来源。
 
 全新空库还没有登录账号时，在部署机终端执行一次首管理员初始化（需使用可连接 PostgreSQL 的 `DATABASE_URL`，密码交互输入，不进入命令行历史）：
 
@@ -184,20 +183,28 @@ createdb -O framefetch_temporal framefetch_temporal_visibility
 
 备份业务库时同步备份两个 Temporal 库，稳定环境密钥单独保管。该服务不设置公共访问，单节点停机期间任务暂停；端口健康不等于平台可以下载。Skill 分析同样由 Temporal 调度，宿主 AI Worker 连接 `TEMPORAL_ADDRESS`（默认 `127.0.0.1:17233`）而不再连接 RabbitMQ；报告发布、下载与导入长期使用 RabbitMQ，分工见[工作流设计](docs/design/15-工作流与平台下载目标.md)。
 
-### 平台登录态（需要登录的平台）
+### 自动复用平台登录态
 
-加载扩展后，帧取按解析任务复用当前 Chrome 的平台登录，无需登录另一个浏览器或授权钥匙串。需要人工处理的任务可以点击“在 Chrome 中打开平台”，处理后点击“已处理，继续解析”。等待会释放执行资源，最多保留 24 小时；可以从历史记录继续或取消。
+来源使用 macOS 宿主用户已有的 Chrome 登录态，默认固定读取 `~/Library/Application Support/Google/Chrome/Default`。如果账号在其他 Profile，在宿主环境文件中设置 `SITE_SESSION_CHROME_PROFILE` 为该 Profile 的绝对路径（支持 `~` 展开），然后安装来源服务；来源不会按最近使用时间切换账号。`SITE_SESSION_AGENT_SECRET` 继续使用同一稳定值，API、Broker、Runner 与来源按既有签名配置配套运行。
+
+每次任务自动按站点读取所需材料，不要求打开 Chrome 标签页、加载扩展、导出 Cookie 或点击继续。读取依赖已有系统权限；Keychain 拒绝非交互访问、Profile 不可读或平台会话失效时，任务在原期限与预算内明确结束，不打开授权或登录窗口。首次任务是否能生成正确完整文件仍以[设计 17](docs/design/17-通用解析架构与实施计划.md)的真实冷启动验收为准。
 
 ```bash
 uv run --project backend python -m app.workers.session.source_cli install --env-file .env
-# 也可按站点手动打开首次登录窗口
-uv run --project backend python -m app.workers.session.source_cli login --site youtube.com --env-file .env
-uv run --project backend python -m app.workers.session.source_cli check --env-file .env
+# 可选：按需检查一个已登记站点的材料是否可读，不代表平台已接受会话
+uv run --project backend python -m app.workers.session.source_cli check --site youtube.com --env-file .env
 ```
 
-安装命令会输出扩展目录。首次安装需在日常 Chrome 的 `chrome://extensions` 开启开发者模式，点击“加载已解压的扩展程序”，选择该目录；点击扩展确认“已连接”。以后使用已有平台登录，无需在另一个浏览器重新登录。来源目录默认 `~/Library/Application Support/FrameFetch/Browsers`，可通过 `SITE_SESSION_PROFILE_ROOT` 修改；它只保存扩展和本机通信配置，不保存平台 Cookie。卸载使用 `source_cli uninstall`，不会删除 Chrome 登录或业务数据。Chrome 需保持运行，扩展启用。来源重启、扩展重连或认证材料变化会使旧账号解析上下文失效，需要重新解析。来源检查不代表真实下载可用，见[平台会话设计](docs/design/08-平台会话.md)。
+仅需前台排错时，先卸载受监督的来源服务，再运行 `serve`，避免启动两个来源进程：
 
-升级时先暂停接单并排空在途媒体操作，再配套重建 API、worker、session-runner、session-broker 和前端，并执行上述安装命令。安装会停止旧 Chrome 来源服务。密封租约直接从浏览器来源发给 Runner，中继不再解密材料；不要混用新旧镜像。生产使用同一套入口：
+```bash
+uv run --project backend python -m app.workers.session.source_cli uninstall
+uv run --project backend python -m app.workers.session.source_cli serve --env-file .env
+```
+
+`install` 仅写入权限为 `0600` 的 macOS 用户 LaunchAgent 并启动来源；`uninstall` 不删除 Chrome 登录、Profile 或业务数据。`check` 返回 `source_ready` 只表示材料可读，不建立平台登录或完整下载验收事实。读取有超时，`SITE_SESSION_READ_TIMEOUT_SECONDS` 默认 15 秒，可配置 1–60 秒。固定 Profile、稳定密钥与必要认证材料相同的来源重启应保持会话代；Profile、密钥或材料变化使旧上下文失效。官方读取所需的临时数据库快照在宿主清理，材料不持久化为项目 Cookie 库。边界见[平台会话设计](docs/design/08-平台会话.md)。
+
+升级时先暂停接单并排空在途媒体操作，再配套重建 API、worker、session-runner、session-broker 和前端，并执行上述安装命令。安装更新同一个宿主来源服务。密封租约直接从来源发给 Runner，中继仅转发；不要混用新旧镜像。生产使用同一套入口：
 
 ```bash
 uv run --project backend python -m app.workers.session.source_cli install --env-file .env.prod
@@ -218,7 +225,7 @@ curl --fail http://127.0.0.1:8111/health/ready
 curl --fail --head http://127.0.0.1:8101/
 ```
 
-只需要下载与剧本文档导入时，可在 `.env` 中设置 `ANALYSIS_ENABLED=false`。完整的启动、停止、已有基础环境复用和故障恢复方式见[可靠性与运行](docs/design/13-可靠性与运行.md)。更新代码时先执行 `git pull --ff-only`，再按上面的命令更新Chrome 会话来源并构建启动 Compose；`docker compose restart` 不会应用新代码、镜像或环境配置。
+只需要下载与剧本文档导入时，可在 `.env` 中设置 `ANALYSIS_ENABLED=false`。完整的启动、停止、已有基础环境复用和故障恢复方式见[可靠性与运行](docs/design/13-可靠性与运行.md)。更新代码时先执行 `git pull --ff-only`，再按上面的命令更新宿主 Chrome 会话来源并构建启动 Compose；`docker compose restart` 不会应用新代码、镜像或环境配置。
 
 ### 启用 AI 分析
 
@@ -276,7 +283,7 @@ flowchart LR
 
 - 只处理你拥有相应权利的内容，并遵守内容来源、所在地和部署环境适用的法律与平台规则。
 - Provider 只接受公开、免费、非 DRM 的 HTTP(S) 内容；私网 URL、任意 yt-dlp 参数和 shell 输入始终禁止。
-- 普通业务请求不接收原始 Cookie。登录态只从已授权的当前 Chrome 扩展按次读取，经密封信道交给 `session-runner`，明文只进入其 tmpfs，操作结束即销毁，不落库、不进入日志或其他 Worker。见[平台会话设计](docs/design/08-平台会话.md)。
+- 普通业务请求不接收原始 Cookie。登录态按次从宿主固定 Chrome Profile 读取，经密封信道交给 `session-runner`，明文只进入来源读取内存与 Runner 单次操作的 tmpfs，操作结束即清理，不落库、不进入日志或其他 Worker。见[平台会话设计](docs/design/08-平台会话.md)。
 - Edge Agent 只能传输用户已合法取得并明确选择的明文文件，不能读取平台会话、拦截流量、提取密钥或转换受保护媒体。
 - 外部媒体访问必须经过阻断私网的出口代理；入口 URL 校验不能替代网络隔离。
 

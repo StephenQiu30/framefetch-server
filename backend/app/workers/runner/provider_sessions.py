@@ -9,12 +9,16 @@ from dataclasses import replace
 from pathlib import Path
 
 from app.integrations.site_session_catalog import known_site_policy, site_target_for_url
+from app.services.provider_failures import FailurePhase
 from app.services.provider_types import (
+    MediaHandoff,
     ProviderAccessContextRef,
     ProviderAccessMode,
     ProviderKey,
+    ResolutionExecutionKind,
 )
 from app.services.site_sessions import InvalidSessionSite
+from app.workers.runner.browser_runtime import browser_revision
 from app.workers.runner.errors import RunnerFailure
 from app.workers.runner.provider_credential_lease import ProviderCredentialLocks
 from app.workers.runner.provider_registry import (
@@ -66,18 +70,13 @@ class ProviderSessionStore:
             if enforce_memory_backing:
                 require_memory_backed_root(self._temp_root)
 
-    async def login(self, url: str, *, finish: bool = False) -> None:
-        target = site_target_for_url(url)
-        if target.policy.provider_key is None or self._site_sessions is None:
-            raise RunnerFailure("provider_session_not_allowed", status=422)
-        await self._site_sessions.login(target.site, finish=finish)
-
     async def context_for(
         self,
         profile: ProviderProfile,
         *,
         url: str | None = None,
         access_mode: ProviderAccessMode | None = None,
+        strategy_id: str | None = None,
     ) -> ProviderAccessContextRef:
         mode = self._settings.runner_access_mode
         if mode is ProviderAccessMode.OPERATOR_MANAGED:
@@ -90,6 +89,12 @@ class ProviderSessionStore:
             )
         ):
             raise RunnerFailure("provider_session_not_allowed", status=422)
+        strategy = profile.strategy_for(mode, strategy_id=strategy_id)
+        browser = strategy.execution_kind is ResolutionExecutionKind.BROWSER
+        if browser and not self._settings.runner_browser_enabled:
+            raise RunnerFailure(
+                "browser_unavailable", status=503, phase=FailurePhase.PREPARE_CONTEXT
+            )
         credential_version: str | None = None
         if mode is ProviderAccessMode.OPERATOR_MANAGED:
             # Any site with a deployment session is admitted by the broker, not
@@ -100,14 +105,15 @@ class ProviderSessionStore:
             credential_version = context_version(site, revision)
         elif mode not in profile.access_modes:
             raise RunnerFailure("provider_session_not_allowed", status=422)
-        strategy = profile.strategy_for(mode)
         return ProviderAccessContextRef(
             provider_key=profile.key,
             profile_version=profile.version,
             access_mode=mode,
             credential_version_id=credential_version,
             egress_affinity_id=self._settings.egress_affinity_for(profile.key),
-            client_profile_id=profile.client_profile_id,
+            client_profile_id="chromium-browser"
+            if browser
+            else profile.client_profile_id,
             attestation_provider_version=(
                 self._settings.runner_youtube_pot_provider_version
                 if profile.key == ProviderKey.YOUTUBE
@@ -123,7 +129,22 @@ class ProviderSessionStore:
                 if credential_version is None
                 else f"chrome_source:{self._site_for(profile, url)}"
             ),
-            protocol_capabilities=("http-media",),
+            browser_context_revision=(
+                browser_revision(self._settings, profile.key) if browser else None
+            ),
+            protocol_capabilities=(
+                (
+                    ("browser-page", "http-media")
+                    if strategy.media_handoff is MediaHandoff.HTTP_TRANSFERABLE
+                    else (
+                        ("browser-page", "browser-media")
+                        if strategy.media_handoff is MediaHandoff.BROWSER_TRANSFERABLE
+                        else ("browser-page",)
+                    )
+                )
+                if browser
+                else ("http-media",)
+            ),
         )
 
     async def validate_context(
@@ -134,7 +155,10 @@ class ProviderSessionStore:
         url: str | None = None,
     ) -> ProviderAccessContextRef:
         current = await self.context_for(
-            profile, url=url, access_mode=expected.access_mode
+            profile,
+            url=url,
+            access_mode=expected.access_mode,
+            strategy_id=expected.strategy_id,
         )
         if (
             expected.runtime_revision != current.runtime_revision

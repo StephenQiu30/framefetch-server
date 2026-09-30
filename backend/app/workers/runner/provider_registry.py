@@ -138,14 +138,20 @@ class ProviderProfile:
         )
         object.__setattr__(self, "resolution_strategies", strategies)
 
-    def strategy_for(self, mode: ProviderAccessMode) -> ResolutionStrategy:
+    def strategy_for(
+        self, mode: ProviderAccessMode, *, strategy_id: str | None = None
+    ) -> ResolutionStrategy:
         matches = tuple(
             strategy
             for strategy in self.resolution_strategies
-            if strategy.enabled and strategy.access_mode is mode
+            if strategy.enabled
+            and strategy.access_mode is mode
+            and (strategy_id is None or strategy.strategy_id == strategy_id)
         )
-        if len(matches) != 1:
+        if not matches:
             raise RunnerFailure("provider_unsupported", status=422)
+        # Legacy context probes use the declared primary route. Durable
+        # execution always passes its selected id, including same-mode routes.
         return matches[0]
 
     @property

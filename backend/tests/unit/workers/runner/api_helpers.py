@@ -5,7 +5,7 @@ import time
 from datetime import datetime
 from pathlib import Path
 
-from app.services.provider_types import ProviderAccessContextRef
+from app.services.provider_types import ProviderAccessContextRef, ProviderAccessMode
 from app.workers.runner.contracts import (
     CancelResponse,
     DownloadRequest,
@@ -29,12 +29,23 @@ class FakeService:
         self.inspected_context: ProviderAccessContextRef | None = None
         self.inspect_deadline: datetime | None = None
         self.context_requests: list[str] = []
+        self.prepared_route: (
+            tuple[ProviderAccessMode | None, str | None, str | None] | None
+        ) = None
         self.download_request: DownloadRequest | None = None
         self.cancelled: list[str] = []
         self.status_requests: list[str] = []
 
-    async def context(self, url: str, *, access_mode=None) -> ProviderAccessContextRef:
+    async def context(
+        self,
+        url: str,
+        *,
+        access_mode=None,
+        strategy_id: str | None = None,
+        plan_revision: str | None = None,
+    ) -> ProviderAccessContextRef:
         self.context_requests.append(url)
+        self.prepared_route = access_mode, strategy_id, plan_revision
         return ProviderAccessContextRef.from_document(anonymous_access_context())
 
     async def contexts_for_providers(

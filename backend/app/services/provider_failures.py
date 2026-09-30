@@ -191,7 +191,14 @@ _define(
     FailurePhase.PREPARE_CONTEXT,
 )
 _define(
-    ("provider_session_not_ready", "provider_session_unavailable"),
+    (
+        "provider_session_not_ready",
+        "provider_session_unavailable",
+        "credential_access_denied",
+        "source_read_timeout",
+        "source_read_failed",
+        "chrome_profile_unavailable",
+    ),
     FailureClass.RUNTIME_UNAVAILABLE,
     FailureScope.SESSION,
     FailurePhase.PREPARE_CONTEXT,

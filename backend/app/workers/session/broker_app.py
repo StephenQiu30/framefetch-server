@@ -14,12 +14,9 @@ import uvicorn
 from app.core.config import Settings
 from app.workers.session.contracts import (
     LEASE_PATH,
-    LOGIN_PATH,
     STATUS_PATH,
     LeaseRequest,
     LeaseResponse,
-    LoginRequest,
-    LoginResponse,
     StatusRequest,
     StatusResponse,
 )
@@ -70,11 +67,6 @@ def create_app(*, source_factory: SourceFactory, rpc_secret: bytes) -> FastAPI:
     async def lease(request: Request) -> LeaseResponse:
         body = await verified_model(request, verifier, LeaseRequest)
         return await connected().post(LEASE_PATH, body, LeaseResponse)
-
-    @app.post(LOGIN_PATH, response_model=LoginResponse)
-    async def login(request: Request) -> LoginResponse:
-        body = await verified_model(request, verifier, LoginRequest)
-        return await connected().post(LOGIN_PATH, body, LoginResponse)
 
     @app.get("/health/live")
     async def live() -> Response:

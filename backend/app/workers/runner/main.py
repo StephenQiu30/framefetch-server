@@ -24,7 +24,6 @@ from app.workers.runner.contracts import (
     ProviderContextsRequest,
     ProviderContextsResponse,
     ProviderFailureContract,
-    ProviderLoginRequest,
     RunnerErrorContract,
     RuntimeResponse,
     TaskStatusResponse,
@@ -80,7 +79,12 @@ async def _until_disconnect[ResultT](
 
 class RunnerService(Protocol):
     async def context(
-        self, url: str, *, access_mode: ProviderAccessMode | None = None
+        self,
+        url: str,
+        *,
+        access_mode: ProviderAccessMode | None = None,
+        strategy_id: str | None = None,
+        plan_revision: str | None = None,
     ) -> ProviderAccessContextRef: ...
 
     async def contexts_for_providers(
@@ -229,13 +233,6 @@ def create_app(
         await _authenticated_body(request, configured, authenticator)
         return await engine_catalog.get()
 
-    @app.post("/internal/site-sessions/login")
-    async def login(request: Request) -> dict[str, bool]:
-        body = await _authenticated_body(request, configured, authenticator)
-        payload = _parse(ProviderLoginRequest, body)
-        await sessions.login(payload.url, finish=payload.finish)
-        return {"opened": not payload.finish}
-
     @app.post("/internal/inspect", response_model=InspectResponse)
     async def inspect(request: Request) -> InspectResponse:
         body = await _authenticated_body(
@@ -297,16 +294,18 @@ def create_app(
         )
         payload = _parse(ProviderContextRequest, body)
         _require_pinned_engine(configured)
-        return ProviderAccessContextContract.from_domain(
-            await runner.context(
-                payload.url,
-                **(
-                    {"access_mode": payload.access_mode}
-                    if payload.access_mode is not None
-                    else {}
-                ),
+        if payload.strategy_id is None:
+            prepared = await runner.context(
+                payload.url, access_mode=payload.access_mode
             )
-        )
+        else:
+            prepared = await runner.context(
+                payload.url,
+                access_mode=payload.access_mode,
+                strategy_id=payload.strategy_id,
+                plan_revision=payload.plan_revision,
+            )
+        return ProviderAccessContextContract.from_domain(prepared)
 
     @app.post(
         "/internal/contexts",

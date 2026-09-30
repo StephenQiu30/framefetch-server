@@ -35,17 +35,15 @@ FrameFetch is not designed to circumvent platform restrictions. By default it on
 
 ## What's new
 
-**Unreleased · Dedicated browsers and resumable login waits**
+**Unreleased · Host Chrome sessions and automatic resolution**
 
-- Public-account providers try anonymously first and reuse daily Chrome sessions through the extension only after an explicit authentication failure. Tasks retain their identity while waiting for user action.
-- A `migrate` container applies the schema, so `docker compose up -d --wait` is the whole cold start.
+- The host source reads a fixed Chrome profile through yt-dlp's supported cookie reader and passes task-scoped leases to the existing Runner. No extension, platform login window or resume button is required. Implementation and cold-start acceptance are tracked in [design 17](docs/design/17-通用解析架构与实施计划.md).
+- A `migrate` container applies the current schema idempotently; normal restarts reuse existing infrastructure and configuration.
 - TikTok now uses yt-dlp's maintained extractor; the provider canary probes the bundled public samples by default.
 
 **[v0.2.0](https://github.com/StephenQiu30/video-server/releases/tag/v0.2.0) · Container-owned platform sessions**
 
-- Docker Compose runs the existing isolated services. Install the Python native messaging source and load the Chrome extension once to reuse daily Chrome login state.
-- Platform sessions are owned by `session-broker` and a containerized session browser: cold-start recovery, keep-alive, invalidation detection and automatic rotation. Users just paste a link.
-- Online parsing always uses the site-session route; the anonymous and guest execution routes were removed, and success is judged by a real downloaded file.
+- Media execution reuses the isolated Runner and controlled egress; provider availability is established by a real downloaded file.
 - Web UX: avatar upload and profile page, unified two-column result cards, recoverable error notices and shadcn component clean-up.
 
 Read the breaking changes in the [release notes](https://github.com/StephenQiu30/video-server/releases/tag/v0.2.0) before upgrading from v0.1.0.
@@ -119,7 +117,7 @@ Use `docker-compose.yml` locally and `docker-compose-prod.yml` in production. Pu
 ### Requirements
 
 - Docker Engine and Docker Compose
-- For the macOS session source: `uv` (Python 3.12), Chrome, and the FrameFetch extension
+- For the macOS session source: `uv` (Python 3.12), a signed-in fixed Chrome profile, and existing non-interactive Keychain access for the host user
 - Existing PostgreSQL, RabbitMQ, Redis and MinIO services; reuse their addresses and credentials
 - Strong random secrets and a public origin before any internet-facing deployment
 
@@ -132,7 +130,7 @@ test -f .env || cp .env.example .env
 
 # Configure .env to reuse existing PostgreSQL, RabbitMQ, Redis and MinIO
 
-# Once: install the Chrome extension source
+# Once: install the host Chrome session source (starts at macOS user login)
 uv run --project backend python -m app.workers.session.source_cli install --env-file .env
 
 # Start: the migrate container applies the idempotent backend/sql/schema.sql first
@@ -141,7 +139,7 @@ docker compose up -d --build --wait --remove-orphans
 
 Every containerized background loop (Outbox dispatch, inspection and downloads, imports, report publication, provider canaries) runs in one `worker` container with one RabbitMQ account, `RABBITMQ_WORKER_USER` / `RABBITMQ_WORKER_PASS`, which needs configure/write/read on `RABBITMQ_VHOST`. When upgrading from the former multi-worker topology, create that account first; `--remove-orphans` removes the retired `outbox`, `worker-*`, `provider-canary`, `provider-lease-redis` and `workspace-init` containers.
 
-Installation starts the source. Run `source_cli check` separately; public platforms do not require a login source.
+Installation registers the host source without operating Chrome. Profile configuration and optional diagnostics are described below; fixed public routes do not need account material.
 
 For an empty user table, create the first administrator on the deployment host. The command prompts for a password, refuses to run once any user exists, and does not expose a remote bootstrap endpoint:
 
@@ -150,19 +148,28 @@ uv run --project backend python -m app.workers.bootstrap_admin \
   --env-file .env --username your-admin --email you@example.com
 ```
 
-### Platform login state
+### Automatic platform session reuse
 
-Load the generated extension directory in your daily Chrome at `chrome://extensions` using developer mode and **Load unpacked**. Existing platform logins are reused without signing into another browser. Waiting tasks can open the registered platform login URL in Chrome and resume the same task, for at most 24 hours.
+The source reuses the host user's existing Chrome session. It reads the fixed `~/Library/Application Support/Google/Chrome/Default` profile by default. If the account belongs to another profile, set `SITE_SESSION_CHROME_PROFILE` in the host environment file to that profile's absolute path (`~` expansion is supported), then install the source. It never switches profiles based on recent use. Keep the existing `SITE_SESSION_AGENT_SECRET` stable and use the matching signed configuration across the API, Broker, Runner and source.
+
+Each task reads the required site material automatically; it does not require an open Chrome tab, an extension, cookie export or a resume action. Existing operating-system permissions are required. Non-interactive Keychain denial, an unreadable profile or an expired platform session produces a bounded failure without opening authorization or login windows. Correct first-download behavior is still subject to the real cold-start acceptance in [design 17](docs/design/17-通用解析架构与实施计划.md).
 
 ```bash
 uv run --project backend python -m app.workers.session.source_cli install --env-file .env
-uv run --project backend python -m app.workers.session.source_cli login --site youtube.com --env-file .env
-uv run --project backend python -m app.workers.session.source_cli check --env-file .env
+# Optional material-readability check; this does not establish platform acceptance
+uv run --project backend python -m app.workers.session.source_cli check --site youtube.com --env-file .env
 ```
 
-The source directory defaults to `~/Library/Application Support/FrameFetch/Browsers` (`SITE_SESSION_PROFILE_ROOT`). It contains extension assets and private native messaging configuration, never persisted platform cookies. Keep Chrome running with the extension enabled. `source_cli uninstall` removes the service and native host registration; Chrome logins remain untouched. Reconnection or source restart invalidates prior account contexts. Real downloads require separate verification.
+For foreground diagnostics only, uninstall the supervised source before running `serve` so that two source processes do not run at once:
 
-Drain media operations before upgrading API, worker, Runner, relay and frontend together. Install the source with the matching environment file; installation retires the old Chrome source service. The relay forwards end-to-end sealed leases without decrypting them. For production:
+```bash
+uv run --project backend python -m app.workers.session.source_cli uninstall
+uv run --project backend python -m app.workers.session.source_cli serve --env-file .env
+```
+
+`install` writes a `0600` user LaunchAgent and starts the source. `uninstall` does not delete Chrome sessions, profiles or business data. `check` reporting `source_ready` establishes material readability only. Reads time out after 15 seconds by default; `SITE_SESSION_READ_TIMEOUT_SECONDS` accepts 1–60 seconds. Restarting with the same fixed profile, stable secret and required authentication material should preserve the session generation. Changing those inputs invalidates old contexts. Temporary database snapshots used by the supported reader are cleaned up on the host; no project cookie database is created. See the [platform session design](docs/design/08-平台会话.md).
+
+Drain media operations before upgrading API, worker, Runner, relay and frontend together. Reinstall the same host source with the matching environment file. The relay forwards end-to-end sealed leases without decrypting them. For production:
 
 ```bash
 uv run --project backend python -m app.workers.session.source_cli install --env-file .env.prod
@@ -239,7 +246,7 @@ See [docs/design/README.md](docs/design/README.md) for the maintained system des
 
 - Process only content you are legally authorized to download or analyze.
 - Providers accept only public, free and non-DRM HTTP(S) content. Private-network URLs, arbitrary yt-dlp arguments and shell input are always rejected.
-- Normal API requests never accept raw cookies. Login state is read per operation through the daily Chrome extension and handed to `session-runner` over a sealed channel; the clear copy lives only in its tmpfs and is destroyed when the operation ends. See the [platform session design](docs/design/08-平台会话.md).
+- Normal API requests never accept raw cookies. Login state is read per operation from the fixed host Chrome profile and handed to `session-runner` over a sealed channel. Clear material exists only during the source read and in the Runner's task-scoped tmpfs, and is cleaned up when the operation ends. See the [platform session design](docs/design/08-平台会话.md).
 - An edge agent may transfer only a clear file the user has legally obtained and explicitly selected. It must not inspect platform sessions, intercept traffic, extract content keys or transform protected media.
 - External media access must pass through an egress proxy that blocks private networks; input validation is not a substitute for network isolation.
 

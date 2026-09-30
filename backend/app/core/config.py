@@ -133,7 +133,7 @@ class Settings(BaseSettings):
     database_url: str = "postgresql+asyncpg://video:video@localhost:5432/video"
     # Runner -> broker and broker -> host agent use independent HMAC secrets.
     site_session_rpc_secret: SecretStr | None = None
-    # Host agent that reads the dedicated browser profiles (single-user deployment).
+    # Host source reads the configured daily Chrome Profile (single-user deployment).
     site_session_agent_url: str = "http://host.docker.internal:19250"
     site_session_agent_secret: SecretStr | None = None
     rabbitmq_url: str = "amqp://video-api:video-api-secret@localhost:5673/video"

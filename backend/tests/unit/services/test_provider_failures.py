@@ -124,6 +124,26 @@ def test_download_failure_does_not_turn_dependency_or_context_into_verification(
     )
 
 
+@pytest.mark.parametrize(
+    "code",
+    [
+        "credential_access_denied",
+        "source_read_timeout",
+        "source_read_failed",
+        "chrome_profile_unavailable",
+    ],
+)
+def test_source_read_failure_is_not_account_authentication_or_worker_loss(code):
+    failure = RunnerFailure(code)
+    assert failure.failure.phase is FailurePhase.PREPARE_CONTEXT
+    assert failure.failure.scope is FailureScope.SESSION
+    assert failure.failure.failure_class is FailureClass.RUNTIME_UNAVAILABLE
+    assert (
+        classify_runner_failure(failure)
+        is DownloadErrorCode.PROVIDER_TEMPORARILY_UNAVAILABLE
+    )
+
+
 def test_retry_after_uses_explicit_observation_and_rejects_invalid_values():
     now = datetime(2026, 9, 30, tzinfo=UTC)
     assert parse_retry_after("60", now) == now + timedelta(seconds=60)

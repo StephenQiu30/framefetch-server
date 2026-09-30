@@ -7,23 +7,14 @@ from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
 from app.workers.session.chrome_source import (
-    CONNECT_PATH,
-    DISCONNECT_PATH,
-    POLL_PATH,
-    REPLY_PATH,
-    BrowserConnection,
-    BrowserReply,
     ChromeSource,
     SourceUnavailable,
 )
 from app.workers.session.contracts import (
     LEASE_PATH,
-    LOGIN_PATH,
     STATUS_PATH,
     LeaseRequest,
     LeaseResponse,
-    LoginRequest,
-    LoginResponse,
     StatusRequest,
     StatusResponse,
     lease_associated_data,
@@ -42,9 +33,9 @@ def create_app(
     @asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         nonlocal ready
-        await source.start()
-        ready = True
         try:
+            await source.start()
+            ready = True
             yield
         finally:
             ready = False
@@ -61,47 +52,11 @@ def create_app(
         )
         return JSONResponse({"detail": error.code}, status_code=status)
 
-    @app.post(CONNECT_PATH)
-    async def connect(request: Request) -> BrowserConnection:
-        from pydantic import BaseModel, ConfigDict
-
-        class ConnectRequest(BaseModel):
-            model_config = ConfigDict(extra="forbid")
-
-        await verified_model(request, verifier, ConnectRequest)
-        return source.connect()
-
-    @app.post(DISCONNECT_PATH)
-    async def disconnect(request: Request) -> dict[str, bool]:
-        body = await verified_model(request, verifier, BrowserConnection)
-        source.disconnect(body.connection)
-        return {"accepted": True}
-
-    @app.post(POLL_PATH)
-    async def poll(request: Request) -> dict[str, object]:
-        body = await verified_model(request, verifier, BrowserConnection)
-        return await source.poll(body.connection)
-
-    @app.post(REPLY_PATH)
-    async def browser_reply(request: Request) -> dict[str, bool]:
-        body = await verified_model(request, verifier, BrowserReply)
-        source.reply(body)
-        return {"accepted": True}
-
     @app.post(STATUS_PATH, response_model=StatusResponse)
     async def status(request: Request) -> StatusResponse:
         body = await verified_model(request, verifier, StatusRequest)
         snapshot = await source.read(body.site)
         return StatusResponse(site=body.site, source_generation=snapshot.generation)
-
-    @app.post(LOGIN_PATH, response_model=LoginResponse)
-    async def login(request: Request) -> LoginResponse:
-        body = await verified_model(request, verifier, LoginRequest)
-        if body.finish:
-            await source.finish_login(body.site)
-        else:
-            await source.open_login(body.site)
-        return LoginResponse(site=body.site, opened=not body.finish)
 
     @app.post(LEASE_PATH, response_model=LeaseResponse)
     async def lease(request: Request) -> LeaseResponse:
