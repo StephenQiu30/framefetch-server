@@ -163,4 +163,38 @@ describe('MediaCover', () => {
       screen.getByRole('img', { name: '演示视频（暂无封面）' }),
     ).toBeVisible();
   });
+
+  it('reserves compact cover width in normal flow around the Radix ratio wrapper', () => {
+    render(
+      <MediaCover
+        alt="列表视频媒体封面"
+        className="w-24"
+        compact
+        src="/images/demo.webp"
+      />,
+    );
+
+    const image = screen.getByRole('img', { name: '列表视频媒体封面' });
+    const ratio = image.closest('[data-slot="aspect-ratio"]');
+    const ratioWrapper = ratio?.parentElement;
+    const cover = ratioWrapper?.parentElement;
+
+    // Radix positions the ratio content absolutely. Its sizing container must
+    // own the width so auto-sized table/grid columns can reserve image space.
+    expect(ratio).toHaveStyle({ position: 'absolute' });
+    expect(ratioWrapper).toHaveStyle({
+      position: 'relative',
+      paddingBottom: '56.25%',
+    });
+    expect(cover).toHaveClass('w-24');
+    expect(ratio).not.toHaveClass('w-24', 'aspect-video');
+
+    fireEvent.error(image);
+    expect(
+      screen.getByRole('img', { name: '列表视频媒体封面（暂无封面）' }),
+    ).toBeVisible();
+    expect(cover).toContainElement(
+      screen.getByRole('img', { name: '列表视频媒体封面（暂无封面）' }),
+    );
+  });
 });

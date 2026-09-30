@@ -80,48 +80,49 @@ export default function MediaCover({
   const fallbackEyebrow = fallback?.eyebrow?.trim() || '媒体内容';
   const fallbackDetail = fallback?.detail?.trim() || '封面未提供';
   return (
-    <AspectRatio
+    <div
       className={cn(
-        'media-frame relative aspect-video overflow-hidden rounded-none bg-muted',
+        'media-frame min-w-0 overflow-hidden rounded-none bg-muted',
         className,
       )}
-      ratio={mediaFrameAspectRatio}
     >
-      {loading ? (
-        <Skeleton
-          aria-label={`${alt}（封面加载中）`}
-          className="size-full rounded-none"
-          role="img"
-        />
-      ) : generating ? (
-        <Skeleton
-          aria-label={`${alt}（封面生成中）`}
-          className="flex size-full flex-col items-center justify-center gap-3 rounded-none"
-          role="img"
-        >
-          <ImageIcon aria-hidden className="size-7" />
-          <span className="text-xs">封面生成中</span>
-        </Skeleton>
-      ) : unavailable || !resolvedSource ? (
-        <MediaCoverFallback
-          compact={compact}
-          detail={fallbackDetail}
-          eyebrow={fallbackEyebrow}
-          title={fallbackTitle}
-        />
-      ) : (
-        <Image
-          alt={alt}
-          className="object-cover"
-          fill
-          onError={() => setFailedSource(src)}
-          priority={priority}
-          sizes="(min-width: 1024px) 50vw, 100vw"
-          src={resolvedSource}
-          unoptimized
-        />
-      )}
-    </AspectRatio>
+      <AspectRatio ratio={mediaFrameAspectRatio}>
+        {loading ? (
+          <Skeleton
+            aria-label={`${alt}（封面加载中）`}
+            className="size-full rounded-none"
+            role="img"
+          />
+        ) : generating ? (
+          <Skeleton
+            aria-label={`${alt}（封面生成中）`}
+            className="flex size-full flex-col items-center justify-center gap-3 rounded-none"
+            role="img"
+          >
+            <ImageIcon aria-hidden className="size-7" />
+            <span className="text-xs">封面生成中</span>
+          </Skeleton>
+        ) : unavailable || !resolvedSource ? (
+          <MediaCoverFallback
+            compact={compact}
+            detail={fallbackDetail}
+            eyebrow={fallbackEyebrow}
+            title={fallbackTitle}
+          />
+        ) : (
+          <Image
+            alt={alt}
+            className="object-cover"
+            fill
+            onError={() => setFailedSource(src)}
+            priority={priority}
+            sizes="(min-width: 1024px) 50vw, 100vw"
+            src={resolvedSource}
+            unoptimized
+          />
+        )}
+      </AspectRatio>
+    </div>
   );
 }
 

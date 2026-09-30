@@ -128,7 +128,7 @@ function HistoryContent({ item }: { item: API.DownloadHistoryItemResponse }) {
       <div className="hidden sm:block">
         <MediaCover
           alt={`${item.title} 媒体封面`}
-          className="w-16 sm:w-24"
+          className="w-24"
           compact
           fallback={{
             detail: item.format_name,
@@ -138,10 +138,8 @@ function HistoryContent({ item }: { item: API.DownloadHistoryItemResponse }) {
           src={item.thumbnail_url}
         />
       </div>
-      <div className="min-w-0 gap-1.5">
-        <div className="line-clamp-2">
-          <span className="line-clamp-2">{item.title}</span>
-        </div>
+      <div className="flex min-w-0 flex-col gap-1.5">
+        <span className="line-clamp-2">{item.title}</span>
         <div className="text-muted-foreground">
           <span>{item.source_label}</span>
           <span aria-hidden> · </span>
