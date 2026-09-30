@@ -8,6 +8,7 @@ metadata:
   video-server-order: "80"
   video-server-input-kinds: screenplay
   video-server-output-contract: screenplay-rewrite
+  video-server-modules: zh-copywriting-guidelines
   video-server-references: references/rewrite-rules.md
 ---
 
@@ -25,5 +26,11 @@ metadata:
 6. glossary 只记录跨场景需要稳定复用的角色、地点、称谓、组织、道具和意象；不把它当作资产创建清单，也不新增原文不存在的实体。
 7. 严格生成 `screenplay-rewrite` 结果契约要求的 glossary、chunks 和 change summary，不输出工具调用、外部链接、Markdown 报告或生产状态。
 8. 分段调用只是传输边界，不是新增场景或镜头；不得把段落、对白块或 chunk 改写成新的 `source_scene_id`，也不得在 change summary 声称已经拆镜或完成 coverage。
+
+## 成稿写法
+
+- 改写正文遵循目标语言的剧本惯例。目标为中文时，按上文 zh-copywriting-guidelines 的规则处理空格、全角标点和专有名词大小写；对白中的口语、方言和人物有意为之的不规范表达保留原样，不套用书面排版规范去“修正”台词。
+- `change_summary` 每条写一个完整的句子，说明改了哪一类内容、为什么改、影响哪些场景，例如“统一把‘老板’译为 boss，保留人物之间的亲昵语气，涉及全部办公室场景”；不写“优化了表达”“提升了流畅度”这类没有信息的总结。
+- glossary 的译名一经确定，正文和 change summary 都使用同一写法。
 
 详细语言与完整性规则见 [rewrite-rules](references/rewrite-rules.md)。

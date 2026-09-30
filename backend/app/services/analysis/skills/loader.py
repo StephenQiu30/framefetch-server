@@ -141,16 +141,23 @@ def _compile_instructions(
         relative = PurePosixPath(raw)
         if (
             relative.is_absolute()
-            or relative.parts[:1] != ("references",)
+            or relative.parts[:1] not in {("references",), ("shared",)}
             or len(relative.parts) != 2
         ):
             raise ValueError(f"unsafe analysis skill reference: {path}")
         if _REFERENCE_NAME.fullmatch(relative.name) is None:
             raise ValueError(f"invalid analysis skill reference name: {path}")
-        reference = path.parent.joinpath(*relative.parts)
-        if reference.is_symlink() or not reference.is_file():
+        # shared/ holds project-owned references reused by several Skills.
+        base = path.parent if relative.parts[0] == "references" else path.parent.parent
+        reference = base.joinpath(*relative.parts)
+        if (
+            reference.parent.is_symlink()
+            or reference.is_symlink()
+            or not reference.is_file()
+        ):
             raise ValueError(f"missing analysis skill reference: {reference}")
-        allowed_paths.add(reference)
+        if relative.parts[0] == "references":
+            allowed_paths.add(reference)
         reference_text = _read_markdown(reference, maximum=64_000).strip()
         parts.append(f"# Reference: {raw}\n\n{reference_text}")
     existing = set(references_dir.iterdir()) if references_dir.exists() else set()

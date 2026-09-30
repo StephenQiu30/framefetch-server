@@ -8,7 +8,8 @@ metadata:
   video-server-order: "27"
   video-server-input-kinds: video
   video-server-output-contract: structured-report
-  video-server-modules: marketingskills-social-short-form-video, marketingskills-social-platforms
+  video-server-references: shared/report-writing.md
+  video-server-modules: marketingskills-social-short-form-video, marketingskills-social-platforms, humanizer-zh, zh-copywriting-guidelines
 ---
 # 短视频包装
 
@@ -32,5 +33,15 @@ metadata:
 3. 封面文字（id=covers）：提供两条简短候选，并指出可用的原视频画面与对应时间证据；候选明确为拟新增文字，不能声称已经存在，也不生成封面文件。
 4. 开头钩子（id=hooks）：提供两种建议，说明保留或前置的真实画面、拟新增文字及需要的编辑动作；每种建议绑定素材证据。新增拍摄内容必须明确标注，不得伪造其时间码。
 5. 发布文案（id=posting-copy）：提供一段准确的简介和一个与内容有关的自然互动问题；不编造优惠、购买入口、承诺、标签热度或引导用户进行未授权操作。该章可使用空 evidence。
+
+## 成稿写法
+
+报告由服务端按章节编号排版，`body` 是每章的说明段落，`items` 渲染为条目，`evidence` 渲染为回看依据。通用文字规范见《报告写作规范》，这里只补充本 Skill 的重点。
+
+- `title` 写出本次包装的方向，例如“围绕‘三步去除咖啡渍’包装的标题与封面方案”，不写“短视频包装报告”。
+- `summary` 用 2–3 句交代核心主题、素材最能兑现的价值和最需要人工确认的前提。
+- 每章 `body` 写 1–2 个短段落，先说本章的取舍原则，再说依据；不要复述条目。
+- 候选条目写成“候选文案。理由：……”，候选文案本身要能直接使用，理由一句话说明它对应的画面或角度，不写“吸睛”“爆款”等空泛评价。
+- `evidence[].note` 说明这一段画面能证明什么，例如“清洁前后同一块桌布的对比”，不写“相关画面”。
 
 title 是报告标题，summary 概括包装方向；sections 中每项必须包含唯一 id、heading、非空 body、items 和 evidence。缺少支撑时减少候选并说明原因，不为填满数量制造事实。limitations 明确记录音频缺口、平台与受众假设，以及身份、数字、画面文字等发布前需要核实的事项。最终只返回契约要求的 JSON。

@@ -327,6 +327,58 @@ def test_registry_rejects_reference_symlinks(tmp_path: Path) -> None:
         AnalysisSkillRegistry.from_directory(tmp_path)
 
 
+def test_registry_compiles_project_shared_references(tmp_path: Path) -> None:
+    shared = tmp_path / "shared"
+    shared.mkdir()
+    (shared / "style.md").write_text("# Shared style", encoding="utf-8")
+    document = _document(
+        "shared-user",
+        references="  video-server-references: shared/style.md\n",
+    )
+    _write_skill(tmp_path, "shared-user", document)
+    _write_skill(tmp_path, "plain")
+
+    registry = AnalysisSkillRegistry.from_directory(tmp_path)
+
+    skill = registry.get("shared-user", AnalysisInputKind.VIDEO)
+    assert skill is not None
+    assert "# Reference: shared/style.md\n\n# Shared style" in skill.instructions
+    plain = registry.get("plain", AnalysisInputKind.VIDEO)
+    assert plain is not None and "Shared style" not in plain.instructions
+
+
+def test_registry_rejects_missing_or_nested_shared_references(tmp_path: Path) -> None:
+    for name, reference in (
+        ("missing-shared", "shared/absent.md"),
+        ("nested-shared", "shared/deeper/style.md"),
+    ):
+        document = _document(
+            name, references=f"  video-server-references: {reference}\n"
+        )
+        root = tmp_path / name
+        root.mkdir()
+        _write_skill(root, name, document)
+        with pytest.raises(ValueError, match="reference"):
+            AnalysisSkillRegistry.from_directory(root)
+
+
+def test_every_builtin_skill_carries_the_writing_standard() -> None:
+    for input_kind in (AnalysisInputKind.VIDEO, AnalysisInputKind.SCREENPLAY):
+        for skill in BUILTIN_ANALYSIS_SKILLS.list(input_kind):
+            text = skill.instructions
+            assert "# Source module: zh-copywriting-guidelines" in text, skill.id
+            if skill.id == "screenplay-rewrite":
+                assert "# Source module: humanizer-zh" not in text
+                continue
+            assert "# Source module: humanizer-zh" in text, skill.id
+            assert "# Reference: shared/report-writing.md" in text, skill.id
+            assert "## 成稿写法" in text, skill.id
+            assert "## 输出与文件保护" not in text, skill.id
+            assert "## 争议" not in text, skill.id
+            if input_kind is AnalysisInputKind.SCREENPLAY:
+                assert "# Reference: shared/screenplay-coverage-writing.md" in text
+
+
 @pytest.mark.parametrize(
     ("skill_id", "input_kind", "contract", "modules", "excluded"),
     [
@@ -356,7 +408,7 @@ def test_registry_rejects_reference_symlinks(tmp_path: Path) -> None:
             AnalysisInputKind.VIDEO,
             AnalysisResultContract.VIDEO_VISUAL_ANALYSIS,
             ("drama-skills-short-drama-storyboard-blocking-playbooks",),
-            "## 5.",
+            "## 5. 动态对象与竞赛",
         ),
         (
             "screenplay-structure-review",

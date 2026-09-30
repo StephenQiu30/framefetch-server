@@ -202,3 +202,25 @@ Updating any reviewed commit requires a fresh license and prompt-injection revie
 - Dropped, never vendored or executed: none
 - Prompt-injection scan: no findings
 - Local use: `screenplay-structure-review`: selected Truby structure and scene-weave diagnostics; no mandatory step counts or page quotas.
+
+## humanizer-zh (2026-09-30)
+
+- Source: https://github.com/op7418/Humanizer-zh/tree/f4518a8eab97b8bfebc66a89d34320a89bef6930/SKILL.md
+- Reviewed commit: `f4518a8eab97b8bfebc66a89d34320a89bef6930`
+- License: MIT
+- Imported Markdown (unmodified): `humanizer-zh/repo-SKILL.md`
+- Registered modules: `humanizer-zh` (sections narrowed to editing constraints, register, pattern usage, patterns A–F and the pre-delivery check; the file workflow, file protection, full example and source links are not compiled)
+- Dropped, never vendored or executed: none
+- Prompt-injection scan: 5 findings reviewed and accepted (the `allowed-tools` frontmatter and the source links, all outside the selected sections)
+- Local use: all builtin analysis Skills except `screenplay-rewrite`: self-review checklist for the Skill's own report prose, bridged by `shared/report-writing.md`; never used to judge the analysed screenplay or on-screen text, never adds facts.
+
+## chinese-copywriting-guidelines (2026-09-30)
+
+- Source: https://github.com/sparanoid/chinese-copywriting-guidelines/tree/9a5fbeb842f39644352fd79b5d8c6764718105cc/README.zh-Hans.md
+- Reviewed commit: `9a5fbeb842f39644352fd79b5d8c6764718105cc`
+- License: MIT
+- Imported Markdown (unmodified): `chinese-copywriting-guidelines/repo-README.zh-Hans.md`
+- Registered modules: `zh-copywriting-guidelines` (sections narrowed to spacing, punctuation, full-width vs half-width and proper nouns; the disputed rules, tool list, adopters and references are not compiled)
+- Dropped, never vendored or executed: none
+- Prompt-injection scan: 48 findings reviewed and accepted (tool, adopter and reference links, all outside the selected sections)
+- Local use: all builtin analysis Skills: Chinese spacing, punctuation and proper-noun rules for report prose; `screenplay-rewrite` applies them to narration only and keeps intentional dialogue as written.

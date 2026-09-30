@@ -8,7 +8,8 @@ metadata:
   video-server-order: "25"
   video-server-input-kinds: video
   video-server-output-contract: video-article
-  video-server-references: references/wechat-editorial.md
+  video-server-modules: humanizer-zh, zh-copywriting-guidelines
+  video-server-references: references/wechat-editorial.md, shared/report-writing.md
 ---
 # 视频整理为公众号文章
 
@@ -30,5 +31,14 @@ metadata:
 - 结语只收束全文，不突然说教、拔高或加入新的事实和行动号召。
 - 最终字段中不放 Markdown、HTML、代码围栏或额外 JSON；排版由服务端报告完成。
 - 文章证据区间按论证所需的完整可见阶段选择，不按固定秒数切片；截图间变化明显但边界类型无法确认时，只描述可见前后状态，不虚构 Cut 或连续运动。
+
+## 成稿写法
+
+文章要能脱离视频独立阅读。通用文字规范见《报告写作规范》，公众号文体的骨架与字段写法见《微信公众号文章编辑规范》，两者冲突时以事实边界为准。
+
+- 导语从一个可见的具体场景、一个读者会有的问题或一处画面中的反差切入，第二、三句落到中心命题；不用时代背景、热点或“你是否也……”开场。
+- 小标题连起来读就是文章的论证链，每个都是信息或判断，不用同一句式重复提问。
+- 正文段落之间写出承接关系，前一节的结论自然引出下一节的问题；一节结束时不重复总结本节。
+- 结语回扣导语里的命题，可以留下一个仍待确认的边界，不喊口号、不升华、不引导关注。
 
 文章骨架、段落规范、编辑证据与发布前检查见 `references/wechat-editorial.md`。最终只返回 `video-article` Schema。

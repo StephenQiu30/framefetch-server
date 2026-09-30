@@ -8,8 +8,8 @@ metadata:
   video-server-order: "60"
   video-server-input-kinds: screenplay
   video-server-output-contract: screenplay-analysis
-  video-server-modules: drama-review-method, drama-story-script, drama-anti-template, sw-story-structure, sw-character-conflict, sw-scene-craft, sw-dialogue
-  video-server-references: references/output-contract.md
+  video-server-modules: drama-review-method, drama-story-script, drama-anti-template, sw-story-structure, sw-character-conflict, sw-scene-craft, sw-dialogue, humanizer-zh, zh-copywriting-guidelines
+  video-server-references: references/output-contract.md, shared/report-writing.md, shared/screenplay-coverage-writing.md
 ---
 
 # 剧本故事审稿
@@ -37,3 +37,7 @@ metadata:
 - 修改建议说明需要恢复的因果、选择或可感知结果，不替作者确定唯一情节、对白、镜头或资产。
 - 不声称验证了市场表现、预算、排期、拍摄可行性或未提供的视频、音频与截图。
 - 最终严格遵循 [输出契约](references/output-contract.md)。
+
+## 成稿写法
+
+报告面向要动手修改的作者：先读到该改什么，再读到依据。各字段在报告中的位置和写法见《剧本审稿报告写法》，通用文字规范见《报告写作规范》；上游写作模块只用于自查成稿表达，不改变审稿结论与输出契约。

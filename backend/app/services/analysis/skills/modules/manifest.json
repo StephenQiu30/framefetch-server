@@ -84,6 +84,24 @@
         "Dialogue"
       ]
     },
+    "humanizer-zh": {
+      "path": "humanizer-zh/repo-SKILL.md",
+      "sha256": "95627fd4437d886f98032ccc62d79136e6310f1fc04e354bb86431795ff206df",
+      "license": "MIT",
+      "source_url": "https://github.com/op7418/Humanizer-zh/blob/f4518a8eab97b8bfebc66a89d34320a89bef6930/SKILL.md",
+      "sections": [
+        "编辑约束与优先级",
+        "文体与作者声音",
+        "模式的使用方式",
+        "A. 铺垫代替陈述",
+        "B. 公式化节奏",
+        "C. 拔高与借权威",
+        "D. 公式化排版",
+        "E. 聊天与草稿残留",
+        "F. 中文表达的补充检查",
+        "交付前核对"
+      ]
+    },
     "marketingskills-social-platforms": {
       "path": "marketingskills/social-platforms.md",
       "sha256": "3c4e1b15717a3bcd4ed0cf29dc167dac28aa88bbf01723fde53815122396090f",
@@ -204,6 +222,18 @@
         "七、激励事件与进展纠葛（麦基）",
         "八、危机、高潮、结局（麦基）",
         "九、非线性、多线与群像"
+      ]
+    },
+    "zh-copywriting-guidelines": {
+      "path": "chinese-copywriting-guidelines/repo-README.zh-Hans.md",
+      "sha256": "21b57abff653ba08ed85fabfb3e434db00b3e5b502b64b635c3b78cdeea51ba8",
+      "license": "MIT",
+      "source_url": "https://github.com/sparanoid/chinese-copywriting-guidelines/blob/9a5fbeb842f39644352fd79b5d8c6764718105cc/README.zh-Hans.md",
+      "sections": [
+        "空格",
+        "标点符号",
+        "全角和半角",
+        "名词"
       ]
     }
   }

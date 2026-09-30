@@ -8,8 +8,8 @@ metadata:
   video-server-order: "75"
   video-server-input-kinds: screenplay
   video-server-output-contract: screenplay-analysis
-  video-server-modules: drama-review-method, drama-story-script
-  video-server-references: references/continuity-rules.md
+  video-server-modules: drama-review-method, drama-story-script, humanizer-zh, zh-copywriting-guidelines
+  video-server-references: references/continuity-rules.md, shared/report-writing.md, shared/screenplay-coverage-writing.md
 ---
 
 # 剧本连续性审阅
@@ -27,3 +27,7 @@ metadata:
 7. 长剧本分块时只判定本块能说明的事实；汇总时综合分块中的文本状态检查跨块连续性，不把缺少上下文当成错误。
 
 详细规则见 [continuity-rules](references/continuity-rules.md)。
+
+## 成稿写法
+
+报告面向要动手修改的作者：先读到该改什么，再读到依据。各字段在报告中的位置和写法见《剧本审稿报告写法》，通用文字规范见《报告写作规范》；上游写作模块只用于自查成稿表达，不改变审稿结论与输出契约。

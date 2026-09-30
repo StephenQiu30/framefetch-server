@@ -7,9 +7,9 @@ metadata:
   video-server-default-prompt: 以导演工作台方式逐分镜拉片，区分真实 Cut 与连续长镜头内的视觉节拍，复盘调度、镜头动机、剪辑关系、连续性和可执行复刻策略。
   video-server-order: "10"
   video-server-input-kinds: video
-  video-server-modules: drama-skills-short-drama-storyboard-shot-craft, drama-skills-short-drama-storyboard-production-shot-grammar, drama-skills-short-drama-storyboard-blocking-playbooks
+  video-server-modules: drama-skills-short-drama-storyboard-shot-craft, drama-skills-short-drama-storyboard-production-shot-grammar, drama-skills-short-drama-storyboard-blocking-playbooks, humanizer-zh, zh-copywriting-guidelines
   video-server-output-contract: video-visual-analysis
-  video-server-references: references/director-method.md
+  video-server-references: references/director-method.md, shared/report-writing.md
 ---
 # 导演拉片
 
@@ -17,7 +17,7 @@ metadata:
 
 ## 引用方法的用法
 
-上文的 Source module 是固定版本的上游方法，原本写给分镜与剪辑制作流程。这里只把其中的判断标准用于审阅已经完成的视频：
+上文的分镜与剪辑 Source module 是固定版本的上游方法，原本写给制作流程。这里只把其中的判断标准用于审阅已经完成的视频：
 - 只评价画面中可见的决策，不输出分镜稿、剪辑单、关键帧或生成提示词，也不涉及其中提到的项目文件、字段、工具或下游环节。
 - 当前没有可靠音频证据：凡是依赖台词发声、音乐、音效或声音桥的条目一律不评价，必要时在局限中说明。
 - 上游示例与数字（如镜长、景别阶梯）是参考而非配额；结论必须回到本片的真实分镜证据。
@@ -37,5 +37,15 @@ metadata:
 - `visual_tags` 使用参考文档中的受控前缀，保留角度、构图、光色、连续性和节奏线索。
 - 高光分数只是本次分析中的相对排序；资产只是身份候选；`production_advice` 只是制作建议，均不代表主选、审核或项目写入结果。
 - 没有可靠音频证据时，不得把字幕、口型或画面文字推断成对白、音乐、音效或作者观点。
+
+## 成稿写法
+
+报告读起来应像一份导演拉片笔记：先给判断，再逐镜交代证据。文字规范见《报告写作规范》，这里只补充本 Skill 的重点。
+
+- `title` 写出这支片子在调度上的核心特点或问题，例如“固定机位撑起全片，信息靠人物走位递进”，不写“导演拉片报告”。
+- `summary` 依次交代：画面主要靠什么组织注意力、最成立的一处导演决策（点到分镜）、最值得复查的一处风险。
+- `scenes[].description` 写成一段 2–4 句的小段落，说明这组镜头在空间、调度和节拍上如何配合；`narrative_function` 用一句话说明该段承上启下的作用。
+- 分镜字段会进入表格单元格，换行会被合并：`description` 按四段格式写成一句，用分号隔开，控制在 120 字以内；`narrative_function` 一句话写清节拍和前后关系。
+- `production_advice.recommended_extensions` 每条写成“分镜 003：观察 → 影响 → 复刻或修改时要达到的结果”，按影响排序。
 
 详细判读步骤、字段映射和交付自检见 `references/director-method.md`。最终只返回 `video-visual-analysis` Schema 所需字段。

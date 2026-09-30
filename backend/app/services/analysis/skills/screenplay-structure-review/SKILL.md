@@ -8,8 +8,8 @@ metadata:
   video-server-order: "70"
   video-server-input-kinds: screenplay
   video-server-output-contract: screenplay-analysis
-  video-server-modules: sw-story-structure, sw-scene-craft, screenwriting-skills-sw-premise-theme-skill, screenwriting-skills-sw-truby-anatomy-skill
-  video-server-references: references/structure-rules.md
+  video-server-modules: sw-story-structure, sw-scene-craft, screenwriting-skills-sw-premise-theme-skill, screenwriting-skills-sw-truby-anatomy-skill, humanizer-zh, zh-copywriting-guidelines
+  video-server-references: references/structure-rules.md, shared/report-writing.md, shared/screenplay-coverage-writing.md
 ---
 
 # 剧本结构审阅
@@ -33,3 +33,7 @@ metadata:
 9. 源场景是文本因果单位，不是未来镜头清单；不得按篇幅、段落或预设覆盖率估算镜头数量。镜头化建议只能说明需要保留的动作、空间、状态和对白事实。
 
 详细检查清单见 [structure-rules](references/structure-rules.md)。
+
+## 成稿写法
+
+报告面向要动手修改的作者：先读到该改什么，再读到依据。各字段在报告中的位置和写法见《剧本审稿报告写法》，通用文字规范见《报告写作规范》；上游写作模块只用于自查成稿表达，不改变审稿结论与输出契约。

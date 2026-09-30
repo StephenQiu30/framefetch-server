@@ -8,7 +8,8 @@ metadata:
   video-server-order: "35"
   video-server-input-kinds: video
   video-server-output-contract: video-visual-analysis
-  video-server-references: references/scene-boundaries.md
+  video-server-modules: humanizer-zh, zh-copywriting-guidelines
+  video-server-references: references/scene-boundaries.md, shared/report-writing.md
 ---
 # 场景提炼
 
@@ -30,5 +31,14 @@ metadata:
 - `visual_rules` 提炼场景内稳定可复用的构图、光色、机位、运动和关键资产约束。
 - `continuity_risks` 只记录具体可检查的问题；没有明确风险时返回空数组。
 - 场景、高光和资产都是候选信息，不代表已创建项目场景或完成主选。
+
+## 成稿写法
+
+场景段落在报告中按“标题 → 时间与空间 → 段落描述 → 这一段在做什么 → 视觉规则 → 风险”排版，连起来读应当是一份场景大纲。文字规范见《报告写作规范》，这里只补充本 Skill 的重点。
+
+- `scenes[].title` 写成该场完成的事，例如“店员把样品递到镜头前”，不写“场景一”或地点名。
+- `description` 写成 2–4 句的小段落：开始状态、事件推进、结束状态。
+- `narrative_function` 一句话交代该场在全片中的任务和进出场依据；`visual_rules` 每条是一条可复用的约束；`continuity_risks` 每条写清具体位置和影响。
+- `summary` 概括全片的场景划分方式和最关键的一次场景转换。
 
 边界判定、字段写法和验收规则见 `references/scene-boundaries.md`。最终只返回 `video-visual-analysis` Schema。

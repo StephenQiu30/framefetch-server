@@ -58,7 +58,8 @@ def test_visual_prompt_distinguishes_edits_from_continuous_beats(
     assert "禁止按固定秒数机械切片" in prompt
     assert "segmentation:single-unit-verified" in prompt
     assert "不能把全部差异合并进一个超长分镜" in prompt
-    assert "像成熟公众号分析文章" in prompt
+    assert "像经过编辑的专业稿件：结论先行" in prompt
+    assert "《报告写作规范》" in prompt
     assert "summary 是报告导语" in prompt
     assert "避免“本报告将”" in prompt
 

@@ -8,7 +8,8 @@ metadata:
   video-server-order: "45"
   video-server-input-kinds: video
   video-server-output-contract: video-visual-analysis
-  video-server-references: references/opening-hook-rubric.md
+  video-server-modules: humanizer-zh, zh-copywriting-guidelines
+  video-server-references: references/opening-hook-rubric.md, shared/report-writing.md
 ---
 # 开场钩子审查
 
@@ -35,5 +36,14 @@ metadata:
 当前运行时没有可靠音频证据时，不评价开场台词、语速、音乐卡点、音效、口型或情绪语气。画面不足以支持判断时保留不确定性；审查结果是创作建议，不是自动剪辑、发布或市场效果承诺。
 
 连续镜头内新的锚点、承诺、发展或正文交接形成独立阶段时使用 `transition_in=continuous`；边界成立但类型不明时使用 `unknown`。3/5/15 秒是审查窗口，不是固定秒数的机械分镜切点。
+
+## 成稿写法
+
+报告的读者最关心开场该保留什么、改什么。文字规范见《报告写作规范》，这里只补充本 Skill 的重点。
+
+- `title` 写出开场最关键的判断，例如“前三秒有动作，但承诺到第十二秒才出现”。
+- `summary` 依次写：开场最强的证据、最大的风险、后续是否兑现开场承诺。
+- 开场所在的 `scenes[].description` 按 0–3 秒、0–5 秒、0–15 秒三个窗口顺序写成一段，窗口之间用承接句连起来，不写成清单。
+- `production_advice.recommended_extensions` 每条写清要保留、前移、简化、放大或重组的分镜，以及修改后开场应达到的效果。
 
 评估维度、标签、特殊情况和交付自检见 `references/opening-hook-rubric.md`。最终只返回 `video-visual-analysis` Schema。

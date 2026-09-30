@@ -43,6 +43,9 @@ def screenplay_analysis_prompt(request: ScreenplayAnalysisRequest) -> str:
         "没有独立发现时返回空数组，不为填满报告而编造问题或优势。",
         "- 修改建议应说明具体问题、对故事的影响和作者需要达到的修订结果；"
         "保留创作者可选择的实现方式，避免臆测未提供的制作背景。",
+        "- 人类可读字段会由服务端排版为审稿报告：结论先行，事实、判断与建议分层，"
+        "每条发现写成完整句子；详细写法遵循 Skill 附带的《剧本审稿报告写法》"
+        "与《报告写作规范》。",
         "- 最终只返回 JSON 对象，不要附加 Markdown、代码围栏或解释。",
         "",
         f"本次分析 Skill：{request.skill_id}",
@@ -89,6 +92,9 @@ def screenplay_analysis_synthesis_prompt(
         "或系统环境。",
         "- strengths 与 priority_revisions 可为空；只汇总分块结果支持的独立发现。"
         "修改建议须说明问题、影响和目标，不重复同一问题。",
+        "- 人类可读字段会由服务端排版为审稿报告：结论先行，事实、判断与建议分层，"
+        "每条发现写成完整句子；详细写法遵循 Skill 附带的《剧本审稿报告写法》"
+        "与《报告写作规范》。",
         "- 最终只返回 JSON 对象，不要附加 Markdown、代码围栏或解释。",
         "",
         f"本次分析 Skill：{request.skill_id}",

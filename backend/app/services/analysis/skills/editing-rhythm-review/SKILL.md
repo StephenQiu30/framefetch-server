@@ -7,9 +7,9 @@ metadata:
   video-server-default-prompt: 完整观察时间线，区分真实编辑切点与连续视觉节拍，审阅停留、信息密度、边界动机、动作和构图衔接，区分必要停留、拖沓、无目的快切和信息过载。
   video-server-order: "42"
   video-server-input-kinds: video
-  video-server-modules: drama-skills-short-drama-edit-cut-craft, marketingskills-video-edit-anatomy
+  video-server-modules: drama-skills-short-drama-edit-cut-craft, marketingskills-video-edit-anatomy, humanizer-zh, zh-copywriting-guidelines
   video-server-output-contract: video-visual-analysis
-  video-server-references: references/editing-rhythm-rubric.md
+  video-server-references: references/editing-rhythm-rubric.md, shared/report-writing.md
 ---
 # 剪辑节奏审阅
 
@@ -17,7 +17,7 @@ metadata:
 
 ## 引用方法的用法
 
-上文的 Source module 是固定版本的上游方法，原本写给分镜与剪辑制作流程。这里只把其中的判断标准用于审阅已经完成的视频：
+上文的分镜与剪辑 Source module 是固定版本的上游方法，原本写给制作流程。这里只把其中的判断标准用于审阅已经完成的视频：
 - 只评价画面中可见的决策，不输出分镜稿、剪辑单、关键帧或生成提示词，也不涉及其中提到的项目文件、字段、工具或下游环节。
 - 当前没有可靠音频证据：凡是依赖台词发声、音乐、音效或声音桥的条目一律不评价，必要时在局限中说明。
 - 上游示例与数字（如镜长、景别阶梯）是参考而非配额；结论必须回到本片的真实分镜证据。
@@ -38,5 +38,14 @@ metadata:
 - `production_advice` 必须给出分镜证据和期望结果，不给出脱离素材的固定秒数公式。
 - 当前没有可靠音频证据时，不评价音乐卡点、语速、停顿、音效或声音桥。
 - 真实 Cut/转场按类型记录；无编辑但节拍已经重置时使用 `transition_in=continuous`，边界类型不明时使用 `unknown`。连续节拍不计作物理剪辑频率，也不得按固定秒数切片。
+
+## 成稿写法
+
+节奏审阅要让读者看到具体的停留与切换，而不是“节奏偏慢”这样的笼统结论。文字规范见《报告写作规范》，这里只补充本 Skill 的重点。
+
+- `title` 写出节奏上的核心判断，例如“中段三次重复停留拖慢了演示”。
+- `summary` 依次写：全片节奏形态、最清晰的有效段落、首要节奏风险。
+- `scenes[].description` 说明这一段的节奏是如何建立、加速或收束的，并点到具体分镜。
+- `production_advice.recommended_extensions` 每条写清涉及的分镜、观察到的问题和修改后的期望效果，不写脱离素材的固定秒数。
 
 具体量表、标签和特殊情况见 `references/editing-rhythm-rubric.md`。最终只返回 `video-visual-analysis` Schema。
