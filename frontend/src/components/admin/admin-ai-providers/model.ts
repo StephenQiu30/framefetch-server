@@ -12,7 +12,7 @@ export type AiProviderEditorState = {
   saving: boolean;
 };
 
-export const LOCAL_CODEX_PROVIDER_KEY = 'local-codex';
+const LOCAL_CODEX_PROVIDER_KEY = 'local-codex';
 
 export function isLocalCodexProvider(key: string): boolean {
   return key === LOCAL_CODEX_PROVIDER_KEY;

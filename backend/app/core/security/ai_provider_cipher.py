@@ -5,7 +5,6 @@ from __future__ import annotations
 import hmac
 
 from app.core.security.url_cipher import URLCipher
-from app.services.identifiers import UrlEncryptionKeyId
 
 
 class FernetAiProviderSecretCipher:
@@ -25,8 +24,7 @@ class FernetAiProviderSecretCipher:
         return self._cipher.encrypt(f"ai-provider:{provider_key}:{secret}")
 
     def decrypt(self, provider_key: str, ciphertext: bytes, key_id: str) -> str:
-        accepted = (self._key_id, UrlEncryptionKeyId.LEGACY_FERNET)
-        if not any(hmac.compare_digest(key_id, candidate) for candidate in accepted):
+        if not hmac.compare_digest(key_id, self._key_id):
             raise ValueError("unknown AI Provider encryption key id")
         prefix = f"ai-provider:{provider_key}:"
         plaintext = self._cipher.decrypt(ciphertext)

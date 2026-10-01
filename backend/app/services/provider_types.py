@@ -110,7 +110,7 @@ class EgressRoute(StrEnum):
 
 @dataclass(frozen=True, slots=True)
 class PrepareSpec:
-    """Proof preparation declared here and implemented in R2."""
+    """Proof preparation declared by the platform Registry."""
 
     kind: str
     clients: tuple[str, ...] = ()
@@ -118,7 +118,7 @@ class PrepareSpec:
 
 @dataclass(frozen=True, slots=True)
 class BrowserRules:
-    """Platform parser and interception patterns, implemented in R3."""
+    """Platform parser and browser interception patterns."""
 
     platform: str
     response_patterns: tuple[str, ...] = ()

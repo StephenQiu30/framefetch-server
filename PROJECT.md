@@ -20,9 +20,9 @@
 
 具体版本通过依赖清单与锁文件固定；禁止在本文维护另一份版本快照。新依赖必须承担明确职责，不因脚手架默认包含就保留。
 
-媒体获取面向单人自部署使用。解析引擎的唯一架构与实施状态见[设计 17](docs/design/17-解析引擎重建.md)。Registry 统一声明 identity，R0 仅运行匿名 L1；保留 yt-dlp、可信插件、bgutil、browser_runtime、受控出口和完整文件校验。浏览器阶梯与宿主身份层分别在 R3、R4 重建，不能把保留组件写成已启用的能力。
+媒体获取面向单人自部署使用。解析引擎的唯一架构与实施状态见[设计 17](docs/design/17-解析引擎重建.md)。Registry 声明阶梯、出口、identity 与 content_scope；引擎使用 yt-dlp、可信插件、bgutil、browser_runtime、受控出口和完整文件校验。实现状态与平台验收仅在设计 17 第 8 节维护。
 
-ExecutionContext 按设计 17 第 3.7 节保存十二字段非敏感摘要，贯穿 Runner、检查结果、意图、下载 Job 与制品元数据。解析由单 resolve Activity 在 120 秒期限内执行，不维护策略计划、操作级尝试账本、预算账本、会话代或运营准入；意图的业务 generation/fence、持久截止时间与取消确认保留。下载保留 RabbitMQ lease/heartbeat，Skill 分析保留模型步骤日志与未知调用保护；PostgreSQL 是业务事实来源。R4 的 Chrome 扩展身份读取、双向 HMAC 认证、Runner 独占 Bearer 鉴权的 `POST /cookies`、操作私有 tmpfs 清理及真实验收统一遵循设计 17 第 3.4 节，不在工程规范另定义协议。
+ExecutionContext 按设计 17 第 3.7 节保存十二字段非敏感摘要，贯穿 Runner、检查结果、意图、下载 Job 与制品元数据。解析由单 resolve Activity 在 120 秒期限内执行，不维护策略计划、操作级尝试账本、预算账本、会话代或运营准入；意图的业务 generation/fence、持久截止时间与取消确认保留。下载保留 RabbitMQ lease/heartbeat，Skill 分析保留模型步骤日志与未知调用保护；PostgreSQL 是业务事实来源。Chrome 扩展身份读取、双向 HMAC 认证、Runner 独占 Bearer 鉴权的 `POST /cookies`、操作私有 tmpfs 清理及真实验收统一遵循设计 17 第 3.4 节，不在工程规范另定义协议。
 
 ## 2. FastAPI 工程结构
 

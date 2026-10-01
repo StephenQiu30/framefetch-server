@@ -6,9 +6,9 @@ FastAPI API、下载/分析领域逻辑、异步 Worker、当前态数据库 SQL
 
 ## 解析引擎
 
-正式运行基线仍为 P0 的匿名 L1 yt-dlp 与可信插件，保留单个 session-runner、egress-proxy、现有 bgutil 与 browser_runtime。R4 宿主 `workers/identity/` 提供普通 LaunchAgent、安装/check CLI 与双向认证 Chrome 扩展桥；扩展源码在根 `browser-extension/`，实时材料通过 Runner 独占 Bearer Cookie 服务传递，已删除旧 `workers/session/` 读取残留；Runner 身份传输与操作清理位于 `workers/runner/engine/identity.py`。运行命令、R2 调用所有权与专项验证边界见[根 README 的身份说明](../README.md#平台身份与升级)，架构与验收以[设计 17](../docs/design/17-解析引擎重建.md)为准。当前没有已验收的登录平台完整下载能力。
+当前 Runner 通过 Registry 阶梯执行 HTTP 提取、证明准备和浏览器解析，统一使用 egress-proxy 与最终制品校验。宿主身份由 `workers/identity/` 的 cookie-source 和根 `browser-extension/` 的 Chrome 扩展提供。运行命令见[根 README](../README.md)，协议、平台范围和验收状态只在[设计 17](../docs/design/17-解析引擎重建.md)维护。
 
-Runner 安装锁定的 Playwright/Chromium，browser_profiles 卷只保存浏览器原生状态；保留组件不代表已启用 L3。ExecutionContext 按设计 17 第 3.7 节保存十二字段非敏感摘要；任务目录、进程组取消、媒体校验与出口边界继续保留。公开样本位于 scripts/fixtures/fixed_public_cases.json。
+浏览器卷只保存浏览器原生状态；身份材料只在 Runner 内存与私有 tmpfs 中存在。样本位于 `scripts/fixtures/`，冷启动矩阵使用 `coldstart_cases.json`。组件健康不证明平台完整文件可用。
 
 ## 目录约定
 
@@ -38,15 +38,9 @@ Web 登录、注册、退出和 Cookie 写操作都校验精确 Origin（缺失�
 
 浏览器登录、注册和退出通过同源 Web Locks 串行写 Cookie，避免另一标签页迟到的响应覆盖新身份。等待最多 30 秒；等待期间身份变化则取消这次操作，普通读取不占锁。Web 入口须使用 HTTPS（本地开发可用 localhost／回环地址）和支持 Web Locks 的现代浏览器；不支持时明确提示，不降级成无协调的凭据写入。
 
-此次 Web 协议需要前后端配套发布：先执行当前 `backend/sql/schema.sql`，再同时替换 API 和 Web 镜像；旧 Web 会话需重新登录一次，原有用户、任务、App 协议保留。普通服务重启复用 PostgreSQL 会话事实。回滚优先回到仍支持不透明会话的已验证镜像；不得只降级某一端，或把旧双 JWT Web 重新接入现有会话。若必须退回切换前版本，应停写并明确重新登录、旧凭据失效与 App 受影响范围，不能承诺透明回滚。完整执行证据与尚未完成的验收见 [P9.11](../docs/design/README.md)。
+Media Runner 从 `app/workers/runner/plugins/yt_dlp_plugins/` 加载可信站点提取器；平台差异由 Registry、薄插件与浏览器响应解析函数实现，所有媒体任务共用一个 session-runner。内容、阶梯及身份边界见设计 17，不以 Generic 提取器或 Cookie 的存在自动开放未知站点。
 
-Media Runner 通过 `app/workers/runner/plugins/yt_dlp_plugins/` 加载随项目交付的可信站点提取器。MediaTrack 适配仅处理无需登录的公开审片视频和 API 明确授权的播放转码；抖音适配用数字视频 ID 构造固定公开分享页并修正 landscape 下载规格的短边尺寸语义，TikTok 适配只使用其第一方嵌入播放器 item API 和 yt-dlp 默认客户端，明确无 item/HTTPS 格式、API 临时故障与响应结构漂移分别返回链接不可用、临时不可用和提取器回归，不回退网页挑战；快手适配把公开作品规范化到第一方移动分享页并限制短链重定向域，Tumblr 适配优先读取当前 `www.tumblr.com` 公开页而不强制改写到旧 blog 子域。小红书适配识别第一方 `300031` 笔记失效和 `300012` 平台验证边界，避免把失效内容误报成提取器故障。视频号适配只接受公开 `weixin.qq.com/sph/...` 单视频，读取第一方公开信息，R0 不提供账号线路；只接受批准腾讯媒体域上的非加密媒体，保护材料直接拒绝。所有适配都继续经过受控代理、作品身份校验、大小/时长限制、重新 inspect、FFmpeg 和 ffprobe 校验，不支持图集截断、账号内容、无水印承诺或原文件权限绕过。
-
-主流视频源使用声明式 Provider Profile 接入：`provider_catalog_*.py` 按策略族登记能力和运行参数，`ProviderRegistry.prepare()` 一次解析得到贯穿 inspect/download 的不可变 `ProviderRequest`，`YtDlpCommandBuilder` 只消费该请求生成固定参数，错误由有序 `FailureRule` 归一化。已有 yt-dlp extractor 的公开单视频平台通常只需增加一个 Profile、契约测试和冷启动完整文件验收；需要自定义解析时再按 yt-dlp 官方插件目录增加可信 extractor，不修改通用命令执行器。所有媒体任务复用 `session-runner`；未知站点不因 yt-dlp Generic 匹配或存在 Cookie 而自动开放。
-
-管理员可通过只读接口 `GET /api/admin/provider-runtime/engine-catalog` 查询 `session-runner` 实际安装的提取器及项目插件，获取安装版本、固定依赖是否匹配和清单摘要；extractor 数量不代表可下载的平台数。首次读取在独立子进程中有界枚举，后续复用当前进程快照，更新镜像后重新生成；不访问平台、不读取账号材料。API 或 Runner 缺失时返回服务不可用，不改变本站身份。平台策略、部署就绪和真实下载证据仍分别由 Profile、管理员运行诊断 API 与实际下载验证决定。
-
-微博公开单视频支持普通帖子、移动端 status/detail、`video.weibo.com` 视频页和 `t.cn` 分享短链。短链插件在取得有效微博视频地址后立即交给微博提取器，避免通用网页跳转进入访客页面；使用无账号凭据的受控 Runner，容器重启后重新解析即可。分阶段接入设计见 [017 设计](../docs/design/README.md)。
+管理员只读接口 `GET /api/admin/provider-runtime/engine-catalog` 查询 Runner 实际安装的提取器、插件与版本快照；不会访问平台或读取账号材料，提取器数量不代表可下载的平台数。
 
 视觉分析默认通过宿主机 Codex App Server stdio 协议运行，也支持 `claude -p` adapter 和 Web 管理的 DeepSeek/LangChain 视觉 API，以及 OpenRouter / OpenAI 兼容 Chat Completions API；各适配器统一实现 `VideoAnalyzer` 端口并返回唯一当前态结果契约。每个 Codex 调用创建独立 ephemeral thread，完成后关闭进程，不依赖长期连接。DeepSeek 由 Worker 使用 FFmpeg 均匀生成最多 64 张、总原始证据不超过 24 MiB 的顺序 JPEG，以 base64 内联图片调用视觉模型，不暴露对象地址或客户端文件路径。分析能力由 `app/services/analysis/skills/*/SKILL.md` 注册；不运行 ASR。第三方 Endpoint、模型与 Key 只通过管理员 Web Profile 配置，Key 使用 Fernet 加密后存入 PostgreSQL 并仅在 Worker 内存中解密，不使用第三方 AI `.env`。报告以 Markdown 为唯一内容源，可安全预览和导出 Markdown/DOCX。Worker 必须在可访问 FFmpeg、队列和对象存储的宿主机运行；默认 Codex 路径还要求同一系统用户已完成官方登录。
 
@@ -54,15 +48,15 @@ Media Runner 通过 `app/workers/runner/plugins/yt_dlp_plugins/` 加载随项目
 
 ## 资源准入
 
-Registry 统一声明 identity，R0 仅执行匿名 L1。`POST /api/download-intents` 在事务提交后返回 202，Outbox 直接启动单 resolve Activity 的 InspectionWorkflow，ff-inspect 保留两个槽。解析使用 120 秒总期限，业务库保存 generation、当前状态、结果及 ExecutionContext，不保存预算或操作账本；取消传播到 Runner 进程组。下载 Job 继续通过 RabbitMQ lease/heartbeat 执行。解析按每日任务计量、零下载字节；同幂等键重放不重复计量。
+Registry 的阶梯、出口、identity 与 content_scope 统一遵循设计 17。`POST /api/download-intents` 在事务提交后返回 202，Outbox 直接启动单 resolve Activity 的 InspectionWorkflow，ff-inspect 保留两个槽。解析使用 120 秒总期限，业务库保存 generation、当前状态、结果及 ExecutionContext，不保存预算或操作账本；取消传播到 Runner 进程组。下载 Job 继续通过 RabbitMQ lease/heartbeat 执行。解析按每日任务计量、零下载字节；同幂等键重放不重复计量。
 
-高成本路由显式声明速率策略，PostgreSQL 在资源/run/outbox 创建事务内统一检查账户及全局配额。配置入口为 `RATE_LIMIT_POLICIES` 与 `QUOTA_LIMITS`；幂等重放不重复扣减，取消释放活跃名额，物理清理完成后释放保留存储。报告超限是可见的终态失败；取消后迟到的报告只进入清理流程。完整计量口径和生产边界见 [上线准入设计](../docs/design/README.md)。
+高成本路由显式声明速率策略，PostgreSQL 在资源/run/outbox 创建事务内统一检查账户及全局配额。配置入口为 `RATE_LIMIT_POLICIES` 与 `QUOTA_LIMITS`；幂等重放不重复扣减，取消释放活跃名额，物理清理完成后释放保留存储。报告超限是可见的终态失败；取消后迟到的报告只进入清理流程。完整计量口径和生产边界见 [配额与容量](../docs/design/05-准入配额与容量.md)。
 
 分片上传使用 AWS SDK 的 SigV4 查询签名绑定每片精确长度，MinIO 在接收时拒绝长度不匹配；Next.js 上传代理保留 `Content-Length`。可用隔离 MinIO 运行 `TEST_MINIO_ENDPOINT=... TEST_MINIO_ACCESS_KEY=... TEST_MINIO_SECRET_KEY=... uv run pytest tests/integration/test_upload_size_boundary.py`；设置 `TEST_NEXT_UPLOAD_ORIGIN` 可一并验证独立前端代理。
 
 ## 运行与就绪
 
-完整启动与更新统一使用[根 README](../README.md)，复用已有基础服务与环境配置；R0 不安装宿主平台来源。API readiness 检查核心业务依赖，不等待平台就绪；安装版本与引擎目录只用于诊断，真实平台能力须完整文件验收。
+完整启动与更新统一使用[根 README](../README.md)，复用已有基础服务与环境配置。API readiness 检查核心业务依赖，不等待平台就绪；安装版本与引擎目录只用于诊断，真实平台能力须完整文件验收。
 
 只调试无异步依赖的 API 路由时，才使用 Python 模块入口：
 
@@ -113,13 +107,13 @@ API 使用 `runtime.py` 定义类型化的 `ApiServices`，在 `app.state.servic
 
 ## 统一 AI API 接入
 
-管理员可在 AI 服务中选择 OpenRouter 或 OpenAI 兼容 API。OpenRouter 使用官方固定 Base URL，读取公开模型目录后选择模型；视频要求图像输入与结构化输出。通用兼容线路自行填写模型、Base URL 和 Key，服务须支持图像与 JSON 输出。API 线路无需 CLI，但现有宿主分析 Worker、FFmpeg 与基础服务仍需运行。修改服务地址或引擎时必须重新提供 Key。设计、能力边界及验收见 [037](../docs/design/README.md)。
+管理员可在 AI 服务中选择 OpenRouter 或 OpenAI 兼容 API。OpenRouter 使用官方固定 Base URL，读取公开模型目录后选择模型；视频要求图像输入与结构化输出。通用兼容线路自行填写模型、Base URL 和 Key，服务须支持图像与 JSON 输出。API 线路无需 CLI，但现有宿主分析 Worker、FFmpeg 与基础服务仍需运行。修改服务地址或引擎时必须重新提供 Key。设计、能力边界及验收见 [AI 分析](../docs/design/10-AI分析.md)。
 
 Web JSON 响应及全局异常统一遵循 [PROJECT.md §3.1](../PROJECT.md#31-全局响应与异常)。持久化代码在 repositories 内按业务聚合；业务路由使用 ApiResponseRoute，生成契约随注解自动更新。
 
 ## 系统操作日志
 
-管理员日志入口、记录范围、故障语义和部署验证见[系统操作日志运行说明](../docs/design/README.md)。
+管理员日志入口、记录范围、故障语义和部署验证见[解析与处理记录](../docs/design/06-解析中心.md)。
 
 
 Temporal 回归默认通过 SDK 启动固定版本 CLI 隔离测试服务；本机安装 `temporal` 时复用该二进制，CI 自动下载 CLI v1.8.2。要在已有持久服务上测试，执行 `TEST_TEMPORAL_ADDRESS=127.0.0.1:17233 uv run pytest tests/integration/test_intent_messaging.py tests/integration/test_skill_workflow.py`，测试只使用 `framefetch-test` 命名空间和 PostgreSQL 隔离 schema，不消费业务命名空间。测试覆盖确认丢失、Worker 重启、取消、History replay 以及模型调用中断后不重发，不替代真实平台与模型验收。
@@ -135,7 +129,7 @@ backend/.venv/bin/python backend/scripts/coldstart_matrix.py --all
 
 两种模式都自动等待 `/tmp/framefetch-runtime.lock`，取得锁后从固定容器的 Compose project label 识别现有项目，避免 worktree 名引起新网络或容器冲突，再从当前 worktree 构建并重建 api、worker、session-runner。`--env-file` 默认为现有 `.env`，不修改该文件；不执行 schema.sql，也不启动或重置 PostgreSQL、RabbitMQ、Temporal、MinIO。Runner 和 Worker 换用本次专属工作卷，Runner 使用本次专属浏览器卷以及空的 tmpfs/HOME/XDG 缓存；日常卷不清理。运行结束（含错误、Ctrl-C 和 SIGTERM）恢复日常卷，删除本次临时卷并释放锁。SIGKILL 或宿主机断电无法执行清理，需核实 owner 和进程后人工恢复，不能删除其他阶段仍持有的锁。
 
-R4 身份层合入后，带 `--cookie-source-label <实际 LaunchAgent label>` 重启已安装的 cookie-source；本分支身份层仍为桩，不提供该参数时报告 `not_implemented_in_this_stage`，需要身份的样本不能据此关闭冷启动验收。
+身份冷启动验收带 `--cookie-source-label <实际 LaunchAgent label>` 重启已安装的 cookie-source；省略该参数时没有验证身份服务冷启动，需要身份的样本保持阻塞。
 
 脚本仅调用正式 HTTP API：创建下载意图、轮询 Temporal 解析结果、查询 InspectionResponse、选择达到最低规格的格式、创建 RabbitMQ 下载、取回发布的 Artifact。文件通过鉴权 `/api/downloads/{id}/file` 下载，核对 Content-Length 与 ETag/SHA-256，再进行 ffprobe 和 `ffmpeg -xerror` 全片解码。独立完整时长的容差与 Runner 相同：`max(3 秒, 2% × 完整时长)`；若部署修改了 Runner 容差，使用 `--duration-tolerance` 传入同一个值。规格核对包括尺寸、编解码器、容器、帧率档与动态范围；身份和出口读取正式响应中的 execution_context。
 
@@ -143,7 +137,7 @@ R4 身份层合入后，带 `--cookie-source-label <实际 LaunchAgent label>` �
 
 样本在 `scripts/fixtures/coldstart_cases.json`，每条包含作品 ID、范围、正例/受保护负例、needs_identity、独立时长来源、可访问/公开/免费/非 DRM 证据和最低规格。`verified` 证据须有核实日期；时长不得来自被测流或历史 yt-dlp 测试预期。当前 fixture 包含待核实候选：空时长与 `unverified` 会在 JSON/Markdown 明确保留，即使完整文件交付也只能记为阻塞。这些候选不满足第 7 节的有效正例要求，需要在平台可访问后替换或补齐证据。受保护负例只有独立保护证据成立且 API 返回 content_protected 才记为 `protected_negative`，不参与平台通过判定。平台通过要求全部正例完整通过，至少两部不同作品。
 
-结果、文件、ffprobe、完整解码日志及构建/恢复日志存到 `artifacts/coldstart/<UTC 时间>/`，可用 `--output artifacts/coldstart/<唯一名称>` 指定；目录必须不存在，避免覆盖旧证据。`matrix.json` 与 `matrix.md` 每条完成后更新，保存实际上下文、时长、大小、SHA-256、耗时和安全的失败证据。退出码：0 为选中平台全部通过，1 为完成矩阵但有失败/阻塞，2 为配置、启动或恢复错误。全量运行在 R1–R4 尚未合入时只是当前 worktree 的基线，不能作为 R5/R6 或全平台验收结论。
+结果、文件、ffprobe、完整解码日志及构建/恢复日志存到 `artifacts/coldstart/<UTC 时间>/`，可用 `--output artifacts/coldstart/<唯一名称>` 指定；目录必须不存在，避免覆盖旧证据。`matrix.json` 与 `matrix.md` 每条完成后更新，保存实际上下文、时长、大小、SHA-256、耗时和安全的失败证据。退出码：0 为选中平台全部通过，1 为完成矩阵但有失败/阻塞，2 为配置、启动或恢复错误。平台通过只依据有效样本的完整交付；阶段运行不能代替全平台验收。
 
 矩阵脚本检查：
 

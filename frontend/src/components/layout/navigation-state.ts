@@ -6,7 +6,7 @@ export const NAVIGATION_PUSH_EVENT = 'video-server:navigation-push';
 
 const MAX_ENTRIES = 32;
 
-export type NavigationEntry = {
+type NavigationEntry = {
   id: string;
   route: string;
 };
@@ -49,7 +49,7 @@ export function markNavigationPush(targetHref: string) {
   );
 }
 
-export function appendNavigationEntry(state: NavigationState, route: string) {
+function appendNavigationEntry(state: NavigationState, route: string) {
   const entries = [
     ...state.entries.slice(0, state.index + 1),
     createEntry(route),

@@ -15,10 +15,8 @@ def test_ai_provider_secret_is_bound_to_profile_and_key_version() -> None:
         cipher.decrypt("primary", encrypted, UrlEncryptionKeyId.FERNET)
         == "secret-value"
     )
-    assert (
+    with pytest.raises(ValueError, match="key id"):
         cipher.decrypt("primary", encrypted, UrlEncryptionKeyId.LEGACY_FERNET)
-        == "secret-value"
-    )
     with pytest.raises(ValueError):
         cipher.decrypt("secondary", encrypted, UrlEncryptionKeyId.FERNET)
     with pytest.raises(ValueError):

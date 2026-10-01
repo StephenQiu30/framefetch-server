@@ -17,7 +17,7 @@ export const screenplaySkills: API.AnalysisSkillResponse[] = [
   },
 ];
 
-export const screenplayAnalysisResult: API.ScreenplayAnalysisResultResponse = {
+const screenplayAnalysisResult: API.ScreenplayAnalysisResultResponse = {
   kind: 'screenplay_analysis',
   language: 'zh-CN',
   title: '午夜来客',
@@ -83,7 +83,7 @@ export const screenplayAnalysisResult: API.ScreenplayAnalysisResultResponse = {
   ],
 };
 
-export const screenplayRewriteResult: API.ScreenplayRewriteResultResponse = {
+const screenplayRewriteResult: API.ScreenplayRewriteResultResponse = {
   kind: 'screenplay_rewrite',
   source_language: 'zh-CN',
   target_language: 'en-US',

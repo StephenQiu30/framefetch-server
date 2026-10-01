@@ -38,5 +38,3 @@ export function BasicLayout({ children }: { children: ReactNode }) {
     </NavigationHistoryProvider>
   );
 }
-
-export default BasicLayout;

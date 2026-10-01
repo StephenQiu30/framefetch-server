@@ -13,7 +13,7 @@
     <img src="https://img.shields.io/badge/Docker-Compose-2496ED.svg" alt="Docker Compose" />
   </p>
   <p>
-    <a href="#最新动态">最新动态</a> ·
+    <a href="#解析引擎">解析引擎</a> ·
     <a href="#快速开始">快速开始</a> ·
     <a href="#适用场景">适用场景</a> ·
     <a href="#产品能力">产品能力</a> ·
@@ -32,22 +32,11 @@
 
 帧取（FrameFetch）是一个面向创作者、内容研究者和开发者的开源媒体工作流。它把公开媒体链接、本地视频或剧本文档转换为可观察、可恢复的异步任务：解析来源、选择真实格式、隔离下载与校验、保存制品，并按需生成结构化 AI 分析报告。
 
-项目处理用户有权获取的 HTTP(S) 非 DRM 内容。R0 只执行匿名 L1；账号可访问的非加密内容按设计 17 在身份层重建后逐平台验收。加密媒体不解密、不取得内容密钥。
+项目处理用户有权获取的 HTTP(S) 非 DRM 内容。平台 Registry 独立声明 identity 与 content_scope；账号材料不扩张内容范围。加密媒体不解密、不取得内容密钥。
 
-## 最新动态
+## 解析引擎
 
-**解析引擎重建 R0**
-
-- 清退旧会话链、运营治理和解析计划／尝试账本，Runner 暂时仅执行匿名 L1 yt-dlp。
-- 保留单 Activity Temporal 解析、RabbitMQ 下载、受控出口与最终制品校验；平台完整文件状态以[设计 17](docs/design/17-解析引擎重建.md)的验收为准。
-- 公开样本移到 `backend/scripts/fixtures/fixed_public_cases.json`，供冷启动矩阵使用。身份层在 R4 重建。
-
-**[v0.2.0](https://github.com/StephenQiu30/video-server/releases/tag/v0.2.0) · 容器自持平台会话**
-
-- 媒体执行复用隔离 Runner 与受控出口，平台能力以真实文件验收为准。
-- Web 体验：头像上传与个人资料、统一的解析结果双栏卡片、可恢复错误提示与 shadcn 组件整理。
-
-从 v0.1.0 升级前请先阅读 [Release 说明](https://github.com/StephenQiu30/video-server/releases/tag/v0.2.0)中的不兼容变更。
+当前引擎通过 Registry 阶梯统一调用 HTTP 提取、证明准备与浏览器，使用受控出口和 Chrome 扩展身份来源。解析由单 Activity Temporal 工作流执行，下载由 RabbitMQ Worker 处理，最终制品经过完整性校验。组件接线不代表全部平台可用；实现状态、平台限制与真实完整文件证据只在[设计 17](docs/design/17-解析引擎重建.md)维护。
 
 ## 适用场景
 
@@ -141,17 +130,7 @@ test -f .env || cp .env.example .env
 docker compose up -d --build --wait --remove-orphans
 ```
 
-所有容器化后台循环（Outbox 投递、解析与下载、导入、报告发布）运行在一个 `worker` 容器中，使用一个 RabbitMQ 账号 `RABBITMQ_WORKER_USER` / `RABBITMQ_WORKER_PASS`，权限是原 outbox、download、import、report 四个角色的并集，不授予 `.*`。从旧的多 Worker 拓扑升级时，先创建该账号（生产环境替换账号名与密码，并写入环境文件）：
-
-```bash
-DL='(?:^video\.(events|events\.dead|download|download\.dead)$)|^video\.download-intent(?:\.dead)?$'
-rabbitmqctl add_user video-worker '<password>'
-rabbitmqctl set_permissions -p video video-worker "$DL" "$DL" "$DL|^video\.import$|^video\.analysis-report$"
-```
-
-`--remove-orphans` 会移除已退役的 `outbox`、`worker-*`、`provider-canary`、`provider-lease-redis` 与 `workspace-init` 容器，旧的 outbox／download／import／report 账号随后可删除。
-
-R0 不安装平台身份来源；当前仅执行匿名 L1。
+所有容器化后台循环（Outbox 投递、解析与下载、导入、报告发布）运行在一个 `worker` 容器中，使用 `RABBITMQ_WORKER_USER` / `RABBITMQ_WORKER_PASS`。该账号须对 `RABBITMQ_VHOST` 中的当前业务队列有受限的 configure/write/read 权限；队列职责见[设计 13](docs/design/13-可靠性与运行.md)。平台身份安装见下文。
 
 全新空库还没有登录账号时，在部署机终端执行一次首管理员初始化（需使用可连接 PostgreSQL 的 `DATABASE_URL`，密码交互输入，不进入命令行历史）：
 
@@ -175,7 +154,7 @@ createdb -O framefetch_temporal framefetch_temporal_visibility
 
 将同一个密码保存到部署环境文件的 `TEMPORAL_POSTGRES_PASSWORD`，文件权限设为 `0600`。`TEMPORAL_POSTGRES_USER` 默认 `framefetch_temporal`；容器使用已有的 `POSTGRES_HOST/PORT`。`temporal-schema` 使用对应版本官方工具幂等初始化，工作进程首次连接时幂等创建 `framefetch` 命名空间。普通 `docker compose up -d --build --wait` 重启复用配置与数据库，不重新生成密码。CLI／宿主 Worker 地址默认为 `127.0.0.1:17233`，容器内部为 `temporal:7233`；不会占用其他项目默认 7233 端口。
 
-首次切换前停止 API 接单并排空解析任务，再配套发布 API、worker 和 `migrate` 容器。R0 会删除旧治理表与解析管控列；先备份现有业务库，确认在途任务已排空。更新使用 `up --build`，不能只 `start` 旧版已退出的迁移容器。回退也需先排空新执行并恢复匹配的结构备份，不允许两套解析执行者并存。
+更新前停止 API 接单并排空解析任务，备份现有业务库，再配套发布 API、worker 和 `migrate` 容器。更新使用 `up --build`，不能只 `start` 旧版已退出的迁移容器。回退也需先排空新执行并恢复匹配的结构备份，不允许两套解析执行者并存。
 
 备份业务库时同步备份两个 Temporal 库，稳定环境密钥单独保管。该服务不设置公共访问，单节点停机期间任务暂停；端口健康不等于平台可以下载。Skill 分析同样由 Temporal 调度，宿主 AI Worker 连接 `TEMPORAL_ADDRESS`（默认 `127.0.0.1:17233`）而不再连接 RabbitMQ；报告发布、下载与导入长期使用 RabbitMQ，分工见[工作流设计](docs/design/15-工作流与平台下载目标.md)。
 
@@ -240,16 +219,9 @@ Compose 仅向 `session-runner` 注入宿主配置中相同的 `COOKIE_SOURCE_TO
 
 扩展使用 20 秒心跳、30 秒 alarm 和上限 30 秒的指数退避，并同步注册启动事件。保活机制依据 [Chrome WebSocket 文档](https://developer.chrome.com/docs/extensions/how-to/web-platform/websockets)；真实关闭 DevTools、睡眠唤醒与各类重启恢复仍须实测。
 
-R2 调用约定（不改动 `ladder.py` 或 3.8 的签名）：
+Runner 身份调用、RunContext 材料所有权和私有 tmpfs 清理统一见设计 17 第 3.4–3.8 节。真实 Chrome 保活、重连与需要身份的完整文件验收状态见第 8 节。
 
-- `await fetch_identity(site, task_id, deadline)` 返回 `IdentityMaterial(cookie_file, digest)`；失败统一抛出 `LayerFailure(identity_unavailable)`，不自动重试。deadline 传本次操作的原截止时间。
-- required 在每次解析／下载操作开始时获取；prefer 在解析开始时获取一次，不可用则匿名继续并保留失败子因；下载保持解析时的身份选择，身份消失或摘要变化返回 `context_changed`；none 永不调用。身份策略不扩张 content_scope。
-- 将材料及 `material.cookie_file` 放入不可变 `RunContext` 的副本（P1 的 `with_material`，未接入时可用 `dataclasses.replace`），执行层消费此副本。成功时写 `identity_used=true`、`identity_digest=material.digest`，并通过 `Resolution.run_context` 返回材料；下载前重新获取并核对摘要。
-- 失败／取消路径调用 `material.cleanup()`；成功路径由 service 持有到 HTTP／浏览器下载交接结束后再清理。不要在 `run_ladder` 返回之前销毁材料。直接使用 `fetch_identity` 时调用方承担相同的 finally 所有权。
-
-Cookie 文件位于 Linux tmpfs `/tmp/framefetch-identity/<operation>/cookies.txt`，目录 `0700`、文件 `0600`；Runner lifespan 接单前清空此目录。摘要仅使用必要账号 Cookie 的稳定 HMAC，忽略访客 Cookie 与过期时间续期。当前规则来源与必要字段就近维护在 `cookie_source.py`；红果、视频号字段未核对时返回 `identity_cookie_rules_unverified`。材料存在不证明账号有效或完整文件可用。真实 Chrome 重连、网络隔离、异常退出与需要身份的正例留待扩展加载后专项验收；阶段状态与实际证据见设计 17 第 8 节。
-
-升级前暂停接单并排空媒体操作，备份业务库，幂等执行当前 schema.sql，再配套重建 API、worker、session-runner 与前端。移除旧 broker 由 Compose 的 `--remove-orphans` 完成，不删除用户业务记录或制品。生产入口：
+升级前暂停接单并排空媒体操作，备份业务库，幂等执行当前 schema.sql，再配套重建 API、worker、session-runner 与前端。生产入口：
 
 ```bash
 docker compose --env-file .env.prod -f docker-compose-prod.yml up -d --build --wait --remove-orphans
@@ -329,8 +301,8 @@ flowchart LR
 ## 安全与合规边界
 
 - 只处理你拥有相应权利的内容，并遵守内容来源、所在地和部署环境适用的法律与平台规则。
-- R0 只执行匿名 L1，保留内容权益和非 DRM 校验；后续账号路径以设计 17 及真实完整文件为准。私网 URL、任意 yt-dlp 参数和 shell 输入始终禁止。
-- 普通业务请求不接收原始 Cookie。身份目标见设计 17 第 3.4 节，R0 不启用身份服务；设计 17 第 3.7 节的十二字段 ExecutionContext 不保存凭据。
+- 内容范围与平台身份按设计 17 独立声明；私网 URL、任意 yt-dlp 参数和 shell 输入始终禁止。
+- 普通业务请求不接收原始 Cookie。身份来源与传输见设计 17 第 3.4 节；设计 17 第 3.7 节的十二字段 ExecutionContext 不保存凭据。
 - Edge Agent 只能传输用户已合法取得并明确选择的明文文件，不能读取平台会话、拦截流量、提取密钥或转换受保护媒体。
 - 外部媒体访问必须经过阻断私网的出口代理；入口 URL 校验不能替代网络隔离。
 
@@ -338,7 +310,7 @@ flowchart LR
 
 ## 当前限制
 
-- 腾讯视频、优酷等账号平台的身份层待 R4 重建，完整文件须按设计 17 重新验收。
+- Chrome 扩展身份层已接线，登录平台完整文件与全平台矩阵仍须按设计 17 验收。
 - 项目仍在持续演进，目前提供自托管源码和 Compose 运行方式，不承诺官方 SaaS、公共演示站或服务可用性 SLA。
 - Provider 能力受来源页面和平台变化影响；平台名称不代表对所有内容、地区或账户权益都可用。
 - AI 分析依赖独立宿主机 Agent 或部署方配置的模型服务，关闭 AI 不影响下载和文档导入。
@@ -353,11 +325,13 @@ flowchart LR
 cd backend
 uv sync --frozen --dev
 uv run --frozen ruff check app tests
+uv run --frozen ruff format --check app tests
 uv run --frozen mypy --strict app
 uv run --frozen pytest -q
 
 cd ../frontend
 pnpm install --frozen-lockfile
+pnpm format:check
 pnpm lint
 pnpm test
 pnpm build

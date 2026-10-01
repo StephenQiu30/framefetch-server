@@ -1,4 +1,4 @@
-"""Registry capability snapshot without runtime admission or canary evidence."""
+"""Registry capability snapshot; file delivery is verified separately."""
 
 from app.services.provider_types import (
     ProviderIdentity,

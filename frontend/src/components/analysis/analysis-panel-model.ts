@@ -23,7 +23,7 @@ enum ScreenplayAnalysisErrorCode {
   InvalidModelOutput = 'invalid_model_output',
 }
 
-export enum AnalysisStageCode {
+enum AnalysisStageCode {
   Preparing = 'preparing',
   Analyzing = 'analyzing',
   Validating = 'validating',

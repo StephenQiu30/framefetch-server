@@ -9,7 +9,7 @@ export enum DownloadStatusCode {
   Cancelled = 'cancelled',
 }
 
-export enum DownloadStageCode {
+enum DownloadStageCode {
   Revalidating = 'revalidating',
   Downloading = 'downloading',
   Remuxing = 'remuxing',
@@ -17,7 +17,7 @@ export enum DownloadStageCode {
   Uploading = 'uploading',
 }
 
-export enum DownloadErrorCode {
+enum DownloadErrorCode {
   FormatUnavailable = 'format_unavailable',
   MediaValidationFailed = 'media_validation_failed',
   LoginRequired = 'login_required',
@@ -241,7 +241,7 @@ export function failureTitle(code: API.DownloadResponse['error_code']): string {
   return code ? (failureTitles[code] ?? '下载未完成') : '下载未完成';
 }
 
-export function failureStage(code: API.DownloadResponse['error_code']): string {
+function failureStage(code: API.DownloadResponse['error_code']): string {
   if (!code) return '需要恢复';
   return (
     failureStages[code] ??

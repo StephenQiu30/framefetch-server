@@ -33,12 +33,3 @@ def format_range(start_ms: int, end_ms: int) -> str:
 
 def format_shot_duration(start_ms: int, end_ms: int) -> str:
     return f"{(end_ms - start_ms) / 1_000:.1f}s"
-
-
-def format_size(size_bytes: int) -> str:
-    value = float(size_bytes)
-    for unit in ("B", "KB", "MB", "GB"):
-        if value < 1_024 or unit == "GB":
-            return f"{value:.0f} {unit}" if unit == "B" else f"{value:.1f} {unit}"
-        value /= 1_024
-    raise AssertionError("unreachable")
