@@ -7,6 +7,7 @@ from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 from email.utils import parsedate_to_datetime
 from enum import StrEnum
+from ipaddress import ip_address
 from typing import Literal, Self
 
 _CODE = re.compile(r"[a-z][a-z0-9_]{0,63}")
@@ -302,8 +303,38 @@ class ProviderFailure:
             "http_status",
             "returncode",
             "stderr_truncated",
+            "layer",
+            "client",
+            "egress_route",
+            "egress_revision",
+            "egress_class",
+            "egress_observed_ip",
+            "identity_used",
         }:
             raise ValueError("provider failure evidence contains unsupported facts")
+        for name in ("client", "egress_route", "egress_revision"):
+            value = self.evidence.get(name)
+            if name in self.evidence and (
+                not isinstance(value, str) or _REFERENCE.fullmatch(value) is None
+            ):
+                raise ValueError("provider failure execution reference is invalid")
+        if "layer" in self.evidence and self.evidence["layer"] != self.layer:
+            raise ValueError("provider failure evidence layer does not match")
+        if "egress_class" in self.evidence and self.evidence["egress_class"] not in {
+            "unknown",
+            "residential",
+            "datacenter",
+        }:
+            raise ValueError("provider failure evidence egress class is invalid")
+        observed_ip = self.evidence.get("egress_observed_ip")
+        if observed_ip is not None:
+            if not isinstance(observed_ip, str) or "%" in observed_ip:
+                raise ValueError("provider failure evidence IP is invalid")
+            ip_address(observed_ip)
+        if "identity_used" in self.evidence and not isinstance(
+            self.evidence["identity_used"], bool
+        ):
+            raise ValueError("provider failure evidence identity flag is invalid")
         if self.evidence.get("kind") != self.evidence_kind.value:
             raise ValueError("provider failure evidence kind does not match")
         cause = self.evidence.get("cause_code")

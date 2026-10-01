@@ -19,6 +19,8 @@ def probe() -> dict[str, object]:
                 "codec_name": "h264",
                 "width": 1920,
                 "height": 1080,
+                "avg_frame_rate": "30000/1001",
+                "color_transfer": "bt709",
             },
             {"codec_type": "audio", "codec_name": "aac"},
         ],
@@ -102,3 +104,26 @@ def test_short_preview_cannot_be_published_as_a_complete_episode() -> None:
         )
     assert caught.value.code == "invalid_artifact"
     assert caught.value.status == 422
+
+
+@pytest.mark.parametrize("rate", ["60000/1001", "0/0", "0/1", "garbage", None])
+def test_frame_rate_must_match_confirmed_semantic_plan(rate):
+    payload = probe()
+    payload["streams"][0]["avg_frame_rate"] = rate
+    with pytest.raises(RunnerFailure, match="invalid artifact"):
+        verify(payload)
+
+
+def test_dynamic_range_must_match_confirmed_semantic_plan():
+    payload = probe()
+    payload["streams"][0]["color_transfer"] = "smpte2084"
+    with pytest.raises(RunnerFailure, match="invalid artifact"):
+        verify(payload)
+
+
+def test_exactly_one_video_stream_and_real_ntsc_rate_are_required():
+    verify(probe())
+    payload = probe()
+    payload["streams"].append(dict(payload["streams"][0]))
+    with pytest.raises(RunnerFailure, match="invalid artifact"):
+        verify(payload)

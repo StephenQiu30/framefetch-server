@@ -74,7 +74,22 @@ class RunnerFailure(RuntimeError):
     def attributed_to(self, context: ExecutionContext | None) -> Self:
         if context is None:
             return self
-        self.failure = replace(self.failure, layer=context.resolved_layer)
+        # Inner layers know the exact client; outer attribution must not replace
+        # it with the initial/default client after an attempt has already failed.
+        evidence = dict(self.failure.evidence)
+        for name in (
+            "client",
+            "egress_route",
+            "egress_revision",
+            "egress_class",
+            "egress_observed_ip",
+            "identity_used",
+        ):
+            evidence.setdefault(name, getattr(context, name))
+        evidence["layer"] = context.resolved_layer
+        self.failure = replace(
+            self.failure, layer=context.resolved_layer, evidence=evidence
+        )
         return self
 
     def during(self, phase: FailurePhase) -> Self:

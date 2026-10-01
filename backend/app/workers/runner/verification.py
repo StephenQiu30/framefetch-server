@@ -2,9 +2,15 @@ from __future__ import annotations
 
 import math
 from dataclasses import dataclass
+from fractions import Fraction
 from typing import Any
 
-from app.services.downloads.rules.enums import AudioCodecFamily, Container
+from app.services.downloads.rules.enums import (
+    AudioCodecFamily,
+    Container,
+    DynamicRange,
+    FpsBucket,
+)
 from app.services.downloads.rules.formats import DownloadPlan
 from app.workers.runner.codecs import audio_codec_family, video_codec_family
 from app.workers.runner.errors import RunnerFailure
@@ -78,9 +84,23 @@ def verify_probe(
 
     video = [item for item in streams if _stream_type(item) == "video"]
     audio = [item for item in streams if _stream_type(item) == "audio"]
-    if not video:
+    if len(video) != 1:
         raise RunnerFailure("invalid_artifact", status=422)
     first_video = video[0]
+    try:
+        fps = float(Fraction(str(first_video.get("avg_frame_rate") or "0")))
+        bucket = FpsBucket.from_fps(fps)
+    except (ValueError, ZeroDivisionError, OverflowError) as exc:
+        raise RunnerFailure("invalid_artifact", status=422) from exc
+    if bucket is not plan.fps_bucket:
+        raise RunnerFailure("invalid_artifact", status=422)
+    dynamic_range = (
+        DynamicRange.HDR
+        if first_video.get("color_transfer") in {"smpte2084", "arib-std-b67"}
+        else DynamicRange.SDR
+    )
+    if dynamic_range is not plan.dynamic_range:
+        raise RunnerFailure("invalid_artifact", status=422)
     dimensions = (first_video.get("width"), first_video.get("height"))
     if dimensions != (plan.width, plan.height):
         raise RunnerFailure("invalid_artifact", status=422)

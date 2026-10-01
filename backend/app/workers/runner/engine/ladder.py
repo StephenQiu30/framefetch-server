@@ -88,6 +88,7 @@ async def run_ladder(
     failures: list[ProviderFailure] = []
     task_retries: set[FailureClass] = set()
     transferred = False
+    active_layer: ResolverLayer | None = None
 
     async def inject_identity() -> None:
         nonlocal ctx
@@ -161,11 +162,15 @@ async def run_ladder(
                 raise RunnerFailure("context_changed", status=409)
             for layer_key in layers:
                 layer = LAYER_TABLE[layer_key]()
+                active_layer = layer
                 layer_retried = False
                 while True:
                     context = replace(
                         context,
                         resolved_layer=layer_key,
+                        client=f"{profile.key}:browser"
+                        if layer_key is Layer.L3
+                        else profile.client_profile,
                         identity_used=ctx.identity is not None,
                         identity_digest=ctx.identity.digest if ctx.identity else None,
                     )
@@ -242,14 +247,29 @@ async def run_ladder(
                         await asyncio.sleep(delay)
             raise RunnerFailure("format_unavailable", status=409)
     except TimeoutError as exc:
+        active_client = getattr(active_layer, "active_client", None)
+        if active_client is not None:
+            context = replace(context, client=active_client)
         timeout_error = RunnerFailure(
             "download_timeout" if expected is not None else "inspection_timeout",
             status=504,
-        ).attributed_to(context)
+        ).attributed_to(
+            replace(
+                context,
+                identity_used=ctx.identity is not None,
+                identity_digest=ctx.identity.digest if ctx.identity else None,
+            )
+        )
         timeout_error.failures = (*failures, timeout_error.failure)
         raise timeout_error from exc
     except RunnerFailure as error:
-        error.attributed_to(context)
+        error.attributed_to(
+            replace(
+                context,
+                identity_used=ctx.identity is not None,
+                identity_digest=ctx.identity.digest if ctx.identity else None,
+            )
+        )
         if not failures or failures[-1] != error.failure:
             failures.append(error.failure)
         error.failure = replace(

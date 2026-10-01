@@ -79,6 +79,7 @@ CORE_PROVIDER_PROFILES: tuple[ProviderProfile, ...] = (
         status=ProviderSupportStatus.UNKNOWN,
         identity=ProviderIdentity.PREFER,
         cookie_domain_allowlist=frozenset({"bilibili.com"}),
+        probe_authenticated_media=True,
     ),
     challenged_provider(
         ProviderKey.DOUYIN,

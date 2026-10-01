@@ -34,7 +34,11 @@ class LayerFailure(RunnerFailure):
         result = cls(
             error.failure.failure_class,
             error.failure.gate,
-            error.failure.evidence,
+            {
+                key: value
+                for key, value in error.failure.evidence.items()
+                if key != "layer"
+            },
             error.failure.retry_after,
         )
         # Keep the precise code/status/phase and safe diagnostic facts.

@@ -529,3 +529,70 @@ def test_file_retrieval_has_a_total_time_bound(tmp_path):
     with pytest.raises(matrix.MatrixFailure, match="file_timeout"):
         api.file("id", tmp_path / "file", 10, timeout=0)
     api.client.close()
+
+
+def test_datacenter_does_not_disqualify_complete_youtube_delivery(
+    monkeypatch, tmp_path
+):
+    fake_commands(monkeypatch)
+    api = FakeApi(
+        context={
+            "provider_key": "youtube",
+            "identity_used": True,
+            "egress_class": "datacenter",
+        }
+    )
+    row = matrix.run_case(api, case(platform="youtube"), args(), tmp_path)
+    assert row["result"] == "passed"
+    assert row["execution_context"]["egress_class"] == "datacenter"
+
+
+@pytest.mark.parametrize(
+    "change",
+    [
+        {"kind": "ffprobe"},
+        {"kind": "yt_dlp"},
+        {"url": "file:///tmp/probe"},
+        {"checked_at": "yesterday"},
+        {"field": ""},
+        {"note": ""},
+    ],
+)
+def test_verified_evidence_requires_real_independent_source(change):
+    original = case().duration_source.model_dump()
+    with pytest.raises(ValidationError):
+        case(duration_source={**original, **change})
+
+
+def test_failed_intent_reports_actual_attempt_without_success_context(tmp_path):
+    api = FakeApi(failure="content_protected")
+    original = api.poll
+    facts = {
+        "layer": "L3",
+        "client": "test:browser",
+        "egress_route": "global_residential",
+        "egress_class": "datacenter",
+        "egress_observed_ip": "192.0.2.1",
+        "identity_used": True,
+    }
+
+    def poll(*args):
+        payload = original(*args)
+        payload["failure"]["evidence"].update(facts)
+        return payload
+
+    api.poll = poll
+    row = matrix.run_case(api, case(), args(), tmp_path)
+    assert row["execution_context"] is None
+    assert all(row["failure_attempt"][key] == value for key, value in facts.items())
+    matrix.write_report({"results": [row]}, tmp_path)
+    report = (tmp_path / "matrix.md").read_text()
+    assert "L3 / test:browser" in report and "datacenter / 192.0.2.1" in report
+
+
+@pytest.mark.parametrize("rate", [None, "0/0", "0/1", "garbage", "NaN"])
+def test_malformed_or_missing_rate_is_a_contract_failure(rate):
+    payload = probe()
+    payload["streams"][0]["avg_frame_rate"] = rate
+    with pytest.raises(matrix.MatrixFailure, match="frame_rate_missing"):
+        matrix.verify_probe(payload, case(), {**plan(), "fps_bucket": "fps_30"}, 3)

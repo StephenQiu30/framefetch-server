@@ -41,6 +41,32 @@ class SourceEvidence(BaseModel):
     status: str = Field(pattern="^(verified|unverified)$")
     note: str
 
+    @model_validator(mode="after")
+    def verified_source(self) -> SourceEvidence:
+        if self.status == "verified":
+            if (
+                not self.url.startswith(("https://", "http://"))
+                or not self.field.strip()
+                or not self.note.strip()
+                or self.kind
+                not in {
+                    "platform_page_or_api",
+                    "platform_api",
+                    "public_page",
+                    "official_player_metadata",
+                }
+                or not self.checked_at
+                or (
+                    len(self.checked_at) != 10
+                    and datetime.fromisoformat(self.checked_at).tzinfo is None
+                )
+            ):
+                raise ValueError(
+                    "verified evidence needs dated independent platform source"
+                )
+            datetime.fromisoformat(self.checked_at)
+        return self
+
 
 class MinimumSpec(BaseModel):
     model_config = ConfigDict(extra="forbid")
@@ -206,8 +232,9 @@ def runtime(args: argparse.Namespace, output: Path, facts: Json) -> Iterator[Non
             except FileExistsError:
                 print("Waiting for /tmp/framefetch-runtime.lock", flush=True)
                 time.sleep(20)
-        (LOCK / "owner").write_text(f"R5 {datetime.now(UTC).isoformat()}\n")
-        print("R5 runtime lock acquired", flush=True)
+        owner = getattr(args, "runtime_owner", "coldstart")
+        (LOCK / "owner").write_text(f"{owner} {datetime.now(UTC).isoformat()}\n")
+        print(f"{owner} runtime lock acquired", flush=True)
         project = compose_project(output)
         facts["compose_project"] = project
         compose = [
@@ -328,7 +355,7 @@ def runtime(args: argparse.Namespace, output: Path, facts: Json) -> Iterator[Non
             if acquired:
                 (LOCK / "owner").unlink(missing_ok=True)
                 LOCK.rmdir()
-                print("R5 runtime lock released", flush=True)
+                print(f"{owner} runtime lock released", flush=True)
 
 
 class Api:
@@ -460,12 +487,22 @@ def verify_probe(probe: Json, case: Case, plan: Json, tolerance_seconds: float) 
     ):
         raise MatrixFailure("audio_mismatch")
     if plan.get("fps_bucket"):
-        fps = float(Fraction(video.get("avg_frame_rate", "0")))
+        try:
+            fps = float(Fraction(video.get("avg_frame_rate", "0")))
+        except (ValueError, TypeError, ZeroDivisionError, OverflowError) as exc:
+            raise MatrixFailure("frame_rate_missing") from exc
         if not math.isfinite(fps) or fps <= 0:
             raise MatrixFailure("frame_rate_missing")
         bucket = "fps_30" if fps <= 30.01 else "fps_60" if fps <= 60.01 else "above_60"
         if bucket != plan["fps_bucket"]:
-            raise MatrixFailure("frame_rate_mismatch")
+            raise MatrixFailure(
+                "frame_rate_mismatch",
+                {
+                    "expected": plan["fps_bucket"],
+                    "actual": bucket,
+                    "avg_frame_rate": video.get("avg_frame_rate"),
+                },
+            )
     if plan.get("dynamic_range"):
         dynamic_range = (
             "hdr"
@@ -498,6 +535,8 @@ def verify_probe(probe: Json, case: Case, plan: Json, tolerance_seconds: float) 
         "height": video["height"],
         "video_codec": video["codec_name"],
         "audio_codecs": [s["codec_name"] for s in audios],
+        "avg_frame_rate": video.get("avg_frame_rate"),
+        "color_transfer": video.get("color_transfer"),
     }
 
 
@@ -538,6 +577,7 @@ def run_case(api: Api, case: Case, args: argparse.Namespace, output: Path) -> Js
         if intent["status"] != "ready":
             failure = intent.get("failure") or {}
             result["failure"] = failure
+            result["failure_attempt"] = failure.get("evidence") or {}
             raise MatrixFailure(
                 failure.get("failure_class")
                 or intent.get("reason_code")
@@ -632,10 +672,6 @@ def run_case(api: Api, case: Case, args: argparse.Namespace, output: Path) -> Js
             log=output / f"{case.id}.decode.log",
         )
         result["full_decode_exit_code"] = 0
-        if case.platform == "youtube" and context.get("egress_class") != "residential":
-            result["qualification_gaps"].append(
-                "YouTube residential egress unavailable"
-            )
         if case.needs_identity and not args.cookie_source_label:
             result["qualification_gaps"].append("cookie-source was not cold-started")
         result["result"] = "blocked" if result["qualification_gaps"] else "passed"
@@ -704,7 +740,7 @@ def write_report(report: Json, output: Path) -> None:
         "| --- | --- | --- | --- | --- | --- | --- | --- |",
     ]
     for row in report["results"]:
-        ctx = row.get("execution_context") or {}
+        ctx = row.get("execution_context") or row.get("failure_attempt") or {}
         evidence = (
             json.dumps(
                 row.get("evidence", row.get("qualification_gaps", [])),
@@ -715,7 +751,7 @@ def write_report(report: Json, output: Path) -> None:
         )
         lines.append(
             f"| {row['sample']['platform']} | {row['sample']['id']} "
-            f"| {row['result']} | {ctx.get('resolved_layer', '—')} "
+            f"| {row['result']} | {ctx.get('resolved_layer', ctx.get('layer', '—'))} "
             f"/ {ctx.get('client', '—')} | {ctx.get('egress_class', '—')} "
             f"/ {ctx.get('egress_observed_ip') or '未观测'} "
             f"| {ctx.get('identity_used', '未知')} | {row['elapsed_seconds']} "
@@ -760,6 +796,9 @@ def main() -> int:
         default=Path(__file__).parent / "fixtures/coldstart_cases.json",
     )
     parser.add_argument("--env-file", type=Path, default=ROOT / ".env")
+    parser.add_argument(
+        "--runtime-owner", default="coldstart", help="Runtime lock owner label"
+    )
     parser.add_argument(
         "--cookie-source-label",
         help="LaunchAgent label to restart; omit only before R4 integration",

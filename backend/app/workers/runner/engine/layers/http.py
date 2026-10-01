@@ -30,7 +30,9 @@ class HttpLayer:
                 )
             )
         except RunnerFailure as error:
-            raise LayerFailure.from_runner_failure(error) from error
+            raise LayerFailure.from_runner_failure(
+                error.attributed_to(source.execution_context)
+            ) from error
         return ResolvedMedia(
             **{item.name: getattr(media, item.name) for item in fields(media)},
             client=source.execution_context.client,

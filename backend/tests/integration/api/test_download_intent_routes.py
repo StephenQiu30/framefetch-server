@@ -392,3 +392,49 @@ async def test_expired_result_refresh_is_an_owned_202_on_the_same_intent(
         cancelled = await repo.get(item.id, TEST_USER.owner_hash)
         await repo.confirm_cancel(item.id, cancelled.generation, now=clock[0])
         assert (await client.post(path)).status_code == 409
+
+
+async def test_failed_intent_persists_and_projects_safe_attempt_evidence(
+    postgres_engine,
+):
+    from app.services.provider_failures import FailureEvidenceKind
+
+    facts = {
+        "kind": "upstream_response",
+        "layer": "L2",
+        "client": "youtube:tv",
+        "egress_route": "global_residential",
+        "egress_revision": "safe-revision",
+        "egress_class": "datacenter",
+        "egress_observed_ip": "192.0.2.1",
+        "identity_used": True,
+    }
+
+    class Failed(FakeRunner):
+        async def inspect(self, url, **kwargs):
+            raise MediaInspectionFailure(
+                failure=ProviderFailure.for_code(
+                    "network_blocked",
+                    layer="L2",
+                    evidence_kind=FailureEvidenceKind.UPSTREAM_RESPONSE,
+                    evidence=facts,
+                )
+            )
+
+    service, repo, executor, clock, _ = components(
+        postgres_engine, Failed(runner_result())
+    )
+    intent = await service.create(URL, TEST_USER.owner_hash, "failed-evidence")
+    await executor.execute(InspectionCommand(str(intent.id), 0))
+    persisted = await repo.get(intent.id, TEST_USER.owner_hash)
+    assert persisted.latest_failure.evidence == facts
+    app = create_app(Settings(app_env="test"))
+    app.state.services.intent_service = service
+    app.dependency_overrides[get_current_user] = lambda: TEST_USER
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=app), base_url="http://testserver"
+    ) as client:
+        response = await client.get(f"/api/download-intents/{intent.id}")
+    assert response.status_code == 200
+    assert response.json()["data"]["failure"]["evidence"] == facts
+    assert "execution_context" not in response.json()["data"]

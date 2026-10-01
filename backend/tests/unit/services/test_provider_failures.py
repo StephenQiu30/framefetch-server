@@ -105,3 +105,22 @@ def test_publish_failures_keep_stage_and_bounded_evidence():
 def test_canonical_codes_keep_their_recovery_boundary(code, scope, phase):
     failure = ProviderFailure.for_code(code)
     assert failure.scope == scope and failure.phase == phase
+
+
+@pytest.mark.parametrize(
+    "facts",
+    [
+        {"client": "https://secret.example/cookie"},
+        {"egress_observed_ip": "secret"},
+        {"identity_used": "true"},
+        {"identity_digest": "secret"},
+        {"cookie": "secret"},
+        {"egress_class": "anything"},
+        {"layer": "L2"},
+    ],
+)
+def test_failure_attempt_evidence_rejects_secrets_and_invalid_facts(facts):
+    with pytest.raises(ValueError):
+        ProviderFailure.for_code(
+            "network_blocked", evidence={"kind": "unknown", **facts}
+        )
