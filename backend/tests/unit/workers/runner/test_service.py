@@ -673,11 +673,7 @@ async def test_inspect_enriches_sparse_provider_formats_with_bounded_probe(
     supervisor = FixtureSupervisor(info)
     source_url = "https://www.douyin.com/video/7662711608636889201"
     configured = settings(tmp_path).model_copy(
-        update={
-            "runner_provider_egress_proxies": {
-                "douyin": "http://douyin-egress-proxy:3128"
-            }
-        }
+        update={"runner_egress_proxy": "http://douyin-egress-proxy:3128"}
     )
     service = MediaRunnerService(configured, supervisor=supervisor)
 

@@ -265,8 +265,9 @@ async def test_host_error_cannot_leak_arbitrary_cause(transport):
 
 @pytest.mark.parametrize("site", ["instagram", "bilibili"])
 @pytest.mark.parametrize("success", [True, False])
+@pytest.mark.parametrize("binding_mode", ["injected", "resolved"])
 async def test_ladder_uses_real_identity_transport_and_separate_media_binding(
-    transport, tmp_path, monkeypatch, site, success
+    transport, tmp_path, monkeypatch, site, success, binding_mode
 ):
     root, host_settings, state, requests = transport
     if site == "bilibili":
@@ -286,6 +287,22 @@ async def test_ladder_uses_real_identity_transport_and_separate_media_binding(
     binding = EgressBinding(
         "platform", "http://media-binding:3128", "revision", "residential", None
     )
+    if binding_mode == "resolved":
+        from app.workers.runner.engine.egress import resolve_egress
+
+        config = config.model_copy(
+            update={
+                "runner_egress_proxy": "http://domestic-media:3128",
+                "runner_global_egress_proxy": "http://global-media:3129",
+                "egress_cn_upstream_host": "cn-residential",
+                "egress_global_upstream_host": "global-residential",
+            }
+        )
+        binding = resolve_egress(request.profile, settings=config)
+        assert binding.route == (
+            "cn_residential" if site == "bilibili" else "global_residential"
+        )
+        assert binding.egress_class == "residential"
     assert binding.proxy_url != host_settings.runner_egress_proxy
     source = replace(
         source,

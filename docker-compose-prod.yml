@@ -47,7 +47,16 @@ x-runner-environment: &runner-environment
   APP_ENV: "${APP_ENV:-production}"
   RUNNER_HMAC_SECRET: "${RUNNER_HMAC_SECRET:-development-runner-secret-change-me}"
   RUNNER_EGRESS_PROXY: http://egress-proxy:3128
-  RUNNER_PROVIDER_EGRESS_PROXIES: "${RUNNER_PROVIDER_EGRESS_PROXIES:-{}}"
+  RUNNER_GLOBAL_EGRESS_PROXY: http://egress-proxy:3129
+  EGRESS_CN_UPSTREAM_HOST: "${EGRESS_CN_UPSTREAM_HOST:-}"
+  EGRESS_CN_UPSTREAM_PORT: "${EGRESS_CN_UPSTREAM_PORT:-7897}"
+  EGRESS_GLOBAL_UPSTREAM_HOST: "${EGRESS_GLOBAL_UPSTREAM_HOST:-}"
+  EGRESS_GLOBAL_UPSTREAM_PORT: "${EGRESS_GLOBAL_UPSTREAM_PORT:-7898}"
+  EGRESS_FALLBACK_UPSTREAM_HOST: "${EGRESS_FALLBACK_UPSTREAM_HOST:-host.docker.internal}"
+  EGRESS_FALLBACK_UPSTREAM_PORT: "${EGRESS_FALLBACK_UPSTREAM_PORT:-7897}"
+  EGRESS_NODE_REVISION: "${EGRESS_NODE_REVISION:-1}"
+  RUNNER_CN_EGRESS_IP_ECHO_URL: "${RUNNER_CN_EGRESS_IP_ECHO_URL:-https://ip.3322.net}"
+  RUNNER_GLOBAL_EGRESS_IP_ECHO_URL: "${RUNNER_GLOBAL_EGRESS_IP_ECHO_URL:-https://ipinfo.io/ip}"
   RUNNER_WORKSPACE_ROOT: /work
   RUNNER_MAX_ACTIVE_TASKS: "1"
   RUNNER_DOWNLOAD_TIMEOUT_SECONDS: "${RUNNER_DOWNLOAD_TIMEOUT_SECONDS:-7200}"
@@ -424,10 +433,19 @@ services:
     stop_grace_period: 35s
     tmpfs:
       - /tmp:rw,noexec,nosuid,size=16m,mode=1777
-    entrypoint: ["squid"]
-    command: ["-N", "-f", "/etc/squid/policy/squid.conf"]
+    entrypoint: ["/bin/sh", "/etc/squid/policy/start.sh"]
+    environment:
+      EGRESS_CN_UPSTREAM_HOST: "${EGRESS_CN_UPSTREAM_HOST:-}"
+      EGRESS_CN_UPSTREAM_PORT: "${EGRESS_CN_UPSTREAM_PORT:-7897}"
+      EGRESS_GLOBAL_UPSTREAM_HOST: "${EGRESS_GLOBAL_UPSTREAM_HOST:-}"
+      EGRESS_GLOBAL_UPSTREAM_PORT: "${EGRESS_GLOBAL_UPSTREAM_PORT:-7898}"
+      EGRESS_FALLBACK_UPSTREAM_HOST: "${EGRESS_FALLBACK_UPSTREAM_HOST:-host.docker.internal}"
+      EGRESS_FALLBACK_UPSTREAM_PORT: "${EGRESS_FALLBACK_UPSTREAM_PORT:-7897}"
     ports:
       - "127.0.0.1:${EGRESS_PROXY_HOST_PORT:-13128}:3128"
+      - "127.0.0.1:${EGRESS_GLOBAL_PROXY_HOST_PORT:-13129}:3129"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     volumes:
       # Mount the directory, not single files: a git checkout or editor save
       # replaces the file, and a single-file bind mount keeps the old inode.
@@ -502,8 +520,7 @@ services:
       retries: 3
       start_period: 10s
     environment:
-      RUNNER_EGRESS_PROXY: http://egress-proxy:3128
-      RUNNER_PROVIDER_EGRESS_PROXIES: "${RUNNER_PROVIDER_EGRESS_PROXIES:-{}}"
+      RUNNER_EGRESS_PROXY: http://egress-proxy:3129
     networks:
       - youtube_pot_net
     volumes:

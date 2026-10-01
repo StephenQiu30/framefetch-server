@@ -33,7 +33,7 @@ def test_loads_minimal_runner_environment(
 
     assert settings.hmac_secret_bytes == SECRET.encode()
     assert settings.runner_egress_proxy == "http://egress-proxy:3128"
-    assert settings.runner_provider_egress_proxies == {}
+    assert settings.runner_global_egress_proxy == "http://egress-proxy:3129"
     assert settings.runner_youtube_pot_provider_version == "bgutil-http-2.0.0"
     assert settings.runner_workspace_root == tmp_path.resolve()
     assert settings.runner_inspect_timeout_seconds == 120
@@ -69,17 +69,15 @@ def test_loads_credential_free_provider_proxy_overrides(
     monkeypatch.setenv("RUNNER_HMAC_SECRET", SECRET)
     monkeypatch.setenv("RUNNER_EGRESS_PROXY", "http://egress-proxy:3128")
     monkeypatch.setenv(
-        "RUNNER_PROVIDER_EGRESS_PROXIES",
-        '{"youtube":"http://youtube-egress:3128"}',
+        "RUNNER_GLOBAL_EGRESS_PROXY",
+        "http://youtube-egress:3128",
     )
     monkeypatch.setenv("RUNNER_WORKSPACE_ROOT", str(tmp_path))
 
     settings = RunnerSettings()
 
-    assert settings.egress_proxy_for("youtube") == "http://youtube-egress:3128"
-    assert settings.egress_proxy_for("bilibili") == "http://egress-proxy:3128"
-    assert settings.egress_route_for("youtube") == "provider:youtube"
-    assert settings.egress_route_for("bilibili") == "default"
+    assert settings.runner_global_egress_proxy == "http://youtube-egress:3128"
+    assert settings.runner_egress_proxy == "http://egress-proxy:3128"
 
 
 def test_anonymous_runner_can_use_service_managed_youtube_pot(
@@ -138,10 +136,40 @@ def test_rejects_provider_proxy_credentials(tmp_path: Path) -> None:
         RunnerSettings(
             runner_hmac_secret=SECRET,
             runner_egress_proxy="http://egress-proxy:3128",
-            runner_provider_egress_proxies={
-                "youtube": "http://user:secret@youtube-egress:3128"
-            },
+            runner_global_egress_proxy="http://user:secret@youtube-egress:3128",
             runner_workspace_root=tmp_path,
+        )
+
+
+def test_route_echo_urls_load_independent_environment_overrides(monkeypatch):
+    from app.workers.runner.settings import ProviderEgressSettings
+
+    monkeypatch.setenv("RUNNER_CN_EGRESS_IP_ECHO_URL", "https://cn.example/ip")
+    monkeypatch.setenv("RUNNER_GLOBAL_EGRESS_IP_ECHO_URL", "https://global.example/ip")
+    settings = ProviderEgressSettings(runner_egress_proxy="http://egress-proxy:3128")
+    assert settings.runner_cn_egress_ip_echo_url == "https://cn.example/ip"
+    assert settings.runner_global_egress_ip_echo_url == "https://global.example/ip"
+
+
+@pytest.mark.parametrize(
+    "field", ["runner_cn_egress_ip_echo_url", "runner_global_egress_ip_echo_url"]
+)
+@pytest.mark.parametrize(
+    "url",
+    [
+        "http://echo.example/ip",
+        "https:///ip",
+        "https://user:secret@echo.example/ip",
+        "https://echo.example/ip?token=secret",
+        "https://echo.example/ip#fragment",
+    ],
+)
+def test_route_echo_urls_reject_unsafe_configuration(field, url):
+    from app.workers.runner.settings import ProviderEgressSettings
+
+    with pytest.raises(ValidationError, match="egress IP echo URL is invalid"):
+        ProviderEgressSettings(
+            runner_egress_proxy="http://egress-proxy:3128", **{field: url}
         )
 
 
@@ -152,6 +180,6 @@ def test_rejects_provider_proxy_with_surrounding_whitespace(
         RunnerSettings(
             runner_hmac_secret=SECRET,
             runner_egress_proxy="http://egress-proxy:3128",
-            runner_provider_egress_proxies={"youtube": " http://youtube-egress:3128"},
+            runner_global_egress_proxy=" http://youtube-egress:3128",
             runner_workspace_root=tmp_path,
         )

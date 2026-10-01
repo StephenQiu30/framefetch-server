@@ -9,7 +9,11 @@ from types import SimpleNamespace
 
 import pytest
 from app.workers.runner import browser_runtime
-from app.workers.runner.browser_runtime import BrowserRuntime, leased_browser_cookies
+from app.workers.runner.browser_runtime import (
+    BrowserRuntime,
+    browser_revision,
+    leased_browser_cookies,
+)
 from app.workers.runner.engine import identity
 from app.workers.runner.errors import RunnerFailure
 from app.workers.runner.provider_registry import current_provider_registry
@@ -17,7 +21,7 @@ from app.workers.runner.settings import RunnerSettings
 from helpers import run_context
 
 
-def configured(tmp_path):
+def configured(tmp_path, **overrides):
     return RunnerSettings(
         runner_hmac_secret="r" * 32,
         runner_egress_proxy="http://egress-proxy:3128",
@@ -25,6 +29,7 @@ def configured(tmp_path):
         runner_browser_profile_root=tmp_path / "profiles",
         runner_browser_temp_root=tmp_path / "temporary",
         runner_browser_enabled=True,
+        **overrides,
     )
 
 
@@ -317,3 +322,111 @@ def test_native_anonymous_volume_and_private_task_tmpfs_ownership(filename):
             flags
         )
         assert any(flag.startswith("size=") for flag in flags)
+
+
+def test_browser_revision_changes_only_with_execution_configuration(tmp_path):
+    first = configured(tmp_path)
+    assert browser_revision(run_context(first, "youtube").egress) == browser_revision(
+        run_context(first, "youtube").egress
+    )
+    changed = first.model_copy(
+        update={"runner_global_egress_proxy": "http://other-route:3128"}
+    )
+    assert browser_revision(run_context(first, "youtube").egress) != browser_revision(
+        run_context(changed, "youtube").egress
+    )
+
+
+async def test_page_adapter_error_is_not_rewritten_as_browser_startup_failure(
+    tmp_path, chromium
+):
+    from app.services.provider_types import ExecutionContext
+
+    settings = configured(tmp_path)
+    runtime = BrowserRuntime(settings)
+    ctx = run_context(settings, "youtube")
+    execution_context = ExecutionContext(
+        provider_key="youtube",
+        registry_revision="test",
+        resolved_layer="L3",
+        client="test",
+        engine_revision="test",
+        egress_route=ctx.egress.route,
+        egress_revision=ctx.egress.revision,
+        egress_class=ctx.egress.egress_class,
+        egress_observed_ip=ctx.egress.observed_ip,
+        identity_used=False,
+        identity_digest=None,
+        browser_context_kind="anonymous",
+    )
+    failure = browser_runtime.Error("page structure changed")
+    with pytest.raises(browser_runtime.Error) as caught:
+        async with runtime.operation(profile("youtube"), execution_context, ctx=ctx):
+            raise failure
+    assert caught.value is failure
+    assert chromium.contexts[0].closed
+    await runtime.close()
+
+
+async def test_browser_launch_uses_injected_egress_only(tmp_path, chromium):
+    from app.workers.runner.engine.egress import EgressBinding
+
+    settings = configured(
+        tmp_path, runner_global_egress_proxy="http://youtube-egress:3129"
+    )
+    runtime = BrowserRuntime(settings)
+    ctx = replace(
+        run_context(settings, "youtube"),
+        egress=EgressBinding(
+            "global_residential",
+            "http://browser-binding:3128",
+            "injected-revision",
+            "residential",
+            None,
+        ),
+    )
+    assert ctx.egress.proxy_url not in (
+        settings.runner_egress_proxy,
+        settings.runner_global_egress_proxy,
+    )
+    operation = await runtime.acquire(profile("youtube"), ctx=ctx, task_id="injected")
+    assert operation.revision == browser_revision(ctx.egress)
+    assert chromium.calls[-1][1]["proxy"] == {"server": ctx.egress.proxy_url}
+    assert "--proxy-bypass-list=<-loopback>" in chromium.calls[-1][1]["args"]
+    assert chromium.calls[-1][1]["headless"] is True
+    assert chromium.calls[-1][1]["accept_downloads"] is True
+    await operation.close()
+    await runtime.close()
+
+
+async def test_route_upstream_revision_replaces_resident_browser(tmp_path, chromium):
+    settings = configured(tmp_path, egress_global_upstream_host="residential-first")
+    runtime = BrowserRuntime(settings)
+    ctx = run_context(settings, "youtube")
+    first = await runtime.acquire(profile("youtube"), ctx=ctx, task_id="first")
+    assert chromium.calls[-1][1]["proxy"] == {
+        "server": settings.runner_global_egress_proxy
+    }
+    await first.close()
+    assert not first.context.closed
+    # R1 upstream changes must invalidate R3's persistent context even when
+    # Squid's listener URL stays the same; observational IP alone does not.
+    observed_ctx = replace(ctx, egress=replace(ctx.egress, observed_ip="8.8.8.8"))
+    same = await runtime.acquire(profile("youtube"), ctx=observed_ctx, task_id="same")
+    assert same.context is first.context
+    await same.close()
+    changed = settings.model_copy(
+        update={"egress_global_upstream_host": "residential-next"}
+    )
+    new_ctx = run_context(changed, "youtube")
+    assert new_ctx.egress.proxy_url == ctx.egress.proxy_url
+    assert new_ctx.egress.revision != ctx.egress.revision
+    next_operation = await runtime.acquire(
+        profile("youtube"), ctx=new_ctx, task_id="next"
+    )
+    assert first.context.closed
+    assert next_operation.context is not first.context
+    assert next_operation.revision != first.revision
+    assert chromium.calls[-1][1]["proxy"] == {"server": new_ctx.egress.proxy_url}
+    await next_operation.close()
+    await runtime.close()
