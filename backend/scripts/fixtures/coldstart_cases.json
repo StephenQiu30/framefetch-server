@@ -565,22 +565,22 @@
     "kind": "positive",
     "content_scope": "public",
     "needs_identity": false,
-    "duration_seconds": null,
+    "duration_seconds": 12,
     "duration_source": {
-      "url": "https://www.reddit.com/r/videos/comments/6rrwyj/that_small_heart_attack/",
-      "kind": "platform_page_or_api",
-      "field": "unavailable",
-      "checked_at": null,
-      "status": "unverified",
-      "note": "旧公开投稿候选；匿名页面与 JSON API 当前 403，未以测试流反填时长。"
+      "url": "https://www.reddit.com/by_id/t3_6rrwyj.json?raw_json=1",
+      "kind": "platform_api",
+      "field": "data.children[0].data.media.reddit_video.duration",
+      "checked_at": "2026-10-01T14:17:13Z",
+      "status": "verified",
+      "note": "独立匿名官方帖子元数据完整时长；未从被测媒体或清单反填。来源 public、quarantine=false、未删除、转码 completed；原始脱敏响应见 artifacts/coldstart/r6-final-research-20261001/reddit-official-metadata-sanitized.json。"
     },
     "availability_source": {
-      "url": "https://www.reddit.com/r/videos/comments/6rrwyj/that_small_heart_attack/",
-      "kind": "public_page",
-      "field": "public_free_clear_media",
-      "checked_at": null,
-      "status": "unverified",
-      "note": "公开、免费、非 DRM 的完整媒体尚未独立证实；候选不能记通过。"
+      "url": "https://v.redd.it/zv89llsvexdz/HLSPlaylist.m3u8",
+      "kind": "platform_api",
+      "field": "anonymous public post; official DASH/HLS and all child playlists; clear complete video with AAC",
+      "checked_at": "2026-10-01T14:17:53+00:00",
+      "status": "verified",
+      "note": "官方帖子匿名可见且 subreddit_type=public；官方 DASH/HLS 及所有子清单匿名 HTTP 200，无 ContentProtection、pssh 或 EXT-X-KEY，子清单有 ENDLIST；HLS 352×640 与独立 AAC 音轨满足原最低规格。证据 artifacts/coldstart/r6-final-research-20261001/reddit-clear-manifests.json。"
     },
     "minimum_spec": {
       "width": 320,
@@ -591,27 +591,27 @@
   {
     "id": "reddit-positive-2",
     "platform": "reddit",
-    "url": "https://www.reddit.com/r/aww/comments/90bu6w/heat_index_was_110_degrees_so_we_offered_him_a/",
-    "expected_media_id": "gyh95hiqc0b11",
+    "url": "https://www.reddit.com/r/Unexpected/comments/1cl9h0u/the_insurance_claim_will_be_interesting/",
+    "expected_media_id": "a2mdj5d57qyc1",
     "kind": "positive",
     "content_scope": "public",
     "needs_identity": false,
-    "duration_seconds": null,
+    "duration_seconds": 53,
     "duration_source": {
-      "url": "https://www.reddit.com/r/aww/comments/90bu6w/heat_index_was_110_degrees_so_we_offered_him_a/",
-      "kind": "platform_page_or_api",
-      "field": "unavailable",
-      "checked_at": null,
-      "status": "unverified",
-      "note": "旧公开投稿候选；匿名页面与 JSON API 当前 403，未以测试流反填时长。"
+      "url": "https://www.reddit.com/by_id/t3_1cl9h0u.json?raw_json=1",
+      "kind": "platform_api",
+      "field": "data.children[0].data.media.reddit_video.duration",
+      "checked_at": "2026-10-01T14:17:13Z",
+      "status": "verified",
+      "note": "独立匿名官方帖子元数据完整时长；未从被测媒体或清单反填。来源 public、quarantine=false、未删除、转码 completed；原始脱敏响应见 artifacts/coldstart/r6-final-research-20261001/reddit-official-metadata-sanitized.json。"
     },
     "availability_source": {
-      "url": "https://www.reddit.com/r/aww/comments/90bu6w/heat_index_was_110_degrees_so_we_offered_him_a/",
-      "kind": "public_page",
-      "field": "public_free_clear_media",
-      "checked_at": null,
-      "status": "unverified",
-      "note": "公开、免费、非 DRM 的完整媒体尚未独立证实；候选不能记通过。"
+      "url": "https://v.redd.it/a2mdj5d57qyc1/HLSPlaylist.m3u8",
+      "kind": "platform_api",
+      "field": "anonymous public post; official DASH/HLS and all child playlists; clear complete video with AAC",
+      "checked_at": "2026-10-01T14:17:53+00:00",
+      "status": "verified",
+      "note": "官方帖子匿名可见且 subreddit_type=public；官方 DASH/HLS 及所有子清单匿名 HTTP 200，无 ContentProtection、pssh 或 EXT-X-KEY，子清单有 ENDLIST；含 AAC 音轨与满足原最低规格的视频。证据 artifacts/coldstart/r6-final-research-20261001/reddit-clear-manifests.json；原第二条为无音频 GIF，改用独立作品 a2mdj5d57qyc1，未降低规格。"
     },
     "minimum_spec": {
       "width": 320,
@@ -1273,27 +1273,27 @@
   {
     "id": "xiaohongshu-positive-2",
     "platform": "xiaohongshu",
-    "url": "https://www.xiaohongshu.com/explore/662a12ca000000001c00a9df",
-    "expected_media_id": "662a12ca000000001c00a9df",
+    "url": "https://xhslink.com/o/9VGFOyWcRKL",
+    "expected_media_id": "6a9ff972000000002601b8d7",
     "kind": "positive",
     "content_scope": "public",
-    "needs_identity": true,
-    "duration_seconds": null,
+    "needs_identity": false,
+    "duration_seconds": 81,
     "duration_source": {
-      "url": "https://www.xiaohongshu.com/explore/662a12ca000000001c00a9df",
+      "url": "https://xhslink.com/o/9VGFOyWcRKL",
       "kind": "platform_page_or_api",
-      "field": "unavailable",
-      "checked_at": null,
-      "status": "unverified",
-      "note": "待补充：需用户提供有效分享链接与独立完整时长；G2 检索公开索引、上游测试、学术引用及播客分享链接后，其他候选均返回 APP-only 或无有效视频元数据，未能找到第二条有效 xsec_token 视频分享链接。保留候选为 unverified，不计通过。"
+      "field": "note.video.capa.duration",
+      "checked_at": "2026-10-01T14:24:59.035256+00:00",
+      "status": "verified",
+      "note": "独立匿名官方分享页面返回目标 video 笔记，作品级 capa.duration=81 秒；不使用 stream.duration 或被测文件时长。证据 artifacts/coldstart/r6-final-research-20261001/xiaohongshu-second-official-evidence.json。"
     },
     "availability_source": {
-      "url": "https://www.xiaohongshu.com/explore/662a12ca000000001c00a9df",
+      "url": "https://xhslink.com/o/9VGFOyWcRKL",
       "kind": "public_page",
-      "field": "public_free_clear_media",
-      "checked_at": null,
-      "status": "unverified",
-      "note": "待补充：需用户提供带有效 xsec_token 的公开、免费、非 DRM 视频分享链接；G2 核查本候选返回 note_unavailable，尚无独立可访问证据，不计正例通过。"
+      "field": "anonymous hydrated video note; drmType=0; complete MP4 moov contains avc1/mp4a without protection boxes",
+      "checked_at": "2026-10-01T14:24:59.035256+00:00",
+      "status": "verified",
+      "note": "不注入 Cookie 的匿名请求经官方分享链接返回 HTTP 200 与目标完整视频笔记；drmType=0，官方 H264 MP4 Range 206 的完整 moov 含 avc1/mp4a，不含 pssh/encv/enca/sinf/tenc；官方规格 720×960、AAC 双声道满足原最低规格。替换原失效候选，未降低门槛。证据 artifacts/coldstart/r6-final-research-20261001/xiaohongshu-second-official-evidence.json。"
     },
     "minimum_spec": {
       "width": 320,
