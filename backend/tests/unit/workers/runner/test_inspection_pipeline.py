@@ -94,3 +94,54 @@ async def test_authenticated_x_resolves_missing_audio_without_forwarding_cookies
         assert any(stream.audio_codec_family == "aac" for stream in result.streams)
     finally:
         workspace.cleanup()
+
+
+async def test_bilibili_advertised_rate_is_probed_before_confirming_plan(tmp_path):
+    from app.workers.runner.metadata import build_download_options
+
+    probes = []
+
+    class Commands:
+        async def inspect(self, *_args, **_kwargs):
+            payload = split_media_info()
+            payload["formats"][0].update(
+                fps=30.303, url="https://media.example.com/video.mp4"
+            )
+            payload["formats"][1]["url"] = "https://media.example.com/audio.m4a"
+            return payload
+
+        async def probe_remote(self, url, path, *, referer, failure_context):
+            probes.append(url)
+            stream = (
+                {
+                    "codec_type": "video",
+                    "codec_name": "h264",
+                    "width": 1920,
+                    "height": 1080,
+                    "avg_frame_rate": "30000/1001",
+                }
+                if url.endswith(".mp4")
+                else {"codec_type": "audio", "codec_name": "aac"}
+            )
+            return {"format": {"duration": "30"}, "streams": [stream]}
+
+    workspace = WorkspaceManager(tmp_path / "runner").create("bilibili-fps")
+    try:
+        inspection = await RunnerInspectionPipeline(
+            settings(tmp_path), Commands()
+        ).inspect(
+            provider_request("https://www.bilibili.com/video/BV13x41117TL"),
+            workspace,
+            context=SimpleNamespace(
+                provider_key="bilibili", identity_used=False, resolved_layer="L1"
+            ),
+            cookie_jar=None,
+        )
+        assert len(probes) == 2
+        assert all(
+            plan.fps_bucket == "fps_30"
+            for plan in build_download_options(inspection.streams, max_options=10)
+        )
+        assert inspection.streams[0].fps == pytest.approx(29.97, rel=0.001)
+    finally:
+        workspace.cleanup()
