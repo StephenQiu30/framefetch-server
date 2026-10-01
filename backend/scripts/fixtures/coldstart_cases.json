@@ -1273,27 +1273,27 @@
   {
     "id": "xiaohongshu-positive-2",
     "platform": "xiaohongshu",
-    "url": "https://xhslink.com/o/9VGFOyWcRKL",
-    "expected_media_id": "6a9ff972000000002601b8d7",
+    "url": "https://xhslink.com/o/3kU5A2zGMi",
+    "expected_media_id": "6a882e3e0000000004034360",
     "kind": "positive",
     "content_scope": "public",
     "needs_identity": false,
-    "duration_seconds": null,
+    "duration_seconds": 38,
     "duration_source": {
-      "url": "https://xhslink.com/o/9VGFOyWcRKL",
+      "url": "https://xhslink.com/o/3kU5A2zGMi",
       "kind": "platform_page_or_api",
-      "field": "note.video.capa.duration",
-      "checked_at": "2026-10-01T14:24:59.035256+00:00",
-      "status": "unverified",
-      "note": "原先采用的 capa.duration=81 与同一预先取得官方快照的 media.video.duration=25、mediaV2.video.duration=25 冲突，笔记还含多张 LivePhoto，完整单作品时长不能核实；正式文件 24.009433 秒导致 full_duration_mismatch，失败保留在 artifacts/coldstart/r6-final-supplement-20261001。不从 stream 或被测文件反填时长。原始独立证据 artifacts/coldstart/r6-final-research-20261001/xiaohongshu-second-official-evidence.json。"
+      "field": "note.video.media.video.duration",
+      "checked_at": "2026-10-01T15:52:40.866431+00:00",
+      "status": "verified",
+      "note": "版权方 RustyLake_official 的标准单视频，匿名官方页面独立作品级 duration=38 秒，mediaV2 同为 38 秒；capa=37 与流 37.567 秒为取整差异，未以流或被测文件反填。仅一张封面、无 LivePhoto；版权方 Steam 公告提供分享链接。原冲突候选及失败保留在 artifacts/coldstart/r6-final-supplement-20261001；当前独立快照见 artifacts/coldstart/r6-final-research-20261001/xiaohongshu-fresh-standard-candidates-20261001.json。"
     },
     "availability_source": {
-      "url": "https://xhslink.com/o/9VGFOyWcRKL",
+      "url": "https://xhslink.com/o/3kU5A2zGMi",
       "kind": "public_page",
       "field": "anonymous hydrated video note; drmType=0; complete MP4 moov contains avc1/mp4a without protection boxes",
-      "checked_at": "2026-10-01T14:24:59.035256+00:00",
+      "checked_at": "2026-10-01T15:59:11.961447+00:00",
       "status": "verified",
-      "note": "不注入 Cookie 的匿名请求经官方分享链接返回 HTTP 200 与目标完整视频笔记；drmType=0，官方 H264 MP4 Range 206 的完整 moov 含 avc1/mp4a，不含 pssh/encv/enca/sinf/tenc；官方规格 720×960、AAC 双声道满足原最低规格。替换原失效候选，未降低门槛。证据 artifacts/coldstart/r6-final-research-20261001/xiaohongshu-second-official-evidence.json。"
+      "note": "匿名官方分享页返回 HTTP 200 与目标公开单视频，drmType=0；官方元数据提供的备用 CDN 返回 Range 206，完整 31716 字节 moov 含 avc1/mp4a，不含 pssh/encv/enca/sinf/tenc；720×1280、H264/AAC 双声道满足原最低规格。主 CDN 的匿名 HTTPS Range 为 403，备用官方 CDN 成功，未使用第三方解析或降低门槛。证据 artifacts/coldstart/r6-final-research-20261001/xiaohongshu-standard-replacement-clear-evidence.json。"
     },
     "minimum_spec": {
       "width": 320,
