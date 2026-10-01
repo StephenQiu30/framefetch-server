@@ -449,7 +449,7 @@ async def test_chrome_cookie_names_roundtrip_without_reencoding_values(source, n
         ({"expirationDate": -1}, "identity_cookie_expiry_invalid"),
         ({"secure": "true"}, "identity_cookie_flags_invalid"),
         ({"value": "\ud800"}, "identity_cookie_encoding_invalid"),
-        ({"domain": "outside.example"}, "identity_cookie_payload_invalid"),
+        ({"domain": "outside.example"}, "identity_cookie_domain_invalid"),
     ],
 )
 async def test_material_subcauses_are_fixed_and_never_include_values(

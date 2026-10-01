@@ -16,7 +16,11 @@ from datetime import UTC, datetime
 
 from app.core.config import CookieSourceSettings
 from app.workers.identity.extension import extension_origin
-from app.workers.runner.netscape_cookie import MAX_COOKIE_BYTES, parse_cookie_payload
+from app.workers.runner.netscape_cookie import (
+    MAX_COOKIE_BYTES,
+    is_allowed_domain,
+    parse_cookie_payload,
+)
 from app.workers.runner.provider_registry import provider_profile_for_key
 from fastapi import FastAPI, Request, WebSocket, WebSocketDisconnect
 from fastapi.exceptions import RequestValidationError
@@ -388,6 +392,13 @@ class CookieSource:
                 ]
                 if not selected:
                     raise IdentityUnavailable("credential_missing")
+                if any(
+                    not is_allowed_domain(
+                        cookie.domain, profile.cookie_domain_allowlist
+                    )
+                    for cookie in selected
+                ):
+                    raise IdentityUnavailable("identity_cookie_domain_invalid")
                 try:
                     payload = (
                         "# Netscape HTTP Cookie File\n"
