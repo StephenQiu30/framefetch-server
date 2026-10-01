@@ -134,14 +134,18 @@ export function ProviderStatusView() {
                   <TableCaption className="sr-only">平台能力状态</TableCaption>
                   <TableHeader>
                     <TableRow>
-                      <TableHead className="whitespace-normal">平台</TableHead>
-                      <TableHead className="whitespace-normal">
+                      <TableHead className="whitespace-normal lg:w-1/5">
+                        平台
+                      </TableHead>
+                      <TableHead className="hidden whitespace-normal lg:table-cell">
                         接入与身份
                       </TableHead>
-                      <TableHead className="hidden sm:table-cell">
+                      <TableHead className="hidden whitespace-normal lg:table-cell lg:w-1/4">
                         已登记能力
                       </TableHead>
-                      <TableHead>说明</TableHead>
+                      <TableHead className="hidden whitespace-normal lg:table-cell">
+                        说明
+                      </TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>

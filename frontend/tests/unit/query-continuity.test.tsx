@@ -90,6 +90,9 @@ describe('root query continuity', () => {
         />
       </QueryProvider>,
     );
+    expect(screen.getByText('正在加载可用的分析 Skill…')).toBeInTheDocument();
+    expect(screen.getByLabelText('分析 Skill')).toBeDisabled();
+    expect(screen.getByRole('button', { name: '开始 AI 分析' })).toBeDisabled();
     fireEvent.change(screen.getByLabelText('分析提示词'), {
       target: { value: '保留我输入的要求' },
     });
@@ -104,6 +107,77 @@ describe('root query continuity', () => {
     expect(start).toHaveBeenCalledWith(
       expect.objectContaining({ custom_prompt: '保留我输入的要求' }),
     );
+  });
+
+  it('shows an empty skill catalog and allows a refresh without losing the prompt', async () => {
+    runtime.skills
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce(analysisSkills);
+    const start = vi.fn();
+    render(
+      <QueryProvider>
+        <AnalysisConfigurator
+          inputId="test-input"
+          busy={false}
+          onStart={start}
+        />
+      </QueryProvider>,
+    );
+
+    await screen.findByText('当前没有可用的分析 Skill。');
+    expect(screen.queryByText('正在加载可用的分析 Skill…')).toBeNull();
+    expect(screen.getByLabelText('分析 Skill')).toBeDisabled();
+    const startButton = screen.getByRole('button', { name: '开始 AI 分析' });
+    expect(startButton).toBeDisabled();
+    fireEvent.click(startButton);
+    expect(start).not.toHaveBeenCalled();
+    fireEvent.change(screen.getByLabelText('分析提示词'), {
+      target: { value: '等待清单时保留的要求' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: '刷新清单' }));
+    await waitFor(() => expect(startButton).toBeEnabled());
+    expect(screen.getByLabelText('分析 Skill')).toHaveTextContent('导演拉片');
+    expect(screen.getByLabelText('分析提示词')).toHaveValue(
+      '等待清单时保留的要求',
+    );
+    fireEvent.click(startButton);
+    expect(start).toHaveBeenCalledWith(
+      expect.objectContaining({
+        skill_id: analysisSkills[0].id,
+        custom_prompt: '等待清单时保留的要求',
+      }),
+    );
+    expect(runtime.skills).toHaveBeenCalledTimes(2);
+  });
+
+  it('distinguishes a catalog error from a successful empty response and retries', async () => {
+    runtime.skills
+      .mockRejectedValueOnce(new Error('Network unavailable'))
+      .mockResolvedValueOnce(analysisSkills);
+    render(
+      <QueryProvider>
+        <AnalysisConfigurator
+          inputId="test-input"
+          busy={false}
+          onStart={vi.fn()}
+        />
+      </QueryProvider>,
+    );
+
+    await screen.findByText('Skill 清单加载失败。');
+    expect(screen.getByLabelText('分析 Skill')).toHaveTextContent(
+      '清单加载失败',
+    );
+    expect(screen.queryByText('当前没有可用的分析 Skill。')).toBeNull();
+    expect(screen.queryByText('正在加载可用的分析 Skill…')).toBeNull();
+    expect(screen.getByRole('button', { name: '开始 AI 分析' })).toBeDisabled();
+    fireEvent.click(screen.getByRole('button', { name: '重试' }));
+    await waitFor(() =>
+      expect(
+        screen.getByRole('button', { name: '开始 AI 分析' }),
+      ).toBeEnabled(),
+    );
+    expect(screen.queryByText('Skill 清单加载失败。')).toBeNull();
   });
 
   it('keeps loaded data across route unmounts without a loading flash', async () => {

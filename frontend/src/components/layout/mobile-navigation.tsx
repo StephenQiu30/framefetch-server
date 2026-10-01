@@ -51,23 +51,21 @@ export function MobileNavigation({
         </Button>
       </SheetTrigger>
       <SheetContent
-        className="overflow-y-auto overscroll-contain"
+        className="max-h-dvh overflow-hidden"
         onOpenAutoFocus={(event) => {
           event.preventDefault();
           navigationTitleRef.current?.focus();
         }}
         side="right"
       >
-        <SheetHeader>
+        <SheetHeader className="shrink-0">
           <SheetTitle ref={navigationTitleRef} tabIndex={-1}>
             导航
           </SheetTitle>
-          <SheetDescription>
-            从首页导入内容，或查看我的处理记录、下载记录与其他工作区内容。
-          </SheetDescription>
+          <SheetDescription>访问工作区、账户与使用资源。</SheetDescription>
         </SheetHeader>
         {user ? (
-          <div className="flex items-center gap-3 px-5 py-4">
+          <div className="flex shrink-0 items-center gap-3 px-4">
             <Avatar size="lg">
               <AvatarImage alt="" src={avatarUrl(user)} />
               <AvatarFallback>
@@ -84,14 +82,14 @@ export function MobileNavigation({
         ) : null}
         <NavigationMenu
           aria-label="移动导航"
-          className="block max-w-none flex-none"
+          className="block min-h-0 max-w-none flex-1 overflow-y-auto overscroll-contain"
           orientation="vertical"
           viewport={false}
         >
           <MobileNavigationItems pathname={pathname} user={user} />
         </NavigationMenu>
         {user ? (
-          <SheetFooter>
+          <SheetFooter className="shrink-0">
             <SheetClose asChild>
               <Button
                 className="w-full justify-start"

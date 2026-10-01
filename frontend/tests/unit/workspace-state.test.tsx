@@ -1,3 +1,4 @@
+import { useQueryClient } from '@tanstack/react-query';
 import {
   act,
   fireEvent,
@@ -10,6 +11,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import AnalysisConfigurator from '@/components/analysis/analysis-configurator';
 import DownloadHistoryView from '@/components/downloads/download-history-view';
 import { QueryProvider } from '@/components/layout/query-provider';
+import { privateQueryKey } from '@/lib/query-keys';
 import { advanceSessionGeneration } from '@/lib/session-events';
 import { analysisSkills } from '../fixtures/analysis-fixtures';
 
@@ -18,7 +20,12 @@ vi.mock('@/api/downloads', () => ({ getDownloadHistory: runtime.history }));
 vi.mock('@/api/analyses', () => ({ listAnalysisSkills: runtime.skills }));
 vi.mock('next/navigation', () => ({ useRouter: () => ({ push: vi.fn() }) }));
 
-function Routes() {
+function Routes({
+  onAnalysisStart = vi.fn(),
+}: {
+  onAnalysisStart?: (input: API.AnalysisRequest) => void;
+}) {
+  const queries = useQueryClient();
   const [visible, setVisible] = useState(true);
   const [inputId, setInputId] = useState('first');
   const [kind, setKind] = useState<API.AnalysisInputKind>('video');
@@ -26,6 +33,16 @@ function Routes() {
     <>
       <button type="button" onClick={() => setVisible(!visible)}>
         Navigate
+      </button>
+      <button
+        type="button"
+        onClick={() =>
+          void queries.invalidateQueries({
+            queryKey: privateQueryKey('analysis-skills', kind),
+          })
+        }
+      >
+        Refresh skills
       </button>
       <button
         type="button"
@@ -46,7 +63,7 @@ function Routes() {
             inputId={inputId}
             inputKind={kind}
             busy={false}
-            onStart={vi.fn()}
+            onStart={onAnalysisStart}
           />
         </>
       )}
@@ -156,6 +173,57 @@ describe('private workspace view state', () => {
     );
     expect(screen.getByLabelText('分析提示词')).not.toHaveValue(
       'private prompt',
+    );
+  });
+
+  it('requires a new choice when a saved skill disappears and keeps edited requirements', async () => {
+    const start = vi.fn();
+    runtime.skills
+      .mockResolvedValueOnce(analysisSkills)
+      .mockResolvedValue([analysisSkills[0]]);
+    render(
+      <QueryProvider>
+        <Routes onAnalysisStart={start} />
+      </QueryProvider>,
+    );
+    await waitFor(() =>
+      expect(screen.getByLabelText('分析 Skill')).toBeEnabled(),
+    );
+    fireEvent.click(screen.getByLabelText('分析 Skill'));
+    fireEvent.click(await screen.findByRole('option', { name: '高光提炼' }));
+    fireEvent.change(screen.getByLabelText('分析提示词'), {
+      target: { value: '保留我为这个素材编辑的要求' },
+    });
+    fireEvent.click(screen.getByText('Navigate'));
+    fireEvent.click(screen.getByText('Refresh skills'));
+    fireEvent.click(screen.getByText('Navigate'));
+
+    await screen.findByText('之前选择的 Skill 已不可用，请重新选择。');
+    expect(screen.getByLabelText('分析 Skill')).toHaveTextContent(
+      '请选择 Skill',
+    );
+    expect(screen.getByLabelText('分析 Skill')).not.toHaveTextContent(
+      '导演拉片',
+    );
+    expect(screen.getByLabelText('分析提示词')).toHaveValue(
+      '保留我为这个素材编辑的要求',
+    );
+    const startButton = screen.getByRole('button', { name: '开始 AI 分析' });
+    expect(startButton).toBeDisabled();
+    fireEvent.click(startButton);
+    expect(start).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByLabelText('分析 Skill'));
+    fireEvent.click(await screen.findByRole('option', { name: '导演拉片' }));
+    expect(startButton).toBeEnabled();
+    expect(screen.getByLabelText('分析提示词')).toHaveValue(
+      '保留我为这个素材编辑的要求',
+    );
+    fireEvent.click(startButton);
+    expect(start).toHaveBeenCalledWith(
+      expect.objectContaining({
+        skill_id: analysisSkills[0].id,
+        custom_prompt: '保留我为这个素材编辑的要求',
+      }),
     );
   });
 });

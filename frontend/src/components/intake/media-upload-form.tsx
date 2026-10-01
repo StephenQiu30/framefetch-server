@@ -1,7 +1,7 @@
 'use client';
 
 import { FileVideo, UploadSimple, X } from '@phosphor-icons/react';
-import { type FormEvent, useRef } from 'react';
+import { type FormEvent, useId, useRef } from 'react';
 
 import {
   IntakeControlRow,
@@ -49,9 +49,14 @@ export function MediaUploadForm({
   declaredOrigin: API.DeclaredOrigin;
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
+  const descriptionId = useId();
+  const canStart = !busy && !!file && !fileInvalid;
+  const describedBy = fileInvalid
+    ? `${descriptionId} download-workspace-error`
+    : descriptionId;
   const submit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    onStart();
+    if (canStart) onStart();
   };
 
   return (
@@ -64,9 +69,7 @@ export function MediaUploadForm({
       <IntakeControlRow data-invalid={fileInvalid || undefined}>
         <div className="min-w-0 flex-1">
           <IntakePickerButton
-            aria-describedby={
-              fileInvalid ? 'download-workspace-error' : undefined
-            }
+            aria-describedby={describedBy}
             aria-invalid={fileInvalid || undefined}
             className="w-full"
             disabled={busy}
@@ -82,7 +85,7 @@ export function MediaUploadForm({
             </span>
           </IntakePickerButton>
         </div>
-        <IntakeSubmitButton disabled={busy} size="xl">
+        <IntakeSubmitButton disabled={!canStart} size="xl">
           {busy ? (
             <Spinner aria-hidden data-icon="inline-start" />
           ) : (
@@ -91,8 +94,13 @@ export function MediaUploadForm({
           {busy ? '处理中…' : '上传视频'}
         </IntakeSubmitButton>
       </IntakeControlRow>
+      <p className="text-sm leading-6 text-muted-foreground" id={descriptionId}>
+        支持 MP4 格式。选择文件后，点击“上传视频”开始导入。
+      </p>
       <Input
         accept="video/mp4,.mp4"
+        aria-describedby={describedBy}
+        aria-invalid={fileInvalid || undefined}
         aria-label="选择本地 MP4 视频文件"
         className="hidden"
         disabled={busy}
@@ -118,7 +126,12 @@ export function MediaUploadForm({
                 {progress}%
               </span>
               {canCancel ? (
-                <Button onClick={onCancel} size="sm" variant="ghost">
+                <Button
+                  onClick={onCancel}
+                  size="sm"
+                  type="button"
+                  variant="ghost"
+                >
                   <X aria-hidden data-icon="inline-start" />
                   取消上传
                 </Button>

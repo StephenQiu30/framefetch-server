@@ -61,7 +61,7 @@ export default function AnalysisConfigurator({
     updateDraft({
       skillId: next.id,
       customPrompt:
-        !selected || prompt === selected.default_prompt
+        customPrompt === null || prompt === selected?.default_prompt
           ? next.default_prompt
           : prompt,
     });
@@ -89,10 +89,21 @@ export default function AnalysisConfigurator({
             value={selected?.id ?? ''}
           >
             <SelectTrigger
+              aria-describedby={controlId(inputKind, 'skill-description')}
               className="w-full"
               id={controlId(inputKind, 'skill')}
             >
-              <SelectValue />
+              <SelectValue
+                placeholder={
+                  catalog.error
+                    ? '清单加载失败'
+                    : catalog.loading
+                      ? '正在加载…'
+                      : catalog.skills.length === 0
+                        ? '暂无可用 Skill'
+                        : '请选择 Skill'
+                }
+              />
             </SelectTrigger>
             <SelectContent>
               <SelectGroup>
@@ -104,7 +115,7 @@ export default function AnalysisConfigurator({
               </SelectGroup>
             </SelectContent>
           </Select>
-          <FieldDescription>
+          <FieldDescription id={controlId(inputKind, 'skill-description')}>
             {catalog.error ? (
               <>
                 Skill 清单加载失败。{' '}
@@ -117,8 +128,24 @@ export default function AnalysisConfigurator({
                   重试
                 </Button>
               </>
+            ) : catalog.loading ? (
+              '正在加载可用的分析 Skill…'
+            ) : catalog.skills.length === 0 ? (
+              <>
+                当前没有可用的分析 Skill。{' '}
+                <Button
+                  className="align-baseline"
+                  onClick={() => void catalog.retry()}
+                  variant="link"
+                  type="button"
+                >
+                  刷新清单
+                </Button>
+              </>
+            ) : !selected ? (
+              '之前选择的 Skill 已不可用，请重新选择。'
             ) : (
-              (selected?.description ?? '正在加载可用的分析 Skill…')
+              selected.description
             )}
           </FieldDescription>
         </Field>

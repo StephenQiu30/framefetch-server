@@ -235,8 +235,21 @@ describe('BasicLayout', () => {
       ).toBeInTheDocument();
       expect(screen.queryAllByRole('menuitemradio')).toHaveLength(0);
       expect(
-        screen.queryByRole('button', { name: '打开导航菜单' }),
-      ).not.toBeInTheDocument();
+        screen.getByRole('button', { name: '打开导航菜单' }),
+      ).toBeInTheDocument();
+      fireEvent.click(screen.getByRole('button', { name: '打开导航菜单' }));
+      const mobileNavigation = screen.getByRole('navigation', {
+        name: '移动导航',
+      });
+      expect(
+        within(mobileNavigation).getByRole('link', { name: '使用指南' }),
+      ).toHaveAttribute('href', expect.stringMatching(/^\/guide\/?$/));
+      expect(
+        within(mobileNavigation).getByRole('link', { name: '自托管部署' }),
+      ).toHaveAttribute('href', expect.stringMatching(/^\/self-hosting\/?$/));
+      expect(
+        within(mobileNavigation).getByRole('link', { name: '关于' }),
+      ).toHaveAttribute('href', expect.stringMatching(/^\/about\/?$/));
     },
   );
 

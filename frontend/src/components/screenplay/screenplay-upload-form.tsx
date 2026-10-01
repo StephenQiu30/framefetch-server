@@ -1,7 +1,7 @@
 'use client';
 
 import { FileText, UploadSimple, X } from '@phosphor-icons/react';
-import { type FormEvent, useRef } from 'react';
+import { type FormEvent, useId, useRef } from 'react';
 
 import {
   IntakeControlRow,
@@ -54,17 +54,21 @@ export function ScreenplayUploadForm({
   progress,
 }: ScreenplayUploadFormProps) {
   const inputRef = useRef<HTMLInputElement>(null);
+  const descriptionId = useId();
   const workspace = layout === 'workspace';
+  const canStart = !busy && !!file && !fileInvalid;
+  const describedBy =
+    error && fileInvalid
+      ? `${descriptionId} screenplay-upload-error`
+      : descriptionId;
   const submit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    onStart();
+    if (canStart) onStart();
   };
 
   const filePicker = (
     <IntakePickerButton
-      aria-describedby={
-        error && fileInvalid ? 'screenplay-upload-error' : undefined
-      }
+      aria-describedby={describedBy}
       aria-invalid={fileInvalid || undefined}
       className="w-full"
       disabled={busy}
@@ -85,6 +89,8 @@ export function ScreenplayUploadForm({
   const fileInput = (
     <Input
       accept=".docx,.pdf,.txt,.md,.markdown,.fountain"
+      aria-describedby={describedBy}
+      aria-invalid={fileInvalid || undefined}
       aria-label="选择剧本文档文件"
       className="hidden"
       disabled={busy}
@@ -97,9 +103,19 @@ export function ScreenplayUploadForm({
       type="file"
     />
   );
-  const fileDescription = file
-    ? formatFileSize(file.size)
-    : 'DOCX、PDF、TXT、Markdown 或 Fountain';
+  const fileDescription = (
+    <p
+      className={
+        workspace
+          ? 'text-sm leading-6 text-muted-foreground'
+          : 'mt-2 text-xs text-muted-foreground'
+      }
+      id={descriptionId}
+    >
+      支持 DOCX、PDF、TXT、Markdown 和 Fountain
+      格式。选择文件后，点击“上传剧本”开始导入。
+    </p>
+  );
   const errorNotice = error ? (
     <FeedbackNotice
       presentation={fileInvalid ? 'inline' : 'toast'}
@@ -140,7 +156,7 @@ export function ScreenplayUploadForm({
       <Form className="flex flex-col gap-4" onSubmit={submit}>
         <IntakeControlRow data-invalid={fileInvalid || undefined}>
           <div className="min-w-0 flex-1">{filePicker}</div>
-          <IntakeSubmitButton disabled={busy}>
+          <IntakeSubmitButton disabled={!canStart}>
             {busy ? (
               <Spinner aria-hidden data-icon="inline-start" />
             ) : (
@@ -149,6 +165,7 @@ export function ScreenplayUploadForm({
             {busy ? '处理中…' : '上传剧本'}
           </IntakeSubmitButton>
         </IntakeControlRow>
+        {fileDescription}
         {fileInput}
         {errorNotice}
         {progressNotice}
@@ -160,10 +177,10 @@ export function ScreenplayUploadForm({
     <Form className="mt-2" onSubmit={submit}>
       {filePicker}
       {fileInput}
-      <p className="mt-2 text-xs text-muted-foreground">{fileDescription}</p>
+      {fileDescription}
       {errorNotice}
       {progressNotice}
-      <Button className="mt-5 w-full" disabled={busy} type="submit">
+      <Button className="mt-5 w-full" disabled={!canStart} type="submit">
         {busy ? (
           <Spinner aria-hidden data-icon="inline-start" />
         ) : (

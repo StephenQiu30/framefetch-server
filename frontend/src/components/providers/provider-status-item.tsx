@@ -35,30 +35,42 @@ export function ProviderStatusItem({
     : provider.status === 'unsupported'
       ? '不支持'
       : '未开放';
+  const identity = IDENTITY_LABELS[provider.identity];
+  const capabilitySummary = capabilities || '暂无已登记能力';
+  const description = provider.user_action || '下载结果以实际文件为准。';
 
   return (
     <TableRow>
-      <TableHead className="max-w-0 text-left whitespace-normal" scope="row">
-        <div className="flex min-w-0 flex-col gap-1">
+      <TableHead
+        className="text-left whitespace-normal [overflow-wrap:anywhere] lg:w-1/5"
+        scope="row"
+      >
+        <div className="flex min-w-0 flex-col gap-1.5">
           <h2 className="font-medium">{provider.display_name}</h2>
-          <p className="truncate font-mono text-xs font-normal text-muted-foreground">
+          <p className="font-mono text-xs font-normal text-muted-foreground">
             {provider.key}
           </p>
+          <div className="mt-1 flex flex-col gap-2 font-normal lg:hidden">
+            <div className="flex flex-wrap items-center gap-2">
+              <Badge variant="secondary">{status}</Badge>
+              <span className="text-xs text-muted-foreground">{identity}</span>
+            </div>
+            <p className="text-xs text-muted-foreground">{capabilitySummary}</p>
+            <p className="text-sm">{description}</p>
+          </div>
         </div>
       </TableHead>
-      <TableCell className="whitespace-normal">
+      <TableCell className="hidden whitespace-normal lg:table-cell">
         <div className="flex flex-col items-start gap-1.5">
           <Badge variant="secondary">{status}</Badge>
-          <p className="text-xs text-muted-foreground">
-            {IDENTITY_LABELS[provider.identity]}
-          </p>
+          <p className="text-xs text-muted-foreground">{identity}</p>
         </div>
       </TableCell>
-      <TableCell className="hidden whitespace-normal sm:table-cell">
-        {capabilities || '暂无已登记能力'}
+      <TableCell className="hidden whitespace-normal lg:table-cell lg:w-1/4">
+        {capabilitySummary}
       </TableCell>
-      <TableCell className="whitespace-normal">
-        {provider.user_action || '下载结果以实际文件为准。'}
+      <TableCell className="hidden whitespace-normal [overflow-wrap:anywhere] lg:table-cell">
+        {description}
       </TableCell>
     </TableRow>
   );

@@ -45,6 +45,46 @@ describe('provider status page', () => {
     expect(screen.queryByText(/验证记录|完整分析|真实下载|会话/)).toBeNull();
   });
 
+  it('keeps platform names and every status detail in the narrow-screen record', async () => {
+    const data = statuses();
+    data.items[0].user_action = '请在 Chrome 登录后重新解析。';
+    runtime.listProviders.mockResolvedValue(data);
+    render(<ProviderStatusView />);
+
+    const table = await screen.findByRole('table', { name: '平台能力状态' });
+    const heading = within(table).getByRole('heading', { name: 'YouTube' });
+    const primaryCell = heading.closest('th');
+    expect(primaryCell).toHaveAttribute('scope', 'row');
+    expect(primaryCell).not.toHaveClass('max-w-0');
+    expect(primaryCell).toHaveTextContent('youtube');
+    expect(primaryCell).toHaveTextContent('已接入');
+    expect(primaryCell).toHaveTextContent('优先登录');
+    expect(primaryCell).toHaveTextContent('单视频 · 音视频分离');
+    expect(primaryCell).toHaveTextContent('请在 Chrome 登录后重新解析。');
+    expect(primaryCell?.querySelector('p')).not.toHaveClass('truncate');
+
+    for (const cell of heading.closest('tr')?.querySelectorAll('td') ?? []) {
+      expect(cell).toHaveClass('hidden', 'lg:table-cell');
+    }
+    const columns = table.querySelectorAll('thead th');
+    expect(columns).toHaveLength(4);
+    for (const column of Array.from(columns).slice(1)) {
+      expect(column).toHaveClass('hidden', 'lg:table-cell');
+    }
+  });
+
+  it('includes the fallback capability and guidance in a compact platform record', async () => {
+    const data = statuses();
+    data.items[0].capabilities = [];
+    runtime.listProviders.mockResolvedValue(data);
+    render(<ProviderStatusView />);
+
+    const heading = await screen.findByRole('heading', { name: 'YouTube' });
+    const primaryCell = heading.closest('th');
+    expect(primaryCell).toHaveTextContent('暂无已登记能力');
+    expect(primaryCell).toHaveTextContent('下载结果以实际文件为准。');
+  });
+
   it('supports loading, safe error and retry states', async () => {
     const first = deferred<API.ProviderListResponse>();
     const refresh = deferred<API.ProviderListResponse>();

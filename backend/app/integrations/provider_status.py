@@ -23,7 +23,7 @@ def configured_provider_statuses() -> tuple[ProviderStatusView, ...]:
             user_action=(
                 "支持公开文章视频发现与显式选择。"
                 if profile.key == ProviderKey.WECHAT_OFFICIAL_ACCOUNT_ARTICLE
-                else "身份层将在 R4 重建；当前仅执行匿名解析，受限内容可导入已有文件。"
+                else "此平台需要登录身份；无法解析时，可导入已有文件。"
                 if profile.identity is ProviderIdentity.REQUIRED
                 else None
             ),

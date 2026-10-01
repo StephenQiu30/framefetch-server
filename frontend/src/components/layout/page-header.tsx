@@ -31,7 +31,7 @@ export function PageHeader({
       <div className="min-w-0 max-w-4xl">
         <h1
           className={cn(
-            'text-balance font-semibold tracking-tight',
+            'text-balance font-medium tracking-tight',
             size === 'lg' ? 'text-3xl sm:text-4xl' : 'text-2xl sm:text-3xl',
             titleClassName,
           )}

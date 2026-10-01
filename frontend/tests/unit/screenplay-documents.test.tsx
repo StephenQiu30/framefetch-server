@@ -1,4 +1,4 @@
-import { fireEvent, screen, waitFor } from '@testing-library/react';
+import { fireEvent, screen, waitFor, within } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { MissingScreenplayDocument } from '@/components/screenplay/missing-screenplay-document';
 import ScreenplayDocumentDetailView from '@/components/screenplay/screenplay-document-detail-view';
@@ -51,8 +51,8 @@ describe('screenplay documents', () => {
     expect(screen.getByRole('status')).toHaveTextContent('正在加载剧本文档');
     expect(await screen.findByText('午夜来客')).toBeInTheDocument();
     expect(screen.getByText('Fountain')).toBeInTheDocument();
-    expect(screen.getByText(/2 个场景/)).toBeInTheDocument();
-    expect(screen.getByText(/中英混合/)).toBeInTheDocument();
+    expect(screen.getAllByText(/2 个场景/)).toHaveLength(2);
+    expect(screen.getByText('中英混合')).toBeInTheDocument();
     expect(screen.getByRole('link', { name: '午夜来客' })).toHaveAttribute(
       'href',
       '/documents/detail?documentId=99999999-9999-4999-8999-999999999999',
@@ -74,6 +74,33 @@ describe('screenplay documents', () => {
     await waitFor(() =>
       expect(runtime.listScreenplayDocuments).toHaveBeenCalledTimes(3),
     );
+  });
+
+  it('keeps document format, content statistics, language and update time in the compact primary cell', async () => {
+    runtime.listScreenplayDocuments.mockResolvedValue(screenplayDocumentPage());
+    render(<ScreenplayDocumentsView />);
+
+    const title = await screen.findByRole('link', { name: '午夜来客' });
+    const primaryCell = title.closest('td');
+    expect(primaryCell).not.toBeNull();
+    const cell = within(primaryCell as HTMLTableCellElement);
+    const compactFormat = cell.getByText('Fountain · 中英混合');
+    const compactMetadata = compactFormat.parentElement;
+
+    expect(compactMetadata).toHaveClass('sm:hidden');
+    expect(cell.getByText('2 个场景 · 1,280 个字符')).toBeInTheDocument();
+    expect(cell.getByText(/^更新于/u)).toHaveAttribute(
+      'datetime',
+      '2026-08-14T10:02:00Z',
+    );
+    expect(cell.getByText('midnight-visitor.fountain')).toBeInTheDocument();
+    expect(cell.getByText('可以核对')).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: '删除剧本文档' }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole('checkbox', { name: '选择 午夜来客' }),
+    ).toBeInTheDocument();
   });
 
   it('keeps the empty and request-failure states actionable', async () => {
@@ -103,8 +130,12 @@ describe('screenplay documents', () => {
     expect(
       screen.getByRole('heading', { name: '上传剧本文档' }),
     ).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: '上传剧本' }));
-    expect(screen.getByText('请先选择一份剧本文档。')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '上传剧本' })).toBeDisabled();
+    expect(
+      screen.getByRole('button', { name: '选择剧本文档' }),
+    ).toHaveAccessibleDescription(
+      '支持 DOCX、PDF、TXT、Markdown 和 Fountain 格式。选择文件后，点击“上传剧本”开始导入。',
+    );
   });
 
   it('deletes an owned screenplay from the document list', async () => {

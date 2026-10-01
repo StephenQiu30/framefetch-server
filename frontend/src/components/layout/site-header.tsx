@@ -1,6 +1,5 @@
 'use client';
 
-import { GithubLogoIcon } from '@phosphor-icons/react';
 import { cn } from 'cn';
 import Image from 'next/image';
 import Link from 'next/link';
@@ -14,7 +13,7 @@ import { MobileNavigation } from '@/components/layout/mobile-navigation';
 import { ThemeToggle } from '@/components/layout/theme-toggle';
 import { Button } from '@/components/ui/button';
 import { displayError } from '@/lib/request-error';
-import { isPublicPage, siteConfig } from '@/lib/site';
+import { isPublicPage } from '@/lib/site';
 
 function BrandLink({ className }: { className?: string }) {
   return (
@@ -76,7 +75,7 @@ function SiteHeader() {
   }
 
   return (
-    <header className="sticky top-0 z-40 bg-card">
+    <header className="sticky top-0 z-40 border-b bg-background">
       <div className="content-shell flex h-16 items-center justify-between">
         <BrandLink />
         <div
@@ -108,30 +107,21 @@ function SiteHeader() {
                       publicView={publicView}
                     />
                   </div>
-                  {publicView ? (
-                    <Button
-                      asChild
-                      className="lg:hidden"
-                      size="icon-lg"
-                      variant="ghost"
-                    >
-                      <a
-                        aria-label="在 GitHub 查看 FrameFetch 源代码"
-                        href={siteConfig.repositoryUrl}
-                        rel="noreferrer"
-                        target="_blank"
-                      >
-                        <GithubLogoIcon aria-hidden />
-                      </a>
-                    </Button>
-                  ) : null}
                   <ThemeToggle />
                   {publicView ? (
-                    <div className="flex shrink-0 justify-end">
-                      <Button asChild size="sm">
-                        <Link href="/user/login">登录</Link>
-                      </Button>
-                    </div>
+                    <>
+                      <div className="flex shrink-0 justify-end">
+                        <Button asChild size="sm">
+                          <Link href="/user/login">登录</Link>
+                        </Button>
+                      </div>
+                      <MobileNavigation
+                        loading={loading}
+                        onSignOut={handleSignOut}
+                        pathname={pathname}
+                        signingOut={signingOut}
+                      />
+                    </>
                   ) : (
                     <>
                       <div className="hidden lg:block">

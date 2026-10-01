@@ -47,6 +47,7 @@ describe('DownloadWorkspace local video upload', () => {
     selectUploadTab();
     const fileInput = screen.getByLabelText('选择本地 MP4 视频文件');
     expect(fileInput).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '上传视频' })).toBeDisabled();
 
     fireEvent.change(fileInput, {
       target: {
@@ -63,7 +64,7 @@ describe('DownloadWorkspace local video upload', () => {
     );
 
     expect(screen.queryByRole('checkbox')).not.toBeInTheDocument();
-    expect(screen.getByRole('button', { name: '上传视频' })).toBeEnabled();
+    expect(screen.getByRole('button', { name: '上传视频' })).toBeDisabled();
   });
 
   it('uploads a local MP4 and opens the shared download detail route', async () => {
@@ -85,6 +86,7 @@ describe('DownloadWorkspace local video upload', () => {
     fireEvent.change(screen.getByLabelText('选择本地 MP4 视频文件'), {
       target: { files: [file] },
     });
+    expect(screen.getByRole('button', { name: '上传视频' })).toBeEnabled();
     fireEvent.click(screen.getByRole('button', { name: '上传视频' }));
 
     await waitFor(() => expect(importRequest).toHaveBeenCalledOnce());
@@ -101,8 +103,9 @@ describe('DownloadWorkspace local video upload', () => {
     const cancelRequest = vi
       .spyOn(mediaImportRuntime, 'cancelLocalVideoImport')
       .mockResolvedValue(undefined);
-    vi.spyOn(mediaImportRuntime, 'importLocalVideo').mockImplementation(
-      async (_file, _key, observer, signal) => {
+    const importRequest = vi
+      .spyOn(mediaImportRuntime, 'importLocalVideo')
+      .mockImplementation(async (_file, _key, observer, signal) => {
         observer.onResource('import-to-cancel');
         observer.onPhase('uploading');
         return await new Promise((_, reject) => {
@@ -110,8 +113,7 @@ describe('DownloadWorkspace local video upload', () => {
             reject(new DOMException('aborted', 'AbortError')),
           );
         });
-      },
-    );
+      });
     renderWorkspace();
 
     selectUploadTab();
@@ -126,6 +128,7 @@ describe('DownloadWorkspace local video upload', () => {
     await waitFor(() =>
       expect(cancelRequest).toHaveBeenCalledWith('import-to-cancel'),
     );
+    expect(importRequest).toHaveBeenCalledOnce();
     await waitFor(() =>
       expect(toastInfo).toHaveBeenCalledWith(
         '上传已取消，未完成的分片将由服务端清理。',
