@@ -95,11 +95,9 @@ class CookieSourceSettings(BaseSettings):
     )
     cookie_source_token: SecretStr
     cookie_source_port: int = Field(default=19101, ge=1024, le=65535)
-    cookie_source_chrome_profile: Path = Path(
-        "~/Library/Application Support/Google/Chrome/Default"
-    )
+    cookie_source_pairing_key: SecretStr
 
-    @field_validator("cookie_source_token")
+    @field_validator("cookie_source_token", "cookie_source_pairing_key")
     @classmethod
     def validate_token(cls, value: SecretStr) -> SecretStr:
         token = value.get_secret_value()
@@ -112,11 +110,6 @@ class CookieSourceSettings(BaseSettings):
                 "cookie-source token requires 32 ASCII bytes without spaces"
             )
         return value
-
-    @field_validator("cookie_source_chrome_profile")
-    @classmethod
-    def profile_path(cls, value: Path) -> Path:
-        return value.expanduser().resolve()
 
 
 def _default_analysis_workspace_root() -> Path:

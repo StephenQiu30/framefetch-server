@@ -202,7 +202,7 @@ async def test_none_direct_fetch_and_expired_deadline_never_call_host(transport)
 async def test_optional_identity_failure_is_terminal_and_not_retried(
     transport, monkeypatch
 ):
-    fetched = AsyncMock(side_effect=identity._unavailable("keychain_locked"))
+    fetched = AsyncMock(side_effect=identity._unavailable("extension_disconnected"))
     monkeypatch.setattr(identity, "fetch_identity", fetched)
     async with identity.IdentityOperation("bilibili", "task", deadline()) as operation:
         with pytest.raises(LayerFailure):
@@ -227,3 +227,24 @@ async def test_runner_lifespan_clears_tmpfs_before_accepting_requests(transport)
     app = create_app(settings)
     async with app.router.lifespan_context(app):
         assert list(root.iterdir()) == []
+
+
+@pytest.mark.parametrize(
+    "cause", ["extension_disconnected", "extension_timeout", "credential_missing"]
+)
+async def test_extension_subcause_survives_runner_failure(transport, cause):
+    root, _, state, _ = transport
+    state.status, state.reply = 503, {"cause": cause}
+    with pytest.raises(LayerFailure) as error:
+        await identity.fetch_identity("instagram", "task", deadline())
+    assert error.value.failure.evidence["cause_code"] == cause
+    assert list(root.iterdir()) == []
+
+
+async def test_host_error_cannot_leak_arbitrary_cause(transport):
+    root, _, state, _ = transport
+    state.status, state.reply = 503, {"cause": "private-material"}
+    with pytest.raises(LayerFailure) as error:
+        await identity.fetch_identity("instagram", "task", deadline())
+    assert error.value.failure.evidence["cause_code"] == "cookie_source_rejected"
+    assert list(root.iterdir()) == []

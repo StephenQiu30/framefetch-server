@@ -181,19 +181,24 @@ createdb -O framefetch_temporal framefetch_temporal_visibility
 
 ### 平台身份与升级
 
-宿主身份服务位于 `backend/app/workers/identity/`，遵循[设计 17 第 3.4 节](docs/design/17-解析引擎重建.md#34-身份层)。LaunchAgent 在 `gui/<uid>` 的 Aqua 会话中运行，只监听 `127.0.0.1:19101` 的 `POST /cookies`。每次请求（含缓存命中）查询固定登录钥匙串的锁状态；启动和每次秘密读取前完整解析同一钥匙串目标 service/account 的 ACL。失败时禁用身份层；固定 `/usr/bin/security` 命令显式指定登录钥匙串绝对路径，秘密读取最长 5 秒，超时终止进程组。密钥仅缓存于进程内存，停止时释放引用，不保证 Python 对象可靠清零。锁预检、ACL 校验和读取不是原子授权，仍可能出现窗口，风险以设计 17 为准。
+宿主身份服务位于 `backend/app/workers/identity/`，扩展源码位于 `browser-extension/`，遵循[设计 17 第 3.4 节](docs/design/17-解析引擎重建.md#34-身份层)。普通用户 LaunchAgent 只监听 `127.0.0.1:19101`；WebSocket `/extension` 校验固定扩展 Origin 与双向 HMAC，`POST /cookies` 只接受 Runner Bearer。扩展先认证服务端，再按服务端声明的 Registry 域读取当前普通 Profile 的非分区 Cookie；服务端每次请求实时取材料，5 秒超时，不保存 Cookie。无扩展连接、超时、无必要账号材料分别返回 `extension_disconnected`、`extension_timeout`、`credential_missing`，Runner 保留这些子因。
 
-从 `backend/` 使用独立的宿主 `0600` 配置文件，包含随机 `COOKIE_SOURCE_TOKEN`（至少 32 个无空白 ASCII 字节）与固定 `COOKIE_SOURCE_CHROME_PROFILE`；默认 Profile 为当前用户的 Chrome `Default`。当前 Compose 与 squid 配套固定使用端口 `19101`，调整端口须同时修改精确代理 ACL。不要覆盖现有环境文件或提交身份配置。
+从 `backend/` 执行一次安装：
 
 ```bash
-uv run python -m app.workers.identity.cli doctor --env-file /绝对路径/identity.env
-uv run python -m app.workers.identity.cli install --env-file /绝对路径/identity.env
-uv run python -m app.workers.identity.cli uninstall
+uv run python -m app.workers.identity.cli install
+uv run python -m app.workers.identity.cli check
 ```
 
-`install` 注册 Aqua LaunchAgent，不覆盖已有安装；`uninstall` 停止并移除它。`doctor` 输出锁状态、ACL 布尔摘要、会话属性与必要账号 Cookie 的存在性，不输出密钥、Cookie 值或 dump 元数据。材料存在不代表账号有效，也不证明平台完整文件验收。
+`install` 生成独立配对密钥和 Runner Bearer，宿主配置默认为 `~/Library/Application Support/FrameFetch/identity.env`；也可用 `--env-file /绝对路径/identity.env` 指定已有独立 `0600` 身份配置，保留其 Runner Bearer 并补建配对密钥。已有安装升级会保留两份密钥，只更新扩展文件并重启本服务。不得把项目 `.env` 当作宿主身份配置。安装注册 `gui/<uid>` 下的普通 LaunchAgent，不要求 Aqua 会话、钥匙串授权或完全磁盘访问；服务运行依赖此 checkout 的 backend 与 uv 虚拟环境，不要删除它们。`uninstall` 停止并移除本 LaunchAgent，保留配对文件以便重装。
 
-Compose 仅向 `session-runner` 注入 `COOKIE_SOURCE_TOKEN`。可通过调用 Compose 的进程环境提供与宿主配置相同的令牌；API、worker、egress-proxy 和 bgutil 不持有它。Runner 身份客户端显式使用 `RUNNER_EGRESS_PROXY`，不使用环境代理、不跟随重定向；squid 只放行 `POST host.docker.internal:19101/cookies`，并强制直连，不经过 Clash／住宅上游。其他宿主端口、私网和 IP 字面量仍被拒绝。身份传输是明文 HTTP，egress-proxy 属于敏感信任组件，配置关闭访问日志、缓存和响应体存储。
+在 Chrome 120+ 打开 `chrome://extensions`，开启开发者模式，选择“加载已解压的扩展程序”，目录为 **`~/Library/Application Support/FrameFetch/extension/`**（install 输出绝对路径）。只加载到日常登录的一个普通 Profile；扩展只申请 cookies、alarms 及 Registry required/optional 平台 Cookie 域和本机 WebSocket 权限。加载后 `check` 报告实际连接状态与扩展版本；Chrome 停止或尚未加载时显示 `connected=false`、`version=null`。升级后在扩展页点一次“重新加载”，或重启 Chrome。
+
+扩展目录 `0700`、文件 `0600`，密钥和端口仅写入安装目录的 `config.js`，不在 web_accessible_resources 中、不进入源码或发行包。**信任边界**：这些权限隔离网页与其他用户，不能隔离同一 macOS 用户下可读写该目录的恶意进程。扩展和 cookie-source 共享配对密钥；Runner Bearer 是另一份独立凭据，不能复用。双向 HMAC 防止无配对密钥的本机假服务骗取 Cookie；不会赋予内容导出权利或扩大 content_scope。
+
+Compose 仅向 `session-runner` 注入宿主配置中相同的 `COOKIE_SOURCE_TOKEN`（通过调用 Compose 的进程环境传入，禁止输出令牌）；API、worker、egress-proxy 和 bgutil 不持有它。不要把整个宿主身份配置作为容器 env_file，配对密钥不进入任何容器。当前 Compose 与 squid 配套固定使用端口 `19101`，调整端口须同步精确代理 ACL。Runner 身份客户端显式使用受控代理，不使用环境代理、不跟随重定向；squid 只放行 `POST host.docker.internal:19101/cookies`，强制直连，不经过 Clash／住宅上游。其他宿主端口、私网和 IP 字面量仍被拒绝。身份传输是明文 HTTP，egress-proxy 属于敏感信任组件，配置关闭访问日志、缓存和响应体存储。安装只启动宿主服务，Runner 的配套令牌与重建按运行时锁协议在真实验收时确认。
+
+扩展使用 20 秒心跳、30 秒 alarm 和上限 30 秒的指数退避，并同步注册启动事件。保活机制依据 [Chrome WebSocket 文档](https://developer.chrome.com/docs/extensions/how-to/web-platform/websockets)；真实关闭 DevTools、睡眠唤醒与各类重启恢复仍须实测。
 
 R2 调用约定（不改动 `ladder.py` 或 3.8 的签名）：
 
@@ -202,7 +207,7 @@ R2 调用约定（不改动 `ladder.py` 或 3.8 的签名）：
 - 将材料及 `material.cookie_file` 放入不可变 `RunContext` 的副本（P1 的 `with_material`，未接入时可用 `dataclasses.replace`），执行层消费此副本。成功时写 `identity_used=true`、`identity_digest=material.digest`，并通过 `Resolution.run_context` 返回材料；下载前重新获取并核对摘要。
 - 失败／取消路径调用 `material.cleanup()`；成功路径由 service 持有到 HTTP／浏览器下载交接结束后再清理。不要在 `run_ladder` 返回之前销毁材料。`IdentityOperation` 仅适用于上下文范围覆盖完整操作及交接的调用者：进入时处理 required，`after_login_required()` 处理 optional 一次，退出统一清理；只包围阶梯函数会提前删除成功材料。直接使用 `fetch_identity` 时调用方承担相同的 finally 所有权。
 
-Cookie 文件位于 Linux tmpfs `/tmp/framefetch-identity/<operation>/cookies.txt`，目录 `0700`、文件 `0600`；Runner lifespan 接单前清空此目录。摘要仅使用必要账号 Cookie 的稳定 HMAC，忽略访客 Cookie 与过期时间续期。当前已核对 Instagram 和腾讯视频必要字段；Aqua LaunchAgent 若受系统权限限制无法枚举 Chrome Profile，会明确返回 `chrome_profile_unreadable`，不能据此判定未登录。其他平台字段尚未核对时返回 `identity_cookie_rules_unverified`。R4 专项验证不代表登录平台已经端到端可用，需要身份的正例待 R2 阶梯接入后执行，阶段状态与实际证据见设计 17 第 8 节。
+Cookie 文件位于 Linux tmpfs `/tmp/framefetch-identity/<operation>/cookies.txt`，目录 `0700`、文件 `0600`；Runner lifespan 接单前清空此目录。摘要仅使用必要账号 Cookie 的稳定 HMAC，忽略访客 Cookie 与过期时间续期。当前保留已核对的 Instagram 和腾讯视频必要字段；其他平台字段未核对时返回 `identity_cookie_rules_unverified`。材料存在不证明账号有效或完整文件可用。真实 Chrome 重连、网络隔离、异常退出与需要身份的正例留待扩展加载后专项验收；阶段状态与实际证据见设计 17 第 8 节。
 
 升级前暂停接单并排空媒体操作，备份业务库，幂等执行当前 schema.sql，再配套重建 API、worker、session-runner 与前端。移除旧 broker 由 Compose 的 `--remove-orphans` 完成，不删除用户业务记录或制品。生产入口：
 

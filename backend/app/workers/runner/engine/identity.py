@@ -135,14 +135,24 @@ async def fetch_identity(
                         "deadline": deadline.isoformat(),
                     },
                 ) as response:
-                    if response.status_code != 200:
-                        raise _unavailable("cookie_source_rejected")
                     payload = bytearray()
                     async for chunk in response.aiter_bytes():
                         payload.extend(chunk)
                         if len(payload) > 2 * MAX_COOKIE_BYTES:
                             raise _unavailable("identity_material_invalid")
         result = json.loads(payload)
+        if response.status_code != 200:
+            cause = result.get("cause") if isinstance(result, dict) else None
+            if cause not in {
+                "extension_disconnected",
+                "extension_timeout",
+                "credential_missing",
+                "identity_cookie_rules_unverified",
+                "identity_not_declared",
+                "identity_deadline_invalid",
+            }:
+                cause = "cookie_source_rejected"
+            raise _unavailable(cause)
         if set(result) != {"cookies", "digest"} or not re.fullmatch(
             r"[a-f0-9]{64}", result["digest"]
         ):

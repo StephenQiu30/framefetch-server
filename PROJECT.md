@@ -22,7 +22,7 @@
 
 媒体获取面向单人自部署使用。解析引擎的唯一架构与实施状态见[设计 17](docs/design/17-解析引擎重建.md)。Registry 统一声明 identity，R0 仅运行匿名 L1；保留 yt-dlp、可信插件、bgutil、browser_runtime、受控出口和完整文件校验。浏览器阶梯与宿主身份层分别在 R3、R4 重建，不能把保留组件写成已启用的能力。
 
-ExecutionContext 按设计 17 第 3.7 节保存十二字段非敏感摘要，贯穿 Runner、检查结果、意图、下载 Job 与制品元数据。解析由单 resolve Activity 在 120 秒期限内执行，不维护策略计划、操作级尝试账本、预算账本、会话代或运营准入；意图的业务 generation/fence、持久截止时间与取消确认保留。下载保留 RabbitMQ lease/heartbeat，Skill 分析保留模型步骤日志与未知调用保护；PostgreSQL 是业务事实来源。R4 的身份读取、钥匙串锁状态与图形会话加固验证、Runner 独占 Bearer 鉴权的 `POST /cookies`、操作私有 tmpfs 清理及真实验收统一遵循设计 17 第 3.4 节，不在工程规范另定义协议。
+ExecutionContext 按设计 17 第 3.7 节保存十二字段非敏感摘要，贯穿 Runner、检查结果、意图、下载 Job 与制品元数据。解析由单 resolve Activity 在 120 秒期限内执行，不维护策略计划、操作级尝试账本、预算账本、会话代或运营准入；意图的业务 generation/fence、持久截止时间与取消确认保留。下载保留 RabbitMQ lease/heartbeat，Skill 分析保留模型步骤日志与未知调用保护；PostgreSQL 是业务事实来源。R4 的 Chrome 扩展身份读取、双向 HMAC 认证、Runner 独占 Bearer 鉴权的 `POST /cookies`、操作私有 tmpfs 清理及真实验收统一遵循设计 17 第 3.4 节，不在工程规范另定义协议。
 
 ## 2. FastAPI 工程结构
 
@@ -85,7 +85,7 @@ backend/
 │       ├── outbox/                 Outbox 投递组件
 │       ├── report/                 报告发布组件
 │       ├── dlq/                    死信管理
-│       ├── session/                宿主 Chrome Cookie 纯读取模块（身份服务在 R4 重建）
+│       ├── identity/               宿主 Chrome 扩展 WebSocket 桥与安装入口
 │       └── runner/                 独立隔离的媒体执行进程与可信插件
 ├── sql/schema.sql                 当前态数据库结构
 ├── egress/                        Runner 出口代理配置
@@ -96,7 +96,7 @@ backend/
 
 - `provider_catalog_*.py` 声明各平台的 Profile（访问策略、URL、能力、账号要求、引擎参数）；`provider_registry.py` 统一识别与启动校验；`provider_factories.py` 仅复用确有重复的声明默认值。
 - 平台差异采用函数策略与可信提取器，复用 inspection/download Pipeline；不复制 Workflow、路由、Repository 或生成器框架。Registry 分别声明 identity 与 content_scope，ExecutionContext 保存设计 17 第 3.7 节的十二字段摘要。
-- `_secure_file.py` 管理私有临时文件，`netscape_cookie.py` 保留 Cookie 格式规则；`session/chrome_profile_reader.py` 与 `macos_keychain.py` 只保留纯读取职责，R0 不提供身份服务。
+- `_secure_file.py` 管理私有临时文件，`netscape_cookie.py` 保留 Cookie 格式规则；`identity/` 只通过 Chrome 扩展实时取得 Cookie，不读取 Profile、不访问钥匙串、不解密 Cookie。
 
 所有 Python 包有 `__init__.py`；该文件默认不重导出业务符号。调用方直接从定义模块导入，避免用数百行导出清单再建一层公共接口。models 的导入注册用于建立完整 SQLAlchemy metadata，属于必要的初始化行为。
 

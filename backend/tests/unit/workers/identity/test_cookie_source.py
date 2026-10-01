@@ -1,128 +1,132 @@
-"""Bearer refusal, current lock preflight, cache and stable account digest."""
+"""Live bridge authentication, request ownership and account digest."""
 
+import asyncio
 import base64
+from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, datetime, timedelta
-from unittest.mock import AsyncMock, Mock
+from unittest.mock import AsyncMock
 
 import httpx
 import pytest
 from app.core.config import CookieSourceSettings
-from app.workers.identity import cookie_source as module
-from app.workers.identity.keychain import KeychainUnavailable
-from pydantic import SecretStr
+from app.workers.identity import cookie_source as m
+from app.workers.identity.extension import extension_origin
+from app.workers.runner.errors import RunnerFailure
+from fastapi.testclient import TestClient
+from pydantic import SecretStr, ValidationError
+from starlette.websockets import WebSocketDisconnect
 
-TOKEN = "unit-test-only-identity-token-32-bytes"
-COOKIES = (
-    b"# Netscape HTTP Cookie File\n"
-    b".instagram.com\tTRUE\t/\tTRUE\t0\tsessionid\tsynthetic\n"
+TOKEN = "synthetic-test-only-runner-token-32-bytes"
+KEY = "synthetic-test-only-pairing-key-32-bytes"
+COOKIE = dict(
+    domain=".instagram.com",
+    path="/",
+    name="sessionid",
+    value="synthetic",
+    secure=True,
+    httpOnly=True,
+    hostOnly=False,
 )
 
 
+def settings():
+    return CookieSourceSettings(
+        cookie_source_token=SecretStr(TOKEN), cookie_source_pairing_key=SecretStr(KEY)
+    )
+
+
 def request(site="instagram", seconds=30):
-    return module.CookieRequest(
+    return m.CookieRequest(
         site=site,
-        task_id="task-id",
+        task_id="task",
         deadline=datetime.now(UTC) + timedelta(seconds=seconds),
     )
 
 
+def authenticate(ws, key=KEY):
+    challenge = ws.receive_json()
+    own = "a" * 64
+    ws.send_json(dict(type="challenge", nonce=own))
+    assert ws.receive_json() == dict(
+        type="proof", proof=m.proof(KEY, "server", own, challenge["nonce"])
+    )
+    ws.send_json(
+        dict(
+            type="proof",
+            proof=m.proof(key, "extension", challenge["nonce"], own),
+            version="1.0.0",
+        )
+    )
+    return ws.receive_json()
+
+
 @pytest.fixture
-def source(tmp_path, monkeypatch):
-    settings = CookieSourceSettings(
-        cookie_source_token=SecretStr(TOKEN), cookie_source_chrome_profile=tmp_path
-    )
-    source = module.CookieSource(settings)
-    preflight = Mock()
-    read = Mock(return_value=(b"synthetic-key", {"graphic_access": True}))
-    monkeypatch.setattr(module, "require_unlocked", preflight)
-    monkeypatch.setattr(module, "storage_password", read)
-    monkeypatch.setattr(
-        module, "validate_storage_acl", Mock(return_value={"acl_valid": True})
-    )
-    source._extract = AsyncMock(return_value=COOKIES)
-    return source, preflight, read
+def source():
+    service = m.CookieSource(settings())
+    service.connection = AsyncMock()
+    state = {"cookies": [COOKIE.copy()]}
+
+    async def send(ws, message):
+        assert set(message) == {"type", "request_id", "domains"}
+        service._pending[message["request_id"]].set_result(state["cookies"])
+
+    service.send = AsyncMock(side_effect=send)
+    return service, state
 
 
-async def test_each_cache_hit_still_checks_lock_and_lock_failure_never_extracts(source):
-    service, preflight, read = source
+async def test_live_requests_stable_digest_expiry_and_visitor_filter(source):
+    service, state = source
     first = await service.cookies(request())
-    second = await service.cookies(request())
-    assert first == second and base64.b64decode(first["cookies"]) == COOKIES
-    assert preflight.call_count == 2 and read.call_count == 1
-    preflight.side_effect = KeychainUnavailable("keychain_locked")
-    with pytest.raises(KeychainUnavailable, match="keychain_locked"):
-        await service.cookies(request())
-    assert service._extract.await_count == 2 and read.call_count == 1
-
-
-async def test_cached_decryption_failure_refreshes_key_once_with_new_precheck(source):
-    service, preflight, read = source
-    service._password = b"old-synthetic-key"
-    service._extract.side_effect = [None, COOKIES]
-    assert (await service.cookies(request()))["digest"]
-    assert read.call_count == 1 and preflight.call_count == 2
-
-
-async def test_repeat_decryption_failure_is_terminal(source):
-    service, preflight, read = source
-    service._extract.return_value = None
-    with pytest.raises(KeychainUnavailable, match="cookie_decryption_failed"):
-        await service.cookies(request())
-    assert read.call_count == 2 and preflight.call_count == 2
-    assert service._password is None
-
-
-async def test_denied_key_read_never_extracts_and_does_not_retry(source):
-    service, _, read = source
-    read.side_effect = KeychainUnavailable("keychain_read_denied")
-    with pytest.raises(KeychainUnavailable, match="keychain_read_denied"):
-        await service.cookies(request())
-    service._extract.assert_not_called()
-    assert read.call_count == 1
-
-
-async def test_digest_ignores_cookie_order_expiry_renewal_and_visitor_values(source):
-    service, _, _ = source
-    first = await service.cookies(request())
-    service._extract.return_value = COOKIES + (
-        b".instagram.com\tTRUE\t/\tTRUE\t0\tvisitor\tchanging-analytics\n"
-    )
+    state["cookies"] = [
+        {**COOKIE, "name": "visitor", "value": "changed"},
+        {**COOKIE, "expirationDate": datetime.now(UTC).timestamp() + 9999},
+        {**COOKIE, "name": "expired", "expirationDate": 1},
+    ]
     second = await service.cookies(request())
     assert first["digest"] == second["digest"]
-    service._extract.return_value = COOKIES.replace(b"synthetic", b"different-account")
+    assert b"expired" not in base64.b64decode(second["cookies"])
+    state["cookies"] = [{**COOKIE, "value": "another-account"}]
     assert (await service.cookies(request()))["digest"] != first["digest"]
+    assert service.send.await_count == 3 and not service._pending
 
 
 @pytest.mark.parametrize(
-    "payload,cause",
-    [
-        (COOKIES.replace(b"sessionid", b"visitor"), "site_not_logged_in"),
-        (COOKIES.replace(b"\t0\t", b"\t1\t"), "cookie_expired"),
-    ],
+    "cookies", [[], [{**COOKIE, "name": "visitor"}], [{**COOKIE, "expirationDate": 1}]]
 )
-async def test_guest_only_or_expired_material_is_not_login_success(
-    source, payload, cause
-):
-    service, _, _ = source
-    service._extract.return_value = payload
-    with pytest.raises(KeychainUnavailable, match=cause):
+async def test_missing_account(source, cookies):
+    service, state = source
+    state["cookies"] = cookies
+    with pytest.raises(m.IdentityUnavailable, match="credential_missing"):
         await service.cookies(request())
 
 
-async def test_qq_requires_both_account_cookies_and_salts_site(source):
-    service, _, _ = source
-    service._extract.return_value = (
-        b"# Netscape HTTP Cookie File\n"
-        b".v.qq.com\tTRUE\t/\tTRUE\t0\tv_vuserid\tsynthetic-user\n"
-        b".v.qq.com\tTRUE\t/\tTRUE\t0\tv_vusession\tsynthetic-session\n"
-    )
-    result = await service.cookies(request("qqvideo"))
-    assert len(result["digest"]) == 64
-    service._extract.return_value = (
-        b"\n".join(service._extract.return_value.splitlines()[:2]) + b"\n"
-    )
-    with pytest.raises(KeychainUnavailable, match="site_not_logged_in"):
+async def test_qq_requires_both_account_fields(source):
+    service, state = source
+    state["cookies"] = [
+        {**COOKIE, "domain": ".v.qq.com", "name": name}
+        for name in ("v_vuserid", "v_vusession")
+    ]
+    assert (await service.cookies(request("qqvideo")))["digest"]
+    state["cookies"].pop()
+    with pytest.raises(m.IdentityUnavailable, match="credential_missing"):
         await service.cookies(request("qqvideo"))
+
+
+@pytest.mark.parametrize(
+    "cookie",
+    [
+        {**COOKIE, "domain": "evilinstagram.com"},
+        {**COOKIE, "partitionKey": {}},
+        {**COOKIE, "value": "unsafe\nvalue"},
+        {**COOKIE, "expirationDate": float("inf")},
+    ],
+)
+async def test_bad_material_refused(source, cookie):
+    service, state = source
+    state["cookies"] = [cookie]
+    with pytest.raises((ValidationError, RunnerFailure)):
+        await service.cookies(request())
+    assert not service._pending
 
 
 @pytest.mark.parametrize(
@@ -132,190 +136,234 @@ async def test_qq_requires_both_account_cookies_and_salts_site(source):
         ("youtube", "identity_cookie_rules_unverified"),
     ],
 )
-async def test_unverified_cookie_rules_and_none_never_read_key(source, site, cause):
-    service, _, read = source
-    with pytest.raises(KeychainUnavailable, match=cause):
+async def test_undeclared_or_unverified_rules_never_read(source, site, cause):
+    service, _ = source
+    with pytest.raises(m.IdentityUnavailable, match=cause):
         await service.cookies(request(site))
-    read.assert_not_called()
+    service.send.assert_not_called()
 
 
-@pytest.mark.parametrize("seconds", [0, -1])
-async def test_deadline_refusal_never_accesses_host(source, seconds):
-    service, preflight, read = source
-    with pytest.raises(KeychainUnavailable, match="identity_deadline_invalid"):
-        await service.cookies(request(seconds=seconds))
-    preflight.assert_not_called()
-    read.assert_not_called()
+async def test_disconnected_deadline_timeout_cancellation_and_concurrency(
+    source, monkeypatch
+):
+    service, _ = source
+    socket = service.connection
+    service.connection = None
+    with pytest.raises(m.IdentityUnavailable, match="extension_disconnected"):
+        await service.cookies(request())
+    with pytest.raises(m.IdentityUnavailable, match="identity_deadline_invalid"):
+        await service.cookies(request(seconds=0))
+    service.connection = socket
+    service.send = AsyncMock()
+    monkeypatch.setattr(m, "REQUEST_TIMEOUT", 0.01)
+    with pytest.raises(m.IdentityUnavailable, match="extension_timeout"):
+        await service.cookies(request())
+    assert not service._pending and service._requests == 0
+    monkeypatch.setattr(m, "REQUEST_TIMEOUT", 5)
+    task = asyncio.create_task(service.cookies(request()))
+    await asyncio.sleep(0)
+    with pytest.raises(m.IdentityUnavailable, match="extension_timeout"):
+        await service.cookies(request())
+    task.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await task
+    assert not service._pending and service._requests == 0
+    task = asyncio.create_task(service.cookies(request()))
+    await asyncio.sleep(0)
+    service.disconnected(socket)
+    with pytest.raises(m.IdentityUnavailable, match="extension_disconnected"):
+        await task
 
 
 @pytest.mark.parametrize("authorization", [None, "Bearer wrong", "Basic arbitrary"])
-async def test_unauthenticated_requests_return_401_before_parsing_or_host_access(
-    source, authorization
-):
-    service, preflight, _ = source
-    app = module.create_app(service.settings)
-    app.state.cookie_source._extract = AsyncMock(side_effect=AssertionError())
+async def test_bearer_required_before_parsing(authorization):
     async with httpx.AsyncClient(
-        transport=httpx.ASGITransport(app=app), base_url="http://host"
+        transport=httpx.ASGITransport(app=m.create_app(settings())),
+        base_url="http://host",
     ) as client:
         response = await client.post(
             "/cookies",
             content=b"not-json",
             headers={"Authorization": authorization} if authorization else {},
         )
-    assert response.status_code == 401
-    assert response.headers["www-authenticate"] == "Bearer"
-    preflight.assert_not_called()
-    assert "cookies" not in response.json()
+        assert response.status_code == 401
+        assert response.headers["www-authenticate"] == "Bearer"
+        assert (await client.get("/status")).status_code == 401
 
 
-async def test_authenticated_payload_is_bounded_and_errors_never_echo_input(source):
-    service, _, _ = source
-    app = module.create_app(service.settings)
+async def test_safe_bounded_http_errors_and_check():
     async with httpx.AsyncClient(
-        transport=httpx.ASGITransport(app=app),
+        transport=httpx.ASGITransport(app=m.create_app(settings())),
         base_url="http://host",
         headers={"Authorization": f"Bearer {TOKEN}"},
     ) as client:
-        response = await client.post("/cookies", content=b"x" * 4097)
-        assert response.status_code == 413
+        assert (await client.post("/cookies", content=b"x" * 4097)).status_code == 413
         response = await client.post("/cookies", json={"site": "private-value"})
-        assert response.status_code == 422
-        assert "private-value" not in response.text
+        assert response.status_code == 422 and "private-value" not in response.text
         assert response.headers["cache-control"] == "no-store"
-
-
-async def test_authenticated_success_and_lock_failure(source, monkeypatch):
-    service, preflight, _ = source
-    monkeypatch.setattr(module, "CookieSource", lambda _: service)
-    app = module.create_app(service.settings)
-    async with httpx.AsyncClient(
-        transport=httpx.ASGITransport(app=app),
-        base_url="http://host",
-        headers={"Authorization": f"Bearer {TOKEN}"},
-    ) as client:
         response = await client.post("/cookies", json=request().model_dump(mode="json"))
-        assert response.status_code == 200
-        preflight.side_effect = KeychainUnavailable("keychain_locked")
-        response = await client.post("/cookies", json=request().model_dump(mode="json"))
-        assert response.status_code == 503
-        assert response.json() == {"cause": "keychain_locked"}
+        assert response.status_code == 503 and response.json() == {
+            "cause": "extension_disconnected"
+        }
+        assert (await client.get("/status")).json() == {
+            "connected": False,
+            "version": None,
+        }
 
 
-async def test_download_deadline_does_not_reset_or_reduce_shared_budget(source):
-    service, _, _ = source
-    value = request(seconds=7000)
-    await service.cookies(value)
-    assert service._extract.call_args.args[0].deadline == value.deadline
+@pytest.mark.parametrize(
+    "origin", [None, "null", "http://127.0.0.1:19101", "chrome-extension://wrong"]
+)
+def test_origin_refusal(origin):
+    with TestClient(m.create_app(settings())) as client:
+        with pytest.raises(WebSocketDisconnect):
+            with client.websocket_connect(
+                "/extension", headers={"Origin": origin} if origin else {}
+            ):
+                pass
 
 
-async def test_extractor_cancellation_kills_group_and_waits_for_exit(
-    source, monkeypatch
-):
-    import asyncio
-
-    service, _, _ = source
-    started = asyncio.Event()
-
-    async def communicate(password):
-        assert password == b"synthetic-key"
-        started.set()
-        await asyncio.Future()
-
-    process = Mock(pid=123, returncode=None)
-    process.communicate = communicate
-
-    async def wait():
-        process.returncode = -9
-        return -9
-
-    process.wait = AsyncMock(side_effect=wait)
-    monkeypatch.setattr(
-        module.asyncio, "create_subprocess_exec", AsyncMock(return_value=process)
-    )
-    kill = Mock()
-    monkeypatch.setattr(module.os, "killpg", kill)
-    service._password = b"synthetic-key"
-    task = asyncio.create_task(module.CookieSource._extract(service, request()))
-    await started.wait()
-    task.cancel()
-    with pytest.raises(asyncio.CancelledError):
-        await task
-    kill.assert_called_once_with(123, module.signal.SIGKILL)
-    process.wait.assert_awaited_once()
+def test_auth_failure_and_timeout(monkeypatch):
+    monkeypatch.setattr(m, "AUTH_TIMEOUT", 0.05)
+    with TestClient(m.create_app(settings())) as client:
+        with client.websocket_connect(
+            "/extension", headers={"Origin": extension_origin()}
+        ) as ws:
+            with pytest.raises(WebSocketDisconnect):
+                authenticate(ws, KEY + "wrong")
+        with client.websocket_connect(
+            "/extension", headers={"Origin": extension_origin()}
+        ) as ws:
+            ws.receive_json()
+            with pytest.raises(WebSocketDisconnect):
+                ws.receive_json()
 
 
-async def test_acl_failure_disables_service_and_releases_cache(source, monkeypatch):
-    service, _, read = source
-    acl = Mock(side_effect=KeychainUnavailable("keychain_acl_invalid"))
-    monkeypatch.setattr(module, "validate_storage_acl", acl)
-    with pytest.raises(KeychainUnavailable, match="keychain_acl_invalid"):
-        await service.cookies(request())
-    with pytest.raises(KeychainUnavailable, match="keychain_acl_disabled"):
-        await service.cookies(request())
-    assert service._password is None and acl.call_count == 1
-    read.assert_not_called()
-    service._extract.assert_not_called()
+def test_single_profile_request_id_and_status():
+    with TestClient(m.create_app(settings())) as client:
+        with client.websocket_connect(
+            "/extension", headers={"Origin": extension_origin()}
+        ) as ws:
+            assert authenticate(ws) == {"type": "ready"}
+            assert client.get(
+                "/status", headers={"Authorization": f"Bearer {TOKEN}"}
+            ).json() == {"connected": True, "version": "1.0.0"}
+            with pytest.raises(WebSocketDisconnect):
+                with client.websocket_connect(
+                    "/extension", headers={"Origin": extension_origin()}
+                ):
+                    pass
+            ws.send_json({"type": "ping"})
+            assert ws.receive_json() == {"type": "pong"}
+            with ThreadPoolExecutor() as pool:
+                response = pool.submit(
+                    client.post,
+                    "/cookies",
+                    json=request().model_dump(mode="json"),
+                    headers={"Authorization": f"Bearer {TOKEN}"},
+                )
+                message = ws.receive_json()
+                assert message["domains"] == ["instagram.com"]
+                ws.send_json(dict(type="cookies", request_id="0" * 32, cookies=[]))
+                assert not response.done()
+                ws.send_json(
+                    dict(
+                        type="cookies",
+                        request_id=message["request_id"],
+                        cookies=[COOKIE],
+                    )
+                )
+                result = response.result(timeout=2)
+                assert result.status_code == 200
+                assert b"synthetic" in base64.b64decode(result.json()["cookies"])
+        assert client.get(
+            "/status", headers={"Authorization": f"Bearer {TOKEN}"}
+        ).json() == {"connected": False, "version": None}
 
 
-async def test_startup_acl_and_every_secret_refresh_are_validated(source, monkeypatch):
-    service, preflight, read = source
-    acl = Mock(return_value={"acl_valid": True})
-    monkeypatch.setattr(module, "validate_storage_acl", acl)
-    await service.start()
-    await service.cookies(request())
-    await service.cookies(request())
-    assert acl.call_count == 2 and read.call_count == 1
-    service._extract.side_effect = [None, COOKIES]
-    await service.cookies(request())
-    assert acl.call_count == 3 and read.call_count == 2
-    assert preflight.call_count == 5
+def test_connection_count_and_message_size_bounded():
+    with TestClient(m.create_app(settings())) as client:
+        with client.websocket_connect(
+            "/extension", headers={"Origin": extension_origin()}
+        ) as first:
+            first.receive_json()
+            with client.websocket_connect(
+                "/extension", headers={"Origin": extension_origin()}
+            ) as second:
+                second.receive_json()
+                with pytest.raises(WebSocketDisconnect):
+                    with client.websocket_connect(
+                        "/extension", headers={"Origin": extension_origin()}
+                    ):
+                        pass
+                second.send_text("x" * (m.MAX_COOKIE_BYTES + 1))
+                with pytest.raises(WebSocketDisconnect):
+                    second.receive_json()
 
 
-async def test_lifespan_releases_password_even_after_failure(source, monkeypatch):
-    service, _, _ = source
-    monkeypatch.setattr(module, "CookieSource", lambda _: service)
-    app = module.create_app(service.settings)
-    with pytest.raises(RuntimeError):
-        async with app.router.lifespan_context(app):
-            await service.cookies(request())
-            assert service._password
-            raise RuntimeError("synthetic")
-    assert service._password is None
+def test_pairing_key_independent():
+    with pytest.raises(ValueError, match="must_differ"):
+        m.create_app(
+            CookieSourceSettings(
+                cookie_source_token=SecretStr(TOKEN),
+                cookie_source_pairing_key=SecretStr(TOKEN),
+            )
+        )
 
 
-async def test_locked_startup_never_dumps_acl_or_reads_security(source, monkeypatch):
-    service, preflight, read = source
-    preflight.side_effect = KeychainUnavailable("keychain_locked")
-    acl = Mock()
-    monkeypatch.setattr(module, "validate_storage_acl", acl)
-    await service.start()
-    with pytest.raises(KeychainUnavailable, match="keychain_locked"):
-        await service.cookies(request())
-    acl.assert_not_called()
-    read.assert_not_called()
+async def test_lifespan_closes_connection():
+    app = m.create_app(settings())
+    socket = AsyncMock()
+    async with app.router.lifespan_context(app):
+        app.state.cookie_source.connection = socket
+    socket.close.assert_awaited_once_with(code=1001)
+    assert app.state.cookie_source.connection is None
 
 
-def test_acl_consuming_deadline_never_reads_secret(source, monkeypatch):
-    service, _, read = source
-    value = request(seconds=1)
-    clock = Mock()
-    clock.now.side_effect = [value.deadline - timedelta(seconds=1), value.deadline]
-    monkeypatch.setattr(module, "datetime", clock)
-    monkeypatch.setattr(
-        module, "validate_storage_acl", Mock(return_value={"acl_valid": True})
-    )
-    with pytest.raises(KeychainUnavailable, match="identity_deadline_invalid"):
-        service._read_password(value.deadline)
-    read.assert_not_called()
+def test_simultaneous_authenticated_handshakes_keep_first_profile():
+    with TestClient(m.create_app(settings())) as client:
+        with client.websocket_connect(
+            "/extension", headers={"Origin": extension_origin()}
+        ) as first:
+            first_challenge = first.receive_json()
+            with client.websocket_connect(
+                "/extension", headers={"Origin": extension_origin()}
+            ) as second:
+                second_challenge = second.receive_json()
+                for ws in (first, second):
+                    ws.send_json({"type": "challenge", "nonce": "a" * 64})
+                    ws.receive_json()
+                first.send_json(
+                    {
+                        "type": "proof",
+                        "proof": m.proof(
+                            KEY, "extension", first_challenge["nonce"], "a" * 64
+                        ),
+                        "version": "1.0.0",
+                    }
+                )
+                assert first.receive_json() == {"type": "ready"}
+                second.send_json(
+                    {
+                        "type": "proof",
+                        "proof": m.proof(
+                            KEY, "extension", second_challenge["nonce"], "a" * 64
+                        ),
+                        "version": "1.0.0",
+                    }
+                )
+                with pytest.raises(WebSocketDisconnect):
+                    second.receive_json()
+                first.send_json({"type": "ping"})
+                assert first.receive_json() == {"type": "pong"}
 
 
-async def test_unreadable_profile_has_explicit_safe_cause(source, monkeypatch):
-    service, _, _ = source
-    process = Mock(pid=123, returncode=69)
-    process.communicate = AsyncMock(return_value=(b"", None))
-    monkeypatch.setattr(
-        module.asyncio, "create_subprocess_exec", AsyncMock(return_value=process)
-    )
-    with pytest.raises(KeychainUnavailable, match="chrome_profile_unreadable"):
-        await module.CookieSource._extract(service, request())
+def test_server_application_heartbeat(monkeypatch):
+    monkeypatch.setattr(m, "HEARTBEAT_SECONDS", 0.01)
+    with TestClient(m.create_app(settings())) as client:
+        with client.websocket_connect(
+            "/extension", headers={"Origin": extension_origin()}
+        ) as ws:
+            authenticate(ws)
+            assert ws.receive_json() == {"type": "ping"}
+            ws.send_json({"type": "pong"})
