@@ -116,7 +116,7 @@ Web JSON 响应及全局异常统一遵循 [PROJECT.md §3.1](../PROJECT.md#31-�
 管理员日志入口、记录范围、故障语义和部署验证见[解析与处理记录](../docs/design/06-解析中心.md)。
 
 
-Temporal 回归默认复用已有服务：地址来自 `TEST_TEMPORAL_ADDRESS`，未设置时使用 `Settings.temporal_address`（默认 `127.0.0.1:7233`）。例如执行 `TEST_TEMPORAL_ADDRESS=127.0.0.1:7233 uv run pytest tests/integration/test_intent_messaging.py tests/integration/test_skill_workflow.py`。本地测试不启动另一套 Temporal；仅显式设置 `TEST_TEMPORAL_START_LOCAL=true` 时，SDK 才启动固定版本 CLI v1.8.2 的隔离测试服务，GitHub CI 使用此选项。测试只使用 `framefetch-test` 命名空间和 PostgreSQL 隔离 schema，不消费业务命名空间。测试覆盖确认丢失、Worker 重启、取消、History replay 以及模型调用中断后不重发，不替代真实平台与模型验收。
+Temporal 回归默认复用已有服务：地址来自 `TEST_TEMPORAL_ADDRESS`，未设置时使用 `Settings.temporal_address`（默认 `127.0.0.1:7233`）。例如执行 `TEST_TEMPORAL_ADDRESS=127.0.0.1:7233 uv run pytest tests/integration/test_intent_messaging.py tests/integration/test_skill_workflow.py`。本地测试不启动另一套 Temporal；仅显式设置 `TEST_TEMPORAL_START_LOCAL=true` 时，SDK 才启动隔离测试服务，复用已有 CLI，无 CLI 时下载 v1.8.2；GitHub CI 使用此选项。测试只使用 `framefetch-test` 命名空间和 PostgreSQL 隔离 schema，不消费业务命名空间。测试覆盖确认丢失、Worker 重启、取消、History replay 以及模型调用中断后不重发，不替代真实平台与模型验收。
 
 ## 冷启动矩阵（设计 17）
 
