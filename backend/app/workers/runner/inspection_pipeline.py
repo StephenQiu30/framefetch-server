@@ -10,6 +10,7 @@ from tempfile import TemporaryDirectory
 
 from app.services.provider_failures import FailurePhase
 from app.services.provider_types import ExecutionContext
+from app.workers.runner.browser_runtime import BrowserRuntime
 from app.workers.runner.commands import MediaCommands
 from app.workers.runner.engine.run_context import RunContext
 from app.workers.runner.entitlements import enforce_media_rights
@@ -36,7 +37,14 @@ _MAX_DURATION_PROBE_ATTEMPTS = 4
 
 
 class RunnerInspectionPipeline:
-    def __init__(self, settings: RunnerSettings, commands: MediaCommands) -> None:
+    def __init__(
+        self,
+        settings: RunnerSettings,
+        commands: MediaCommands,
+        *,
+        browser: BrowserRuntime | None = None,
+    ) -> None:
+        self.browser = browser
         self._settings = settings
         self._commands = commands
 
