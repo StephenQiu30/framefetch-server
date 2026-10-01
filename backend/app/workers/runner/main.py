@@ -26,6 +26,7 @@ from app.workers.runner.contracts import (
     RuntimeResponse,
     TaskStatusResponse,
 )
+from app.workers.runner.engine.identity import initialize_identity_tmpfs
 from app.workers.runner.engine_catalog import RunnerEngineCatalog
 from app.workers.runner.errors import RunnerFailure
 from app.workers.runner.provider_registry import configure_provider_instances
@@ -133,6 +134,7 @@ def create_app(
     @asynccontextmanager
     async def lifespan(_: FastAPI) -> AsyncIterator[None]:
         try:
+            initialize_identity_tmpfs(configured.runner_identity_tmpfs_root)
             yield
         finally:
             if service is None:

@@ -87,6 +87,31 @@ REPOSITORY_ROOT = Path(__file__).resolve().parents[3]
 DEFAULT_URL_ENCRYPTION_KEY = "ZGV2ZWxvcG1lbnQtdXJsLWtleS0zMi1ieXRlcyEhISE="
 
 
+class CookieSourceSettings(BaseSettings):
+    """Host-only configuration; business API and workers do not load this token."""
+
+    model_config = SettingsConfigDict(
+        env_file=None, extra="ignore", hide_input_in_errors=True
+    )
+    cookie_source_token: SecretStr
+    cookie_source_port: int = Field(default=19101, ge=1024, le=65535)
+    cookie_source_pairing_key: SecretStr
+
+    @field_validator("cookie_source_token", "cookie_source_pairing_key")
+    @classmethod
+    def validate_token(cls, value: SecretStr) -> SecretStr:
+        token = value.get_secret_value()
+        if (
+            len(token.encode()) < 32
+            or not token.isascii()
+            or any(char.isspace() or ord(char) < 33 for char in token)
+        ):
+            raise ValueError(
+                "cookie-source token requires 32 ASCII bytes without spaces"
+            )
+        return value
+
+
 def _default_analysis_workspace_root() -> Path:
     return Path(tempfile.gettempdir()) / "framefetch-analysis"
 

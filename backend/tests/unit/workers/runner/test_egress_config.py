@@ -40,7 +40,7 @@ def test_bilibili_tls_media_port_is_scoped_to_its_cdn() -> None:
     )
 
     scoped_deny = config.index("http_access deny bilibili_media_port !bilibili_media")
-    public_allow = config.index("http_access allow docker_clients")
+    public_allow = config.index("http_access allow docker_clients bilibili_media_port")
     assert scoped_deny < public_allow
 
 
@@ -137,7 +137,44 @@ def test_douyin_cold_media_port_remains_domain_scoped() -> None:
         "http_access allow docker_clients douyin_cold_media_port "
         "douyin_cold_media docker_desktop_synthetic_dns"
     )
-    assert deny < config.index("http_access allow docker_clients")
+    assert deny < allow
     assert config.index("http_access deny ip_literal_url") < allow
     assert config.index("http_access deny blocked_name") < allow
     assert "http_access deny blocked_destination" in config
+
+
+def test_cookie_source_exception_is_exact_direct_and_does_not_log_secrets():
+    config = CONFIG.read_text()
+    allow = (
+        "http_access allow docker_clients cookie_source_host cookie_source_port "
+        "cookie_source_method cookie_source_path"
+    )
+    assert "acl cookie_source_host dstdomain host.docker.internal" in config
+    assert "acl cookie_source_port port 19101" in config
+    assert "acl cookie_source_method method POST" in config
+    assert "acl cookie_source_path urlpath_regex ^/cookies$" in config
+    assert config.index("http_access deny !docker_clients") < config.index(allow)
+    for deny in (
+        "http_access deny !safe_ports",
+        "http_access deny blocked_name",
+        "http_access deny blocked_destination",
+    ):
+        assert config.index(allow) < config.index(deny)
+    assert config.index("http_access deny ip_literal_url") < config.index(allow)
+    assert config.index(allow) < config.index("http_access deny cookie_source_host")
+    assert "always_direct allow cookie_source_host cookie_source_port" in config
+    assert "access_log none" in config and "cache_store_log none" in config
+
+
+def test_identity_token_is_only_in_session_runner_environment():
+    for filename in ("docker-compose.yml", "docker-compose-prod.yml"):
+        services = load_compose(filename)["services"]
+        holders = [
+            name
+            for name, service in services.items()
+            if "COOKIE_SOURCE_TOKEN" in service.get("environment", {})
+        ]
+        assert holders == ["session-runner"]
+        assert (
+            services["session-runner"]["environment"]["COOKIE_SOURCE_PORT"] == "19101"
+        )

@@ -19,7 +19,9 @@ from tests.unit.workers.runner.api_helpers import (
 
 
 @pytest.mark.parametrize("operation", ["inspect", "download"])
-async def test_http_disconnect_terminates_real_media_process(tmp_path, operation):
+async def test_http_disconnect_terminates_real_media_process(
+    tmp_path, operation, monkeypatch
+):
     cleaned = asyncio.Event()
     pid_file = tmp_path / "pid"
 
@@ -45,11 +47,19 @@ async def test_http_disconnect_terminates_real_media_process(tmp_path, operation
                 cleaned.set()
             return await super().inspect(url, **kwargs)
 
+    from app.workers.runner.engine import identity
+
+    # This real-process/disconnect test runs on macOS too. Identity tmpfs has
+    # its own Linux runtime acceptance; keep this isolated startup boundary.
+    monkeypatch.setattr(identity, "_is_tmpfs", lambda _: True)
+    configured = settings(tmp_path).model_copy(
+        update={"runner_identity_tmpfs_root": tmp_path / "framefetch-identity"}
+    )
     listener = socket.socket()
     listener.bind(("127.0.0.1", 0))
     server = uvicorn.Server(
         uvicorn.Config(
-            create_app(settings(tmp_path), service=ProcessService()),
+            create_app(configured, service=ProcessService()),
             log_level="error",
             access_log=False,
         )
