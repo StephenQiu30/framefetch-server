@@ -76,6 +76,11 @@ def test_wrong_asset_preview_and_encrypted_stream_never_expose_formats(change, r
         ({"code": -6004, "note": "ccode rejected"}, FailureClass.CHALLENGE),
         ({"note": "该视频被设为私密"}, FailureClass.CONTENT_UNAVAILABLE),
         ({"note": "该视频有 DRM 保护"}, FailureClass.CONTENT_PROTECTED),
+        (
+            {"note": "由于版权原因，您所在地区无法播放"},
+            FailureClass.CONTENT_UNAVAILABLE,
+        ),
+        ({"note": "drm protected"}, FailureClass.CONTENT_PROTECTED),
     ],
 )
 def test_ups_restrictions_are_structured_without_raw_account_response(error, expected):
@@ -91,6 +96,19 @@ def test_clear_full_manifest_rebases_segment_without_requesting_key():
     playlist, first = youku.clear_manifest(MANIFEST, URL, 30)
     assert first == "https://cdn.youku.com/part.ts"
     assert first in playlist
+
+
+def test_ups_default_rendition_still_requires_clear_manifest():
+    payload = ups()
+    payload["data"]["stream"][0]["drm_type"] = "default"
+    assert youku.parse_response(payload, WORK).streams == ()
+    with pytest.raises(RunnerFailure) as caught:
+        youku.clear_manifest(
+            MANIFEST.replace("#EXTINF:", "#EXT-X-KEY:METHOD=AES-128\n#EXTINF:"),
+            URL,
+            30,
+        )
+    assert caught.value.failure.failure_class is FailureClass.CONTENT_PROTECTED
 
 
 @pytest.mark.parametrize(
@@ -259,6 +277,15 @@ async def test_youku_layer_probes_clear_segment_and_owns_handoff(tmp_path, monke
         source,
         request=provider_request(f"https://v.youku.com/v_show/id_{WORK}.html"),
     )
+    previous = tmp_path / "private" / "http-mutated" / "cookies.txt"
+    previous.parent.mkdir(parents=True)
+    previous.write_text("out-of-scope visitor cookie")
+    source = replace(
+        source,
+        run_context=source.run_context.with_material(
+            identity=identity.IdentityMaterial(previous, "previous-digest"),
+        ),
+    )
     page = SimpleNamespace(
         url=source.request.source_url,
         wait_for_timeout=AsyncMock(),
@@ -304,6 +331,7 @@ async def test_youku_layer_probes_clear_segment_and_owns_handoff(tmp_path, monke
         }
     )
     result = await browser.BrowserLayer().resolve(source, source.run_context)
+    assert not previous.parent.exists()
     assert result.streams and result.duration_seconds == 30
     assert result.download_info["formats"][0]["vcodec"] == "h264"
     assert (

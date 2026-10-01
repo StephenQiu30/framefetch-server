@@ -139,10 +139,20 @@ class BrowserLayer:
             )
         if profile.identity is ProviderIdentity.NONE and ctx.identity is not None:
             raise failure(FailureClass.INVALID_INPUT, "unexpected_identity", "none")
-        if profile.identity is ProviderIdentity.REQUIRED and ctx.identity is None:
-            fetched = await identity.fetch_identity(
-                profile.key, source.workspace.path.name, ctx.deadline
-            )
+        if profile.identity is ProviderIdentity.REQUIRED and (
+            ctx.identity is None or profile.key == "youku"
+        ):
+            # yt-dlp persists new visitor cookies into its jar on process exit.
+            # Those cookies are not necessarily in the declared account domains.
+            # Youku L3 leases fresh approved material instead of widening them.
+            previous = ctx.identity
+            try:
+                fetched = await identity.fetch_identity(
+                    profile.key, source.workspace.path.name, ctx.deadline
+                )
+            finally:
+                if previous is not None:
+                    await _remove_identity(previous.cookie_file)
             ctx = ctx.with_material(identity=fetched)
         try:
             operation = await runtime.acquire(

@@ -36,9 +36,11 @@ def parse_response(
     error = data.get("error")
     if isinstance(error, dict) and error:
         note = str(error.get("note", ""))
-        if any(word in note for word in ("私密", "删除", "不存在")):
+        if any(
+            word in note for word in ("私密", "删除", "不存在", "版权", "地区", "密码")
+        ):
             raise failure(FailureClass.CONTENT_UNAVAILABLE, "video_unavailable", "none")
-        if any(word in note for word in ("DRM", "版权", "密码")):
+        if "drm" in note.casefold() or "加密" in note:
             raise failure(FailureClass.CONTENT_PROTECTED, "protected_media", "none")
         raise failure(FailureClass.CHALLENGE, "ups_client_rejected")
     try:
@@ -52,9 +54,12 @@ def parse_response(
     formats: list[dict[str, Any]] = []
     for stream in streams[:8]:
         # No decryption, including non-DRM AES media encryption.
+        # UPS "default" is not a clear assertion; manifest/probe checks follow.
+        if stream.get("drm_type") not in (None, False, 0, "0", "", "none", "default"):
+            continue
         if any(
             stream.get(key) not in (None, False, 0, "0", "", "none")
-            for key in ("drm_type", "drm", "has_drm", "encrypt_type", "is_encrypted")
+            for key in ("drm", "has_drm", "encrypt_type", "is_encrypted")
         ):
             continue
         url = stream.get("m3u8_url")
