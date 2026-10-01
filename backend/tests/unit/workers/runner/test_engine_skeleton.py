@@ -94,13 +94,13 @@ def test_article_path_boundary():
 
 def test_egress_preserves_existing_proxy_override(tmp_path):
     config = settings(tmp_path)
-    config.runner_provider_egress_proxies = {"bilibili": "http://proxy.example:3128"}
+    config.runner_egress_proxy = "http://proxy.example:3128"
     binding = resolve_egress(
         current_provider_registry().profile_for_key("bilibili"), settings=config
     )
     assert binding.proxy_url == "http://proxy.example:3128"
-    assert binding.route == "provider:bilibili"
-    assert binding.egress_class == "unknown" and binding.observed_ip is None
+    assert binding.route == "cn_residential"
+    assert binding.egress_class == "residential" and binding.observed_ip is None
     assert "proxy.example" not in repr(binding)
 
 

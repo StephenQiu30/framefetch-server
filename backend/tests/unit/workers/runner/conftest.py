@@ -22,3 +22,11 @@ def controlled_named_extractor(monkeypatch: pytest.MonkeyPatch) -> None:
         return ControlledExtractor if key == "Controlled" else original(key)
 
     monkeypatch.setattr(yt_dlp_extractor, "get_info_extractor", get_extractor)
+
+
+@pytest.fixture(autouse=True)
+def no_external_ip_echo_in_runner_unit_tests(monkeypatch):
+    async def observed(binding, *, settings):
+        return binding
+
+    monkeypatch.setattr("app.workers.runner.service.observe_egress", observed)

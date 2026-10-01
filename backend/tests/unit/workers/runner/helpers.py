@@ -49,6 +49,7 @@ def settings(tmp_path: Path) -> RunnerSettings:
     return RunnerSettings(
         runner_hmac_secret=SECRET,
         runner_egress_proxy="http://egress-proxy:3128",
+        runner_global_egress_proxy="http://egress-proxy:3128",
         runner_workspace_root=tmp_path,
         runner_ytdlp_bin="yt-dlp",
         runner_ffmpeg_bin="ffmpeg",
@@ -107,9 +108,7 @@ def run_context(config: RunnerSettings, provider: str = "generic"):
 def bound_commands(config, supervisor, **kwargs):
     from app.workers.runner.commands import MediaCommands
 
-    provider = (
-        "youtube" if "youtube" in config.runner_provider_egress_proxies else "generic"
-    )
+    provider = "youtube" if config.runner_global_egress_proxy else "generic"
     return MediaCommands(config, supervisor, **kwargs).with_context(
         run_context(config, provider)
     )

@@ -7,6 +7,7 @@ from dataclasses import asdict, is_dataclass, replace
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Literal
+from urllib.parse import urlsplit
 from uuid import uuid4
 
 from app.services.downloads.rules.enums import (
@@ -35,7 +36,11 @@ from app.workers.runner.contracts import (
     SelectedStreamsContract,
     TaskStatusResponse,
 )
-from app.workers.runner.engine.egress import resolve_egress
+from app.workers.runner.engine.egress import (
+    EgressBinding,
+    observe_egress,
+    resolve_egress,
+)
 from app.workers.runner.engine.ladder import close_material, run_ladder
 from app.workers.runner.engine.resolved import Resolution
 from app.workers.runner.engine.run_context import ResolutionSource, RunContext
@@ -103,8 +108,22 @@ class MediaRunnerService:
     async def close(self) -> None:
         await self._browser.close()
 
+    def _egress(self, source: ProviderRequest) -> EgressBinding:
+        from app.services.provider_types import EgressRoute
+
+        profile = source.profile
+        if profile.egress_route is EgressRoute.BY_DOMAIN:
+            hostname = urlsplit(source.source_url).hostname or ""
+            profile = replace(
+                profile,
+                egress_route=(
+                    EgressRoute.CN if hostname.endswith(".cn") else EgressRoute.GLOBAL
+                ),
+            )
+        return resolve_egress(profile, settings=self._settings)
+
     def _context(self, source: ProviderRequest) -> ExecutionContext:
-        egress = resolve_egress(source.profile, settings=self._settings)
+        egress = self._egress(source)
         return ExecutionContext(
             provider_key=source.profile.key,
             resolved_layer=source.profile.ladder[0],
@@ -133,7 +152,6 @@ class MediaRunnerService:
                 "egress_route",
                 "egress_revision",
                 "egress_class",
-                "egress_observed_ip",
             )
         ):
             raise RunnerFailure("context_changed", status=409)
@@ -321,26 +339,59 @@ class MediaRunnerService:
         deadline: datetime,
         expected_context: ExecutionContext | None = None,
     ) -> Resolution:
-        resolution = await run_ladder(
-            ResolutionSource(
-                request=source,
-                workspace=workspace,
-                pipeline=self._inspection,
-                execution_context=context,
-                run_context=RunContext(
-                    egress=resolve_egress(source.profile, settings=self._settings),
-                    user_agent="",  # Preserve yt-dlp's R0 default user agent.
-                    referer="",  # Retain yt-dlp default; layers add explicit material.
-                    cookie_file=cookie_jar,
-                    identity=None,
-                    browser=None,
-                    deadline=deadline,
-                ),
-                expected_context=expected_context,
-            ),
-            source.profile,
-            deadline,
+        egress = await observe_egress(
+            self._egress(source),
+            settings=self._settings,
         )
+        context = replace(
+            context,
+            egress_route=egress.route,
+            egress_revision=egress.revision,
+            egress_class=egress.egress_class,
+            egress_observed_ip=egress.observed_ip,
+        )
+        if expected_context is not None and any(
+            getattr(expected_context, name) != getattr(context, name)
+            for name in (
+                "egress_route",
+                "egress_revision",
+                "egress_class",
+                "egress_observed_ip",
+            )
+        ):
+            raise RunnerFailure("context_changed", status=409).attributed_to(context)
+        try:
+            resolution = await run_ladder(
+                ResolutionSource(
+                    request=source,
+                    workspace=workspace,
+                    pipeline=self._inspection,
+                    execution_context=context,
+                    run_context=RunContext(
+                        egress=egress,
+                        user_agent="",  # Preserve yt-dlp's R0 default user agent.
+                        referer="",  # Layers add explicit material.
+                        cookie_file=cookie_jar,
+                        identity=None,
+                        browser=None,
+                        deadline=deadline,
+                    ),
+                    expected_context=expected_context,
+                ),
+                source.profile,
+                deadline,
+            )
+        except RunnerFailure as error:
+            # Failure summaries are already public diagnostics. Include only the
+            # non-sensitive binding, never upstream addresses or proxy credentials.
+            diagnostic = (
+                f"出口 {egress.route}/{egress.egress_class} "
+                f"IP {egress.observed_ip or '未观测'} 修订 {egress.revision}"
+            )
+            error.failure = replace(
+                error.failure, summary=f"{error.failure.summary[:80]}；{diagnostic}"
+            )
+            raise
         return resolution
 
     async def _download_in_workspace(

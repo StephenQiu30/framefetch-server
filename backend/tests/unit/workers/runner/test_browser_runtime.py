@@ -113,7 +113,7 @@ async def test_anonymous_context_is_temporary_and_bound_to_provider_proxy(
 ):
     settings = configured(
         tmp_path,
-        runner_provider_egress_proxies={"youtube": "http://youtube-egress:3128"},
+        runner_global_egress_proxy="http://youtube-egress:3128",
     )
     runtime = BrowserRuntime(settings)
     profile = provider_profile("https://www.youtube.com/watch?v=owned")
@@ -242,7 +242,7 @@ def test_browser_revision_changes_only_with_execution_configuration(tmp_path):
         run_context(first, "youtube").egress
     )
     changed = first.model_copy(
-        update={"runner_egress_proxy": "http://other-route:3128"}
+        update={"runner_global_egress_proxy": "http://other-route:3128"}
     )
     assert browser_revision(run_context(first, "youtube").egress) != browser_revision(
         run_context(changed, "youtube").egress

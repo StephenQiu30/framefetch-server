@@ -101,8 +101,7 @@ def test_egress_proxy_uses_pinned_squid_without_a_go_build_surface() -> None:
         proxy = load_compose(filename)["services"]["egress-proxy"]
         assert proxy["image"] == SQUID_IMAGE
         assert "build" not in proxy
-        assert proxy["entrypoint"] == ["squid"]
-        assert proxy["command"] == ["-N", "-f", "/etc/squid/policy/squid.conf"]
+        assert proxy["entrypoint"] == ["/bin/sh", "/etc/squid/policy/start.sh"]
         assert proxy["tmpfs"] == EXPECTED_TMPFS
         # A directory mount follows files replaced by git or editors; a
         # single-file bind mount would keep serving the old inode on Linux.
@@ -141,3 +140,87 @@ def test_douyin_cold_media_port_remains_domain_scoped() -> None:
     assert config.index("http_access deny ip_literal_url") < allow
     assert config.index("http_access deny blocked_name") < allow
     assert "http_access deny blocked_destination" in config
+
+
+def render_routes(tmp_path, **environment):
+    import os
+    import subprocess
+
+    executable = tmp_path / "squid"
+    executable.write_text("#!/bin/sh\nexit 0\n")
+    executable.chmod(0o700)
+    routes = tmp_path / "routes.conf"
+    script = (
+        (CONFIG_ROOT / "start.sh")
+        .read_text()
+        .replace("/tmp/egress-routes.conf", str(routes))
+    )
+    result = subprocess.run(
+        ["/bin/sh"],
+        input=script,
+        text=True,
+        capture_output=True,
+        env={"PATH": str(tmp_path) + ":" + os.defpath, **environment},
+    )
+    return result, routes.read_text() if routes.exists() else ""
+
+
+def test_squid_routes_use_distinct_configured_parents(tmp_path):
+    result, routes = render_routes(
+        tmp_path,
+        EGRESS_CN_UPSTREAM_HOST="host.docker.internal",
+        EGRESS_CN_UPSTREAM_PORT="17897",
+        EGRESS_GLOBAL_UPSTREAM_HOST="host.docker.internal",
+        EGRESS_GLOBAL_UPSTREAM_PORT="17898",
+    )
+    assert result.returncode == 0, result.stderr
+    assert "cache_peer host.docker.internal parent 17897 0" in routes
+    assert "cache_peer host.docker.internal parent 17898 0" in routes
+    for name in ("cn", "global"):
+        route = name + "_residential"
+        assert f"cache_peer_access {name}_parent allow {route}" in routes
+        assert f"cache_peer_access {name}_parent deny all" in routes
+        assert f"never_direct allow {route}" in routes
+    assert "always_direct" not in routes
+    config = CONFIG.read_text()
+    assert "http_port 3128 name=cn_residential" in config
+    assert "http_port 3129 name=global_residential" in config
+
+
+def test_squid_unconfigured_residential_keeps_domestic_and_falls_back_global(tmp_path):
+    result, routes = render_routes(
+        tmp_path,
+        EGRESS_FALLBACK_UPSTREAM_HOST="fallback-host",
+        EGRESS_FALLBACK_UPSTREAM_PORT="7897",
+    )
+    assert result.returncode == 0
+    assert "always_direct allow cn_residential" in routes
+    assert "cache_peer fallback-host parent 7897 0" in routes
+    assert "never_direct allow global_residential" in routes
+    assert "cn_parent" not in routes
+
+
+def test_squid_configuration_rejects_injected_directives_and_invalid_ports(tmp_path):
+    for environment in (
+        {"EGRESS_GLOBAL_UPSTREAM_HOST": "host\nhttp_access allow all"},
+        {"EGRESS_CN_UPSTREAM_PORT": "0"},
+        {"EGRESS_GLOBAL_UPSTREAM_PORT": "65536", "EGRESS_GLOBAL_UPSTREAM_HOST": "host"},
+        {"EGRESS_CN_UPSTREAM_PORT": "3128; echo injected"},
+    ):
+        result, routes = render_routes(tmp_path, **environment)
+        assert result.returncode != 0
+        assert not routes
+
+
+def test_compose_runner_and_squid_share_upstream_configuration():
+    for filename in ("docker-compose.yml", "docker-compose-prod.yml"):
+        services = load_compose(filename)["services"]
+        runner = services["session-runner"]["environment"]
+        proxy = services["egress-proxy"]["environment"]
+        for name, value in proxy.items():
+            assert runner[name] == value
+        assert runner["RUNNER_GLOBAL_EGRESS_PROXY"] == "http://egress-proxy:3129"
+        assert (
+            services["youtube-pot-provider"]["environment"]["RUNNER_EGRESS_PROXY"]
+            == runner["RUNNER_GLOBAL_EGRESS_PROXY"]
+        )

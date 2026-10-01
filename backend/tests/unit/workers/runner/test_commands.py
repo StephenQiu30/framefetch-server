@@ -740,9 +740,7 @@ async def test_inspection_classifies_reddit_account_requirement(tmp_path: Path) 
 async def test_youtube_uses_operator_managed_provider_egress(tmp_path: Path) -> None:
     supervisor = RecordingSupervisor()
     configured = settings(tmp_path).model_copy(
-        update={
-            "runner_provider_egress_proxies": {"youtube": "http://youtube-egress:3128"}
-        }
+        update={"runner_global_egress_proxy": "http://youtube-egress:3128"}
     )
     commands = MediaCommands(configured, supervisor)
 
