@@ -114,7 +114,7 @@ Web 实例提供公开页面：`/guide/` 使用指南、`/self-hosting/` 自托�
 ### 前置条件
 
 - Docker Engine 与 Docker Compose
-- 本机已运行 PostgreSQL、RabbitMQ、Redis 和 MinIO，已有配置直接复用
+- 本机已运行 PostgreSQL、RabbitMQ、Redis、MinIO 和 Temporal，已有配置直接复用
 - 用于生产部署时，需要自行提供强随机密钥和公开访问地址
 
 ### 本机启动（macOS，单人自用）
@@ -124,7 +124,7 @@ git clone https://github.com/StephenQiu30/video-server.git
 cd video-server
 test -f .env || cp .env.example .env
 
-# 确认 .env 连接本机已运行的 PostgreSQL、RabbitMQ、Redis 与 MinIO
+# 确认 .env 连接本机已运行的 PostgreSQL、RabbitMQ、Redis、MinIO 与 Temporal
 
 # 启动：migrate 容器先应用幂等的 backend/sql/schema.sql，其余服务随后启动
 docker compose up -d --build --wait --remove-orphans
@@ -141,22 +141,13 @@ uv run --project backend python -m app.workers.bootstrap_admin \
 
 命令只在用户表为空时创建管理员；已有任何用户时拒绝，不开放 HTTP 初始化接口。若要让其他用户自行注册，先在 `.env` 配置真实 SMTP 并启用 `SMTP_ENABLED=true`。健康检查只证明服务可运行，不证明每个平台有真实媒体证据。
 
-### Temporal 首次配置与重启
+### 复用已有 Temporal 服务
 
-解析调度使用固定版本的单节点 Temporal Server，复用现有 PostgreSQL 实例中的 `framefetch_temporal` 和 `framefetch_temporal_visibility` 两个专用库。首次安装时由数据库管理员创建 `framefetch_temporal` 登录角色、交互设置强密码，再建立两个同属该角色的库；已存在时直接复用，不重置密码或重建库：
-
-```bash
-psql -d postgres -c 'CREATE ROLE framefetch_temporal LOGIN'
-psql -d postgres -c '\password framefetch_temporal'
-createdb -O framefetch_temporal framefetch_temporal
-createdb -O framefetch_temporal framefetch_temporal_visibility
-```
-
-将同一个密码保存到部署环境文件的 `TEMPORAL_POSTGRES_PASSWORD`，文件权限设为 `0600`。`TEMPORAL_POSTGRES_USER` 默认 `framefetch_temporal`；容器使用已有的 `POSTGRES_HOST/PORT`。`temporal-schema` 使用对应版本官方工具幂等初始化，工作进程首次连接时幂等创建 `framefetch` 命名空间。普通 `docker compose up -d --build --wait` 重启复用配置与数据库，不重新生成密码。CLI／宿主 Worker 地址默认为 `127.0.0.1:17233`，容器内部为 `temporal:7233`；不会占用其他项目默认 7233 端口。
+解析与 Skill 分析连接宿主机已运行的 Temporal。`docker-compose.yml`／`docker-compose-prod.yml` 只启动业务服务；容器 Worker 通过 `TEMPORAL_HOST`／`TEMPORAL_PORT` 连接已有服务，默认 `host.docker.internal:7233`。CLI 与宿主 AI Worker 使用 `TEMPORAL_ADDRESS`，默认 `127.0.0.1:7233`。已有部署使用其他地址时设置对应连接参数，工作进程首次连接时幂等创建 `TEMPORAL_NAMESPACE`（默认 `framefetch`）。
 
 更新前停止 API 接单并排空解析任务，备份现有业务库，再配套发布 API、worker 和 `migrate` 容器。更新使用 `up --build`，不能只 `start` 旧版已退出的迁移容器。回退也需先排空新执行并恢复匹配的结构备份，不允许两套解析执行者并存。
 
-备份业务库时同步备份两个 Temporal 库，稳定环境密钥单独保管。该服务不设置公共访问，单节点停机期间任务暂停；端口健康不等于平台可以下载。Skill 分析同样由 Temporal 调度，宿主 AI Worker 连接 `TEMPORAL_ADDRESS`（默认 `127.0.0.1:17233`）而不再连接 RabbitMQ；报告发布、下载与导入长期使用 RabbitMQ，分工见[工作流设计](docs/design/15-工作流与平台下载目标.md)。
+Temporal 的存储与备份由现有服务管理，项目重启只重启业务容器。Temporal 停机期间任务暂停；端口健康不等于平台可以下载。报告发布、下载与导入长期使用 RabbitMQ，分工见[工作流设计](docs/design/15-工作流与平台下载目标.md)。
 
 ### 固定出口与 Clash 住宅节点
 

@@ -40,6 +40,7 @@ jobs:
     env:
       APP_ENV: test
       TEST_DATABASE_URL: postgresql+asyncpg://video:video@127.0.0.1:5432/video
+      TEST_TEMPORAL_START_LOCAL: "true"
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:

@@ -37,7 +37,7 @@
 - AI 任务独立于下载任务；AI 失败不得改变下载成功状态。模型输出必须通过严格 schema、连续分镜时间轴和 shot evidence 校验，普通日志不得记录完整 Prompt、抽帧或原始模型响应。
 - 基础设施 Secret 只来自类型化配置和环境变量；管理员在 Web 中维护的 AI Provider Key 只允许进入记录绑定的加密数据库字段，并仅在 Analysis Worker 内存中解密。任何 Secret 都不得进入前端、API 响应、异常、快照、测试夹具或普通日志。外部操作必须设置大小、时长、并发和超时上限，取消时终止整个子进程组。
 - 复用本机 OAuth 的 AI Worker 是 Compose 拓扑之外的宿主组件：必须由已登录 Codex 或 Claude CLI 的宿主机用户启动，容器不得挂载或复制 CLI 认证目录。
-- Compose 只管理业务服务：`docker-compose.yml` 用于本机业务、Worker、Runner 和出口代理，`docker-compose-prod.yml` 用于生产业务。本机启动和验证直接复用当前 `.env` / `.env.prod` 与已运行的 PostgreSQL、RabbitMQ、Redis、MinIO，不另建基础环境、不覆盖已有环境文件。容器通过 `POSTGRES_HOST/PORT`、`RABBITMQ_HOST/PORT`、`REDIS_HOST/PORT`、`MINIO_HOST/PORT` 连接宿主机服务，默认主机为 `host.docker.internal`，端口和凭据以现有配置为准。`docker-compose-env.yml` 仅保留给没有宿主服务的 GitHub CI，不属于本机启动入口。MinIO 全部业务进程共用一组 `MINIO_ACCESS_KEY` 与 `MINIO_SECRET_KEY`；所有业务服务显式设置稳定的 `container_name`。只有配置文件不存在时才从示例创建。不要提交 `.env`、制品、缓存、日志、临时目录、虚拟环境或 `node_modules/`。
+- Compose 只管理业务服务：`docker-compose.yml` 用于本机业务、Worker、Runner 和出口代理，`docker-compose-prod.yml` 用于生产业务。本机启动和验证直接复用当前 `.env` / `.env.prod` 与已运行的 PostgreSQL、RabbitMQ、Redis、MinIO、Temporal，不另建基础环境、不覆盖已有环境文件。容器通过 `POSTGRES_HOST/PORT`、`RABBITMQ_HOST/PORT`、`REDIS_HOST/PORT`、`MINIO_HOST/PORT`、`TEMPORAL_HOST/PORT` 连接宿主机服务，默认主机为 `host.docker.internal`，端口和凭据以现有配置为准。`docker-compose-env.yml` 仅保留给没有宿主服务的 GitHub CI，不属于本机启动入口；Temporal 本地测试默认连接已有服务，只有 CI 显式设置 `TEST_TEMPORAL_START_LOCAL=true` 时才启动隔离测试服务。MinIO 全部业务进程共用一组 `MINIO_ACCESS_KEY` 与 `MINIO_SECRET_KEY`；所有业务服务显式设置稳定的 `container_name`。只有配置文件不存在时才从示例创建。不要提交 `.env`、制品、缓存、日志、临时目录、虚拟环境或 `node_modules/`。
 
 ## 实现与验证
 

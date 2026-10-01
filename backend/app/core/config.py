@@ -118,7 +118,7 @@ def _default_analysis_workspace_root() -> Path:
 
 class Settings(BaseSettings):
     temporal_address: str = Field(
-        default="127.0.0.1:17233", min_length=1, max_length=255
+        default="127.0.0.1:7233", min_length=1, max_length=255
     )
     temporal_namespace: str = Field(default="framefetch", min_length=1, max_length=255)
 

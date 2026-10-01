@@ -106,7 +106,7 @@ Use `docker-compose.yml` locally and `docker-compose-prod.yml` in production. Pl
 ### Requirements
 
 - Docker Engine and Docker Compose
-- Existing PostgreSQL, RabbitMQ, Redis and MinIO services; reuse their addresses and credentials
+- Existing PostgreSQL, RabbitMQ, Redis, MinIO and Temporal services; reuse their addresses and credentials
 - Strong random secrets and a public origin before any internet-facing deployment
 
 ### Automatic local start (macOS)
@@ -116,13 +116,15 @@ git clone https://github.com/StephenQiu30/video-server.git
 cd video-server
 test -f .env || cp .env.example .env
 
-# Configure .env to reuse existing PostgreSQL, RabbitMQ, Redis and MinIO
+# Configure .env to reuse existing PostgreSQL, RabbitMQ, Redis, MinIO and Temporal
 
 # Start: the migrate container applies the idempotent backend/sql/schema.sql first
 docker compose up -d --build --wait --remove-orphans
 ```
 
 All containerized background loops run in the single `worker` container. Its `RABBITMQ_WORKER_USER` / `RABBITMQ_WORKER_PASS` account needs restricted permissions for current business queues in `RABBITMQ_VHOST`; see [design 13](docs/design/13-可靠性与运行.md).
+
+The business worker connects to the existing Temporal service through `TEMPORAL_HOST` / `TEMPORAL_PORT`, defaulting to `host.docker.internal:7233`. Host CLI and AI workers use `TEMPORAL_ADDRESS`, defaulting to `127.0.0.1:7233`. The worker initializes `TEMPORAL_NAMESPACE` (default `framefetch`) when needed; the existing service owns its storage and backups.
 
 For an empty user table, create the first administrator on the deployment host. The command prompts for a password, refuses to run once any user exists, and does not expose a remote bootstrap endpoint:
 
