@@ -6,27 +6,22 @@ from enum import StrEnum
 from uuid import UUID
 
 from app.services.downloads.inspection_models import EncryptedUrl
-from app.services.downloads.resolution import ResolutionExecution, ResolutionPlan
-from app.services.provider_access import ProviderAccessPolicy
 from app.services.provider_failures import ProviderFailure
+from app.services.provider_types import ExecutionContext
 
 
 class IntentStatus(StrEnum):
     QUEUED = "queued"
-    PREPARING = "preparing"
     RESOLVING = "resolving"
-    RETRY_WAIT = "retry_wait"
     READY = "ready"
     HANDED_OFF = "handed_off"
+    CANCELLING = "cancelling"
     CANCELLED = "cancelled"
     EXPIRED = "expired"
     FAILED = "failed"
 
 
-RUNNING_INTENT_STATUSES = (
-    IntentStatus.PREPARING,
-    IntentStatus.RESOLVING,
-)
+RUNNING_INTENT_STATUSES = (IntentStatus.RESOLVING,)
 TERMINAL_INTENT_STATUSES = (
     IntentStatus.CANCELLED,
     IntentStatus.EXPIRED,
@@ -36,7 +31,7 @@ TERMINAL_INTENT_STATUSES = (
 ACTIVE_INTENT_STATUSES = (
     IntentStatus.QUEUED,
     *RUNNING_INTENT_STATUSES,
-    IntentStatus.RETRY_WAIT,
+    IntentStatus.CANCELLING,
 )
 
 
@@ -47,7 +42,6 @@ class IntentCreate:
     idempotency_key: str
     request_fingerprint: str
     url: EncryptedUrl = field(repr=False)
-    access_policy: ProviderAccessPolicy = ProviderAccessPolicy.PUBLIC
 
 
 @dataclass(frozen=True, slots=True)
@@ -55,24 +49,15 @@ class IntentSnapshot:
     id: UUID
     owner_hash: str
     status: IntentStatus
-    access_policy: ProviderAccessPolicy
     version: int
-    fence: int
-    attempt: int
-    max_attempts: int
-    remaining_budget_ms: int
     deadline: datetime
     generation: int
-    operation_id: str | None
-    retry_at: datetime | None
     inspection_id: UUID | None
     job_id: UUID | None
     reason_code: str | None
     created_at: datetime
     updated_at: datetime
-    resolution_plan: ResolutionPlan | None = None
-    next_strategy_id: str | None = None
-    selected_operation_id: str | None = None
+    execution_context: ExecutionContext | None = None
     latest_failure: ProviderFailure | None = None
 
 
@@ -80,8 +65,6 @@ class IntentSnapshot:
 class IntentOperation:
     intent: IntentSnapshot
     url: EncryptedUrl = field(repr=False)
-    newly_claimed: bool = True
-    execution: ResolutionExecution | None = None
 
 
 @dataclass(frozen=True, slots=True)

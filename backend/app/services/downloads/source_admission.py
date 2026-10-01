@@ -17,7 +17,6 @@ from app.services.downloads.rules.inspection import (
     SourceOrigin,
 )
 from app.services.provider_types import ProviderKey
-from app.services.providers import QQVIDEO_DOWNLOAD_ACTION
 
 _ARTICLE_PATH = re.compile(r"/s/[A-Za-z0-9_-]{6,256}")
 _ARTICLE_QUERY_KEYS = frozenset({"__biz", "mid", "idx", "sn", "chksm", "scene"})
@@ -129,7 +128,7 @@ def classify_restricted_source(url: str) -> RestrictedSourceAdmission | None:
             protection_state=ProtectionState.UNKNOWN,
             rights_basis=None,
             restriction_reason="unsupported_qqvideo_url",
-            user_action=QQVIDEO_DOWNLOAD_ACTION,
+            user_action="仅支持腾讯视频单视频页面；加密内容请导入已有文件。",
         )
     return None
 

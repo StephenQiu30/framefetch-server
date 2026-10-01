@@ -18,20 +18,17 @@ from app.integrations.media_runner_factory import media_runner_router
 from app.integrations.messaging import RabbitMqTopology
 from app.integrations.object_storage import MinioObjectStorage
 from app.integrations.readiness import assert_download_execution_schema
-from app.integrations.site_session_catalog import SiteSessionRoutes
 from app.integrations.temporal_client import connect_temporal
 from app.integrations.thumbnail_storage import MinioThumbnailStorage
 from app.integrations.url_security import FernetUrlEnvelope, MediaUrlValidator
 from app.repositories.downloads.execution import DownloadExecutionRepository
 from app.repositories.downloads.intent_repository import IntentRepository
 from app.repositories.downloads.repository import SqlAlchemyDownloadRepository
-from app.repositories.providers.route_cooldowns import SqlAlchemyProviderRouteCooldowns
 from app.services.download_execution.models import DownloadExecutionSettings
 from app.services.download_execution.service import DownloadExecution
 from app.services.downloads.fingerprints import HmacRequestFingerprinter
 from app.services.downloads.inspect_media import InspectMedia
 from app.services.downloads.thumbnail_use_cases import PersistThumbnail
-from app.services.provider_route_admission import ProviderRouteAdmission
 from app.workers.download.activities import InspectionActivities
 from app.workers.download.consumer import RabbitMqDownloadConsumer
 from app.workers.download.sweeper import DownloadRecoverySweeper, RecoverySettings
@@ -70,12 +67,7 @@ def build_runtime(settings: Settings, engine: AsyncEngine) -> DownloadWorkerRunt
     raw_repository = SqlAlchemyDownloadRepository(sessions)
     repository = DownloadExecutionRepository(raw_repository)
     workspace_cleaner = SharedWorkspaceCleaner(settings.runner_workspace_root)
-    session_routes = SiteSessionRoutes()
-    runner = media_runner_router(
-        settings,
-        ProviderRouteAdmission(SqlAlchemyProviderRouteCooldowns(sessions)),
-        session_routes=session_routes,
-    )
+    runner = media_runner_router(settings)
     storage = MinioObjectStorage(settings)
     thumbnail_recovery = ArtifactThumbnailRecovery(
         PersistThumbnail(
@@ -182,8 +174,7 @@ async def _serve(runtime: DownloadWorkerRuntime, stop: asyncio.Event) -> None:
         task_queue="ff-inspect",
         workflows=[InspectionWorkflow],
         activities=[
-            runtime.inspection_activities.inspect_media,
-            runtime.inspection_activities.finish_inspection,
+            runtime.inspection_activities.resolve,
         ],
         max_concurrent_activities=2,
         graceful_shutdown_timeout=timedelta(seconds=30),

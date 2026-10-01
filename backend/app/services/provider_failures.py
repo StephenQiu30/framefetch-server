@@ -3,11 +3,11 @@
 from __future__ import annotations
 
 import re
-from dataclasses import dataclass, field, replace
+from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 from email.utils import parsedate_to_datetime
 from enum import StrEnum
-from typing import Self
+from typing import Literal, Self
 
 _CODE = re.compile(r"[a-z][a-z0-9_]{0,63}")
 _REFERENCE = re.compile(r"[A-Za-z0-9][A-Za-z0-9._:-]{0,127}")
@@ -26,36 +26,25 @@ class FailurePhase(StrEnum):
 
 class FailureScope(StrEnum):
     CONTENT = "content"
-    SESSION = "session"
     ROUTE = "route"
     DEPENDENCY = "dependency"
     RUNTIME = "runtime"
 
 
 class FailureClass(StrEnum):
-    AUTH_REQUIRED = "auth_required"
-    SESSION_EXPIRED = "session_expired"
-    CHALLENGE_REQUIRED = "challenge_required"
-    TOKEN_UNAVAILABLE = "token_unavailable"
-    TOKEN_REJECTED = "token_rejected"
-    EXTRACTOR_CHANGED = "extractor_changed"
-    PROTOCOL_UNAVAILABLE = "protocol_unavailable"
-    FORMAT_UNAVAILABLE = "format_unavailable"
-    MEDIA_PROBE_FAILED = "media_probe_failed"
-    EGRESS_DENIED = "egress_denied"
-    NETWORK_TRANSIENT = "network_transient"
+    NETWORK_BLOCKED = "network_blocked"
+    CHALLENGE = "challenge"
+    LOGIN_REQUIRED = "login_required"
+    IDENTITY_UNAVAILABLE = "identity_unavailable"
     RATE_LIMITED = "rate_limited"
-    CONTENT_UNAVAILABLE = "content_unavailable"
-    CONTENT_RESTRICTED = "content_restricted"
     CONTEXT_CHANGED = "context_changed"
-    RUNTIME_UNAVAILABLE = "runtime_unavailable"
-    CAPACITY_EXHAUSTED = "capacity_exhausted"
+    CONTENT_UNAVAILABLE = "content_unavailable"
+    CONTENT_PROTECTED = "content_protected"
+    EXTRACTOR_BROKEN = "extractor_broken"
+    FORMAT_UNAVAILABLE = "format_unavailable"
+    TRANSIENT = "transient"
     INVALID_INPUT = "invalid_input"
-    SOURCE_UNSUPPORTED = "source_unsupported"
-    ARTIFACT_INVALID = "artifact_invalid"
-    STORAGE_UNAVAILABLE = "storage_unavailable"
-    OUTCOME_UNKNOWN = "outcome_unknown"
-    UPSTREAM_UNCLASSIFIED = "upstream_unclassified"
+    RUNTIME_UNAVAILABLE = "runtime_unavailable"
 
 
 class FailureEvidenceKind(StrEnum):
@@ -83,59 +72,24 @@ def _define(
         _DEFINITIONS[code] = kind, scope, phase
 
 
+for _kind in FailureClass:
+    _define((_kind.value,), _kind, FailureScope.CONTENT)
+
 _define(
-    ("credential_required", "provider_auth_required"),
-    FailureClass.AUTH_REQUIRED,
-    FailureScope.SESSION,
-)
-_define(
-    ("credential_expired", "credential_rejected", "provider_session_expired"),
-    FailureClass.SESSION_EXPIRED,
-    FailureScope.SESSION,
-)
-_define(
-    ("egress_challenged", "challenge_required", "provider_verification_failed"),
-    FailureClass.CHALLENGE_REQUIRED,
+    ("egress_denied", "provider_geo_restricted"),
+    FailureClass.NETWORK_BLOCKED,
     FailureScope.ROUTE,
 )
 _define(
-    ("pot_provider_unavailable", "pot_provider_release_mismatch", "pot_required"),
-    FailureClass.TOKEN_UNAVAILABLE,
-    FailureScope.DEPENDENCY,
-    FailurePhase.PREPARE_CONTEXT,
+    ("egress_challenged", "challenge_required", "pot_required", "pot_rejected"),
+    FailureClass.CHALLENGE,
+    FailureScope.ROUTE,
 )
-_define(("pot_rejected",), FailureClass.TOKEN_REJECTED, FailureScope.DEPENDENCY)
-_define(
-    ("extractor_regression",), FailureClass.EXTRACTOR_CHANGED, FailureScope.DEPENDENCY
-)
-_define(
-    ("protocol_unavailable",),
-    FailureClass.PROTOCOL_UNAVAILABLE,
-    FailureScope.DEPENDENCY,
-    FailurePhase.SELECT_FORMAT,
-)
-_define(
-    ("format_unavailable", "transcode_required", "format_limit_exceeded"),
-    FailureClass.FORMAT_UNAVAILABLE,
-    FailureScope.CONTENT,
-    FailurePhase.SELECT_FORMAT,
-)
-_define(
-    ("media_probe_failed",),
-    FailureClass.MEDIA_PROBE_FAILED,
-    FailureScope.CONTENT,
-    FailurePhase.PROBE_MEDIA,
-)
-_define(("egress_denied",), FailureClass.EGRESS_DENIED, FailureScope.ROUTE)
-_define(("network_transient",), FailureClass.NETWORK_TRANSIENT, FailureScope.ROUTE)
-_define(("provider_rate_limited",), FailureClass.RATE_LIMITED, FailureScope.ROUTE)
-_define(
-    ("provider_link_unavailable", "content_unavailable", "content_deleted"),
-    FailureClass.CONTENT_UNAVAILABLE,
-    FailureScope.CONTENT,
-)
+_define(("provider_auth_required",), FailureClass.LOGIN_REQUIRED, FailureScope.CONTENT)
 _define(
     (
+        "provider_link_unavailable",
+        "content_deleted",
         "content_private",
         "content_not_entitled",
         "content_entitlement_unknown",
@@ -144,38 +98,70 @@ _define(
         "content_supporter_only",
         "content_paid_only",
         "content_export_required",
-        "drm_protected",
-        "provider_geo_restricted",
-        "duration_limit_exceeded",
-        "credential_entitlement_drift",
         "provider_content_restricted",
     ),
-    FailureClass.CONTENT_RESTRICTED,
+    FailureClass.CONTENT_UNAVAILABLE,
     FailureScope.CONTENT,
 )
+_define(("provider_rate_limited",), FailureClass.RATE_LIMITED, FailureScope.ROUTE)
 _define(
-    ("credential_revoked",),
-    FailureClass.CONTEXT_CHANGED,
-    FailureScope.SESSION,
-    FailurePhase.PREPARE_CONTEXT,
-)
-_define(
-    ("client_context_mismatch", "context_changed"),
-    FailureClass.CONTEXT_CHANGED,
-    FailureScope.ROUTE,
-    FailurePhase.PREPARE_CONTEXT,
-)
-_define(
-    ("source_changed",),
+    ("source_changed", "client_context_mismatch"),
     FailureClass.CONTEXT_CHANGED,
     FailureScope.CONTENT,
-    FailurePhase.VALIDATE,
+    FailurePhase.SELECT_FORMAT,
 )
+_define(("drm_protected",), FailureClass.CONTENT_PROTECTED, FailureScope.CONTENT)
 _define(
-    ("runner_release_changed", "runner_release_mismatch"),
-    FailureClass.CONTEXT_CHANGED,
+    (
+        "extractor_regression",
+        "upstream_unclassified",
+        "inspection_failed",
+        "download_failed",
+    ),
+    FailureClass.EXTRACTOR_BROKEN,
     FailureScope.DEPENDENCY,
-    FailurePhase.PREPARE_CONTEXT,
+)
+_define(
+    (
+        "protocol_unavailable",
+        "transcode_required",
+        "format_limit_exceeded",
+    ),
+    FailureClass.FORMAT_UNAVAILABLE,
+    FailureScope.CONTENT,
+    FailurePhase.SELECT_FORMAT,
+)
+_define(
+    (
+        "network_transient",
+        "download_timeout",
+        "inspection_timeout",
+        "cancelled",
+        "cancellation_pending",
+        "storage_unavailable",
+        "publish_failed",
+    ),
+    FailureClass.TRANSIENT,
+    FailureScope.ROUTE,
+)
+_define(
+    (
+        "invalid_url",
+        "invalid_request",
+        "request_too_large",
+        "task_not_found",
+        "authentication_required",
+        "invalid_signature",
+        "signature_expired",
+        "request_replayed",
+        "provider_unsupported",
+        "provider_media_unsupported",
+        "unsupported_source",
+        "duration_limit_exceeded",
+    ),
+    FailureClass.INVALID_INPUT,
+    FailureScope.CONTENT,
+    FailurePhase.RECOGNIZE,
 )
 _define(
     (
@@ -185,100 +171,24 @@ _define(
         "engine_catalog_unavailable",
         "runner_restarted",
         "internal_error",
+        "runner_busy",
+        "workspace_limit_exceeded",
+        "task_already_active",
+        "invalid_runner_response",
+        "browser_unavailable",
+        "browser_capacity_exhausted",
+        "browser_profile_limit",
+        "pot_provider_unavailable",
     ),
     FailureClass.RUNTIME_UNAVAILABLE,
     FailureScope.RUNTIME,
     FailurePhase.PREPARE_CONTEXT,
 )
 _define(
-    (
-        "provider_session_not_ready",
-        "provider_session_unavailable",
-        "credential_access_denied",
-        "source_read_timeout",
-        "source_read_failed",
-        "chrome_profile_unavailable",
-    ),
-    FailureClass.RUNTIME_UNAVAILABLE,
-    FailureScope.SESSION,
-    FailurePhase.PREPARE_CONTEXT,
-)
-_define(
-    ("runner_busy", "workspace_limit_exceeded", "task_already_active"),
-    FailureClass.CAPACITY_EXHAUSTED,
-    FailureScope.RUNTIME,
-    FailurePhase.PREPARE_CONTEXT,
-)
-_define(
-    (
-        "invalid_url",
-        "invalid_request",
-        "provider_session_not_allowed",
-        "request_too_large",
-        "task_not_found",
-    ),
-    FailureClass.INVALID_INPUT,
-    FailureScope.CONTENT,
-    FailurePhase.RECOGNIZE,
-)
-_define(
-    (
-        "authentication_required",
-        "invalid_signature",
-        "signature_expired",
-        "request_replayed",
-    ),
-    FailureClass.INVALID_INPUT,
-    FailureScope.RUNTIME,
-    FailurePhase.RECOGNIZE,
-)
-_define(
-    ("invalid_runner_response",),
-    FailureClass.RUNTIME_UNAVAILABLE,
-    FailureScope.RUNTIME,
-    FailurePhase.VALIDATE,
-)
-_define(
-    ("provider_unsupported", "provider_media_unsupported", "unsupported_source"),
-    FailureClass.SOURCE_UNSUPPORTED,
-    FailureScope.CONTENT,
-    FailurePhase.RECOGNIZE,
-)
-_define(
-    ("invalid_artifact", "remux_failed"),
-    FailureClass.ARTIFACT_INVALID,
+    ("invalid_artifact", "remux_failed", "media_probe_failed"),
+    FailureClass.EXTRACTOR_BROKEN,
     FailureScope.CONTENT,
     FailurePhase.VALIDATE,
-)
-_define(
-    ("storage_unavailable", "publish_failed"),
-    FailureClass.STORAGE_UNAVAILABLE,
-    FailureScope.DEPENDENCY,
-    FailurePhase.PUBLISH,
-)
-_define(
-    ("download_failed", "download_timeout"),
-    FailureClass.OUTCOME_UNKNOWN,
-    FailureScope.ROUTE,
-    FailurePhase.TRANSFER,
-)
-_define(
-    ("inspection_timeout", "cancelled", "cancellation_pending"),
-    FailureClass.OUTCOME_UNKNOWN,
-    FailureScope.RUNTIME,
-)
-_define(("outcome_unknown",), FailureClass.OUTCOME_UNKNOWN, FailureScope.RUNTIME)
-_define(
-    ("browser_unavailable", "browser_release_changed"),
-    FailureClass.RUNTIME_UNAVAILABLE,
-    FailureScope.RUNTIME,
-    FailurePhase.PREPARE_CONTEXT,
-)
-_define(
-    ("browser_capacity_exhausted", "browser_profile_limit"),
-    FailureClass.CAPACITY_EXHAUSTED,
-    FailureScope.RUNTIME,
-    FailurePhase.PREPARE_CONTEXT,
 )
 
 
@@ -286,7 +196,7 @@ def failure_definition(code: str) -> tuple[FailureClass, FailureScope, FailurePh
     return _DEFINITIONS.get(
         code,
         (
-            FailureClass.UPSTREAM_UNCLASSIFIED,
+            FailureClass.EXTRACTOR_BROKEN,
             FailureScope.DEPENDENCY,
             FailurePhase.FETCH_METADATA,
         ),
@@ -315,8 +225,11 @@ class ProviderFailure:
     failure_class: FailureClass
     evidence_kind: FailureEvidenceKind
     observed_at: datetime = field(default_factory=lambda: datetime.now(UTC))
-    strategy_id: str | None = None
-    context_key: str | None = None
+    layer: str = "L1"
+    stage: Literal["resolve", "download", "validate", "publish"] = "resolve"
+    summary: str = "Media execution failed"
+    gate: Literal["①", "②", "③", "none"] = "none"
+    evidence: dict[str, str | int | bool | None] = field(default_factory=dict)
     retry_after: datetime | None = None
     diagnostic_ref: str | None = None
     cause_code: str | None = None
@@ -325,20 +238,65 @@ class ProviderFailure:
         kind, _, _ = failure_definition(self.code)
         if self.failure_class is not kind:
             raise ValueError("provider failure class does not match its code")
-        if (
-            kind in {FailureClass.TOKEN_UNAVAILABLE, FailureClass.TOKEN_REJECTED}
-            and self.scope is not FailureScope.DEPENDENCY
-        ):
-            raise ValueError("provider token failure must retain dependency scope")
         if _CODE.fullmatch(self.code) is None or (
             self.cause_code is not None and _CODE.fullmatch(self.cause_code) is None
         ):
             raise ValueError("provider failure code is invalid")
         if any(
             value is not None and _REFERENCE.fullmatch(value) is None
-            for value in (self.strategy_id, self.context_key, self.diagnostic_ref)
+            for value in (self.diagnostic_ref,)
         ):
             raise ValueError("provider failure reference is invalid")
+        if self.layer not in {"L1", "L2", "L3"} or self.stage not in {
+            "resolve",
+            "download",
+            "validate",
+            "publish",
+        }:
+            raise ValueError("provider failure execution location is invalid")
+        if self.gate not in {"①", "②", "③", "none"}:
+            raise ValueError("provider failure gate is invalid")
+        if not self.evidence:
+            object.__setattr__(
+                self,
+                "evidence",
+                {
+                    "kind": self.evidence_kind.value,
+                    **({"cause_code": self.cause_code} if self.cause_code else {}),
+                },
+            )
+        if set(self.evidence) - {
+            "kind",
+            "cause_code",
+            "http_status",
+            "returncode",
+            "stderr_truncated",
+        }:
+            raise ValueError("provider failure evidence contains unsupported facts")
+        if self.evidence.get("kind") != self.evidence_kind.value:
+            raise ValueError("provider failure evidence kind does not match")
+        cause = self.evidence.get("cause_code")
+        if cause is not None and (
+            not isinstance(cause, str) or _CODE.fullmatch(cause) is None
+        ):
+            raise ValueError("provider failure evidence cause is invalid")
+        for name in ("http_status", "returncode"):
+            value = self.evidence.get(name)
+            if value is not None and (
+                isinstance(value, bool) or not isinstance(value, int)
+            ):
+                raise ValueError("provider failure evidence status is invalid")
+        http_status = self.evidence.get("http_status")
+        if http_status is not None and (
+            not isinstance(http_status, int) or not 100 <= http_status <= 599
+        ):
+            raise ValueError("provider failure HTTP status is invalid")
+        if "stderr_truncated" in self.evidence and not isinstance(
+            self.evidence["stderr_truncated"], bool
+        ):
+            raise ValueError("provider failure evidence truncation is invalid")
+        if not self.summary.strip() or len(self.summary) > 256:
+            raise ValueError("provider failure summary is invalid")
         if self.observed_at.tzinfo is None or (
             self.retry_after is not None and self.retry_after.tzinfo is None
         ):
@@ -354,6 +312,11 @@ class ProviderFailure:
         evidence_kind: FailureEvidenceKind = FailureEvidenceKind.UNKNOWN,
         retry_after: datetime | None = None,
         cause_code: str | None = None,
+        layer: str = "L1",
+        stage: Literal["resolve", "download", "validate", "publish"] | None = None,
+        summary: str | None = None,
+        gate: Literal["①", "②", "③", "none"] = "none",
+        evidence: dict[str, str | int | bool | None] | None = None,
     ) -> Self:
         kind, default_scope, default_phase = failure_definition(code)
         return cls(
@@ -362,9 +325,21 @@ class ProviderFailure:
             scope or default_scope,
             kind,
             evidence_kind,
+            layer=layer,
+            stage=stage
+            or (
+                "publish"
+                if (phase or default_phase) is FailurePhase.PUBLISH
+                else "validate"
+                if (phase or default_phase)
+                in {FailurePhase.VALIDATE, FailurePhase.PROBE_MEDIA}
+                else "download"
+                if (phase or default_phase) is FailurePhase.TRANSFER
+                else "resolve"
+            ),
+            summary=summary or kind.value.replace("_", " "),
+            gate=gate,
+            evidence=evidence or {},
             retry_after=retry_after,
             cause_code=cause_code,
         )
-
-    def with_context(self, strategy_id: str, context_key: str) -> Self:
-        return replace(self, strategy_id=strategy_id, context_key=context_key)

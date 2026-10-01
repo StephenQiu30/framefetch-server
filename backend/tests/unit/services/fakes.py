@@ -14,7 +14,6 @@ from app.services.downloads.download_models import (
     JobSnapshot,
 )
 from app.services.downloads.errors import (
-    MediaInspectionTemporarilyUnavailable,
     PersistenceIdempotencyConflict,
 )
 from app.services.downloads.inspection_models import (
@@ -25,12 +24,7 @@ from app.services.downloads.inspection_models import (
     InspectionSnapshot,
     RunnerInspection,
 )
-from app.services.downloads.resolution import ResolutionExecution, ResolutionPlan
 from app.services.downloads.thumbnail import ThumbnailObject, ThumbnailSource
-from app.services.provider_access import ProviderAccessPolicy
-from app.services.provider_failures import ProviderFailure
-from app.workers.runner.provider_registry import provider_profile
-from tests.resolution import capability_for, preparation_for
 
 
 class FakeValidator:
@@ -62,49 +56,15 @@ class FakeRunner:
     def __init__(self, inspection: RunnerInspection) -> None:
         self.inspection = inspection
         self.seen: list[str] = []
-        self.receipts: dict[str, RunnerInspection] = {}
-
-    async def resolution_capability(self, url, *, access_policy):
-        profile = provider_profile(url)
-        return capability_for(
-            access_policy, provider_key=profile.key, version=profile.version
-        )
-
-    async def prepare_resolution(self, url, plan: ResolutionPlan, strategy_id: str):
-        return preparation_for(plan, strategy_id)
-
-    async def reconcile_inspection(self, url, execution: ResolutionExecution):
-        result = self.receipts.get(execution.operation_id)
-        if result is None:
-            raise MediaInspectionTemporarilyUnavailable(
-                failure=ProviderFailure.for_code("outcome_unknown")
-            )
-        return result
-
-    async def cancel_inspection(self, execution: ResolutionExecution) -> bool:
-        return execution.operation_id in self.receipts
-
-    async def resolve_access_policy(
-        self, url: str, requested: ProviderAccessPolicy | None = None
-    ) -> ProviderAccessPolicy:
-        return requested or ProviderAccessPolicy.PUBLIC
 
     async def inspect(
-        self,
-        url: str,
-        *,
-        access_policy: ProviderAccessPolicy,
-        execution: ResolutionExecution | None = None,
+        self, url: str, *, task_id: str | None = None, deadline: datetime | None = None
     ) -> RunnerInspection:
         self.seen.append(url)
-        result = (
-            self.inspection
-            if execution is None
-            else replace(self.inspection, access_context=execution.context)
-        )
-        if execution is not None:
-            self.receipts[execution.operation_id] = result
-        return result
+        return self.inspection
+
+    async def cancel(self, task_id: str) -> None:
+        pass
 
 
 class FakeStorage:

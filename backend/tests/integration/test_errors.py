@@ -12,17 +12,48 @@ from fastapi import Response
 from fastapi.testclient import TestClient
 
 
-def test_provider_cooldown_exposes_only_bounded_retry_header():
+def test_transient_failure_exposes_bounded_retry_header():
     mapped = application_error(
         ApplicationError(
-            ApplicationErrorCode.PROVIDER_RATE_LIMITED,
+            ApplicationErrorCode.TRANSIENT,
             retry_at=datetime.now(UTC) + timedelta(minutes=5),
         )
     )
-    assert mapped.status == 429
+    assert mapped.status == 503
     assert mapped.headers is not None
     assert 299 <= int(mapped.headers["Retry-After"]) <= 300
     assert "egress" not in mapped.detail
+
+
+def test_media_rate_limit_preserves_429_and_retry_after():
+    app = create_app(Settings(app_env="test"))
+
+    @app.get("/api/provider-limited")
+    async def provider_limited():
+        raise ApplicationError(
+            ApplicationErrorCode.RATE_LIMITED,
+            retry_at=datetime.now(UTC) + timedelta(seconds=30),
+        )
+
+    with TestClient(app) as client:
+        result = client.get("/api/provider-limited")
+
+    assert result.status_code == 429
+    assert result.json()["code"] == "rate_limited"
+    assert 29 <= int(result.headers["Retry-After"]) <= 30
+
+
+def test_identity_and_changed_context_keep_distinct_actionable_errors():
+    assert (
+        application_error(
+            ApplicationError(ApplicationErrorCode.IDENTITY_UNAVAILABLE)
+        ).status
+        == 503
+    )
+    changed = application_error(ApplicationError(ApplicationErrorCode.CONTEXT_CHANGED))
+    assert changed.status == 409
+    assert changed.code == "context_changed"
+    assert "Resolve again" in changed.detail
 
 
 def test_app_error_uses_stable_error_envelopes(tmp_path: Path) -> None:

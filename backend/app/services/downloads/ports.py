@@ -22,18 +22,11 @@ from app.services.downloads.inspection_models import (
     InspectionSnapshot,
     RunnerInspection,
 )
-from app.services.downloads.resolution import (
-    ResolutionCapability,
-    ResolutionExecution,
-    ResolutionPlan,
-    ResolutionPreparation,
-)
 from app.services.downloads.thumbnail import (
     DownloadThumbnailSource,
     ThumbnailObject,
     ThumbnailSource,
 )
-from app.services.provider_access import ProviderAccessPolicy
 
 
 class UrlValidator(Protocol):
@@ -47,31 +40,11 @@ class UrlCipher(Protocol):
 
 
 class MediaRunner(Protocol):
-    async def resolution_capability(
-        self, url: str, *, access_policy: ProviderAccessPolicy
-    ) -> ResolutionCapability: ...
-
-    async def prepare_resolution(
-        self, url: str, plan: ResolutionPlan, strategy_id: str
-    ) -> ResolutionPreparation: ...
-
-    async def reconcile_inspection(
-        self, url: str, execution: ResolutionExecution
-    ) -> RunnerInspection: ...
-
-    async def cancel_inspection(self, execution: ResolutionExecution) -> bool: ...
-
-    async def resolve_access_policy(
-        self, url: str, requested: ProviderAccessPolicy | None = None
-    ) -> ProviderAccessPolicy: ...
-
     async def inspect(
-        self,
-        url: str,
-        *,
-        access_policy: ProviderAccessPolicy,
-        execution: ResolutionExecution | None = None,
+        self, url: str, *, task_id: str | None = None, deadline: datetime | None = None
     ) -> RunnerInspection: ...
+
+    async def cancel(self, task_id: str) -> None: ...
 
 
 class RequestFingerprinter(Protocol):

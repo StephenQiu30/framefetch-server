@@ -21,6 +21,7 @@ from sqlalchemy import (
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.db import JSON_DOCUMENT, Base, utc_now
+from app.models.execution_context import execution_context_check
 
 
 class MediaInspectionRow(Base):
@@ -32,6 +33,10 @@ class MediaInspectionRow(Base):
             name="uq_media_inspections_owner_idempotency",
         ),
         CheckConstraint("duration_seconds >= 0", name="ck_inspection_duration"),
+        CheckConstraint(
+            execution_context_check("(metadata->'execution_context')"),
+            name="ck_media_inspections_execution_context",
+        ),
         Index("ix_media_inspections_owner_expires", "owner_hash", "expires_at"),
     )
 

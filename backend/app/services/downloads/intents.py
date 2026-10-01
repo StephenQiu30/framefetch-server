@@ -1,6 +1,6 @@
 """Persist a validated public parsing request before any upstream operation."""
 
-from collections.abc import Awaitable, Callable
+from collections.abc import Callable
 from datetime import datetime
 from typing import Protocol
 from uuid import UUID
@@ -22,7 +22,6 @@ from app.services.downloads.validation import (
     validate_idempotency_key,
     validate_owner_hash,
 )
-from app.services.provider_access import ProviderAccessPolicy
 from app.services.quotas import DEFAULT_USER_QUOTA, UserQuota
 
 
@@ -34,12 +33,19 @@ class IntentPersistence(Protocol):
         now: datetime,
         quota: UserQuota = DEFAULT_USER_QUOTA,
     ) -> IntentSnapshot: ...
-    async def get(self, intent_id: UUID, owner_hash: str) -> IntentSnapshot: ...
+    async def get(
+        self, intent_id: UUID, owner_hash: str, *, now: datetime | None = None
+    ) -> IntentSnapshot: ...
     async def get_by_key(
-        self, idempotency_key: str, owner_hash: str
+        self, idempotency_key: str, owner_hash: str, *, now: datetime | None = None
     ) -> IntentSnapshot: ...
     async def history(
-        self, owner_hash: str, *, before: UUID | None, limit: int
+        self,
+        owner_hash: str,
+        *,
+        before: UUID | None,
+        limit: int,
+        now: datetime | None = None,
     ) -> IntentHistoryPage: ...
     async def refresh(
         self,
@@ -64,7 +70,6 @@ class IntentService:
         *,
         now: Callable[[], datetime],
         new_id: Callable[[], UUID],
-        select_policy: Callable[[str], Awaitable[ProviderAccessPolicy]] | None = None,
     ) -> None:
         self._repository = repository
         self._validator = validator
@@ -72,7 +77,6 @@ class IntentService:
         self._fingerprinter = fingerprinter
         self._now = now
         self._new_id = new_id
-        self._select_policy = select_policy
 
     async def create(
         self,
@@ -88,18 +92,12 @@ class IntentService:
             url = self._validator.validate(value)
         except ValueError as exc:
             raise ApplicationError(ApplicationErrorCode.INVALID_URL) from exc
-        policy = (
-            ProviderAccessPolicy.PUBLIC
-            if self._select_policy is None
-            else await self._select_policy(url)
-        )
         command = IntentCreate(
             id=self._new_id(),
             owner_hash=owner_hash,
             idempotency_key=idempotency_key,
             request_fingerprint=self._fingerprinter.fingerprint("download_intent", url),
             url=self._cipher.encrypt(url),
-            access_policy=policy,
         )
         try:
             return await self._repository.accept(command, now=self._now(), quota=quota)
@@ -108,7 +106,7 @@ class IntentService:
 
     async def get(self, intent_id: UUID, owner_hash: str) -> IntentSnapshot:
         try:
-            return await self._repository.get(intent_id, owner_hash)
+            return await self._repository.get(intent_id, owner_hash, now=self._now())
         except PersistenceNotFound as exc:
             raise ApplicationError(ApplicationErrorCode.NOT_FOUND) from exc
 
@@ -116,7 +114,9 @@ class IntentService:
         validate_owner_hash(owner_hash)
         validate_idempotency_key(idempotency_key)
         try:
-            return await self._repository.get_by_key(idempotency_key, owner_hash)
+            return await self._repository.get_by_key(
+                idempotency_key, owner_hash, now=self._now()
+            )
         except PersistenceNotFound as exc:
             raise ApplicationError(ApplicationErrorCode.NOT_FOUND) from exc
 
@@ -136,7 +136,7 @@ class IntentService:
             raise ValueError("invalid history page size")
         try:
             return await self._repository.history(
-                owner_hash, before=before, limit=limit
+                owner_hash, before=before, limit=limit, now=self._now()
             )
         except PersistenceNotFound as exc:
             raise ApplicationError(ApplicationErrorCode.NOT_FOUND) from exc

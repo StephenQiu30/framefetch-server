@@ -30,7 +30,7 @@ from app.services.downloads.inspection_models import (
 from app.services.downloads.thumbnail import (
     ThumbnailObject as ApplicationThumbnailObject,
 )
-from app.services.provider_types import ProviderAccessContextRef, ProviderAccessMode
+from app.services.provider_types import ExecutionContext
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncEngine, async_sessionmaker
 
@@ -142,16 +142,19 @@ async def test_download_repository_handles_the_complete_application_lifecycle(
         timedelta(minutes=1),
     )
     assert claimed is not None
-    executed_context = ProviderAccessContextRef(
+    executed_context = ExecutionContext(
         provider_key="generic",
-        profile_version="1",
-        access_mode=ProviderAccessMode.ANONYMOUS,
-        credential_version_id=None,
-        egress_affinity_id="default",
-        client_profile_id="yt-dlp-default",
-        attestation_provider_version=None,
-        engine_commit="engine",
-        runtime_revision="a" * 64,
+        registry_revision="registry-test",
+        resolved_layer="L1",
+        client="yt-dlp-default",
+        engine_revision="engine",
+        egress_route="default",
+        egress_revision="egress-test",
+        egress_class="unknown",
+        egress_observed_ip=None,
+        identity_used=False,
+        identity_digest=None,
+        browser_context_kind="none",
     )
     with pytest.raises(LeaseConflict):
         await repository.record_execution_context(
@@ -163,7 +166,7 @@ async def test_download_repository_handles_the_complete_application_lifecycle(
     async with async_sessionmaker(postgres_engine, expire_on_commit=False)() as session:
         row = await session.get(DownloadJobRow, job_id)
         assert row is not None
-        assert row.execution_access_context == executed_context.to_document()
+        assert row.execution_context == executed_context.to_document()
         assert row.execution_context_attempt == claimed.attempt
     await repository.heartbeat(
         job_id,

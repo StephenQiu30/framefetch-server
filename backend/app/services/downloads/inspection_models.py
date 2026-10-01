@@ -15,8 +15,7 @@ from app.services.downloads.rules.inspection import (
     RightsBasis,
     SourceOrigin,
 )
-from app.services.provider_access import ProviderAccessPolicy
-from app.services.provider_types import ProviderAccessContextRef
+from app.services.provider_types import ExecutionContext
 
 
 @dataclass(frozen=True, slots=True)
@@ -45,7 +44,7 @@ class RunnerInspection:
     title: str
     duration_seconds: int
     formats: tuple[RunnerFormat, ...]
-    access_context: ProviderAccessContextRef
+    execution_context: ExecutionContext
     thumbnail_data_url: str | None = None
     media_kind: MediaKind = MediaKind.VIDEO
     asset_count: int = 0
@@ -138,4 +137,3 @@ class InspectionView:
     user_action: str | None = None
     media_kind: MediaKind = MediaKind.VIDEO
     asset_count: int = 0
-    access_policy_id: ProviderAccessPolicy | None = None

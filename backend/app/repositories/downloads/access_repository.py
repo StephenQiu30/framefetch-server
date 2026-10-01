@@ -402,8 +402,8 @@ class AccessRepository(RepositoryBase):
                 raise LeaseConflict("worker no longer owns this job attempt")
             # Inspection TTL controls new admissions. A queued retry may be
             # older than that TTL, but the Worker re-inspects before download.
-            access_context = inspection.metadata_json.get("provider_access_context")
-            if not isinstance(access_context, dict):
+            execution_context = inspection.metadata_json.get("execution_context")
+            if not isinstance(execution_context, dict):
                 raise RepositoryNotFound("provider access context is unavailable")
             thumbnail = await session.get(MediaThumbnailRow, inspection.id)
             return JobSourceSnapshot(
@@ -418,7 +418,7 @@ class AccessRepository(RepositoryBase):
                 provider_hints=dict(selected_format.provider_hints),
                 extractor_key=inspection.extractor_key,
                 provider_media_id=inspection.provider_media_id,
-                access_context=dict(access_context),
+                execution_context=dict(execution_context),
                 url_ciphertext=inspection.url_ciphertext,
                 url_nonce=inspection.url_nonce,
                 url_key_id=inspection.url_key_id,

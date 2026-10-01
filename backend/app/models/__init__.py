@@ -22,7 +22,7 @@ from app.models.document import (
 )
 from app.models.document_import import DocumentImportAttemptRow
 from app.models.download import ArtifactRow, DownloadJobRow
-from app.models.download_intent import DownloadIntentRow, ResolutionAttemptRow
+from app.models.download_intent import DownloadIntentRow
 from app.models.email_verification import EmailVerificationRow
 from app.models.media import (
     DownloadThumbnailRow,
@@ -34,9 +34,7 @@ from app.models.media_import import MediaImportAttemptRow, MediaImportRow
 from app.models.operation_log import OperationLogRow
 from app.models.operational_metric import OperationalCounterRow
 from app.models.outbox import OutboxEventRow
-from app.models.provider_canary import ProviderCanaryResultRow
 from app.models.provider_catalog import ProviderCatalogEntryRow
-from app.models.provider_route_cooldown import ProviderRouteCooldownRow
 from app.models.quota import ResourceAdmissionRow
 from app.models.source_discovery import SourceDiscoveryItemRow, SourceDiscoveryRow
 from app.models.task_event import TaskEventRow
@@ -62,7 +60,6 @@ __all__ = [
     "AnalysisStepResultRow",
     "DownloadJobRow",
     "DownloadIntentRow",
-    "ResolutionAttemptRow",
     "DownloadThumbnailRow",
     "DocumentArtifactRow",
     "DocumentImportAttemptRow",
@@ -75,9 +72,7 @@ __all__ = [
     "MediaThumbnailRow",
     "OutboxEventRow",
     "OperationalCounterRow",
-    "ProviderCanaryResultRow",
     "ProviderCatalogEntryRow",
-    "ProviderRouteCooldownRow",
     "SourceDiscoveryItemRow",
     "SourceDiscoveryRow",
     "TaskEventRow",

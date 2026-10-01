@@ -12,7 +12,7 @@ from app.services.provider_catalog import (
     ProviderCatalogErrorCode,
     ProviderCatalogService,
 )
-from app.services.provider_types import ProviderSupportStatus
+from app.services.provider_types import ProviderIdentity, ProviderSupportStatus
 from app.services.providers import ProviderStatusView
 
 NOW = datetime(2026, 8, 12, tzinfo=UTC)
@@ -99,17 +99,11 @@ def service(repository: Repository) -> ProviderCatalogService:
     baseline = ProviderStatusView(
         key="vimeo",
         display_name="Vimeo",
-        profile_version="1",
         registered=True,
         extractor_exists=True,
         capabilities=(),
-        access_modes=(),
+        identity=ProviderIdentity.NONE,
         status=ProviderSupportStatus.UNKNOWN,
-        last_checked_at=None,
-        last_check_succeeded=None,
-        download_available=False,
-        last_media_verified_at=None,
-        last_verified_at=None,
         user_action=None,
     )
     return ProviderCatalogService(repository, (baseline,), now=lambda: NOW)

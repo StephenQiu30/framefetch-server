@@ -4,17 +4,21 @@ from unittest.mock import AsyncMock
 
 import pytest
 from app.services.download_execution.errors import classify_runner_failure
-from app.services.downloads.errors import MediaInspectionPaidContentRestricted
-from app.services.downloads.queries import GetInspection
+from app.services.downloads.errors import (
+    ApplicationError,
+    ApplicationErrorCode,
+    MediaInspectionFailure,
+)
 from app.services.downloads.rules.content_restrictions import ContentRestriction
 from app.services.downloads.rules.enums import DownloadErrorCode
+from app.services.provider_failures import ProviderFailure
 from app.workers.runner.errors import RunnerFailure
 from tests.unit.services.fakes import FakeRepository
-from tests.unit.services.test_inspect_media import NOW, OWNER, runner_result, use_case
+from tests.unit.services.test_inspect_media import OWNER, runner_result, use_case
 
 
 @pytest.mark.parametrize("reason", list(ContentRestriction))
-async def test_recognized_restriction_is_inspectable_but_never_downloadable(
+async def test_recognized_restriction_is_terminal_and_never_creates_inspection(
     reason, monkeypatch
 ) -> None:
     repository = FakeRepository()
@@ -22,20 +26,17 @@ async def test_recognized_restriction_is_inspectable_but_never_downloadable(
     monkeypatch.setattr(
         runner,
         "inspect",
-        AsyncMock(side_effect=MediaInspectionPaidContentRestricted(reason)),
+        AsyncMock(
+            side_effect=MediaInspectionFailure(
+                failure=ProviderFailure.for_code(reason.value)
+            )
+        ),
     )
-    view = await inspect("https://www.bilibili.com/video/BV1xx411c7mD", OWNER, "paid-1")
-    assert view.access_decision.value == "blocked"
-    assert view.restriction_reason == reason.value
-    assert view.formats == ()
-    assert view.duration_seconds == 0
-    assert view.rights_basis is None
-    assert view.protection_state.value == "unknown"
-    assert view.identity_state.value == "unknown"
-    assert view.user_action
-    assert view.extractor_key == "bilibili"
-    assert await GetInspection(repository, now=lambda: NOW)(view.id, OWNER) == view
+    with pytest.raises(ApplicationError) as caught:
+        await inspect("https://www.bilibili.com/video/BV1xx411c7mD", OWNER, "paid-1")
+    assert caught.value.code is ApplicationErrorCode.CONTENT_UNAVAILABLE
+    assert repository.inspection_commands == []
     assert (
         classify_runner_failure(RunnerFailure(reason.value, status=422))
-        is DownloadErrorCode.PROVIDER_CONTENT_RESTRICTED
+        is DownloadErrorCode.CONTENT_UNAVAILABLE
     )

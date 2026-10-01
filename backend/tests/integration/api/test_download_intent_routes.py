@@ -14,18 +14,15 @@ from app.models import MediaInspectionRow, OutboxEventRow, ResourceAdmissionRow
 from app.repositories.downloads.intent_repository import IntentRepository
 from app.repositories.downloads.repository import SqlAlchemyDownloadRepository
 from app.services.downloads.errors import (
-    MediaInspectionSessionNotReady,
-    MediaInspectionTemporarilyUnavailable,
+    MediaInspectionFailure,
 )
 from app.services.downloads.fingerprints import HmacRequestFingerprinter
 from app.services.downloads.inspect_media import InspectMedia
 from app.services.downloads.intents import IntentService
-from app.services.provider_access import ProviderAccessPolicy
 from app.services.provider_failures import ProviderFailure
 from app.services.quotas import UserQuota
 from app.workers.download.activities import InspectionActivities
 from app.workers.download.workflows import InspectionCommand
-from app.workers.runner.provider_registry import provider_profile
 from cryptography.fernet import Fernet
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import async_sessionmaker
@@ -37,18 +34,12 @@ NOW = datetime(2026, 9, 22, tzinfo=UTC)
 URL = "https://www.youtube.com/watch?v=BaW_jenozKc"
 
 
-def components(engine, runner=None, *, operator_providers=frozenset()):
+def components(engine, runner=None):
     sessions = async_sessionmaker(engine, expire_on_commit=False)
     repo = IntentRepository(sessions)
     cipher = FernetUrlEnvelope(URLCipher(Fernet.generate_key()), key_id="test")
     fingerprint = HmacRequestFingerprinter(b"f" * 32)
     clock = [NOW]
-
-    async def select_policy(url: str) -> ProviderAccessPolicy:
-        key = provider_profile(url).key
-        if key in operator_providers:
-            return ProviderAccessPolicy.OPERATOR_PUBLIC
-        return ProviderAccessPolicy.PUBLIC
 
     service = IntentService(
         repo,
@@ -57,7 +48,6 @@ def components(engine, runner=None, *, operator_providers=frozenset()):
         fingerprint,
         now=lambda: clock[0],
         new_id=uuid4,
-        select_policy=select_policy,
     )
     inspector = InspectMedia(
         repository=SqlAlchemyDownloadRepository(sessions),
@@ -77,56 +67,6 @@ def components(engine, runner=None, *, operator_providers=frozenset()):
         clock=lambda: clock[0],
     )
     return service, repo, executor, clock, sessions
-
-
-async def test_configured_operator_policy_is_frozen_on_idempotent_replay(
-    postgres_engine,
-):
-    service, _, _, _, _ = components(
-        postgres_engine, operator_providers=frozenset({"youtube"})
-    )
-    first = await service.create(URL, TEST_USER.owner_hash, "youtube-operator")
-    assert first.access_policy is ProviderAccessPolicy.OPERATOR_PUBLIC
-    public_service, _, _, _, _ = components(postgres_engine)
-    replay = await public_service.create(URL, TEST_USER.owner_hash, "youtube-operator")
-    assert replay.id == first.id
-    assert replay.access_policy is ProviderAccessPolicy.OPERATOR_PUBLIC
-
-
-class PreparingSessionRunner(FakeRunner):
-    def __init__(self) -> None:
-        super().__init__(runner_result())
-        self.waits = 0
-
-    async def prepare_resolution(self, url, plan, strategy_id):
-        if self.waits < 4:
-            self.waits += 1
-            raise MediaInspectionSessionNotReady(before_media_io=True)
-        return await super().prepare_resolution(url, plan, strategy_id)
-
-
-async def test_session_preparation_wait_keeps_original_intent_and_attempt_budget(
-    postgres_engine,
-):
-    runner = PreparingSessionRunner()
-    service, repo, executor, clock, _ = components(
-        postgres_engine, runner, operator_providers=frozenset({"douyin"})
-    )
-    intent = await service.create(
-        "https://www.douyin.com/video/7674644830270473609",
-        TEST_USER.owner_hash,
-        "cold-session",
-    )
-    for _ in range(4):
-        await executor.execute(InspectionCommand(str(intent.id), 0), str(uuid4()))
-        waiting = await repo.get(intent.id, TEST_USER.owner_hash)
-        assert waiting.status == "retry_wait"
-        assert waiting.attempt == 0
-        clock[0] += timedelta(seconds=15)
-    await executor.execute(InspectionCommand(str(intent.id), 0), str(uuid4()))
-    ready = await repo.get(intent.id, TEST_USER.owner_hash)
-    assert ready.status == "ready" and ready.attempt == 1
-    assert ready.id == intent.id and ready.remaining_budget_ms == 180000
 
 
 async def test_api_accepts_before_parse_and_recovers_same_result(postgres_engine):
@@ -162,7 +102,7 @@ async def test_api_accepts_before_parse_and_recovers_same_result(postgres_engine
                 == 1
             )
         intent_id = UUID(document["id"])
-        await executor.execute(InspectionCommand(str(intent_id), 0), str(uuid4()))
+        await executor.execute(InspectionCommand(str(intent_id), 0))
         observed = (await client.get(created.headers["location"])).json()["data"]
         assert observed["status"] == "ready" and observed["inspection_id"]
         repeated = await client.post(
@@ -173,7 +113,7 @@ async def test_api_accepts_before_parse_and_recovers_same_result(postgres_engine
         assert repeated.status_code == 202 and repeated.json()["data"]["id"] == str(
             intent_id
         )
-        await executor.execute(InspectionCommand(str(intent_id), 0), str(uuid4()))
+        await executor.execute(InspectionCommand(str(intent_id), 0))
         async with sessions() as session:
             assert (
                 await session.scalar(
@@ -203,12 +143,14 @@ async def test_api_accepts_before_parse_and_recovers_same_result(postgres_engine
         app.dependency_overrides[get_current_user] = lambda: TEST_USER
         assert (await client.post(created.headers["location"] + "/cancel")).json()[
             "data"
-        ]["status"] == "cancelled"
+        ]["status"] == "cancelling"
+    assert (await repo.get(intent_id, TEST_USER.owner_hash)).status == "cancelling"
+    await repo.confirm_cancel(intent_id, 0, now=NOW)
     assert (await repo.get(intent_id, TEST_USER.owner_hash)).status == "cancelled"
 
 
 async def test_intent_quota_replay_and_cancellation(postgres_engine):
-    service, _, _, _, sessions = components(postgres_engine)
+    service, repo, _, _, sessions = components(postgres_engine)
     quota = UserQuota(max_active_per_owner=1)
     first = await service.create(URL, TEST_USER.owner_hash, "one", quota=quota)
     assert (
@@ -219,6 +161,7 @@ async def test_intent_quota_replay_and_cancellation(postgres_engine):
     with pytest.raises(QuotaExceeded, match="active_task_quota_exceeded"):
         await service.create(URL, TEST_USER.owner_hash, "two", quota=quota)
     await service.cancel(first.id, TEST_USER.owner_hash)
+    await repo.confirm_cancel(first.id, 0, now=NOW)
     await service.create(URL, TEST_USER.owner_hash, "two", quota=quota)
     async with sessions() as session:
         assert (
@@ -233,7 +176,7 @@ class WaitingRunner(FakeRunner):
         self.entered = asyncio.Event()
         self.stopped = asyncio.Event()
 
-    async def inspect(self, url, *, access_policy, execution=None):
+    async def inspect(self, url, **kwargs):
         self.entered.set()
         try:
             await asyncio.Event().wait()
@@ -245,9 +188,7 @@ async def test_user_cancel_stops_execution_and_cannot_publish_result(postgres_en
     runner = WaitingRunner()
     service, repo, executor, _, sessions = components(postgres_engine, runner)
     intent = await service.create(URL, TEST_USER.owner_hash, "cancel")
-    work = asyncio.create_task(
-        executor.execute(InspectionCommand(str(intent.id), 0), str(uuid4()))
-    )
+    work = asyncio.create_task(executor.execute(InspectionCommand(str(intent.id), 0)))
     await asyncio.wait_for(runner.entered.wait(), 2)
     await service.cancel(intent.id, TEST_USER.owner_hash)
     work.cancel()
@@ -262,34 +203,10 @@ async def test_user_cancel_stops_execution_and_cannot_publish_result(postgres_en
         )
 
 
-async def test_worker_interruption_recovers_original_intent(postgres_engine):
-    runner = WaitingRunner()
-    service, repo, executor, clock, _ = components(postgres_engine, runner)
-    intent = await service.create(URL, TEST_USER.owner_hash, "restart")
-    work = asyncio.create_task(
-        executor.execute(InspectionCommand(str(intent.id), 0), str(uuid4()))
-    )
-    await asyncio.wait_for(runner.entered.wait(), 2)
-    work.cancel()
-    with pytest.raises(asyncio.CancelledError):
-        await work
-    assert runner.stopped.is_set()
-    clock[0] += timedelta(seconds=16)
-    resumed = await repo.claim_preparation(
-        intent.id, 0, "replacement-activity", now=clock[0]
-    )
-    assert not resumed.newly_claimed and resumed.intent.attempt == 1
-    final = await executor.execute(InspectionCommand(str(intent.id), 0), "reconcile")
-    assert final.status == "failed"
-    assert (
-        await repo.get(intent.id, TEST_USER.owner_hash)
-    ).latest_failure.failure_class == "outcome_unknown"
-
-
 async def test_transient_failure_is_task_state_not_http_failure(postgres_engine):
     class Unavailable(FakeRunner):
-        async def inspect(self, url, *, access_policy, execution=None):
-            raise MediaInspectionTemporarilyUnavailable(
+        async def inspect(self, url, **kwargs):
+            raise MediaInspectionFailure(
                 failure=ProviderFailure.for_code("network_transient")
             )
 
@@ -297,15 +214,10 @@ async def test_transient_failure_is_task_state_not_http_failure(postgres_engine)
         postgres_engine, Unavailable(runner_result())
     )
     intent = await service.create(URL, TEST_USER.owner_hash, "retry")
-    for attempt in range(3):
-        await executor.execute(InspectionCommand(str(intent.id), 0), str(uuid4()))
-        observed = await service.get(intent.id, TEST_USER.owner_hash)
-        assert observed.reason_code == "provider_temporarily_unavailable"
-        if attempt < 2:
-            assert observed.status == "retry_wait"
-            clock[0] = observed.retry_at
-        else:
-            assert observed.status == "failed"
+    await executor.execute(InspectionCommand(str(intent.id), 0))
+    observed = await service.get(intent.id, TEST_USER.owner_hash)
+    assert observed.reason_code == "transient"
+    assert observed.status == "failed"
 
 
 def test_openapi_intent_response_does_not_expose_execution_or_secrets():
@@ -381,7 +293,7 @@ async def test_history_recovers_without_client_storage_and_is_bounded_and_owner_
         item = await service.create(URL, TEST_USER.owner_hash, f"history-{index}")
         created.append(item)
         if index == 0:
-            await executor.execute(InspectionCommand(str(item.id), 0), str(uuid4()))
+            await executor.execute(InspectionCommand(str(item.id), 0))
         else:
             await service.cancel(item.id, TEST_USER.owner_hash)
     other_owner = replace(TEST_USER, id=uuid4()).owner_hash
@@ -453,9 +365,9 @@ async def test_history_recovers_without_client_storage_and_is_bounded_and_owner_
 async def test_expired_result_refresh_is_an_owned_202_on_the_same_intent(
     postgres_engine,
 ):
-    service, _, executor, clock, _ = components(postgres_engine)
+    service, repo, executor, clock, _ = components(postgres_engine)
     item = await service.create(URL, TEST_USER.owner_hash, "refresh-contract")
-    await executor.execute(InspectionCommand(str(item.id), 0), str(uuid4()))
+    await executor.execute(InspectionCommand(str(item.id), 0))
     clock[0] += timedelta(minutes=16)
     app = create_app(Settings(app_env="test"))
     app.state.services.intent_service = service
@@ -477,46 +389,6 @@ async def test_expired_result_refresh_is_an_owned_202_on_the_same_intent(
         app.dependency_overrides[get_current_user] = lambda: TEST_USER
         await service.cancel(item.id, TEST_USER.owner_hash)
         assert (await client.post(path)).status_code == 409
-
-
-async def test_manual_routes_removed_and_automatic_wait_exposes_typed_failure(
-    postgres_engine,
-):
-    from app.schemas.download_intents import IntentResponse
-
-    service, repo, _, clock, _ = components(
-        postgres_engine, operator_providers=frozenset({"youtube"})
-    )
-    intent = await service.create(URL, TEST_USER.owner_hash, "automatic-source")
-    operation = await repo.claim_preparation(intent.id, 0, "prepare", now=clock[0])
-    waiting = await repo.fail(
-        operation.intent, now=clock[0], reason_code="provider_session_not_ready"
-    )
-    response = IntentResponse.from_snapshot(waiting)
-    assert response.status == "retry_wait" and response.next_action == "wait"
-    assert response.phase.value == "prepare_context"
-    assert response.failure.code == "provider_session_not_ready"
-    assert response.failure.scope.value == "session"
-    assert (
-        not {"authorization_id", "authorization_deadline"}
-        & response.model_dump().keys()
-    )
-    app = create_app(Settings(app_env="test"))
-    app.state.services.intent_service = service
-    app.dependency_overrides[get_current_user] = lambda: TEST_USER
-    async with httpx.AsyncClient(
-        transport=httpx.ASGITransport(app=app), base_url="http://testserver"
-    ) as client:
-        for action in ("login", "resume"):
-            assert (
-                await client.post(
-                    f"/api/download-intents/{intent.id}/{action}", json={}
-                )
-            ).status_code == 404
-        observed = (await client.get(f"/api/download-intents/{intent.id}")).json()[
-            "data"
-        ]
-        assert observed["failure"]["code"] == "provider_session_not_ready"
-        assert observed["deadline"] == intent.deadline.isoformat().replace(
-            "+00:00", "Z"
-        )
+        cancelled = await repo.get(item.id, TEST_USER.owner_hash)
+        await repo.confirm_cancel(item.id, cancelled.generation, now=clock[0])
+        assert (await client.post(path)).status_code == 409

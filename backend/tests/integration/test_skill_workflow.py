@@ -107,6 +107,7 @@ async def submit(sessions, client) -> SkillCommand:
             analyses,
             address=client.service_client.config.target_host,
             namespace="framefetch-test",
+            cancel_inspection=AsyncMock(),
         ),
         publisher_id="test-publisher",
         clock=now,

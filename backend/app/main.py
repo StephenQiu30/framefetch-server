@@ -42,8 +42,7 @@ from app.api.routes.users import router as users_router
 from app.core.config import Settings, get_settings
 from app.core.lifespan import api_lifespan
 from app.core.runtime import ApiRuntime, ApiServices
-from app.integrations.media_runner_factory import session_provider_keys
-from app.integrations.provider_status import current_provider_statuses
+from app.integrations.provider_status import configured_provider_statuses
 
 
 def create_app(
@@ -64,9 +63,7 @@ def create_app(
         lifespan=lambda application: api_lifespan(application, effective, runtime),
     )
     application.state.settings = effective
-    application.state.provider_statuses = current_provider_statuses(
-        session_provider_keys(effective),
-    )
+    application.state.provider_statuses = configured_provider_statuses()
     application.state.services = runtime.services if runtime else ApiServices()
     application.include_router(health_router)
     application.include_router(metrics_router)

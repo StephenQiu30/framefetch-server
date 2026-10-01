@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import asyncio
 from contextlib import suppress
-from dataclasses import replace
 from pathlib import Path
 from uuid import UUID
 
@@ -15,7 +14,6 @@ from app.services.download_execution.errors import (
     ExecutionSourceUnavailable,
     LeaseInfrastructureError,
     LeaseLost,
-    LegacyContextChanged,
     classify_runner_failure,
 )
 from app.services.download_execution.models import (
@@ -41,8 +39,7 @@ from app.services.downloads.rules.enums import (
     DownloadStage,
     MediaKind,
 )
-from app.services.provider_route_admission import RouteCoolingDown
-from app.services.provider_types import ProviderAccessContextRef
+from app.services.provider_types import ExecutionContext
 
 
 class DownloadExecution:
@@ -124,37 +121,20 @@ class DownloadExecution:
                         source.semantic_plan, source.provider_hints
                     )
                 )
-                access_context = ProviderAccessContextRef.from_document(
-                    source.access_context
+                execution_context = ExecutionContext.from_document(
+                    source.execution_context
                 )
             except Exception:
                 return await self._transitions.fail(
                     job_id, attempt, DownloadErrorCode.INTERNAL_ERROR
                 )
             try:
-                # The Runner re-inspects media identity and the selected format
-                # before writing. Refresh only a code-generation change here;
-                # never silently switch account, egress, engine or policy.
-                current_context = await monitor.run_fixed(
-                    lambda: self._runner.context(url, access_context.access_mode),
-                    stage=DownloadStage.REVALIDATING,
-                    progress=0,
-                    drain_on_abort=False,
-                )
-                candidate = replace(
-                    access_context,
-                    runtime_revision=current_context.runtime_revision,
-                )
-                if candidate == current_context:
-                    access_context = current_context
-                elif access_context.runtime_revision == "legacy":
-                    raise LegacyContextChanged
                 await monitor.run_fixed(
                     lambda: self._repository.record_execution_context(
                         job_id,
                         self._settings.worker_id,
                         attempt,
-                        access_context,
+                        execution_context,
                         self._clock(),
                     ),
                     stage=DownloadStage.REVALIDATING,
@@ -166,7 +146,7 @@ class DownloadExecution:
                     plan,
                     provider_media_id=source.provider_media_id,
                     extractor_key=source.extractor_key,
-                    access_context=access_context,
+                    execution_context=execution_context,
                     media_kind=media_kind,
                     asset_count=_asset_count(source.semantic_plan),
                 )
@@ -177,19 +157,13 @@ class DownloadExecution:
                 return ExecutionDisposition.REQUEUE
             except asyncio.CancelledError:
                 raise
-            except RouteCoolingDown as exc:
-                return await self._transitions.fail(
-                    job_id,
-                    attempt,
-                    DownloadErrorCode.PROVIDER_RATE_LIMITED,
-                    retry_not_before=exc.retry_at,
-                )
             except Exception as exc:
                 return await self._transitions.fail(
                     job_id,
                     attempt,
                     classify_runner_failure(exc),
                     error_message=str(exc),
+                    retry_not_before=getattr(exc, "retry_at", None),
                 )
             try:
                 verified = await monitor.run_fixed(
@@ -240,7 +214,7 @@ class DownloadExecution:
                     # verified media download into a failed job.
                     pass
             return await self._delivery.run(
-                monitor, job_id, attempt, verified, access_context
+                monitor, job_id, attempt, verified, execution_context
             )
         finally:
             with suppress(Exception):

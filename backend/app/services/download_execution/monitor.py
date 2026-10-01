@@ -18,7 +18,7 @@ from app.services.download_execution.ports import (
 )
 from app.services.downloads.rules.enums import DownloadStage, MediaKind
 from app.services.downloads.rules.formats import DownloadPlan
-from app.services.provider_types import ProviderAccessContextRef
+from app.services.provider_types import ExecutionContext
 
 ResultT = TypeVar("ResultT")
 _STAGE_RANKS = {
@@ -62,7 +62,7 @@ class LeaseMonitor:
         *,
         provider_media_id: str,
         extractor_key: str,
-        access_context: ProviderAccessContextRef,
+        execution_context: ExecutionContext,
         media_kind: MediaKind = MediaKind.VIDEO,
         asset_count: int = 0,
     ) -> RunnerArtifactView:
@@ -73,7 +73,7 @@ class LeaseMonitor:
                 plan,
                 expected_provider_media_id=provider_media_id,
                 expected_extractor_key=extractor_key,
-                access_context=access_context,
+                execution_context=execution_context,
                 media_kind=media_kind,
                 asset_count=asset_count,
             )

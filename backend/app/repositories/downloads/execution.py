@@ -19,7 +19,7 @@ from app.services.download_execution.errors import (
 )
 from app.services.download_execution.models import ArtifactDetails
 from app.services.downloads.download_models import JobSnapshot
-from app.services.provider_types import ProviderAccessContextRef
+from app.services.provider_types import ExecutionContext
 
 
 class DownloadExecutionRepository:
@@ -77,7 +77,7 @@ class DownloadExecutionRepository:
         job_id: UUID,
         worker_id: str,
         attempt: int,
-        context: ProviderAccessContextRef,
+        context: ExecutionContext,
         now: datetime,
     ) -> None:
         with _translate_errors():

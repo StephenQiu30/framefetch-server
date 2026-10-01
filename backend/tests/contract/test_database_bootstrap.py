@@ -41,11 +41,11 @@ def test_execution_context_schema_supports_new_and_existing_databases() -> None:
     create_jobs = schema.split("CREATE TABLE IF NOT EXISTS download_jobs (", 1)[
         1
     ].split(");", 1)[0]
-    assert "execution_access_context JSONB" in create_jobs
+    assert "execution_context JSONB" in create_jobs
     assert "execution_context_attempt INTEGER" in create_jobs
     assert (
         "ALTER TABLE download_jobs\n"
-        "    ADD COLUMN IF NOT EXISTS execution_access_context JSONB;"
+        "    ADD COLUMN IF NOT EXISTS execution_context JSONB;"
     ) in schema
     assert (
         "ALTER TABLE download_jobs\n"
@@ -95,7 +95,7 @@ def test_core_api_boot_does_not_wait_for_session_readiness() -> None:
         assert not any(config.get("profiles") for config in services.values())
         for service in ("api", "frontend", "worker"):
             assert not set(services[service].get("depends_on", {})) & set(
-                _SESSION_SERVICES
+                ("session-runner",)
             )
 
 
@@ -190,12 +190,22 @@ def test_current_schema_can_be_applied_repeatedly() -> None:
     assert "'local-codex', '本机 Codex', 'codex', 'host_login'" in schema
     assert "ck_ai_provider_local_codex_shape" in schema
     assert "ON CONFLICT (key) DO UPDATE SET" in schema
-    assert "ADD COLUMN IF NOT EXISTS context_generation_id VARCHAR(64)" in schema
-    assert "ALTER COLUMN context_generation_id SET NOT NULL" in schema
-    assert "ix_provider_canary_target_generation_checked" in schema
-    assert (
-        "DROP INDEX IF EXISTS ix_provider_canary_target_profile_route_checked" in schema
-    )
+    for table in (
+        "provider_canary_results",
+        "provider_route_cooldowns",
+        "resolution_attempts",
+    ):
+        assert f"DROP TABLE IF EXISTS {table};" in schema
+        assert f"CREATE TABLE IF NOT EXISTS {table}" not in schema
+    for column in (
+        "resolution_plan",
+        "next_strategy_id",
+        "remaining_budget_ms",
+        "fence",
+        "access_policy",
+    ):
+        assert f"ALTER TABLE download_intents DROP COLUMN IF EXISTS {column};" in schema
+    assert "ADD COLUMN IF NOT EXISTS execution_context JSONB" in schema
     assert "'video.import.dead'" in schema
 
 
@@ -338,7 +348,7 @@ def test_background_loops_share_one_private_worker_container() -> None:
     for path in (COMPOSE_PATH, PROD_COMPOSE_PATH):
         compose = path.read_text(encoding="utf-8")
         services = yaml.safe_load(compose)["services"]
-        # Outbox, download, import, report and canary run in one process.
+        # Outbox, download, import and report run in one process.
         for retired in (
             "outbox",
             "worker-download",
@@ -353,9 +363,9 @@ def test_background_loops_share_one_private_worker_container() -> None:
         assert "SERVICE_ROLE: worker" in worker
         assert "RABBITMQ_WORKER_USER" in worker and "RABBITMQ_WORKER_PASS" in worker
         assert "env_file" not in worker
-        assert "runner_egress_net" not in worker
+        assert "runner_egress_net" in worker
         assert "ports:" not in worker
-        assert services["worker"]["networks"] == ["app_net", "runner_rpc_net"]
+        assert services["worker"]["networks"] == ["app_net", "runner_egress_net"]
         assert 'command: ["python", "-m", "app.workers.main"]' in worker
 
 
@@ -376,7 +386,8 @@ def test_compose_isolates_media_dependencies_and_preserves_api_readiness() -> No
         for service in ("api", "worker"):
             dependencies = services[service].get("depends_on", {})
             assert not (
-                {"media-runner", "egress-proxy", *_SESSION_SERVICES} & set(dependencies)
+                {"media-runner", "egress-proxy", *("session-runner",)}
+                & set(dependencies)
             )
         assert "127.0.0.1:8111/health/ready" in " ".join(
             services["api"]["healthcheck"]["test"]
@@ -409,10 +420,7 @@ def test_project_documents_container_and_complete_local_entrypoints() -> None:
     # Compose starts the business containers; host agents have explicit
     # installation commands and share the selected deployment environment.
     assert not (ROOT.parent / "start").exists()
-    assert (
-        "uv run --project backend python -m app.workers.session.source_cli "
-        "install --env-file .env" in root_readme
-    )
+    assert "app.workers.session.source_cli" not in root_readme
     assert not (ROOT / "app/workers/runner/provider_startup.py").exists()
     assert "provider_startup" not in root_readme
     assert "run-local-backend.py" not in root_readme
@@ -446,78 +454,32 @@ def test_compose_pins_shared_runner_workspace_to_the_mounted_container_path() ->
     )
 
 
-_SESSION_SERVICES = ("session-runner", "session-broker")
-
-
-def test_site_session_services_relay_live_chrome_without_storing_it() -> None:
+def test_anonymous_runner_retains_private_network_and_workspace() -> None:
     for path in (COMPOSE_PATH, PROD_COMPOSE_PATH):
         compose = yaml.safe_load(path.read_text(encoding="utf-8"))
         services = compose["services"]
-        broker = services["session-broker"]
         runner = services["session-runner"]
-
-        # The existing Runner owns browser execution. The broker keeps no
-        # session copy; approved Chrome material is still leased per operation.
-        assert "session-browser" not in services
-        for config in services.values():
-            assert "SITE_SESSION_ENCRYPTION_KEY" not in config.get("environment", {})
-        assert set(broker["networks"]) == {"app_net", "runner_rpc_net"}
-        assert "DATABASE_URL" not in broker["environment"]
-        assert broker["environment"]["SITE_SESSION_AGENT_URL"].endswith(
-            "host.docker.internal:19250}"
-        )
-
-        # The Runner only ever receives one sealed lease per operation.
-        environment = runner["environment"]
-        assert set(runner["networks"]) == {
-            "runner_rpc_net",
-            "runner_egress_net",
-            "youtube_pot_net",
-        }
+        assert "session-broker" not in services
+        assert "runner_rpc_net" not in compose["networks"]
+        assert set(runner["networks"]) == {"runner_egress_net", "youtube_pot_net"}
         assert runner["volumes"] == [
             "runner_work:/work",
             "browser_profiles:/var/lib/video-browser",
         ]
-        assert environment["RUNNER_BROWSER_PROFILE_ROOT"] == "/var/lib/video-browser"
+        assert (
+            runner["environment"]["RUNNER_BROWSER_PROFILE_ROOT"]
+            == "/var/lib/video-browser"
+        )
         assert runner["shm_size"] == "256m"
-        assert all(
-            "browser_profiles" not in str(config.get("volumes", []))
-            for name, config in services.items()
-            if name != "session-runner"
-        )
-        assert environment["RUNNER_SESSION_BROKER_URL"] == "http://session-broker:19200"
-        assert "DATABASE_URL" not in environment
-        assert "SITE_SESSION_AGENT_SECRET" not in environment
-        assert any("/run/provider-session" in item for item in runner["tmpfs"])
-
-        for name in _SESSION_SERVICES:
-            assert "ports" not in services[name]
-            assert services[name]["read_only"] is not False
-        for config in services.values():
-            assert "Library/Caches" not in str(config)
-            assert "provider-cookie-agent" not in str(config)
-
-
-def test_production_requires_explicit_site_session_secrets() -> None:
-    compose = yaml.safe_load(PROD_COMPOSE_PATH.read_text(encoding="utf-8"))
-    services = compose["services"]
-    for name, key in (
-        ("session-broker", "SITE_SESSION_RPC_SECRET"),
-        ("session-broker", "SITE_SESSION_AGENT_SECRET"),
-        ("session-runner", "RUNNER_SESSION_RPC_SECRET"),
-    ):
-        assert ":?" in services[name]["environment"][key], (name, key)
-
-
-def test_single_session_runner_serializes_credentials_in_process() -> None:
-    for path in (COMPOSE_PATH, PROD_COMPOSE_PATH):
-        compose = yaml.safe_load(path.read_text(encoding="utf-8"))
-        runner = compose["services"]["session-runner"]
-        assert "deploy" not in runner or "replicas" not in runner["deploy"]
+        assert "ports" not in runner
+        assert "DATABASE_URL" not in runner["environment"]
         assert not any(
-            key.startswith("RUNNER_CREDENTIAL_LEASE") for key in runner["environment"]
+            key.startswith("RUNNER_SESSION_") for key in runner["environment"]
         )
-        assert "provider-lease-redis" not in runner["depends_on"]
+        assert runner["read_only"] is True
+        assert "proxy_uplink_net" not in runner["networks"]
+        for service in ("api", "worker"):
+            assert "runner_egress_net" in services[service]["networks"]
 
 
 def test_production_compose_is_the_only_production_topology_file() -> None:
@@ -582,3 +544,12 @@ def test_anonymous_and_guest_execution_services_are_removed():
             }
             & services.keys()
         )
+
+
+def test_collaboration_contract_uses_the_final_execution_design() -> None:
+    agents = (ROOT.parent / "AGENTS.md").read_text()
+    assert "设计 17 第 3.7 节的十二字段非敏感摘要" in agents
+    assert "第 3.6 节的十三类" in agents
+    assert "layer、stage、gate、结构化 evidence" in agents
+    assert "六字段" not in agents
+    assert "十类失败" not in agents

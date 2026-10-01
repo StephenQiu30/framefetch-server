@@ -10,7 +10,7 @@ from sqlalchemy import case, update
 from app.models import DownloadJobRow
 from app.repositories.errors import LeaseConflict
 from app.repositories.repository_base import RepositoryBase
-from app.services.provider_types import ProviderAccessContextRef
+from app.services.provider_types import ExecutionContext
 
 STAGE_RANKS = {
     "revalidating": 1,
@@ -27,7 +27,7 @@ class ProgressRepository(RepositoryBase):
         job_id: UUID,
         worker_id: str,
         attempt: int,
-        context: ProviderAccessContextRef,
+        context: ExecutionContext,
         now: datetime,
     ) -> None:
         statement = (
@@ -40,7 +40,7 @@ class ProgressRepository(RepositoryBase):
                 DownloadJobRow.lease_expires_at > now,
             )
             .values(
-                execution_access_context=context.to_document(),
+                execution_context=context.to_document(),
                 execution_context_attempt=attempt,
                 version=DownloadJobRow.version + 1,
                 updated_at=now,

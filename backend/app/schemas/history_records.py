@@ -8,7 +8,6 @@ from app.schemas.common import StrictModel
 from app.schemas.download_intents import (
     IntentFailureResponse,
     IntentHistoryItemResponse,
-    intent_resolution_state,
 )
 from app.services.analysis.rules.enums import (
     AnalysisErrorCode,
@@ -27,6 +26,7 @@ from app.services.history_records import (
     history_status_group,
 )
 from app.services.imports.rules.enums import ImportStatus
+from app.services.provider_failures import FailureClass
 
 
 class HistoryRecordCursorResponse(StrictModel):
@@ -146,9 +146,20 @@ class HistoryRecordPageResponse(StrictModel):
 def _parse_item(item: HistoryRecordSnapshot) -> ParseHistoryRecordResponse:
     if item.version is None or item.deadline is None:
         raise ValueError("parse history record is incomplete")
-    phase, action = intent_resolution_state(
-        IntentStatus(item.status), item.latest_failure
-    )
+    action: Literal["none", "wait", "refresh_result", "import_file"] = "none"
+    if item.status in {"queued", "resolving"}:
+        action = "wait"
+    elif item.status in {"failed", "expired"}:
+        action = (
+            "import_file"
+            if item.latest_failure
+            and item.latest_failure.failure_class
+            in {
+                FailureClass.CONTENT_PROTECTED,
+                FailureClass.LOGIN_REQUIRED,
+            }
+            else "refresh_result"
+        )
     return ParseHistoryRecordResponse(
         **_summary(item),
         record_type="parse",
@@ -156,12 +167,10 @@ def _parse_item(item: HistoryRecordSnapshot) -> ParseHistoryRecordResponse:
         version=item.version,
         status=IntentStatus(item.status),
         reason_code=item.reason_code,
-        phase=phase,
         next_action=action,
         failure=None
         if item.latest_failure is None
         else IntentFailureResponse.from_failure(item.latest_failure),
-        retry_at=item.retry_at,
         deadline=item.deadline,
         inspection_id=item.inspection_id,
         job_id=item.job_id,

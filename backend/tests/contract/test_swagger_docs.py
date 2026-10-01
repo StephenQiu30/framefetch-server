@@ -89,7 +89,6 @@ def test_swagger_ui_and_openapi_contract_are_available(tmp_path: Path) -> None:
         "activateAiProviderProfile",
         "deleteAiProviderProfile",
         "listProviderCatalogEntries",
-        "getAdminProviderRuntime",
         "getAdminEngineCatalog",
         "createProviderCatalogEntry",
         "updateProviderCatalogEntry",

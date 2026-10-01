@@ -99,7 +99,9 @@ async def get_provider_statuses(request: Request) -> tuple[ProviderStatusView, .
     service = get_services(request).provider_status_service
     if service is not None:
         return await service.list()
-    return cast(tuple[ProviderStatusView, ...], request.app.state.provider_statuses)
+    from app.integrations.provider_status import configured_provider_statuses
+
+    return configured_provider_statuses()
 
 
 def get_services(connection: HTTPConnection) -> ApiServices:

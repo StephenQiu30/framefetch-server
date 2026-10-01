@@ -67,8 +67,8 @@ from app.services.imports.service import (
     CreateUploadSession,
     GetImport,
 )
-from app.services.provider_canaries import ProviderStatusService
 from app.services.provider_catalog import ProviderCatalogService
+from app.services.provider_status import ProviderStatusService
 from app.services.source_discoveries.use_cases import (
     CreateSourceDiscovery,
     GetSourceDiscovery,

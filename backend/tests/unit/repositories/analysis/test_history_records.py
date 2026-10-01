@@ -7,13 +7,13 @@ from app.models import AnalysisJobRow, ArtifactRow, DocumentRow
 from app.models.download_intent import DownloadIntentRow
 from app.repositories.history_records import SqlAlchemyHistoryRecordRepository
 from app.schemas.history_records import HistoryRecordPageResponse
-from app.schemas.resolution import PROVIDER_FAILURE
 from app.services.history_records import (
     HistoryRecordFilters,
     HistoryRecordKind,
     HistoryStatusGroup,
 )
 from app.services.provider_failures import ProviderFailure
+from pydantic import TypeAdapter
 from sqlalchemy import update
 from tests.unit.repositories.analysis.factories import (
     OWNER,
@@ -25,7 +25,9 @@ from tests.unit.repositories.analysis.screenplay_factories import (
     seed_screenplay,
 )
 
-NOW = datetime(2026, 9, 24, tzinfo=UTC)
+PROVIDER_FAILURE = TypeAdapter(ProviderFailure)
+
+NOW = datetime.now(UTC)
 
 
 async def seed(db):
@@ -48,7 +50,6 @@ async def seed(db):
                 url_ciphertext=b"cipher",
                 url_nonce=b"nonce",
                 url_key_id="test",
-                access_policy="public",
                 deadline=NOW + timedelta(hours=1),
                 created_at=NOW,
                 updated_at=NOW,
@@ -85,15 +86,13 @@ async def test_four_types_stable_cursor_and_owner(analysis_db):
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize(
-    "status,action", [("retry_wait", "wait"), ("failed", "refresh_result")]
+    "status,action", [("resolving", "wait"), ("failed", "refresh_result")]
 )
 async def test_parse_history_preserves_failure_phase_without_private_context(
     analysis_db, status, action
 ):
     await seed(analysis_db)
-    failure = ProviderFailure.for_code("pot_provider_unavailable").with_context(
-        "yt-dlp-session", "private-context"
-    )
+    failure = ProviderFailure.for_code("runtime_unavailable")
     async with analysis_db.sessions() as session, session.begin():
         await session.execute(
             update(DownloadIntentRow)
@@ -102,9 +101,6 @@ async def test_parse_history_preserves_failure_phase_without_private_context(
                 status=status,
                 reason_code="inspection_failed",
                 latest_failure=PROVIDER_FAILURE.dump_python(failure, mode="json"),
-                retry_at=NOW + timedelta(seconds=15)
-                if status == "retry_wait"
-                else None,
             )
         )
     records = await SqlAlchemyHistoryRecordRepository(analysis_db.sessions).history(
@@ -112,11 +108,10 @@ async def test_parse_history_preserves_failure_phase_without_private_context(
     )
     response = HistoryRecordPageResponse.from_page(records)
     parsed = next(item for item in response.items if item.record_type == "parse")
-    assert parsed.phase == failure.phase
-    assert parsed.failure.code == "pot_provider_unavailable"
-    assert parsed.failure.failure_class == "token_unavailable"
+    assert parsed.failure.code == "runtime_unavailable"
+    assert parsed.failure.failure_class == "runtime_unavailable"
     assert parsed.next_action == action
-    assert parsed.status_group == ("processing" if status == "retry_wait" else "failed")
+    assert parsed.status_group == ("processing" if status == "resolving" else "failed")
     encoded = response.model_dump_json()
     assert "private-context" not in encoded
     assert "yt-dlp-session" not in encoded

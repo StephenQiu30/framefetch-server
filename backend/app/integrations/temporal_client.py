@@ -1,7 +1,8 @@
 """Route durable inspection and Skill commands; other events keep their transport."""
 
 import asyncio
-from datetime import timedelta
+from collections.abc import Awaitable, Callable
+from datetime import UTC, datetime, timedelta
 from typing import Protocol
 from uuid import UUID
 
@@ -9,7 +10,7 @@ from temporalio.api.workflowservice.v1 import (
     DescribeNamespaceRequest,
     RegisterNamespaceRequest,
 )
-from temporalio.client import Client, WorkflowHandle
+from temporalio.client import Client, WorkflowFailureError, WorkflowHandle
 from temporalio.common import WorkflowIDConflictPolicy, WorkflowIDReusePolicy
 from temporalio.exceptions import WorkflowAlreadyStartedError
 from temporalio.service import RPCError, RPCStatusCode
@@ -17,7 +18,7 @@ from temporalio.service import RPCError, RPCStatusCode
 from app.integrations.messaging import EventEnvelope, EventEnvelopeError
 from app.repositories.downloads.intent_repository import IntentRepository
 from app.services.analysis.models import AnalysisJobSnapshot
-from app.services.downloads.intent_models import ACTIVE_INTENT_STATUSES
+from app.services.downloads.intent_models import IntentStatus
 from app.workers.analysis.workflows import SKILL_TASK_QUEUE, SkillCommand, SkillWorkflow
 from app.workers.download.workflows import InspectionCommand, InspectionWorkflow
 from app.workers.outbox.loop import EventPublisher
@@ -43,12 +44,16 @@ class CommandPublisher:
         *,
         address: str,
         namespace: str,
+        cancel_inspection: Callable[[str], Awaitable[None]],
+        clock: Callable[[], datetime] = lambda: datetime.now(UTC),
     ) -> None:
         self._fallback = fallback
         self._intents = intents
         self._analyses = analyses
         self._address = address
         self._namespace = namespace
+        self._cancel_inspection = cancel_inspection
+        self._clock = clock
         self._client: Client | None = None
 
     async def publish(self, envelope: EventEnvelope) -> None:
@@ -74,16 +79,33 @@ class CommandPublisher:
         if state.generation != generation:
             return
         cancel = envelope.event_type == "download.intent.cancelled"
-        if not cancel and state.status not in ACTIVE_INTENT_STATUSES:
+        if not cancel and state.status not in {
+            IntentStatus.QUEUED,
+            IntentStatus.RESOLVING,
+        }:
             return  # Also protects against redelivery after Temporal history retention.
         client = await self._connect()
         handle = client.get_workflow_handle(command.workflow_id)
         if cancel:
+            if state.status != IntentStatus.CANCELLING:
+                return
             try:
                 await handle.cancel(rpc_timeout=_RPC_TIMEOUT)
+                # Stop Workflow scheduling before cancelling its Runner resource.
+                # An acknowledgement lost on either transport leaves the Outbox
+                # unpublished so its ordinary redelivery retries confirmation.
+                try:
+                    async with asyncio.timeout(45):
+                        await handle.result(rpc_timeout=_RPC_TIMEOUT)
+                except WorkflowFailureError:
+                    pass  # Any closed Workflow can no longer start the Activity.
             except RPCError as exc:
                 if exc.status != RPCStatusCode.NOT_FOUND:
                     raise
+            await self._cancel_inspection(command.task_id)
+            await self._intents.confirm_cancel(
+                envelope.aggregate_id, generation, now=self._clock()
+            )
             return
         binding: dict[str, object] = {
             "intent_id": command.intent_id,

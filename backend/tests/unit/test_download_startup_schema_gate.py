@@ -16,7 +16,7 @@ from sqlalchemy.ext.asyncio import AsyncEngine
 async def _drop_execution_column(
     engine: AsyncEngine,
     table: str = "download_jobs",
-    column: str = "execution_access_context",
+    column: str = "execution_context",
 ) -> None:
     async with engine.begin() as connection:
         await connection.execute(text(f"ALTER TABLE {table} DROP COLUMN {column}"))
@@ -44,9 +44,9 @@ async def test_api_refuses_to_start_realtime_before_schema_migration(
 @pytest.mark.parametrize(
     "table,column",
     [
-        ("download_jobs", "execution_access_context"),
+        ("download_jobs", "execution_context"),
         ("download_intents", "generation"),
-        ("download_intents", "operation_id"),
+        ("download_intents", "execution_context"),
     ],
 )
 async def test_download_worker_refuses_to_consume_before_schema_migration(

@@ -105,7 +105,6 @@ class HistoryRecordSnapshot:
     error_code: str | None = None
     encrypted_url: EncryptedUrl | None = field(default=None, repr=False)
     request_fingerprint: str | None = field(default=None, repr=False)
-    access_policy: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -211,15 +210,12 @@ class HistoryRecordService:
                 url = self._cipher.decrypt(item.encrypted_url)
             except (InvalidToken, ValueError, UnicodeDecodeError):
                 continue
-            if item.access_policy is not None:
-                inspection_fingerprint = self._fingerprinter.fingerprint(
-                    "inspection", url, item.access_policy
-                )
-                sources[item.id] = (
-                    inspection_fingerprint,
-                    _youtube_id(url),
-                    _source_label(url, item.request_fingerprint),
-                )
+            inspection_fingerprint = self._fingerprinter.fingerprint("inspection", url)
+            sources[item.id] = (
+                inspection_fingerprint,
+                _youtube_id(url),
+                _source_label(url, item.request_fingerprint),
+            )
 
         titles = (
             await self._repository.inspection_titles(

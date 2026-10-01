@@ -20,7 +20,6 @@ from tests.integration.test_download_intents import (
     command,
     inspection,
 )
-from tests.resolution import start_attempt
 
 
 async def ready(engine):
@@ -28,13 +27,7 @@ async def ready(engine):
     intents = IntentRepository(sessions)
     downloads = SqlAlchemyDownloadRepository(sessions)
     accepted = await intents.accept(command(), now=NOW)
-    lease = await start_attempt(
-        intents,
-        accepted.id,
-        (await intents.execution_state(accepted.id)).generation,
-        str(uuid4()),
-        now=NOW,
-    )
+    lease = await intents.claim(accepted.id, accepted.generation, now=NOW)
     result = inspection(lease.intent)
     saved = await intents.complete(lease.intent, result, now=NOW)
     create = DownloadCreate(

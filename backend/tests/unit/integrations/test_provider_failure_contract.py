@@ -1,65 +1,30 @@
-"""Exercise failure facts through signed Runner HTTP and the business boundary."""
+"""Failure location and thirteen categories cross the signed Runner boundary."""
 
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
-from unittest.mock import AsyncMock
 
 import httpx
 import pytest
 from app.integrations.media_runner import MediaRunnerHttpClient
 from app.integrations.media_runner_models import MediaRunnerClientError
-from app.services.downloads.errors import ApplicationError, ApplicationErrorCode
-from app.services.provider_failures import FailureEvidenceKind, FailurePhase
+from app.services.provider_failures import (
+    FailureClass,
+    FailureEvidenceKind,
+    FailurePhase,
+)
 from app.workers.runner.contracts import ProviderFailureContract, RunnerErrorContract
 from app.workers.runner.errors import RunnerFailure
 from app.workers.runner.main import create_app
-from tests.unit.services.test_inspect_media import (
-    OWNER,
-    URL,
-    FakeRepository,
-    runner_result,
-    use_case,
-)
 from tests.unit.workers.runner.api_helpers import FakeService
 from tests.unit.workers.runner.helpers import SECRET, download_request, settings
 
 
-@pytest.mark.parametrize(
-    "code,phase",
-    [
-        ("credential_required", FailurePhase.FETCH_METADATA),
-        ("credential_expired", FailurePhase.FETCH_METADATA),
-        ("egress_challenged", FailurePhase.FETCH_METADATA),
-        ("pot_required", FailurePhase.PREPARE_CONTEXT),
-        ("pot_rejected", FailurePhase.FETCH_METADATA),
-        ("pot_provider_unavailable", FailurePhase.PREPARE_CONTEXT),
-        ("extractor_regression", FailurePhase.FETCH_METADATA),
-        ("network_transient", FailurePhase.PROBE_MEDIA),
-        ("media_probe_failed", FailurePhase.PROBE_MEDIA),
-        ("provider_rate_limited", FailurePhase.TRANSFER),
-        ("content_private", FailurePhase.FETCH_METADATA),
-        ("upstream_unclassified", FailurePhase.FETCH_METADATA),
-        ("client_context_mismatch", FailurePhase.PREPARE_CONTEXT),
-        ("invalid_artifact", FailurePhase.VALIDATE),
-        ("storage_unavailable", FailurePhase.PUBLISH),
-    ],
-)
-async def test_signed_failure_reaches_business_without_losing_facts(
-    tmp_path: Path,
-    code: str,
-    phase: FailurePhase,
-) -> None:
-    context = download_request().access_context.to_domain()
-    error = RunnerFailure(
-        code,
-        status=422,
-        phase=phase,
-        evidence_kind=FailureEvidenceKind.UPSTREAM_RESPONSE,
-        retry_after=datetime.now(UTC) + timedelta(seconds=60)
-        if code == "provider_rate_limited"
-        else None,
-    )
-    error.attributed_to(context)
+@pytest.mark.parametrize("category", list(FailureClass))
+async def test_signed_failure_preserves_category_layer_stage_and_summary(
+    tmp_path: Path, category
+):
+    context = download_request().execution_context.to_domain()
+    error = RunnerFailure(category.value, status=422).attributed_to(context)
 
     class FailingService(FakeService):
         async def inspect(self, _url, **_kwargs):
@@ -68,7 +33,7 @@ async def test_signed_failure_reaches_business_without_losing_facts(
     async with httpx.AsyncClient(
         base_url="http://runner",
         transport=httpx.ASGITransport(
-            app=create_app(settings(tmp_path), service=FailingService())
+            app=create_app(settings(tmp_path), service=FailingService()),
         ),
     ) as http:
         client = MediaRunnerHttpClient(
@@ -79,59 +44,39 @@ async def test_signed_failure_reaches_business_without_losing_facts(
             download_timeout_seconds=5,
             client=http,
         )
-        inspector, runner, _ = use_case(FakeRepository(), runner_result())
-
-        async def inspect(url, **_kwargs):
-            return await client.inspect(url)
-
-        runner.inspect = AsyncMock(side_effect=inspect)
-        with pytest.raises(ApplicationError) as caught:
-            await inspector.prepare(URL, OWNER, "failure-contract")
+        with pytest.raises(MediaRunnerClientError) as caught:
+            await client.inspect("https://vimeo.com/1")
     assert caught.value.failure == error.failure
-    assert caught.value.failure.code == code
-    assert caught.value.failure.phase is phase
-    assert caught.value.failure.context_key == context.generation_id
-    if code in {
-        "pot_required",
-        "pot_rejected",
-        "client_context_mismatch",
-        "network_transient",
-        "upstream_unclassified",
-        "media_probe_failed",
-    }:
-        assert caught.value.code not in {
-            ApplicationErrorCode.PROVIDER_AUTH_REQUIRED,
-            ApplicationErrorCode.PROVIDER_SESSION_EXPIRED,
-            ApplicationErrorCode.PROVIDER_VERIFICATION_FAILED,
-        }
-    if code == "provider_rate_limited":
-        assert caught.value.retry_at == error.failure.retry_after
+    assert caught.value.failure.failure_class is category
+    assert caught.value.failure.layer == "L1"
+    assert caught.value.failure.stage == "resolve"
+    assert caught.value.failure.summary
 
 
 @pytest.mark.parametrize(
-    "mutation", ["code", "phase", "scope", "context_key", "failure_class", "extra"]
+    "mutation", ["code", "layer", "stage", "failure_class", "extra"]
 )
-async def test_invalid_failure_facts_are_rejected(mutation: str) -> None:
-    facts = ProviderFailureContract.from_domain(RunnerFailure("pot_rejected").failure)
+async def test_invalid_failure_facts_are_rejected(mutation):
+    facts = ProviderFailureContract.from_domain(RunnerFailure("challenge").failure)
     document = RunnerErrorContract(
-        code="pot_rejected", message="rejected", failure=facts
+        code="challenge", message="rejected", failure=facts
     ).model_dump(mode="json")
     if mutation == "code":
-        document["failure"]["code"] = "credential_required"
+        document["failure"]["code"] = "login_required"
     elif mutation == "failure_class":
-        document["failure"][mutation] = "auth_required"
-    elif mutation == "scope":
-        document["failure"][mutation] = "session"
+        document["failure"][mutation] = "login_required"
     elif mutation == "extra":
-        document["failure"]["unrecognized_field"] = True
+        document["failure"]["unknown_field"] = True
     else:
         document["failure"][mutation] = "invalid"
 
-    async def response(_request):
+    async def respond(request):
+        if request.url.path == "/internal/runtime":
+            return httpx.Response(200, json={"instance_id": "0" * 32})
         return httpx.Response(422, json={"error": document})
 
     async with httpx.AsyncClient(
-        base_url="http://runner", transport=httpx.MockTransport(response)
+        base_url="http://runner", transport=httpx.MockTransport(respond)
     ) as http:
         client = MediaRunnerHttpClient(
             base_url="http://runner",
@@ -141,6 +86,114 @@ async def test_invalid_failure_facts_are_rejected(mutation: str) -> None:
             download_timeout_seconds=1,
             client=http,
         )
+        with pytest.raises(MediaRunnerClientError, match="invalid_runner_response"):
+            await client.inspect("https://vimeo.com/1")
+
+
+def test_error_phase_change_also_updates_public_stage():
+    error = RunnerFailure("transient").during(FailurePhase.TRANSFER)
+    assert error.failure.stage == "download"
+    assert error.during(FailurePhase.VALIDATE).failure.stage == "validate"
+
+
+@pytest.mark.parametrize(
+    ("internal_code", "category"),
+    [
+        ("inspection_failed", "extractor_broken"),
+        ("inspection_timeout", "transient"),
+        ("download_timeout", "transient"),
+        ("media_probe_failed", "extractor_broken"),
+        ("drm_protected", "content_protected"),
+        ("content_preview_only", "content_unavailable"),
+        ("source_changed", "context_changed"),
+        ("engine_unavailable", "runtime_unavailable"),
+    ],
+)
+async def test_public_media_failure_code_is_a_category(
+    tmp_path, internal_code, category
+):
+    class FailingService(FakeService):
+        async def inspect(self, _url, **_kwargs):
+            raise RunnerFailure(internal_code, status=422)
+
+    async with httpx.AsyncClient(
+        base_url="http://runner",
+        transport=httpx.ASGITransport(
+            app=create_app(settings(tmp_path), service=FailingService()),
+        ),
+    ) as http:
+        client = MediaRunnerHttpClient(
+            base_url="http://runner",
+            secret=SECRET.encode(),
+            workspace_root=tmp_path,
+            inspect_timeout_seconds=5,
+            download_timeout_seconds=5,
+            client=http,
+        )
         with pytest.raises(MediaRunnerClientError) as caught:
-            await client.context("https://vimeo.com/1")
-    assert caught.value.code == "invalid_runner_response"
+            await client.inspect("https://vimeo.com/1")
+    assert caught.value.code == category
+    assert caught.value.failure.code == category
+    assert caught.value.failure.failure_class.value == category
+
+
+async def test_signed_429_preserves_retry_after_and_safe_evidence(tmp_path):
+    retry_after = datetime.now(UTC) + timedelta(seconds=30)
+    error = RunnerFailure(
+        "rate_limited",
+        status=429,
+        retry_after=retry_after,
+        evidence_kind=FailureEvidenceKind.UPSTREAM_RESPONSE,
+        evidence={"kind": "upstream_response", "http_status": 429},
+    )
+
+    class LimitedService(FakeService):
+        async def inspect(self, _url, **_kwargs):
+            raise error
+
+    async with httpx.AsyncClient(
+        base_url="http://runner",
+        transport=httpx.ASGITransport(
+            app=create_app(settings(tmp_path), service=LimitedService())
+        ),
+    ) as http:
+        client = MediaRunnerHttpClient(
+            base_url="http://runner",
+            secret=SECRET.encode(),
+            workspace_root=tmp_path,
+            inspect_timeout_seconds=5,
+            download_timeout_seconds=5,
+            client=http,
+        )
+        with pytest.raises(MediaRunnerClientError) as caught:
+            await client.inspect("https://vimeo.com/1")
+    assert caught.value.code == "rate_limited"
+    assert caught.value.status == 429
+    assert caught.value.retry_at == retry_after
+    assert caught.value.failure.evidence == {
+        "kind": "upstream_response",
+        "http_status": 429,
+    }
+
+
+async def test_cleanup_ack_allows_same_task_id_recovery_through_signed_client(tmp_path):
+    service = FakeService()
+    async with httpx.AsyncClient(
+        base_url="http://runner",
+        transport=httpx.ASGITransport(
+            app=create_app(settings(tmp_path), service=service)
+        ),
+    ) as http:
+        client = MediaRunnerHttpClient(
+            base_url="http://runner",
+            secret=SECRET.encode(),
+            workspace_root=tmp_path,
+            inspect_timeout_seconds=5,
+            download_timeout_seconds=5,
+            client=http,
+        )
+        await client.cancel("parse_fixture")
+        recovered = await client.inspect("https://vimeo.com/1", task_id="parse_fixture")
+    assert recovered.title == "Fixture"
+    assert service.cancelled == ["parse_fixture"]
+    assert service.inspected_url == "https://vimeo.com/1"

@@ -24,5 +24,5 @@ Statuses = Annotated[tuple[ProviderStatusView, ...], Depends(get_provider_status
     summary="查询平台能力状态",
 )
 async def list_providers(user: User, statuses: Statuses) -> ProviderListResponse:
-    """返回不含凭据、出口地址和 Canary 目标的能力快照。"""
+    """返回 Registry 声明的能力与身份要求。"""
     return ProviderListResponse.from_views(statuses)

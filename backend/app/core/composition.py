@@ -22,10 +22,7 @@ from app.integrations.ai_api.catalog import OpenRouterModelCatalog
 from app.integrations.analysis_skill_catalog import BuiltinAnalysisSkillCatalog
 from app.integrations.article_discovery import WeChatArticleDiscoveryAdapter
 from app.integrations.jwt_tokens import JwtTokenService
-from app.integrations.media_runner_factory import (
-    media_runner_router,
-    session_provider_keys,
-)
+from app.integrations.media_runner_factory import media_runner_router
 from app.integrations.object_storage import MinioObjectStorage
 from app.integrations.passwords import Argon2PasswordHasher
 from app.integrations.provider_status import configured_provider_statuses
@@ -33,7 +30,6 @@ from app.integrations.rate_limiter import RedisRateLimiter
 from app.integrations.readiness import build_runtime_readiness
 from app.integrations.realtime import RabbitMqRealtimeConsumer, RealtimeHub
 from app.integrations.registration_mail import SmtpRegistrationMailer
-from app.integrations.site_session_catalog import SiteSessionRoutes
 from app.integrations.thumbnail_storage import MinioThumbnailStorage
 from app.integrations.url_security import FernetUrlEnvelope, MediaUrlValidator
 from app.repositories.ai_provider_repository import SqlAlchemyAiProviderRepository
@@ -67,16 +63,8 @@ from app.repositories.history_records import SqlAlchemyHistoryRecordRepository
 from app.repositories.imports.repository import SqlAlchemyMediaImportRepository
 from app.repositories.operation_logs import OperationLogStore
 from app.repositories.operational_metrics import OperationalMetrics
-from app.repositories.providers.canary_repository import (
-    SqlAlchemyProviderCanaryRepository,
-)
 from app.repositories.providers.catalog_repository import (
     SqlAlchemyProviderCatalogRepository,
-)
-from app.repositories.providers.route_cooldowns import SqlAlchemyProviderRouteCooldowns
-from app.repositories.providers.status_evidence import (
-    MergedProviderStatusEvidenceReader,
-    SqlAlchemyDownloadEvidenceReader,
 )
 from app.repositories.source_discoveries.repository import (
     SqlAlchemySourceDiscoveryRepository,
@@ -107,11 +95,6 @@ from app.services.documents.service import DeleteDocument, GetDocument, ListDocu
 from app.services.downloads.analytics import GetDownloadAnalytics
 from app.services.downloads.create_download import CreateDownload
 from app.services.downloads.delete_download import DeleteDownload
-from app.services.downloads.errors import (
-    ApplicationError,
-    ApplicationErrorCode,
-    MediaInspectionPolicyNotAllowed,
-)
 from app.services.downloads.fingerprints import HmacRequestFingerprinter
 from app.services.downloads.history import GetDownloadHistory
 from app.services.downloads.inspect_media import InspectMedia
@@ -138,10 +121,8 @@ from app.services.imports.service import (
     CreateUploadSession,
     GetImport,
 )
-from app.services.provider_access import ProviderAccessPolicy
-from app.services.provider_canaries import ProviderStatusService
 from app.services.provider_catalog import ProviderCatalogService
-from app.services.provider_route_admission import ProviderRouteAdmission
+from app.services.provider_status import ProviderStatusService
 from app.services.source_discoveries.use_cases import (
     CreateSourceDiscovery,
     GetSourceDiscovery,
@@ -201,12 +182,7 @@ def build_api_runtime(settings: Settings) -> ApiRuntime:
     provider_catalog_repository = SqlAlchemyProviderCatalogRepository(sessions)
     ai_provider_repository = SqlAlchemyAiProviderRepository(sessions)
     store = repository
-    session_routes = SiteSessionRoutes()
-    runner = media_runner_router(
-        settings,
-        ProviderRouteAdmission(SqlAlchemyProviderRouteCooldowns(sessions)),
-        session_routes=session_routes,
-    )
+    runner = media_runner_router(settings)
     storage = MinioObjectStorage(settings, enable_public_signing=True)
     import_storage = MinioObjectStorage.for_imports(settings)
     thumbnail_storage = MinioThumbnailStorage(storage)
@@ -247,9 +223,7 @@ def build_api_runtime(settings: Settings) -> ApiRuntime:
         bootstrap_admin_secret=settings.auth_bootstrap_admin_secret.get_secret_value(),
     )
     user_service = UserService(repository=user_repository, now=clock)
-    provider_baselines = configured_provider_statuses(
-        session_provider_keys(settings),
-    )
+    provider_baselines = configured_provider_statuses()
     provider_catalog_service = ProviderCatalogService(
         provider_catalog_repository,
         provider_baselines,
@@ -496,14 +470,6 @@ def build_api_runtime(settings: Settings) -> ApiRuntime:
         ),
     )
 
-    async def select_intent_policy(url: str) -> ProviderAccessPolicy:
-        try:
-            return await session_routes.policy_for(url)
-        except MediaInspectionPolicyNotAllowed as exc:
-            raise ApplicationError(
-                ApplicationErrorCode.PROVIDER_ACCESS_POLICY_NOT_ALLOWED
-            ) from exc
-
     return ApiRuntime(
         services=ApiServices(
             engine_catalog_reader=runner.engine_catalog,
@@ -514,7 +480,6 @@ def build_api_runtime(settings: Settings) -> ApiRuntime:
                 fingerprinter,
                 now=clock,
                 new_id=uuid4,
-                select_policy=select_intent_policy,
             ),
             history_record_service=HistoryRecordService(
                 SqlAlchemyHistoryRecordRepository(sessions), envelope, fingerprinter
@@ -543,16 +508,7 @@ def build_api_runtime(settings: Settings) -> ApiRuntime:
             operation_log_store=OperationLogStore(sessions),
             operational_metrics=OperationalMetrics(sessions),
             provider_status_service=ProviderStatusService(
-                MergedProviderStatusEvidenceReader(
-                    SqlAlchemyProviderCanaryRepository(sessions),
-                    SqlAlchemyDownloadEvidenceReader(sessions),
-                ),
                 provider_baselines,
-                snapshot_ttl_seconds=30,
-                cooldown_reader=SqlAlchemyProviderRouteCooldowns(sessions),
-                now=clock,
-                context_reader=runner,
-                approved_keys=settings.provider_verified_keys,
                 catalog=provider_catalog_repository,
             ),
             provider_catalog_service=provider_catalog_service,

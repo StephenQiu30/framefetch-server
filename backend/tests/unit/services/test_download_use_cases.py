@@ -19,6 +19,7 @@ from app.services.downloads.plans import plan_to_documents
 from app.services.downloads.queries import CancelDownload, GetDownload, IssueDownloadUrl
 from app.services.downloads.retry_download import RetryDownload
 from app.services.downloads.rules.enums import (
+    DownloadErrorCode,
     DownloadSourceKind,
     DownloadStage,
     DownloadStatus,
@@ -30,6 +31,43 @@ from tests.unit.services.test_inspect_media import (
     OWNER,
     plan,
 )
+
+
+@pytest.mark.parametrize(
+    "stored_code", ["removed_provider_code", "unknown_future_code"]
+)
+async def test_historical_unknown_download_error_remains_readable(stored_code) -> None:
+    repository = FakeRepository()
+    inspection_id, format_id = seed_inspection(repository)
+    job = await creator(repository)(inspection_id, format_id, OWNER, "historic-error")
+    repository.jobs[job.id] = replace(
+        repository.jobs[job.id], status="failed", error_code=stored_code, attempt=1
+    )
+
+    result = await GetDownload(repository, now=lambda: NOW)(job.id, OWNER)
+
+    assert result.status is DownloadStatus.FAILED
+    assert result.error_code is DownloadErrorCode.INTERNAL_ERROR
+
+
+async def test_context_changed_download_requires_new_resolution_before_retry() -> None:
+    repository = FakeRepository()
+    inspection_id, format_id = seed_inspection(repository)
+    original = await creator(repository)(inspection_id, format_id, OWNER, "old-context")
+    repository.jobs[original.id] = replace(
+        repository.jobs[original.id],
+        status="failed",
+        error_code=DownloadErrorCode.CONTEXT_CHANGED.value,
+        attempt=1,
+        finished_at=NOW,
+    )
+
+    with pytest.raises(ApplicationError) as changed:
+        await retrier(repository)(original.id, OWNER, "retry-old-context")
+
+    assert changed.value.code is ApplicationErrorCode.CONTEXT_CHANGED
+    assert len(repository.jobs) == 1
+    assert repository.outbox_events == 1
 
 
 def seed_inspection(

@@ -8,6 +8,8 @@ from datetime import UTC, datetime, timedelta
 
 from app.core.config import Settings
 from app.core.db import create_session_factory
+from app.integrations.media_runner import MediaRunnerRouter
+from app.integrations.media_runner_factory import media_runner_router
 from app.integrations.messaging import RabbitMqPublisher, RabbitMqTopology
 from app.integrations.temporal_client import CommandPublisher
 from app.repositories.analysis.repository import SqlAlchemyAnalysisRepository
@@ -21,6 +23,7 @@ from sqlalchemy.ext.asyncio import AsyncEngine
 
 @dataclass(slots=True)
 class OutboxRuntime:
+    runner: MediaRunnerRouter
     publisher: RabbitMqPublisher
     loop: OutboxPublisherLoop
     retention: OperationLogRetention
@@ -36,12 +39,14 @@ class OutboxRuntime:
 
     async def close(self) -> None:
         await self.publisher.close()
+        await self.runner.close()
 
 
 def build_runtime(
     settings: Settings, engine: AsyncEngine, *, publisher_id: str
 ) -> OutboxRuntime:
     sessions = create_session_factory(engine)
+    runner = media_runner_router(settings)
     publisher = RabbitMqPublisher(
         settings.rabbitmq_url,
         RabbitMqTopology(
@@ -59,6 +64,7 @@ def build_runtime(
         reconnect_interval=settings.rabbitmq_reconnect_interval_seconds,
     )
     return OutboxRuntime(
+        runner=runner,
         publisher=publisher,
         loop=OutboxPublisherLoop(
             repository=SqlAlchemyOutboxRepository(sessions),
@@ -68,6 +74,7 @@ def build_runtime(
                 SqlAlchemyAnalysisRepository(sessions),
                 address=settings.temporal_address,
                 namespace=settings.temporal_namespace,
+                cancel_inspection=runner.cancel,
             ),
             publisher_id=publisher_id,
             clock=lambda: datetime.now(UTC),

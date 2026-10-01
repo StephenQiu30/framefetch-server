@@ -98,24 +98,21 @@ class DownloadErrorCode(StrEnum):
     CANCELLED = "cancelled"
     DOWNLOAD_TIMEOUT = "download_timeout"
     FORMAT_UNAVAILABLE = "format_unavailable"
-    INSPECTION_TIMEOUT = "inspection_timeout"
     INTERNAL_ERROR = "internal_error"
     MEDIA_VALIDATION_FAILED = "media_validation_failed"
     OUTPUT_LIMIT_EXCEEDED = "output_limit_exceeded"
-    PROVIDER_ACCESS_POLICY_NOT_ALLOWED = "provider_access_policy_not_allowed"
-    PROVIDER_AUTH_REQUIRED = "provider_auth_required"
-    PROVIDER_CONTENT_RESTRICTED = "provider_content_restricted"
-    PROVIDER_DRM_PROTECTED = "provider_drm_protected"
-    PROVIDER_GEO_RESTRICTED = "provider_geo_restricted"
-    PROVIDER_GUEST_CONTEXT_REQUIRED = "provider_guest_context_required"
-    PROVIDER_LINK_UNAVAILABLE = "provider_link_unavailable"
-    PROVIDER_MEDIA_UNSUPPORTED = "provider_media_unsupported"
-    PROVIDER_RATE_LIMITED = "provider_rate_limited"
-    PROVIDER_SESSION_EXPIRED = "provider_session_expired"
-    PROVIDER_SESSION_NOT_READY = "provider_session_not_ready"
-    PROVIDER_TEMPORARILY_UNAVAILABLE = "provider_temporarily_unavailable"
-    PROVIDER_UNSUPPORTED = "provider_unsupported"
-    PROVIDER_VERIFICATION_FAILED = "provider_verification_failed"
+    NETWORK_BLOCKED = "network_blocked"
+    CHALLENGE = "challenge"
+    LOGIN_REQUIRED = "login_required"
+    IDENTITY_UNAVAILABLE = "identity_unavailable"
+    RATE_LIMITED = "rate_limited"
+    CONTEXT_CHANGED = "context_changed"
+    CONTENT_UNAVAILABLE = "content_unavailable"
+    CONTENT_PROTECTED = "content_protected"
+    EXTRACTOR_BROKEN = "extractor_broken"
+    TRANSIENT = "transient"
+    INVALID_INPUT = "invalid_input"
+    RUNTIME_UNAVAILABLE = "runtime_unavailable"
     STORAGE_UNAVAILABLE = "storage_unavailable"
     TEMP_SPACE_EXHAUSTED = "temp_space_exhausted"
     TRANSCODE_REQUIRED = "transcode_required"
@@ -126,10 +123,9 @@ class DownloadErrorCode(StrEnum):
     def retryable(self) -> bool:
         return self in {
             self.DOWNLOAD_TIMEOUT,
-            self.INSPECTION_TIMEOUT,
-            self.PROVIDER_RATE_LIMITED,
-            self.PROVIDER_GUEST_CONTEXT_REQUIRED,
-            self.PROVIDER_TEMPORARILY_UNAVAILABLE,
+            self.TRANSIENT,
+            self.RATE_LIMITED,
+            self.RUNTIME_UNAVAILABLE,
             self.STORAGE_UNAVAILABLE,
             self.TEMP_SPACE_EXHAUSTED,
             self.WORKER_LOST,

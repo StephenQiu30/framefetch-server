@@ -24,7 +24,7 @@ _DATABASE_TABLES_QUERY = text(
     """
 ).bindparams(bindparam("expected_tables", expanding=True))
 _DOWNLOAD_EXECUTION_COLUMNS = {
-    "execution_access_context": "jsonb",
+    "execution_context": "jsonb",
     "execution_context_attempt": "integer",
 }
 _DOWNLOAD_EXECUTION_COLUMNS_QUERY = text(
@@ -51,20 +51,8 @@ async def _assert_download_execution_columns(connection: AsyncConnection) -> Non
             "download_intents",
             {
                 "generation": "integer",
-                "operation_id": "character varying",
-                "resolution_plan": "jsonb",
-                "next_strategy_id": "character varying",
-                "selected_operation_id": "character varying",
+                "execution_context": "jsonb",
                 "latest_failure": "jsonb",
-            },
-        ),
-        (
-            "resolution_attempts",
-            {
-                "operation_id": "character varying",
-                "plan_revision": "character varying",
-                "context_key": "character varying",
-                "status": "character varying",
             },
         ),
     ):

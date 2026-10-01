@@ -10,7 +10,7 @@ from app.services.download_execution.models import ArtifactDetails
 from app.services.downloads.inspection_models import EncryptedUrl
 from app.services.downloads.rules.enums import DownloadStage, MediaKind
 from app.services.downloads.rules.formats import DownloadPlan
-from app.services.provider_types import ProviderAccessContextRef, ProviderAccessMode
+from app.services.provider_types import ExecutionContext
 
 
 class JobState(Protocol):
@@ -50,7 +50,7 @@ class JobSource(Protocol):
     def provider_media_id(self) -> str: ...
 
     @property
-    def access_context(self) -> dict[str, object]: ...
+    def execution_context(self) -> dict[str, object]: ...
 
     @property
     def url_ciphertext(self) -> bytes: ...
@@ -134,7 +134,7 @@ class ExecutionRepository(Protocol):
         job_id: UUID,
         worker_id: str,
         attempt: int,
-        context: ProviderAccessContextRef,
+        context: ExecutionContext,
         now: datetime,
     ) -> None: ...
 
@@ -163,10 +163,6 @@ class ExecutionRepository(Protocol):
 
 
 class ExecutionRunner(Protocol):
-    async def context(
-        self, url: str, access_mode: ProviderAccessMode
-    ) -> ProviderAccessContextRef: ...
-
     async def download(
         self,
         task_id: str,
@@ -175,7 +171,7 @@ class ExecutionRunner(Protocol):
         *,
         expected_provider_media_id: str,
         expected_extractor_key: str,
-        access_context: ProviderAccessContextRef,
+        execution_context: ExecutionContext,
         media_kind: MediaKind = MediaKind.VIDEO,
         asset_count: int = 0,
     ) -> RunnerArtifactView: ...

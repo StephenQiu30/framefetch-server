@@ -23,6 +23,7 @@ from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.db import JSON_DOCUMENT, Base, utc_now
+from app.models.execution_context import execution_context_check
 
 
 class DownloadJobRow(Base):
@@ -41,6 +42,10 @@ class DownloadJobRow(Base):
         ),
         CheckConstraint("progress BETWEEN 0 AND 100", name="ck_download_jobs_progress"),
         CheckConstraint("attempt >= 0", name="ck_download_jobs_attempt"),
+        CheckConstraint(
+            execution_context_check("execution_context"),
+            name="ck_download_jobs_execution_context",
+        ),
         CheckConstraint("max_attempts > 0", name="ck_download_jobs_max_attempts"),
         CheckConstraint("version >= 0", name="ck_download_jobs_version"),
         CheckConstraint(
@@ -82,7 +87,7 @@ class DownloadJobRow(Base):
     idempotency_key: Mapped[str] = mapped_column(String(128), nullable=False)
     request_fingerprint: Mapped[str] = mapped_column(String(64), nullable=False)
     semantic_plan: Mapped[dict[str, Any]] = mapped_column(JSON_DOCUMENT, nullable=False)
-    execution_access_context: Mapped[dict[str, Any] | None] = mapped_column(
+    execution_context: Mapped[dict[str, Any] | None] = mapped_column(
         JSONB(none_as_null=True)
     )
     execution_context_attempt: Mapped[int | None] = mapped_column(Integer)
@@ -118,6 +123,10 @@ class ArtifactRow(Base):
         UniqueConstraint("job_id", name="uq_artifacts_job"),
         UniqueConstraint("bucket", "object_key", name="uq_artifacts_object"),
         CheckConstraint("attempt > 0", name="ck_artifacts_attempt"),
+        CheckConstraint(
+            execution_context_check("(media_metadata->'execution_context')"),
+            name="ck_artifacts_execution_context",
+        ),
         CheckConstraint("size_bytes > 0", name="ck_artifacts_size"),
         CheckConstraint("duration_ms > 0", name="ck_artifacts_duration"),
         CheckConstraint("length(sha256) = 64", name="ck_artifacts_sha256_length"),

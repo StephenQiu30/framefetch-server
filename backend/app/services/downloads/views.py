@@ -37,7 +37,6 @@ from app.services.downloads.thumbnail import (
     thumbnail_resource_url,
 )
 from app.services.downloads.validation import media_kind_from_metadata
-from app.services.provider_access import ProviderAccessPolicy
 from app.services.provider_types import ProviderKey
 
 
@@ -127,9 +126,6 @@ def inspection_view(snapshot: InspectionSnapshot) -> InspectionView:
         user_action=_optional_text(snapshot.metadata, "user_action"),
         media_kind=media_kind,
         asset_count=_asset_count(snapshot.metadata),
-        access_policy_id=_optional_enum_metadata(
-            snapshot.metadata, "access_policy_id", ProviderAccessPolicy, None
-        ),
     )
 
 
@@ -185,13 +181,16 @@ def download_view(
         status = DownloadStatus(snapshot.status)
         source_kind = DownloadSourceKind(snapshot.source_kind)
         stage = DownloadStage(snapshot.stage) if snapshot.stage is not None else None
+    except ValueError as exc:
+        raise ApplicationError(ApplicationErrorCode.INTERNAL_ERROR) from exc
+    try:
         error = (
             DownloadErrorCode(snapshot.error_code)
             if snapshot.error_code is not None
             else None
         )
-    except ValueError as exc:
-        raise ApplicationError(ApplicationErrorCode.INTERNAL_ERROR) from exc
+    except ValueError:
+        error = DownloadErrorCode.INTERNAL_ERROR
     format_plan = None
     media_kind = media_kind_from_metadata(snapshot.semantic_plan)
     if (

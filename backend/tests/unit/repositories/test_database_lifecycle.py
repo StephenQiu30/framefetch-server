@@ -38,15 +38,19 @@ async def _inspection(repository: SqlAlchemyDownloadRepository) -> tuple:
             duration_seconds=30,
             metadata={
                 "thumbnail": None,
-                "provider_access_context": {
+                "execution_context": {
                     "provider_key": "youtube",
-                    "profile_version": "youtube-v2",
-                    "access_mode": "anonymous",
-                    "credential_version_id": None,
-                    "egress_affinity_id": "default",
-                    "client_profile_id": "yt-dlp-default",
-                    "attestation_provider_version": None,
-                    "engine_commit": "5d6b8c8",
+                    "resolved_layer": "L1",
+                    "egress_route": "default",
+                    "client": "yt-dlp-default",
+                    "registry_revision": "registry-test",
+                    "egress_revision": "egress-test",
+                    "egress_class": "unknown",
+                    "egress_observed_ip": None,
+                    "identity_digest": None,
+                    "browser_context_kind": "none",
+                    "identity_used": False,
+                    "engine_revision": "5d6b8c8",
                 },
             },
             expires_at=now + timedelta(minutes=15),
@@ -111,7 +115,7 @@ async def test_job_outbox_lease_progress_and_success_are_atomic(repository) -> N
     assert source.url_ciphertext == b"ciphertext"
     assert source.semantic_plan["height"] == 1080
     assert source.provider_hints["video"] == "137"
-    assert source.access_context["provider_key"] == "youtube"
+    assert source.execution_context["provider_key"] == "youtube"
     late_source = await repository.get_job_source(
         command.id, "worker-1", 1, now + timedelta(minutes=16)
     )

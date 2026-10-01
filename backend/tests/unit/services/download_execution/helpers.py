@@ -22,7 +22,6 @@ from app.services.downloads.rules.enums import (
     VideoCodecFamily,
 )
 from app.services.downloads.rules.formats import DownloadPlan, ProviderHints
-from app.services.provider_types import ProviderAccessContextRef, ProviderAccessMode
 
 NOW = datetime(2026, 8, 6, 8, tzinfo=UTC)
 
@@ -46,16 +45,19 @@ class FakeRepository:
             provider_hints=hints,
             extractor_key="Controlled",
             provider_media_id="video-1",
-            access_context={
+            execution_context={
                 "provider_key": "generic",
-                "profile_version": "1",
-                "access_mode": "anonymous",
-                "credential_version_id": None,
-                "egress_affinity_id": "default",
-                "client_profile_id": "yt-dlp-default",
-                "attestation_provider_version": None,
-                "engine_commit": "5d6b8c8",
-                "runtime_revision": "a" * 64,
+                "resolved_layer": "L1",
+                "egress_route": "default",
+                "client": "yt-dlp-default",
+                "registry_revision": "registry-test",
+                "egress_revision": "egress-test",
+                "egress_class": "unknown",
+                "egress_observed_ip": None,
+                "identity_digest": None,
+                "browser_context_kind": "none",
+                "identity_used": False,
+                "engine_revision": "5d6b8c8",
             },
             url_ciphertext=b"ciphertext",
             url_nonce=b"nonce",
@@ -106,14 +108,6 @@ class FakeRunner:
         self.block = False
         self.cancelled = 0
         self.download_arguments = None
-        self.current_context: ProviderAccessContextRef | None = None
-
-    async def context(
-        self, url: str, access_mode: ProviderAccessMode
-    ) -> ProviderAccessContextRef:
-        if self.current_context is not None:
-            return self.current_context
-        return ProviderAccessContextRef.from_document(self.source_context)
 
     async def download(self, task_id, url, plan, **kwargs):
         self.download_arguments = (task_id, url, plan, kwargs)
@@ -198,7 +192,6 @@ def fixture(
     job_id = uuid4()
     repository = FakeRepository(job_id)
     runner = FakeRunner(artifact)
-    runner.source_context = repository.source.access_context
     storage = FakeStorage()
     cleaner = FakeCleaner()
     thumbnail_recovery = FakeThumbnailRecovery()

@@ -19,7 +19,6 @@ def test_download_schema_contains_required_tables_and_columns() -> None:
         "media_inspections",
         "outbox_events",
         "users",
-        "provider_canary_results",
         "provider_catalog_entries",
         "source_discoveries",
         "source_discovery_items",
@@ -61,32 +60,22 @@ def test_download_schema_contains_required_tables_and_columns() -> None:
     assert {"user_id", "token_hash", "expires_at"} <= set(
         tables["auth_sessions"].columns.keys()
     )
-    canaries = tables["provider_canary_results"]
-    assert "url" not in canaries.columns
-    assert {
-        "target_id",
-        "provider_key",
-        "profile_version",
-        "stage",
-        "access_mode",
-        "outcome",
-        "stable_error_code",
-        "checked_at",
-        "context_generation_id",
-    } <= set(canaries.columns.keys())
-    route_index = next(
-        index
-        for index in canaries.indexes
-        if index.name == "ix_provider_canary_target_generation_checked"
-    )
-    assert tuple(column.name for column in route_index.columns) == (
-        "target_id",
-        "profile_version",
-        "stage",
-        "access_mode",
-        "context_generation_id",
-        "checked_at",
-    )
+    assert not {
+        "provider_canary_results",
+        "provider_route_cooldowns",
+        "resolution_attempts",
+    } & set(tables)
+    intents = tables["download_intents"]
+    assert {"execution_context", "latest_failure"} <= set(intents.columns.keys())
+    assert not {
+        "resolution_plan",
+        "next_strategy_id",
+        "fence",
+        "remaining_budget_ms",
+        "attempt",
+    } & set(intents.columns.keys())
+    assert "execution_context" in jobs.columns
+    assert "execution_access_context" not in jobs.columns
     catalog = tables["provider_catalog_entries"]
     assert {
         "key",

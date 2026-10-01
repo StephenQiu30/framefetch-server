@@ -8,10 +8,7 @@ import pytest
 from app.services.downloads.errors import (
     ApplicationError,
     ApplicationErrorCode,
-    MediaInspectionAuthRequired,
-    MediaInspectionDurationLimitExceeded,
-    MediaInspectionLinkUnavailable,
-    MediaInspectionUnsupported,
+    MediaInspectionFailure,
 )
 from app.services.downloads.fingerprints import HmacRequestFingerprinter
 from app.services.downloads.inspect_media import InspectMedia
@@ -26,8 +23,8 @@ from app.services.downloads.rules.enums import (
     VideoCodecFamily,
 )
 from app.services.downloads.rules.formats import DownloadPlan, ProviderHints
-from app.services.provider_access import ProviderAccessPolicy
-from app.services.provider_types import ProviderAccessContextRef, ProviderAccessMode
+from app.services.provider_failures import ProviderFailure
+from app.services.provider_types import ExecutionContext
 from tests.unit.services.fakes import (
     FakeCipher,
     FakeRepository,
@@ -62,7 +59,7 @@ def runner_result(*, duration: int = 30) -> RunnerInspection:
         title="Owned video",
         duration_seconds=duration,
         formats=(RunnerFormat("1080p MP4", plan()),),
-        access_context=access_context(),
+        execution_context=execution_context(),
         thumbnail_data_url="data:image/avif;base64,Y292ZXI=",
     )
 
@@ -110,8 +107,7 @@ async def test_inspect_encrypts_url_and_returns_only_semantic_formats() -> None:
         "audio_id": "140",
     }
     assert command.metadata == {
-        "access_policy_id": "public",
-        "provider_access_context": access_context().to_document(),
+        "execution_context": execution_context().to_document(),
         "thumbnail_url": "data:image/avif;base64,Y292ZXI=",
     }
     assert view.thumbnail_url == f"/api/inspections/{view.id}/thumbnail"
@@ -127,24 +123,6 @@ async def test_inspection_idempotency_replays_and_conflicts() -> None:
     assert replay.id == first.id
     with pytest.raises(ApplicationError) as caught:
         await inspect("https://other.example/video", OWNER, "same-key")
-    assert caught.value.code is ApplicationErrorCode.IDEMPOTENCY_CONFLICT
-
-
-async def test_inspection_policy_is_frozen_and_part_of_idempotency() -> None:
-    repository = FakeRepository()
-    inspect, _, _ = use_case(repository, runner_result())
-    first = await inspect(
-        URL, OWNER, "policy-key", access_policy=ProviderAccessPolicy.PUBLIC
-    )
-    replay = await inspect(
-        URL, OWNER, "policy-key", access_policy=ProviderAccessPolicy.PUBLIC
-    )
-    assert first.id == replay.id
-    assert first.access_policy_id is ProviderAccessPolicy.PUBLIC
-    with pytest.raises(ApplicationError) as caught:
-        await inspect(
-            URL, OWNER, "policy-key", access_policy=ProviderAccessPolicy.OPERATOR_PUBLIC
-        )
     assert caught.value.code is ApplicationErrorCode.IDEMPOTENCY_CONFLICT
 
 
@@ -224,7 +202,7 @@ async def test_duration_limit_and_empty_formats_are_rejected() -> None:
         "title",
         30,
         (),
-        access_context(),
+        execution_context(),
     )
     no_formats, _, _ = use_case(repository, empty_result)
     with pytest.raises(ApplicationError) as format_error:
@@ -236,10 +214,10 @@ async def test_duration_limit_and_empty_formats_are_rejected() -> None:
 @pytest.mark.asyncio
 async def test_runner_duration_boundary_keeps_provider_support_distinct() -> None:
     class DurationRejectedRunner(FakeRunner):
-        async def inspect(
-            self, _url: str, *, access_policy: ProviderAccessPolicy
-        ) -> RunnerInspection:
-            raise MediaInspectionDurationLimitExceeded
+        async def inspect(self, _url: str, **_kwargs) -> RunnerInspection:
+            raise MediaInspectionFailure(
+                failure=ProviderFailure.for_code("invalid_input")
+            )
 
     inspect = InspectMedia(
         repository=FakeRepository(),
@@ -256,7 +234,7 @@ async def test_runner_duration_boundary_keeps_provider_support_distinct() -> Non
     with pytest.raises(ApplicationError) as caught:
         await inspect(URL, OWNER, "duration-from-runner")
 
-    assert caught.value.code is ApplicationErrorCode.DURATION_LIMIT_EXCEEDED
+    assert caught.value.code is ApplicationErrorCode.INVALID_INPUT
 
 
 @pytest.mark.asyncio
@@ -268,7 +246,7 @@ async def test_provider_access_requirement_is_reported_explicitly() -> None:
     with pytest.raises(ApplicationError) as caught:
         await inspect(URL, OWNER, "provider-access")
 
-    assert caught.value.code is ApplicationErrorCode.PROVIDER_AUTH_REQUIRED
+    assert caught.value.code is ApplicationErrorCode.LOGIN_REQUIRED
 
 
 @pytest.mark.asyncio
@@ -280,7 +258,7 @@ async def test_unavailable_provider_link_is_reported_explicitly() -> None:
     with pytest.raises(ApplicationError) as caught:
         await inspect(URL, OWNER, "provider-link-unavailable")
 
-    assert caught.value.code is ApplicationErrorCode.PROVIDER_LINK_UNAVAILABLE
+    assert caught.value.code is ApplicationErrorCode.CONTENT_UNAVAILABLE
 
 
 @pytest.mark.asyncio
@@ -292,38 +270,37 @@ async def test_unsupported_provider_is_reported_explicitly() -> None:
     with pytest.raises(ApplicationError) as caught:
         await inspect(URL, OWNER, "provider-unsupported")
 
-    assert caught.value.code is ApplicationErrorCode.PROVIDER_UNSUPPORTED
+    assert caught.value.code is ApplicationErrorCode.INVALID_INPUT
 
 
-async def _raise_provider_access(
-    _: str, *, access_policy: ProviderAccessPolicy
-) -> RunnerInspection:
-    raise MediaInspectionAuthRequired
+async def _raise_provider_access(_: str, **_kwargs) -> RunnerInspection:
+    raise MediaInspectionFailure(failure=ProviderFailure.for_code("login_required"))
 
 
-async def _raise_provider_link_unavailable(
-    _: str, *, access_policy: ProviderAccessPolicy
-) -> RunnerInspection:
-    raise MediaInspectionLinkUnavailable
+async def _raise_provider_link_unavailable(_: str, **_kwargs) -> RunnerInspection:
+    raise MediaInspectionFailure(
+        failure=ProviderFailure.for_code("content_unavailable")
+    )
 
 
-async def _raise_provider_unsupported(
-    _: str, *, access_policy: ProviderAccessPolicy
-) -> RunnerInspection:
-    raise MediaInspectionUnsupported
+async def _raise_provider_unsupported(_: str, **_kwargs) -> RunnerInspection:
+    raise MediaInspectionFailure(failure=ProviderFailure.for_code("invalid_input"))
 
 
-def access_context() -> ProviderAccessContextRef:
-    return ProviderAccessContextRef(
+def execution_context() -> ExecutionContext:
+    return ExecutionContext(
         provider_key="generic",
-        profile_version="1",
-        access_mode=ProviderAccessMode.ANONYMOUS,
-        credential_version_id=None,
-        egress_affinity_id="default",
-        client_profile_id="yt-dlp-default",
-        attestation_provider_version=None,
-        engine_commit="5d6b8c8",
-        runtime_revision="a" * 64,
+        registry_revision="registry-test",
+        resolved_layer="L1",
+        client="yt-dlp-default",
+        engine_revision="5d6b8c8",
+        egress_route="default",
+        egress_revision="egress-test",
+        egress_class="unknown",
+        egress_observed_ip=None,
+        identity_used=False,
+        identity_digest=None,
+        browser_context_kind="none",
     )
 
 
@@ -358,13 +335,13 @@ async def test_personal_routes_reach_runner_without_claiming_public_or_official_
     provider, url
 ) -> None:
     context = replace(
-        access_context(),
+        execution_context(),
         provider_key=provider,
-        access_mode=ProviderAccessMode.OPERATOR_MANAGED,
-        credential_version_id="file-synthetic",
+        identity_used=True,
+        identity_digest="synthetic-identity-fixture",
     )
     inspection = replace(
-        runner_result(), access_context=context, extractor_key=provider
+        runner_result(), execution_context=context, extractor_key=provider
     )
     execute, _, _ = use_case(FakeRepository(), inspection)
     response = await execute(url, OWNER, "personal-inspection")

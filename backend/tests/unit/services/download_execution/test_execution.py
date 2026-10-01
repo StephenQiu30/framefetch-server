@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import hashlib
 from dataclasses import replace
+from datetime import timedelta
 
 import pytest
 from app.integrations.media_runner_models import MediaRunnerClientError, RunnerArtifact
@@ -10,8 +11,7 @@ from app.services.download_execution.models import ExecutionDisposition
 from app.services.downloads.plans import plan_to_documents
 from app.services.downloads.rules.enums import AudioCodecFamily, DownloadErrorCode
 from app.services.downloads.rules.formats import ProviderHints
-from app.services.provider_types import ProviderAccessContextRef
-from tests.unit.services.download_execution.helpers import download_plan, fixture
+from tests.unit.services.download_execution.helpers import NOW, download_plan, fixture
 
 
 def artifact(tmp_path, data: bytes = b"controlled-video") -> RunnerArtifact:
@@ -43,11 +43,11 @@ async def test_success_revalidates_identity_uploads_and_completes(tmp_path) -> N
     download_kwargs = case.runner.download_arguments[3]
     assert download_kwargs["expected_provider_media_id"] == "video-1"
     assert download_kwargs["expected_extractor_key"] == "Controlled"
-    assert download_kwargs["access_context"].provider_key == "generic"
+    assert download_kwargs["execution_context"].provider_key == "generic"
     assert case.storage.uploads[0][0] == (f"downloads/{case.job_id}/1/video.mp4")
     assert case.repository.success.sha256 == case.runner.artifact.sha256
-    assert case.repository.success.media_metadata["execution_access_context"] == (
-        download_kwargs["access_context"].to_document()
+    assert case.repository.success.media_metadata["execution_context"] == (
+        download_kwargs["execution_context"].to_document()
     )
     stages = [item[0] for item in case.repository.heartbeats]
     assert "downloading" in stages
@@ -56,62 +56,6 @@ async def test_success_revalidates_identity_uploads_and_completes(tmp_path) -> N
         item[1] for item in case.repository.heartbeats
     )
     assert case.cleaner.calls[0][1] == case.runner.artifact.workspace
-
-
-@pytest.mark.asyncio
-async def test_queued_legacy_job_uses_current_code_generation(tmp_path) -> None:
-    case = fixture(artifact(tmp_path))
-    old_document = dict(case.repository.source.access_context)
-    old_document.pop("runtime_revision")
-    case.repository.source.access_context = old_document
-    case.runner.current_context = ProviderAccessContextRef.from_document(
-        {**old_document, "runtime_revision": "b" * 64}
-    )
-
-    assert await case.execution.execute(case.job_id) is ExecutionDisposition.ACK
-    assert case.repository.success is not None
-    submitted = case.runner.download_arguments[3]["access_context"]
-    assert submitted == case.runner.current_context
-    assert case.repository.success.media_metadata["execution_access_context"] == (
-        submitted.to_document()
-    )
-
-
-@pytest.mark.asyncio
-async def test_queued_job_does_not_silently_switch_egress(tmp_path) -> None:
-    case = fixture(artifact(tmp_path))
-    case.runner.current_context = ProviderAccessContextRef.from_document(
-        {
-            **case.repository.source.access_context,
-            "runtime_revision": "b" * 64,
-            "egress_affinity_id": "different-egress",
-        }
-    )
-
-    assert await case.execution.execute(case.job_id) is ExecutionDisposition.ACK
-    submitted = case.runner.download_arguments[3]["access_context"]
-    assert submitted.egress_affinity_id == "default"
-
-
-@pytest.mark.asyncio
-async def test_legacy_job_with_changed_route_fails_without_retry(tmp_path) -> None:
-    case = fixture(artifact(tmp_path))
-    old_document = dict(case.repository.source.access_context)
-    old_document.pop("runtime_revision")
-    case.repository.source.access_context = old_document
-    case.runner.current_context = ProviderAccessContextRef.from_document(
-        {
-            **old_document,
-            "runtime_revision": "b" * 64,
-            "egress_affinity_id": "different-egress",
-        }
-    )
-
-    assert await case.execution.execute(case.job_id) is ExecutionDisposition.ACK
-    assert case.runner.download_arguments is None
-    assert case.repository.failure["error_code"] == "format_unavailable"
-    assert case.repository.failure["error_message"] == "client_context_mismatch"
-    assert case.repository.failure["retryable"] is False
 
 
 @pytest.mark.asyncio
@@ -197,7 +141,7 @@ async def test_runner_and_storage_failures_converge_before_ack(tmp_path) -> None
         ExecutionDisposition.ACK
     )
     assert runner_case.repository.failure["error_code"] == (
-        DownloadErrorCode.DOWNLOAD_TIMEOUT.value
+        DownloadErrorCode.TRANSIENT.value
     )
     assert runner_case.repository.failure["error_message"] == "download_timeout"
     assert runner_case.repository.failure["retryable"] is True
@@ -218,51 +162,21 @@ async def test_runner_and_storage_failures_converge_before_ack(tmp_path) -> None
 @pytest.mark.parametrize(
     ("runner_code", "expected", "retryable"),
     [
-        ("credential_required", DownloadErrorCode.PROVIDER_AUTH_REQUIRED, False),
-        (
-            "provider_session_source_missing",
-            DownloadErrorCode.PROVIDER_TEMPORARILY_UNAVAILABLE,
-            True,
-        ),
-        (
-            "provider_session_permission_denied",
-            DownloadErrorCode.PROVIDER_TEMPORARILY_UNAVAILABLE,
-            True,
-        ),
-        ("credential_expired", DownloadErrorCode.PROVIDER_SESSION_EXPIRED, False),
-        (
-            "egress_challenged",
-            DownloadErrorCode.PROVIDER_VERIFICATION_FAILED,
-            False,
-        ),
-        ("provider_rate_limited", DownloadErrorCode.PROVIDER_RATE_LIMITED, True),
-        (
-            "provider_media_unsupported",
-            DownloadErrorCode.PROVIDER_MEDIA_UNSUPPORTED,
-            False,
-        ),
-        ("content_private", DownloadErrorCode.PROVIDER_CONTENT_RESTRICTED, False),
-        ("drm_protected", DownloadErrorCode.PROVIDER_DRM_PROTECTED, False),
-        (
-            "provider_new_failure",
-            DownloadErrorCode.PROVIDER_TEMPORARILY_UNAVAILABLE,
-            True,
-        ),
-        (
-            "provider_temporarily_unavailable",
-            DownloadErrorCode.PROVIDER_TEMPORARILY_UNAVAILABLE,
-            True,
-        ),
-        (
-            "download_failed",
-            DownloadErrorCode.PROVIDER_TEMPORARILY_UNAVAILABLE,
-            True,
-        ),
-        (
-            "inspection_failed",
-            DownloadErrorCode.PROVIDER_TEMPORARILY_UNAVAILABLE,
-            True,
-        ),
+        (code.value, code, code.retryable)
+        for code in DownloadErrorCode
+        if code.value
+        in {
+            "network_blocked",
+            "challenge",
+            "login_required",
+            "content_unavailable",
+            "content_protected",
+            "extractor_broken",
+            "format_unavailable",
+            "transient",
+            "invalid_input",
+            "runtime_unavailable",
+        }
     ],
 )
 async def test_provider_failures_never_degrade_to_worker_lost(
@@ -322,3 +236,15 @@ async def test_cancel_or_lease_loss_cancels_runner(tmp_path, status, expected) -
     assert await case.execution.execute(case.job_id) is expected
     assert case.runner.cancelled == 1
     assert case.cleaner.calls
+
+
+async def test_rate_limited_download_preserves_provider_retry_at(tmp_path):
+    case = fixture(artifact(tmp_path))
+    provider_retry = NOW + timedelta(seconds=75)
+    case.runner.error = MediaRunnerClientError(
+        "rate_limited", 429, retry_at=provider_retry
+    )
+    assert await case.execution.execute(case.job_id) is ExecutionDisposition.ACK
+    assert case.repository.failure["error_code"] == "rate_limited"
+    assert case.repository.failure["retryable"] is True
+    assert case.repository.failure["retry_at"] == provider_retry

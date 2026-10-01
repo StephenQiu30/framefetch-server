@@ -345,7 +345,7 @@ CREATE TABLE IF NOT EXISTS download_jobs (
     idempotency_key VARCHAR(128) NOT NULL,
     request_fingerprint VARCHAR(64) NOT NULL,
     semantic_plan JSONB NOT NULL,
-    execution_access_context JSONB,
+    execution_context JSONB,
     execution_context_attempt INTEGER,
     status VARCHAR(24) NOT NULL DEFAULT 'queued',
     stage VARCHAR(24),
@@ -391,7 +391,8 @@ CREATE TABLE IF NOT EXISTS download_jobs (
 ALTER TABLE download_jobs
     ADD COLUMN IF NOT EXISTS source_kind VARCHAR(32);
 ALTER TABLE download_jobs
-    ADD COLUMN IF NOT EXISTS execution_access_context JSONB;
+    ADD COLUMN IF NOT EXISTS execution_context JSONB;
+ALTER TABLE download_jobs DROP COLUMN IF EXISTS execution_access_context;
 ALTER TABLE download_jobs
     ADD COLUMN IF NOT EXISTS execution_context_attempt INTEGER;
 UPDATE download_jobs
@@ -1222,17 +1223,12 @@ CREATE TABLE IF NOT EXISTS download_intents (
     url_nonce BYTEA NOT NULL,
     url_key_id VARCHAR(64) NOT NULL,
     mode VARCHAR(16) NOT NULL DEFAULT 'inspect',
-    access_policy VARCHAR(32) NOT NULL,
     status VARCHAR(24) NOT NULL DEFAULT 'queued',
     version INTEGER NOT NULL DEFAULT 0,
-    fence INTEGER NOT NULL DEFAULT 0,
-    attempt INTEGER NOT NULL DEFAULT 0,
-    max_attempts INTEGER NOT NULL DEFAULT 3,
-    remaining_budget_ms INTEGER NOT NULL DEFAULT 180000,
     deadline TIMESTAMPTZ NOT NULL,
     generation INTEGER NOT NULL DEFAULT 0,
-    operation_id VARCHAR(128),
-    retry_at TIMESTAMPTZ,
+    execution_context JSONB,
+    latest_failure JSONB,
     inspection_id UUID REFERENCES media_inspections (id),
     job_id UUID REFERENCES download_jobs (id),
     reason_code VARCHAR(64),
@@ -1240,129 +1236,202 @@ CREATE TABLE IF NOT EXISTS download_intents (
     updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT uq_download_intents_owner_key UNIQUE (owner_hash, idempotency_key),
     CONSTRAINT uq_download_intents_job UNIQUE (job_id),
-    CONSTRAINT ck_download_intents_status CHECK (status IN (
-        'queued','preparing','resolving','retry_wait',
-        'ready','handed_off','cancelled','expired','failed'
-    )),
     CONSTRAINT ck_download_intents_mode CHECK (mode = 'inspect'),
-    CONSTRAINT ck_download_intents_policy CHECK (access_policy IN (
-        'public','public_session','operator_public','personal_entitled'
-    )),
-    CONSTRAINT ck_download_intents_version CHECK (version >= 0 AND fence >= 0),
-    CONSTRAINT ck_download_intents_attempt CHECK (
-        attempt >= 0 AND attempt <= max_attempts AND max_attempts BETWEEN 1 AND 3
-    ),
-    CONSTRAINT ck_download_intents_budget CHECK (remaining_budget_ms BETWEEN 0 AND 180000),
     CONSTRAINT ck_download_intents_generation CHECK (generation >= 0),
-    CONSTRAINT ck_download_intents_operation CHECK (
-        (status IN ('preparing','resolving')) = (operation_id IS NOT NULL)
-    ),
-    CONSTRAINT ck_download_intents_retry CHECK ((status = 'retry_wait') = (retry_at IS NOT NULL)),
     CONSTRAINT ck_download_intents_result CHECK (status <> 'ready' OR inspection_id IS NOT NULL),
     CONSTRAINT ck_download_intents_handoff CHECK (status <> 'handed_off' OR job_id IS NOT NULL)
 );
-CREATE INDEX IF NOT EXISTS ix_download_intents_owner_created
-    ON download_intents (owner_hash, created_at);
--- Cut over only after the old intent consumer is drained. Never erase in-flight work.
-DO $$ BEGIN
-    IF EXISTS (SELECT 1 FROM information_schema.columns
-               WHERE table_schema = current_schema() AND table_name = 'download_intents'
-               AND column_name = 'lease_owner')
-       AND EXISTS (SELECT 1 FROM download_intents
-                   WHERE status IN ('queued','preparing','resolving','retry_wait','action_required')) THEN
-        RAISE EXCEPTION 'drain intent executions before Temporal cutover';
+
+DROP TABLE IF EXISTS resolution_attempts;
+ALTER TABLE download_intents DROP CONSTRAINT IF EXISTS ck_download_intents_action;
+ALTER TABLE download_intents DROP CONSTRAINT IF EXISTS ck_download_intents_policy;
+ALTER TABLE download_intents DROP CONSTRAINT IF EXISTS ck_download_intents_version;
+ALTER TABLE download_intents DROP CONSTRAINT IF EXISTS ck_download_intents_attempt;
+ALTER TABLE download_intents DROP CONSTRAINT IF EXISTS ck_download_intents_budget;
+ALTER TABLE download_intents DROP CONSTRAINT IF EXISTS ck_download_intents_operation;
+ALTER TABLE download_intents DROP CONSTRAINT IF EXISTS ck_download_intents_retry;
+ALTER TABLE download_intents DROP CONSTRAINT IF EXISTS ck_download_intents_status;
+-- Obsolete parse executions cannot replay under the new single Activity.
+-- Preserve their records while invalidating the removed ownership protocol.
+DO $$
+BEGIN
+    IF EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_schema = current_schema() AND table_name = 'download_intents'
+          AND column_name = 'fence'
+    ) THEN
+        UPDATE download_intents
+        SET status = 'expired', reason_code = 'transient', version = version + 1
+        WHERE status IN ('queued', 'preparing', 'resolving', 'retry_wait');
     END IF;
 END $$;
-ALTER TABLE download_intents ADD COLUMN IF NOT EXISTS generation INTEGER NOT NULL DEFAULT 0;
-ALTER TABLE download_intents ADD COLUMN IF NOT EXISTS operation_id VARCHAR(128);
+UPDATE download_intents
+SET status = 'expired', reason_code = 'transient', version = version + 1
+WHERE status NOT IN ('queued','resolving','cancelling','ready','handed_off','cancelled','expired','failed');
+ALTER TABLE download_intents DROP COLUMN IF EXISTS access_policy;
+ALTER TABLE download_intents DROP COLUMN IF EXISTS fence;
+ALTER TABLE download_intents DROP COLUMN IF EXISTS attempt;
+ALTER TABLE download_intents DROP COLUMN IF EXISTS max_attempts;
+ALTER TABLE download_intents DROP COLUMN IF EXISTS remaining_budget_ms;
+ALTER TABLE download_intents DROP COLUMN IF EXISTS operation_id;
+ALTER TABLE download_intents DROP COLUMN IF EXISTS retry_at;
+ALTER TABLE download_intents DROP COLUMN IF EXISTS resolution_plan;
+ALTER TABLE download_intents DROP COLUMN IF EXISTS next_strategy_id;
+ALTER TABLE download_intents DROP COLUMN IF EXISTS selected_operation_id;
+ALTER TABLE download_intents ADD COLUMN IF NOT EXISTS latest_failure JSONB;
+ALTER TABLE download_intents DROP COLUMN IF EXISTS authorization_id;
+ALTER TABLE download_intents DROP COLUMN IF EXISTS authorization_deadline;
 ALTER TABLE download_intents DROP COLUMN IF EXISTS lease_owner;
 ALTER TABLE download_intents DROP COLUMN IF EXISTS lease_expires_at;
-DROP INDEX IF EXISTS ix_download_intents_recovery;
-ALTER TABLE download_intents DROP CONSTRAINT IF EXISTS ck_download_intents_operation;
-ALTER TABLE download_intents ADD CONSTRAINT ck_download_intents_operation CHECK (
-    (status IN ('preparing','resolving')) = (operation_id IS NOT NULL)
+ALTER TABLE download_intents ADD COLUMN IF NOT EXISTS execution_context JSONB;
+ALTER TABLE download_intents ADD CONSTRAINT ck_download_intents_version CHECK (version >= 0);
+ALTER TABLE download_intents ADD CONSTRAINT ck_download_intents_status CHECK (
+    status IN ('queued','resolving','cancelling','ready','handed_off','cancelled','expired','failed')
 );
-ALTER TABLE download_intents DROP CONSTRAINT IF EXISTS ck_download_intents_generation;
-ALTER TABLE download_intents ADD CONSTRAINT ck_download_intents_generation CHECK (generation >= 0);
+DROP INDEX IF EXISTS ix_download_intents_recovery;
+CREATE INDEX IF NOT EXISTS ix_download_intents_owner_created
+    ON download_intents (owner_hash, created_at);
 CREATE INDEX IF NOT EXISTS ix_download_intents_deadline
     ON download_intents (status, deadline);
 CREATE UNIQUE INDEX IF NOT EXISTS uq_download_intents_inspection
     ON download_intents (inspection_id);
 
-ALTER TABLE download_intents ADD COLUMN IF NOT EXISTS resolution_plan JSONB;
-ALTER TABLE download_intents ADD COLUMN IF NOT EXISTS next_strategy_id VARCHAR(128);
-ALTER TABLE download_intents ADD COLUMN IF NOT EXISTS selected_operation_id VARCHAR(64);
-ALTER TABLE download_intents ADD COLUMN IF NOT EXISTS latest_failure JSONB;
 
--- Retire unsupported manual waits behind the existing fence. The deployment
--- drains/ends old waiting Workflows before switching Worker code; cancellation
--- commands remain durable so no old execution can revive the intent.
-ALTER TABLE download_intents DROP CONSTRAINT IF EXISTS ck_download_intents_action;
-ALTER TABLE download_intents DROP CONSTRAINT IF EXISTS ck_download_intents_status;
-WITH retired AS (
-    UPDATE download_intents
-    SET status = 'failed', reason_code = COALESCE(reason_code, 'provider_session_not_ready'),
-        operation_id = NULL, retry_at = NULL, fence = fence + 1, version = version + 1,
-        updated_at = CURRENT_TIMESTAMP
-    WHERE status = 'action_required'
-    RETURNING id, generation, version
-)
-INSERT INTO outbox_events (
-    id, aggregate_type, aggregate_id, aggregate_version, event_type, payload,
-    available_at, created_at
-)
-SELECT gen_random_uuid(), 'download_intent', id, version, 'download.intent.cancelled',
-       jsonb_build_object('intent_id', id::text, 'generation', generation),
-       CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
-FROM retired
-ON CONFLICT DO NOTHING;
-UPDATE outbox_events SET published_at = CURRENT_TIMESTAMP
-WHERE event_type = 'download.intent.resumed' AND published_at IS NULL;
-ALTER TABLE download_intents DROP COLUMN IF EXISTS authorization_id;
-ALTER TABLE download_intents DROP COLUMN IF EXISTS authorization_deadline;
-ALTER TABLE download_intents ADD CONSTRAINT ck_download_intents_status CHECK (status IN (
-    'queued','preparing','resolving','retry_wait','ready','handed_off','cancelled','expired','failed'
-));
+-- Removed or incomplete context documents cannot describe the current execution.
+-- Preserve business records and media facts; require a fresh resolve for old context.
 
-CREATE TABLE IF NOT EXISTS resolution_attempts (
-    operation_id VARCHAR(64) PRIMARY KEY,
-    intent_id UUID NOT NULL REFERENCES download_intents (id) ON DELETE CASCADE,
-    generation INTEGER NOT NULL,
-    attempt_no INTEGER NOT NULL,
-    fence INTEGER NOT NULL,
-    strategy_id VARCHAR(128) NOT NULL,
-    plan_revision VARCHAR(64) NOT NULL,
-    plan_snapshot JSONB,
-    context_key VARCHAR(64) NOT NULL,
-    access_context JSONB NOT NULL,
-    runner_instance_id VARCHAR(32) NOT NULL,
-    deadline_at TIMESTAMPTZ NOT NULL,
-    started_at TIMESTAMPTZ NOT NULL,
-    finished_at TIMESTAMPTZ,
-    duration_ms INTEGER,
-    status VARCHAR(24) NOT NULL,
-    failure JSONB,
-    evidence_signature VARCHAR(64),
-    inspection_id UUID REFERENCES media_inspections (id),
-    CONSTRAINT uq_resolution_attempt_number UNIQUE (intent_id, generation, attempt_no),
-    CONSTRAINT ck_resolution_attempt_identity CHECK (
-        generation >= 0 AND attempt_no BETWEEN 1 AND 3 AND fence > 0
-    ),
-    CONSTRAINT ck_resolution_attempt_status CHECK (
-        status IN ('started','succeeded','failed','abandoned','outcome_unknown')
-    ),
-    CONSTRAINT ck_resolution_attempt_finished CHECK (
-        (status = 'started') = (finished_at IS NULL)
-    ),
-    CONSTRAINT ck_resolution_attempt_duration CHECK (
-        duration_ms IS NULL OR duration_ms BETWEEN 0 AND 180000
-    ),
-    CONSTRAINT ck_resolution_attempt_result CHECK (
-        status <> 'succeeded' OR inspection_id IS NOT NULL
-    )
+UPDATE download_jobs SET execution_context = NULL
+WHERE NOT (CASE WHEN execution_context IS NULL THEN TRUE WHEN jsonb_typeof(execution_context) = 'object' THEN COALESCE((execution_context ?& ARRAY['provider_key','registry_revision','resolved_layer','client','engine_revision','egress_route','egress_revision','egress_class','egress_observed_ip','identity_used','identity_digest','browser_context_kind']::text[]) AND ((execution_context - ARRAY['provider_key','registry_revision','resolved_layer','client','engine_revision','egress_route','egress_revision','egress_class','egress_observed_ip','identity_used','identity_digest','browser_context_kind']::text[]) = '{}'::jsonb) AND (jsonb_typeof(execution_context->'provider_key') = 'string' AND execution_context->>'provider_key' ~ '^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$') AND (jsonb_typeof(execution_context->'registry_revision') = 'string' AND execution_context->>'registry_revision' ~ '^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$') AND (jsonb_typeof(execution_context->'client') = 'string' AND execution_context->>'client' ~ '^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$') AND (jsonb_typeof(execution_context->'engine_revision') = 'string' AND execution_context->>'engine_revision' ~ '^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$') AND (jsonb_typeof(execution_context->'egress_route') = 'string' AND execution_context->>'egress_route' ~ '^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$') AND (jsonb_typeof(execution_context->'egress_revision') = 'string' AND execution_context->>'egress_revision' ~ '^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$') AND (jsonb_typeof(execution_context->'resolved_layer') = 'string' AND execution_context->>'resolved_layer' IN ('L1','L2','L3')) AND (jsonb_typeof(execution_context->'egress_class') = 'string' AND execution_context->>'egress_class' IN ('unknown','residential','datacenter')) AND ((execution_context->'egress_observed_ip' = 'null'::jsonb OR (jsonb_typeof(execution_context->'egress_observed_ip') = 'string' AND execution_context->>'egress_observed_ip' !~ '[/%]' AND (execution_context->>'egress_observed_ip' LIKE '%:%' OR execution_context->>'egress_observed_ip' ~ '^((25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9]?[0-9])\.){3}(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9]?[0-9])$') AND pg_input_is_valid(execution_context->>'egress_observed_ip', 'inet')))) AND (jsonb_typeof(execution_context->'identity_used') = 'boolean') AND (((execution_context->'identity_used' = 'false'::jsonb AND execution_context->'identity_digest' = 'null'::jsonb) OR (execution_context->'identity_used' = 'true'::jsonb AND jsonb_typeof(execution_context->'identity_digest') = 'string' AND execution_context->>'identity_digest' ~ '^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$'))) AND (jsonb_typeof(execution_context->'browser_context_kind') = 'string' AND (execution_context->>'browser_context_kind' = 'none' OR (execution_context->>'resolved_layer' = 'L3' AND ((execution_context->>'browser_context_kind' = 'anonymous' AND execution_context->'identity_used' = 'false'::jsonb) OR (execution_context->>'browser_context_kind' = 'authenticated' AND execution_context->'identity_used' = 'true'::jsonb))))), FALSE) ELSE FALSE END);
+
+ALTER TABLE download_jobs DROP CONSTRAINT IF EXISTS ck_download_jobs_execution_context;
+ALTER TABLE download_jobs ADD CONSTRAINT ck_download_jobs_execution_context CHECK (
+    CASE WHEN execution_context IS NULL THEN TRUE WHEN jsonb_typeof(execution_context) = 'object' THEN COALESCE((execution_context ?& ARRAY['provider_key','registry_revision','resolved_layer','client','engine_revision','egress_route','egress_revision','egress_class','egress_observed_ip','identity_used','identity_digest','browser_context_kind']::text[]) AND ((execution_context - ARRAY['provider_key','registry_revision','resolved_layer','client','engine_revision','egress_route','egress_revision','egress_class','egress_observed_ip','identity_used','identity_digest','browser_context_kind']::text[]) = '{}'::jsonb) AND (jsonb_typeof(execution_context->'provider_key') = 'string' AND execution_context->>'provider_key' ~ '^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$') AND (jsonb_typeof(execution_context->'registry_revision') = 'string' AND execution_context->>'registry_revision' ~ '^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$') AND (jsonb_typeof(execution_context->'client') = 'string' AND execution_context->>'client' ~ '^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$') AND (jsonb_typeof(execution_context->'engine_revision') = 'string' AND execution_context->>'engine_revision' ~ '^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$') AND (jsonb_typeof(execution_context->'egress_route') = 'string' AND execution_context->>'egress_route' ~ '^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$') AND (jsonb_typeof(execution_context->'egress_revision') = 'string' AND execution_context->>'egress_revision' ~ '^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$') AND (jsonb_typeof(execution_context->'resolved_layer') = 'string' AND execution_context->>'resolved_layer' IN ('L1','L2','L3')) AND (jsonb_typeof(execution_context->'egress_class') = 'string' AND execution_context->>'egress_class' IN ('unknown','residential','datacenter')) AND ((execution_context->'egress_observed_ip' = 'null'::jsonb OR (jsonb_typeof(execution_context->'egress_observed_ip') = 'string' AND execution_context->>'egress_observed_ip' !~ '[/%]' AND (execution_context->>'egress_observed_ip' LIKE '%:%' OR execution_context->>'egress_observed_ip' ~ '^((25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9]?[0-9])\.){3}(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9]?[0-9])$') AND pg_input_is_valid(execution_context->>'egress_observed_ip', 'inet')))) AND (jsonb_typeof(execution_context->'identity_used') = 'boolean') AND (((execution_context->'identity_used' = 'false'::jsonb AND execution_context->'identity_digest' = 'null'::jsonb) OR (execution_context->'identity_used' = 'true'::jsonb AND jsonb_typeof(execution_context->'identity_digest') = 'string' AND execution_context->>'identity_digest' ~ '^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$'))) AND (jsonb_typeof(execution_context->'browser_context_kind') = 'string' AND (execution_context->>'browser_context_kind' = 'none' OR (execution_context->>'resolved_layer' = 'L3' AND ((execution_context->>'browser_context_kind' = 'anonymous' AND execution_context->'identity_used' = 'false'::jsonb) OR (execution_context->>'browser_context_kind' = 'authenticated' AND execution_context->'identity_used' = 'true'::jsonb))))), FALSE) ELSE FALSE END
 );
-CREATE INDEX IF NOT EXISTS ix_resolution_attempt_intent_started
-    ON resolution_attempts (intent_id, started_at);
+
+UPDATE download_intents SET execution_context = NULL
+WHERE NOT (CASE WHEN execution_context IS NULL THEN TRUE WHEN jsonb_typeof(execution_context) = 'object' THEN COALESCE((execution_context ?& ARRAY['provider_key','registry_revision','resolved_layer','client','engine_revision','egress_route','egress_revision','egress_class','egress_observed_ip','identity_used','identity_digest','browser_context_kind']::text[]) AND ((execution_context - ARRAY['provider_key','registry_revision','resolved_layer','client','engine_revision','egress_route','egress_revision','egress_class','egress_observed_ip','identity_used','identity_digest','browser_context_kind']::text[]) = '{}'::jsonb) AND (jsonb_typeof(execution_context->'provider_key') = 'string' AND execution_context->>'provider_key' ~ '^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$') AND (jsonb_typeof(execution_context->'registry_revision') = 'string' AND execution_context->>'registry_revision' ~ '^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$') AND (jsonb_typeof(execution_context->'client') = 'string' AND execution_context->>'client' ~ '^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$') AND (jsonb_typeof(execution_context->'engine_revision') = 'string' AND execution_context->>'engine_revision' ~ '^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$') AND (jsonb_typeof(execution_context->'egress_route') = 'string' AND execution_context->>'egress_route' ~ '^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$') AND (jsonb_typeof(execution_context->'egress_revision') = 'string' AND execution_context->>'egress_revision' ~ '^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$') AND (jsonb_typeof(execution_context->'resolved_layer') = 'string' AND execution_context->>'resolved_layer' IN ('L1','L2','L3')) AND (jsonb_typeof(execution_context->'egress_class') = 'string' AND execution_context->>'egress_class' IN ('unknown','residential','datacenter')) AND ((execution_context->'egress_observed_ip' = 'null'::jsonb OR (jsonb_typeof(execution_context->'egress_observed_ip') = 'string' AND execution_context->>'egress_observed_ip' !~ '[/%]' AND (execution_context->>'egress_observed_ip' LIKE '%:%' OR execution_context->>'egress_observed_ip' ~ '^((25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9]?[0-9])\.){3}(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9]?[0-9])$') AND pg_input_is_valid(execution_context->>'egress_observed_ip', 'inet')))) AND (jsonb_typeof(execution_context->'identity_used') = 'boolean') AND (((execution_context->'identity_used' = 'false'::jsonb AND execution_context->'identity_digest' = 'null'::jsonb) OR (execution_context->'identity_used' = 'true'::jsonb AND jsonb_typeof(execution_context->'identity_digest') = 'string' AND execution_context->>'identity_digest' ~ '^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$'))) AND (jsonb_typeof(execution_context->'browser_context_kind') = 'string' AND (execution_context->>'browser_context_kind' = 'none' OR (execution_context->>'resolved_layer' = 'L3' AND ((execution_context->>'browser_context_kind' = 'anonymous' AND execution_context->'identity_used' = 'false'::jsonb) OR (execution_context->>'browser_context_kind' = 'authenticated' AND execution_context->'identity_used' = 'true'::jsonb))))), FALSE) ELSE FALSE END);
+
+ALTER TABLE download_intents DROP CONSTRAINT IF EXISTS ck_download_intents_execution_context;
+ALTER TABLE download_intents ADD CONSTRAINT ck_download_intents_execution_context CHECK (
+    CASE WHEN execution_context IS NULL THEN TRUE WHEN jsonb_typeof(execution_context) = 'object' THEN COALESCE((execution_context ?& ARRAY['provider_key','registry_revision','resolved_layer','client','engine_revision','egress_route','egress_revision','egress_class','egress_observed_ip','identity_used','identity_digest','browser_context_kind']::text[]) AND ((execution_context - ARRAY['provider_key','registry_revision','resolved_layer','client','engine_revision','egress_route','egress_revision','egress_class','egress_observed_ip','identity_used','identity_digest','browser_context_kind']::text[]) = '{}'::jsonb) AND (jsonb_typeof(execution_context->'provider_key') = 'string' AND execution_context->>'provider_key' ~ '^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$') AND (jsonb_typeof(execution_context->'registry_revision') = 'string' AND execution_context->>'registry_revision' ~ '^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$') AND (jsonb_typeof(execution_context->'client') = 'string' AND execution_context->>'client' ~ '^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$') AND (jsonb_typeof(execution_context->'engine_revision') = 'string' AND execution_context->>'engine_revision' ~ '^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$') AND (jsonb_typeof(execution_context->'egress_route') = 'string' AND execution_context->>'egress_route' ~ '^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$') AND (jsonb_typeof(execution_context->'egress_revision') = 'string' AND execution_context->>'egress_revision' ~ '^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$') AND (jsonb_typeof(execution_context->'resolved_layer') = 'string' AND execution_context->>'resolved_layer' IN ('L1','L2','L3')) AND (jsonb_typeof(execution_context->'egress_class') = 'string' AND execution_context->>'egress_class' IN ('unknown','residential','datacenter')) AND ((execution_context->'egress_observed_ip' = 'null'::jsonb OR (jsonb_typeof(execution_context->'egress_observed_ip') = 'string' AND execution_context->>'egress_observed_ip' !~ '[/%]' AND (execution_context->>'egress_observed_ip' LIKE '%:%' OR execution_context->>'egress_observed_ip' ~ '^((25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9]?[0-9])\.){3}(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9]?[0-9])$') AND pg_input_is_valid(execution_context->>'egress_observed_ip', 'inet')))) AND (jsonb_typeof(execution_context->'identity_used') = 'boolean') AND (((execution_context->'identity_used' = 'false'::jsonb AND execution_context->'identity_digest' = 'null'::jsonb) OR (execution_context->'identity_used' = 'true'::jsonb AND jsonb_typeof(execution_context->'identity_digest') = 'string' AND execution_context->>'identity_digest' ~ '^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$'))) AND (jsonb_typeof(execution_context->'browser_context_kind') = 'string' AND (execution_context->>'browser_context_kind' = 'none' OR (execution_context->>'resolved_layer' = 'L3' AND ((execution_context->>'browser_context_kind' = 'anonymous' AND execution_context->'identity_used' = 'false'::jsonb) OR (execution_context->>'browser_context_kind' = 'authenticated' AND execution_context->'identity_used' = 'true'::jsonb))))), FALSE) ELSE FALSE END
+);
+
+UPDATE media_inspections SET metadata = metadata - 'provider_access_context' - 'access_policy_id'
+WHERE metadata ?| ARRAY['provider_access_context','access_policy_id'];
+
+UPDATE media_inspections SET metadata = metadata - 'execution_context'
+WHERE NOT (CASE WHEN (metadata->'execution_context') IS NULL THEN TRUE WHEN jsonb_typeof((metadata->'execution_context')) = 'object' THEN COALESCE(((metadata->'execution_context') ?& ARRAY['provider_key','registry_revision','resolved_layer','client','engine_revision','egress_route','egress_revision','egress_class','egress_observed_ip','identity_used','identity_digest','browser_context_kind']::text[]) AND (((metadata->'execution_context') - ARRAY['provider_key','registry_revision','resolved_layer','client','engine_revision','egress_route','egress_revision','egress_class','egress_observed_ip','identity_used','identity_digest','browser_context_kind']::text[]) = '{}'::jsonb) AND (jsonb_typeof((metadata->'execution_context')->'provider_key') = 'string' AND (metadata->'execution_context')->>'provider_key' ~ '^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$') AND (jsonb_typeof((metadata->'execution_context')->'registry_revision') = 'string' AND (metadata->'execution_context')->>'registry_revision' ~ '^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$') AND (jsonb_typeof((metadata->'execution_context')->'client') = 'string' AND (metadata->'execution_context')->>'client' ~ '^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$') AND (jsonb_typeof((metadata->'execution_context')->'engine_revision') = 'string' AND (metadata->'execution_context')->>'engine_revision' ~ '^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$') AND (jsonb_typeof((metadata->'execution_context')->'egress_route') = 'string' AND (metadata->'execution_context')->>'egress_route' ~ '^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$') AND (jsonb_typeof((metadata->'execution_context')->'egress_revision') = 'string' AND (metadata->'execution_context')->>'egress_revision' ~ '^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$') AND (jsonb_typeof((metadata->'execution_context')->'resolved_layer') = 'string' AND (metadata->'execution_context')->>'resolved_layer' IN ('L1','L2','L3')) AND (jsonb_typeof((metadata->'execution_context')->'egress_class') = 'string' AND (metadata->'execution_context')->>'egress_class' IN ('unknown','residential','datacenter')) AND (((metadata->'execution_context')->'egress_observed_ip' = 'null'::jsonb OR (jsonb_typeof((metadata->'execution_context')->'egress_observed_ip') = 'string' AND (metadata->'execution_context')->>'egress_observed_ip' !~ '[/%]' AND ((metadata->'execution_context')->>'egress_observed_ip' LIKE '%:%' OR (metadata->'execution_context')->>'egress_observed_ip' ~ '^((25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9]?[0-9])\.){3}(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9]?[0-9])$') AND pg_input_is_valid((metadata->'execution_context')->>'egress_observed_ip', 'inet')))) AND (jsonb_typeof((metadata->'execution_context')->'identity_used') = 'boolean') AND ((((metadata->'execution_context')->'identity_used' = 'false'::jsonb AND (metadata->'execution_context')->'identity_digest' = 'null'::jsonb) OR ((metadata->'execution_context')->'identity_used' = 'true'::jsonb AND jsonb_typeof((metadata->'execution_context')->'identity_digest') = 'string' AND (metadata->'execution_context')->>'identity_digest' ~ '^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$'))) AND (jsonb_typeof((metadata->'execution_context')->'browser_context_kind') = 'string' AND ((metadata->'execution_context')->>'browser_context_kind' = 'none' OR ((metadata->'execution_context')->>'resolved_layer' = 'L3' AND (((metadata->'execution_context')->>'browser_context_kind' = 'anonymous' AND (metadata->'execution_context')->'identity_used' = 'false'::jsonb) OR ((metadata->'execution_context')->>'browser_context_kind' = 'authenticated' AND (metadata->'execution_context')->'identity_used' = 'true'::jsonb))))), FALSE) ELSE FALSE END);
+
+ALTER TABLE media_inspections DROP CONSTRAINT IF EXISTS ck_media_inspections_execution_context;
+ALTER TABLE media_inspections ADD CONSTRAINT ck_media_inspections_execution_context CHECK (
+    CASE WHEN (metadata->'execution_context') IS NULL THEN TRUE WHEN jsonb_typeof((metadata->'execution_context')) = 'object' THEN COALESCE(((metadata->'execution_context') ?& ARRAY['provider_key','registry_revision','resolved_layer','client','engine_revision','egress_route','egress_revision','egress_class','egress_observed_ip','identity_used','identity_digest','browser_context_kind']::text[]) AND (((metadata->'execution_context') - ARRAY['provider_key','registry_revision','resolved_layer','client','engine_revision','egress_route','egress_revision','egress_class','egress_observed_ip','identity_used','identity_digest','browser_context_kind']::text[]) = '{}'::jsonb) AND (jsonb_typeof((metadata->'execution_context')->'provider_key') = 'string' AND (metadata->'execution_context')->>'provider_key' ~ '^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$') AND (jsonb_typeof((metadata->'execution_context')->'registry_revision') = 'string' AND (metadata->'execution_context')->>'registry_revision' ~ '^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$') AND (jsonb_typeof((metadata->'execution_context')->'client') = 'string' AND (metadata->'execution_context')->>'client' ~ '^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$') AND (jsonb_typeof((metadata->'execution_context')->'engine_revision') = 'string' AND (metadata->'execution_context')->>'engine_revision' ~ '^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$') AND (jsonb_typeof((metadata->'execution_context')->'egress_route') = 'string' AND (metadata->'execution_context')->>'egress_route' ~ '^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$') AND (jsonb_typeof((metadata->'execution_context')->'egress_revision') = 'string' AND (metadata->'execution_context')->>'egress_revision' ~ '^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$') AND (jsonb_typeof((metadata->'execution_context')->'resolved_layer') = 'string' AND (metadata->'execution_context')->>'resolved_layer' IN ('L1','L2','L3')) AND (jsonb_typeof((metadata->'execution_context')->'egress_class') = 'string' AND (metadata->'execution_context')->>'egress_class' IN ('unknown','residential','datacenter')) AND (((metadata->'execution_context')->'egress_observed_ip' = 'null'::jsonb OR (jsonb_typeof((metadata->'execution_context')->'egress_observed_ip') = 'string' AND (metadata->'execution_context')->>'egress_observed_ip' !~ '[/%]' AND ((metadata->'execution_context')->>'egress_observed_ip' LIKE '%:%' OR (metadata->'execution_context')->>'egress_observed_ip' ~ '^((25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9]?[0-9])\.){3}(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9]?[0-9])$') AND pg_input_is_valid((metadata->'execution_context')->>'egress_observed_ip', 'inet')))) AND (jsonb_typeof((metadata->'execution_context')->'identity_used') = 'boolean') AND ((((metadata->'execution_context')->'identity_used' = 'false'::jsonb AND (metadata->'execution_context')->'identity_digest' = 'null'::jsonb) OR ((metadata->'execution_context')->'identity_used' = 'true'::jsonb AND jsonb_typeof((metadata->'execution_context')->'identity_digest') = 'string' AND (metadata->'execution_context')->>'identity_digest' ~ '^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$'))) AND (jsonb_typeof((metadata->'execution_context')->'browser_context_kind') = 'string' AND ((metadata->'execution_context')->>'browser_context_kind' = 'none' OR ((metadata->'execution_context')->>'resolved_layer' = 'L3' AND (((metadata->'execution_context')->>'browser_context_kind' = 'anonymous' AND (metadata->'execution_context')->'identity_used' = 'false'::jsonb) OR ((metadata->'execution_context')->>'browser_context_kind' = 'authenticated' AND (metadata->'execution_context')->'identity_used' = 'true'::jsonb))))), FALSE) ELSE FALSE END
+);
+
+UPDATE artifacts SET media_metadata = media_metadata - 'provider_access_context' - 'access_policy_id'
+WHERE media_metadata ?| ARRAY['provider_access_context','access_policy_id'];
+
+UPDATE artifacts SET media_metadata = media_metadata - 'execution_context'
+WHERE NOT (CASE WHEN (media_metadata->'execution_context') IS NULL THEN TRUE WHEN jsonb_typeof((media_metadata->'execution_context')) = 'object' THEN COALESCE(((media_metadata->'execution_context') ?& ARRAY['provider_key','registry_revision','resolved_layer','client','engine_revision','egress_route','egress_revision','egress_class','egress_observed_ip','identity_used','identity_digest','browser_context_kind']::text[]) AND (((media_metadata->'execution_context') - ARRAY['provider_key','registry_revision','resolved_layer','client','engine_revision','egress_route','egress_revision','egress_class','egress_observed_ip','identity_used','identity_digest','browser_context_kind']::text[]) = '{}'::jsonb) AND (jsonb_typeof((media_metadata->'execution_context')->'provider_key') = 'string' AND (media_metadata->'execution_context')->>'provider_key' ~ '^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$') AND (jsonb_typeof((media_metadata->'execution_context')->'registry_revision') = 'string' AND (media_metadata->'execution_context')->>'registry_revision' ~ '^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$') AND (jsonb_typeof((media_metadata->'execution_context')->'client') = 'string' AND (media_metadata->'execution_context')->>'client' ~ '^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$') AND (jsonb_typeof((media_metadata->'execution_context')->'engine_revision') = 'string' AND (media_metadata->'execution_context')->>'engine_revision' ~ '^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$') AND (jsonb_typeof((media_metadata->'execution_context')->'egress_route') = 'string' AND (media_metadata->'execution_context')->>'egress_route' ~ '^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$') AND (jsonb_typeof((media_metadata->'execution_context')->'egress_revision') = 'string' AND (media_metadata->'execution_context')->>'egress_revision' ~ '^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$') AND (jsonb_typeof((media_metadata->'execution_context')->'resolved_layer') = 'string' AND (media_metadata->'execution_context')->>'resolved_layer' IN ('L1','L2','L3')) AND (jsonb_typeof((media_metadata->'execution_context')->'egress_class') = 'string' AND (media_metadata->'execution_context')->>'egress_class' IN ('unknown','residential','datacenter')) AND (((media_metadata->'execution_context')->'egress_observed_ip' = 'null'::jsonb OR (jsonb_typeof((media_metadata->'execution_context')->'egress_observed_ip') = 'string' AND (media_metadata->'execution_context')->>'egress_observed_ip' !~ '[/%]' AND ((media_metadata->'execution_context')->>'egress_observed_ip' LIKE '%:%' OR (media_metadata->'execution_context')->>'egress_observed_ip' ~ '^((25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9]?[0-9])\.){3}(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9]?[0-9])$') AND pg_input_is_valid((media_metadata->'execution_context')->>'egress_observed_ip', 'inet')))) AND (jsonb_typeof((media_metadata->'execution_context')->'identity_used') = 'boolean') AND ((((media_metadata->'execution_context')->'identity_used' = 'false'::jsonb AND (media_metadata->'execution_context')->'identity_digest' = 'null'::jsonb) OR ((media_metadata->'execution_context')->'identity_used' = 'true'::jsonb AND jsonb_typeof((media_metadata->'execution_context')->'identity_digest') = 'string' AND (media_metadata->'execution_context')->>'identity_digest' ~ '^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$'))) AND (jsonb_typeof((media_metadata->'execution_context')->'browser_context_kind') = 'string' AND ((media_metadata->'execution_context')->>'browser_context_kind' = 'none' OR ((media_metadata->'execution_context')->>'resolved_layer' = 'L3' AND (((media_metadata->'execution_context')->>'browser_context_kind' = 'anonymous' AND (media_metadata->'execution_context')->'identity_used' = 'false'::jsonb) OR ((media_metadata->'execution_context')->>'browser_context_kind' = 'authenticated' AND (media_metadata->'execution_context')->'identity_used' = 'true'::jsonb))))), FALSE) ELSE FALSE END);
+
+ALTER TABLE artifacts DROP CONSTRAINT IF EXISTS ck_artifacts_execution_context;
+ALTER TABLE artifacts ADD CONSTRAINT ck_artifacts_execution_context CHECK (
+    CASE WHEN (media_metadata->'execution_context') IS NULL THEN TRUE WHEN jsonb_typeof((media_metadata->'execution_context')) = 'object' THEN COALESCE(((media_metadata->'execution_context') ?& ARRAY['provider_key','registry_revision','resolved_layer','client','engine_revision','egress_route','egress_revision','egress_class','egress_observed_ip','identity_used','identity_digest','browser_context_kind']::text[]) AND (((media_metadata->'execution_context') - ARRAY['provider_key','registry_revision','resolved_layer','client','engine_revision','egress_route','egress_revision','egress_class','egress_observed_ip','identity_used','identity_digest','browser_context_kind']::text[]) = '{}'::jsonb) AND (jsonb_typeof((media_metadata->'execution_context')->'provider_key') = 'string' AND (media_metadata->'execution_context')->>'provider_key' ~ '^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$') AND (jsonb_typeof((media_metadata->'execution_context')->'registry_revision') = 'string' AND (media_metadata->'execution_context')->>'registry_revision' ~ '^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$') AND (jsonb_typeof((media_metadata->'execution_context')->'client') = 'string' AND (media_metadata->'execution_context')->>'client' ~ '^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$') AND (jsonb_typeof((media_metadata->'execution_context')->'engine_revision') = 'string' AND (media_metadata->'execution_context')->>'engine_revision' ~ '^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$') AND (jsonb_typeof((media_metadata->'execution_context')->'egress_route') = 'string' AND (media_metadata->'execution_context')->>'egress_route' ~ '^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$') AND (jsonb_typeof((media_metadata->'execution_context')->'egress_revision') = 'string' AND (media_metadata->'execution_context')->>'egress_revision' ~ '^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$') AND (jsonb_typeof((media_metadata->'execution_context')->'resolved_layer') = 'string' AND (media_metadata->'execution_context')->>'resolved_layer' IN ('L1','L2','L3')) AND (jsonb_typeof((media_metadata->'execution_context')->'egress_class') = 'string' AND (media_metadata->'execution_context')->>'egress_class' IN ('unknown','residential','datacenter')) AND (((media_metadata->'execution_context')->'egress_observed_ip' = 'null'::jsonb OR (jsonb_typeof((media_metadata->'execution_context')->'egress_observed_ip') = 'string' AND (media_metadata->'execution_context')->>'egress_observed_ip' !~ '[/%]' AND ((media_metadata->'execution_context')->>'egress_observed_ip' LIKE '%:%' OR (media_metadata->'execution_context')->>'egress_observed_ip' ~ '^((25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9]?[0-9])\.){3}(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9]?[0-9])$') AND pg_input_is_valid((media_metadata->'execution_context')->>'egress_observed_ip', 'inet')))) AND (jsonb_typeof((media_metadata->'execution_context')->'identity_used') = 'boolean') AND ((((media_metadata->'execution_context')->'identity_used' = 'false'::jsonb AND (media_metadata->'execution_context')->'identity_digest' = 'null'::jsonb) OR ((media_metadata->'execution_context')->'identity_used' = 'true'::jsonb AND jsonb_typeof((media_metadata->'execution_context')->'identity_digest') = 'string' AND (media_metadata->'execution_context')->>'identity_digest' ~ '^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$'))) AND (jsonb_typeof((media_metadata->'execution_context')->'browser_context_kind') = 'string' AND ((media_metadata->'execution_context')->>'browser_context_kind' = 'none' OR ((media_metadata->'execution_context')->>'resolved_layer' = 'L3' AND (((media_metadata->'execution_context')->>'browser_context_kind' = 'anonymous' AND (media_metadata->'execution_context')->'identity_used' = 'false'::jsonb) OR ((media_metadata->'execution_context')->>'browser_context_kind' = 'authenticated' AND (media_metadata->'execution_context')->'identity_used' = 'true'::jsonb))))), FALSE) ELSE FALSE END
+);
+
+UPDATE download_intents SET latest_failure = NULL
+WHERE latest_failure IS NOT NULL AND (
+    jsonb_typeof(latest_failure) IS DISTINCT FROM 'object'
+    OR jsonb_typeof(latest_failure->'failure_class') IS DISTINCT FROM 'string'
+    OR latest_failure->>'failure_class' NOT IN (
+    'network_blocked','challenge','login_required','content_unavailable','content_protected',
+    'extractor_broken','format_unavailable','transient','invalid_input','runtime_unavailable',
+    'identity_unavailable','rate_limited','context_changed'
+    )
+    OR jsonb_typeof(latest_failure->'scope') IS DISTINCT FROM 'string'
+    OR latest_failure->>'scope' NOT IN ('content','route','dependency','runtime')
+    OR NOT latest_failure ?& ARRAY['layer','stage','gate','evidence','summary']
+    OR jsonb_typeof(latest_failure->'layer') IS DISTINCT FROM 'string'
+    OR latest_failure->>'layer' NOT IN ('L1','L2','L3')
+    OR jsonb_typeof(latest_failure->'stage') IS DISTINCT FROM 'string'
+    OR latest_failure->>'stage' NOT IN ('resolve','download','validate','publish')
+    OR jsonb_typeof(latest_failure->'gate') IS DISTINCT FROM 'string'
+    OR latest_failure->>'gate' NOT IN ('①','②','③','none')
+    OR jsonb_typeof((latest_failure->'evidence')) IS DISTINCT FROM 'object'
+    OR CASE WHEN jsonb_typeof((latest_failure->'evidence')) = 'object' THEN
+        ((latest_failure->'evidence') - ARRAY['kind','cause_code','http_status','returncode','stderr_truncated']) <> '{}'::jsonb
+        OR jsonb_typeof((latest_failure->'evidence')->'kind') IS DISTINCT FROM 'string'
+        OR (latest_failure->'evidence')->>'kind' NOT IN ('upstream_response','transport','local_validation','runtime','unknown')
+        OR ((latest_failure->'evidence') ? 'cause_code' AND (latest_failure->'evidence')->'cause_code' <> 'null'::jsonb AND (
+            jsonb_typeof((latest_failure->'evidence')->'cause_code') IS DISTINCT FROM 'string'
+            OR (latest_failure->'evidence')->>'cause_code' !~ '^[a-z][a-z0-9_]{0,63}$'
+        ))
+        OR ((latest_failure->'evidence') ? 'http_status' AND (latest_failure->'evidence')->'http_status' <> 'null'::jsonb AND (
+            jsonb_typeof((latest_failure->'evidence')->'http_status') IS DISTINCT FROM 'number'
+            OR (latest_failure->'evidence')->>'http_status' !~ '^[0-9]+$'
+            OR CASE WHEN (latest_failure->'evidence')->>'http_status' ~ '^[0-9]+$'
+                THEN ((latest_failure->'evidence')->>'http_status')::numeric NOT BETWEEN 100 AND 599
+                ELSE TRUE END
+        ))
+        OR ((latest_failure->'evidence') ? 'returncode' AND (latest_failure->'evidence')->'returncode' <> 'null'::jsonb AND (
+            jsonb_typeof((latest_failure->'evidence')->'returncode') IS DISTINCT FROM 'number'
+            OR (latest_failure->'evidence')->>'returncode' !~ '^-?[0-9]+$'
+        ))
+        OR ((latest_failure->'evidence') ? 'stderr_truncated' AND
+            jsonb_typeof((latest_failure->'evidence')->'stderr_truncated') IS DISTINCT FROM 'boolean')
+        ELSE TRUE END
+    OR jsonb_typeof(latest_failure->'summary') IS DISTINCT FROM 'string'
+    OR length(btrim(latest_failure->>'summary')) NOT BETWEEN 1 AND 256
+);
+UPDATE download_intents
+SET latest_failure = latest_failure - 'strategy_id' - 'context_key'
+WHERE latest_failure ?| ARRAY['strategy_id','context_key'];
+-- Project stored historical public codes onto their current media meaning.
+-- Do this before the unknown-code fallback so known failures remain actionable.
+UPDATE download_jobs SET error_code = CASE error_code
+    WHEN 'inspection_timeout' THEN 'transient'
+    WHEN 'provider_access_policy_not_allowed' THEN 'invalid_input'
+    WHEN 'provider_auth_required' THEN 'login_required'
+    WHEN 'provider_content_restricted' THEN 'content_unavailable'
+    WHEN 'provider_drm_protected' THEN 'content_protected'
+    WHEN 'provider_geo_restricted' THEN 'network_blocked'
+    WHEN 'provider_guest_context_required' THEN 'challenge'
+    WHEN 'provider_link_unavailable' THEN 'content_unavailable'
+    WHEN 'provider_media_unsupported' THEN 'invalid_input'
+    WHEN 'provider_rate_limited' THEN 'rate_limited'
+    WHEN 'provider_session_expired' THEN 'identity_unavailable'
+    WHEN 'provider_session_not_ready' THEN 'identity_unavailable'
+    WHEN 'provider_temporarily_unavailable' THEN 'transient'
+    WHEN 'provider_unsupported' THEN 'invalid_input'
+    WHEN 'provider_verification_failed' THEN 'challenge'
+    ELSE error_code END
+WHERE error_code IN ('inspection_timeout','provider_access_policy_not_allowed','provider_auth_required','provider_content_restricted','provider_drm_protected','provider_geo_restricted','provider_guest_context_required','provider_link_unavailable','provider_media_unsupported','provider_rate_limited','provider_session_expired','provider_session_not_ready','provider_temporarily_unavailable','provider_unsupported','provider_verification_failed');
+UPDATE download_intents SET reason_code = CASE reason_code
+    WHEN 'inspection_timeout' THEN 'transient'
+    WHEN 'provider_access_policy_not_allowed' THEN 'invalid_input'
+    WHEN 'provider_auth_required' THEN 'login_required'
+    WHEN 'provider_content_restricted' THEN 'content_unavailable'
+    WHEN 'provider_drm_protected' THEN 'content_protected'
+    WHEN 'provider_geo_restricted' THEN 'network_blocked'
+    WHEN 'provider_guest_context_required' THEN 'challenge'
+    WHEN 'provider_link_unavailable' THEN 'content_unavailable'
+    WHEN 'provider_media_unsupported' THEN 'invalid_input'
+    WHEN 'provider_rate_limited' THEN 'rate_limited'
+    WHEN 'provider_session_expired' THEN 'identity_unavailable'
+    WHEN 'provider_session_not_ready' THEN 'identity_unavailable'
+    WHEN 'provider_temporarily_unavailable' THEN 'transient'
+    WHEN 'provider_unsupported' THEN 'invalid_input'
+    WHEN 'provider_verification_failed' THEN 'challenge'
+    ELSE reason_code END
+WHERE reason_code IN ('inspection_timeout','provider_access_policy_not_allowed','provider_auth_required','provider_content_restricted','provider_drm_protected','provider_geo_restricted','provider_guest_context_required','provider_link_unavailable','provider_media_unsupported','provider_rate_limited','provider_session_expired','provider_session_not_ready','provider_temporarily_unavailable','provider_unsupported','provider_verification_failed');
+UPDATE download_jobs SET error_code = 'internal_error', error_message = NULL
+WHERE error_code IS NOT NULL AND error_code NOT IN (
+    'cancelled','download_timeout','format_unavailable','internal_error',
+    'media_validation_failed','output_limit_exceeded','network_blocked','challenge',
+    'login_required','content_unavailable','content_protected','extractor_broken',
+    'transient','invalid_input','runtime_unavailable','identity_unavailable','rate_limited',
+    'context_changed','storage_unavailable',
+    'temp_space_exhausted','transcode_required','unsupported_source','worker_lost'
+);
 
 CREATE TABLE IF NOT EXISTS rabbitmq_dlq_replays (
     id UUID PRIMARY KEY,
@@ -1412,100 +1481,8 @@ CREATE TABLE IF NOT EXISTS operational_counters (
     CONSTRAINT ck_operational_counters_value CHECK (value >= 0)
 );
 
-CREATE TABLE IF NOT EXISTS provider_route_cooldowns (
-    provider_key VARCHAR(32) NOT NULL,
-    access_policy_id VARCHAR(32) NOT NULL,
-    egress_binding_id VARCHAR(128) NOT NULL,
-    blocked_until TIMESTAMPTZ,
-    reason_code VARCHAR(32) NOT NULL,
-    stable_error_code VARCHAR(128),
-    probe_owner VARCHAR(64),
-    probe_lease_until TIMESTAMPTZ,
-    failure_count INTEGER NOT NULL DEFAULT 0,
-    success_streak INTEGER NOT NULL DEFAULT 0,
-    version BIGINT NOT NULL,
-    PRIMARY KEY (provider_key, access_policy_id, egress_binding_id),
-    CONSTRAINT ck_provider_route_cooldown_version CHECK (version > 0),
-    CONSTRAINT ck_provider_route_cooldown_policy CHECK (
-        access_policy_id IN ('public','operator_public','personal_entitled')
-    ),
-    CONSTRAINT ck_provider_route_cooldown_probe CHECK (
-        (probe_owner IS NULL) = (probe_lease_until IS NULL)
-        AND (probe_owner IS NULL OR blocked_until IS NOT NULL)
-    ),
-    CONSTRAINT ck_provider_route_cooldown_failures CHECK (failure_count >= 0),
-    CONSTRAINT ck_provider_route_cooldown_successes CHECK (success_streak >= 0)
-);
-
-ALTER TABLE provider_route_cooldowns
-    ADD COLUMN IF NOT EXISTS stable_error_code VARCHAR(128),
-    ADD COLUMN IF NOT EXISTS failure_count INTEGER NOT NULL DEFAULT 0,
-    ADD COLUMN IF NOT EXISTS success_streak INTEGER NOT NULL DEFAULT 0;
-ALTER TABLE provider_route_cooldowns
-    DROP CONSTRAINT IF EXISTS ck_provider_route_cooldown_reason;
-
-CREATE TABLE IF NOT EXISTS provider_canary_results (
-    id UUID PRIMARY KEY,
-    target_id VARCHAR(128) NOT NULL,
-    provider_key VARCHAR(32) NOT NULL,
-    profile_version VARCHAR(128) NOT NULL,
-    stage VARCHAR(16) NOT NULL,
-    access_mode VARCHAR(24) NOT NULL,
-    outcome VARCHAR(16) NOT NULL,
-    stable_error_code VARCHAR(128),
-    checked_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    duration_ms INTEGER NOT NULL,
-    engine_commit VARCHAR(128) NOT NULL,
-    egress_affinity_id VARCHAR(128) NOT NULL,
-    client_profile_id VARCHAR(128) NOT NULL,
-    context_generation_id VARCHAR(64) NOT NULL,
-    CONSTRAINT ck_provider_canary_stage CHECK (
-        stage IN ('metadata', 'media', 'analysis')
-    ),
-    CONSTRAINT ck_provider_canary_access_mode CHECK (
-        access_mode IN ('anonymous', 'guest', 'operator_managed')
-    ),
-    CONSTRAINT ck_provider_canary_outcome CHECK (
-        outcome IN ('succeeded', 'failed')
-    ),
-    CONSTRAINT ck_provider_canary_duration CHECK (duration_ms >= 0),
-    CONSTRAINT ck_provider_canary_error CHECK (
-        (outcome = 'failed') = (stable_error_code IS NOT NULL)
-    )
-);
-
-ALTER TABLE provider_canary_results
-    DROP CONSTRAINT IF EXISTS ck_provider_canary_access_mode;
-ALTER TABLE provider_canary_results
-    ADD CONSTRAINT ck_provider_canary_access_mode CHECK (
-        access_mode IN ('anonymous', 'guest', 'operator_managed')
-    );
-
-ALTER TABLE provider_canary_results
-    DROP CONSTRAINT IF EXISTS ck_provider_canary_stage;
-ALTER TABLE provider_canary_results
-    ADD CONSTRAINT ck_provider_canary_stage CHECK (
-        stage IN ('metadata', 'media', 'analysis')
-    );
-
-ALTER TABLE provider_canary_results
-    ADD COLUMN IF NOT EXISTS context_generation_id VARCHAR(64);
-UPDATE provider_canary_results
-SET context_generation_id = 'legacy'
-WHERE context_generation_id IS NULL;
-ALTER TABLE provider_canary_results
-    ALTER COLUMN context_generation_id SET NOT NULL;
-
-CREATE INDEX IF NOT EXISTS ix_provider_canary_provider_checked
-    ON provider_canary_results (provider_key, checked_at);
-DROP INDEX IF EXISTS ix_provider_canary_target_checked;
-DROP INDEX IF EXISTS ix_provider_canary_target_route_checked;
-DROP INDEX IF EXISTS ix_provider_canary_target_profile_route_checked;
-CREATE INDEX IF NOT EXISTS ix_provider_canary_target_generation_checked
-    ON provider_canary_results (
-        target_id, profile_version, stage, access_mode,
-        context_generation_id, checked_at
-    );
+DROP TABLE IF EXISTS provider_canary_results;
+DROP TABLE IF EXISTS provider_route_cooldowns;
 
 CREATE TABLE IF NOT EXISTS task_events (
     id UUID PRIMARY KEY,

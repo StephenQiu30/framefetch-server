@@ -1,8 +1,9 @@
-"""Unified read-only history over parse intents and video analysis jobs."""
+"""Unified history and deadline expiry of parse intents and analysis jobs."""
 
 from typing import Any
 from uuid import UUID
 
+from pydantic import TypeAdapter
 from sqlalchemy import (
     DateTime,
     Integer,
@@ -32,7 +33,7 @@ from app.models.download import ArtifactRow, DownloadJobRow
 from app.models.download_intent import DownloadIntentRow
 from app.models.media import MediaInspectionRow
 from app.models.media_import import MediaImportRow
-from app.schemas.resolution import PROVIDER_FAILURE
+from app.repositories.downloads.intent_repository import request_overdue_cleanup
 from app.services.downloads.inspection_models import EncryptedUrl
 from app.services.history_records import (
     DEFAULT_HISTORY_FILTERS,
@@ -44,6 +45,9 @@ from app.services.history_records import (
     HistoryRecordPage,
     HistoryRecordSnapshot,
 )
+from app.services.provider_failures import ProviderFailure
+
+PROVIDER_FAILURE = TypeAdapter(ProviderFailure)
 
 
 class SqlAlchemyHistoryRecordRepository:
@@ -68,7 +72,7 @@ class SqlAlchemyHistoryRecordRepository:
                 DownloadIntentRow.version.label("version"),
                 DownloadIntentRow.reason_code.label("reason_code"),
                 DownloadIntentRow.latest_failure.label("latest_failure"),
-                DownloadIntentRow.retry_at.label("retry_at"),
+                cast(null(), DateTime(timezone=True)).label("retry_at"),
                 DownloadIntentRow.deadline.label("deadline"),
                 DownloadIntentRow.inspection_id.label("inspection_id"),
                 DownloadIntentRow.job_id.label("job_id"),
@@ -81,7 +85,6 @@ class SqlAlchemyHistoryRecordRepository:
                 DownloadIntentRow.url_nonce.label("url_nonce"),
                 DownloadIntentRow.url_key_id.label("url_key_id"),
                 DownloadIntentRow.request_fingerprint.label("request_fingerprint"),
-                DownloadIntentRow.access_policy.label("access_policy"),
                 DownloadIntentRow.updated_at.label("updated_at"),
                 cast(null(), Uuid).label("document_id"),
                 cast(null(), Uuid).label("artifact_id"),
@@ -136,7 +139,6 @@ class SqlAlchemyHistoryRecordRepository:
                 cast(null(), LargeBinary).label("url_nonce"),
                 cast(null(), String).label("url_key_id"),
                 cast(null(), String).label("request_fingerprint"),
-                cast(null(), String).label("access_policy"),
                 AnalysisJobRow.updated_at.label("updated_at"),
                 DocumentRow.id.label("document_id"),
                 ArtifactRow.id.label("artifact_id"),
@@ -256,7 +258,6 @@ class SqlAlchemyHistoryRecordRepository:
                 cast(null(), LargeBinary).label("url_nonce"),
                 cast(null(), String).label("url_key_id"),
                 cast(null(), String).label("request_fingerprint"),
-                cast(null(), String).label("access_policy"),
                 DocumentRow.updated_at.label("updated_at"),
                 DocumentRow.id.label("document_id"),
                 cast(null(), Uuid).label("artifact_id"),
@@ -303,7 +304,9 @@ class SqlAlchemyHistoryRecordRepository:
             .limit(limit + 1)
         )
 
-        async with self._sessions() as session:
+        async with self._sessions() as session, session.begin():
+            now = utc_now()
+            await request_overdue_cleanup(session, owner_hash, now)
             rows = (await session.execute(statement)).mappings().all()
 
         has_more = len(rows) > limit
@@ -346,7 +349,6 @@ class SqlAlchemyHistoryRecordRepository:
                     else None
                 ),
                 request_fingerprint=row["request_fingerprint"],
-                access_policy=row["access_policy"],
             )
             for row in rows[:limit]
         )

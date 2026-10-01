@@ -66,16 +66,6 @@ _ERRORS: dict[ApplicationErrorCode, tuple[int, str, str]] = {
         "Idempotency conflict",
         "The idempotency key was already used for another request.",
     ),
-    ApplicationErrorCode.INSPECTION_FAILED: (
-        502,
-        "Inspection failed",
-        "The media provider could not be inspected.",
-    ),
-    ApplicationErrorCode.INSPECTION_TIMEOUT: (
-        504,
-        "Inspection timed out",
-        "The media inspection exceeded its deadline.",
-    ),
     ApplicationErrorCode.INTERNAL_ERROR: (
         500,
         "Internal error",
@@ -101,86 +91,65 @@ _ERRORS: dict[ApplicationErrorCode, tuple[int, str, str]] = {
         "Not found",
         "The requested resource was not found.",
     ),
-    ApplicationErrorCode.PROVIDER_AUTH_REQUIRED: (
-        422,
-        "Provider session required",
-        "This provider requires an approved session for the requested public media.",
+    ApplicationErrorCode.NETWORK_BLOCKED: (
+        502,
+        "Network blocked",
+        "The provider blocked the configured network route.",
     ),
-    ApplicationErrorCode.PROVIDER_CONFIGURATION_MISSING: (
-        503,
-        "Provider route not configured",
-        "The selected access policy requires an operator-configured route.",
+    ApplicationErrorCode.CHALLENGE: (
+        502,
+        "Platform challenge",
+        "The provider requires a client challenge.",
     ),
-    ApplicationErrorCode.PROVIDER_GUEST_CONTEXT_REQUIRED: (
-        503,
-        "Provider visitor context required",
-        "The public route is preparing a visitor context. Try again later.",
-    ),
-    ApplicationErrorCode.PROVIDER_ACCESS_POLICY_NOT_ALLOWED: (
-        422,
-        "Provider access policy not allowed",
-        "The requested access policy is not admitted for this source.",
-    ),
-    ApplicationErrorCode.PROVIDER_SESSION_EXPIRED: (
-        422,
-        "Provider session unavailable",
-        "The approved provider session is no longer available. Try again later.",
-    ),
-    ApplicationErrorCode.PROVIDER_SESSION_NOT_READY: (
-        503,
-        "Provider session not ready",
-        "The deployment session for this site is not ready. Try again later.",
-    ),
-    ApplicationErrorCode.PROVIDER_VERIFICATION_FAILED: (
-        503,
-        "Provider verification failed",
-        "The provider could not verify this request. Try again later.",
-    ),
-    ApplicationErrorCode.PROVIDER_RATE_LIMITED: (
-        429,
-        "Provider rate limited",
-        "The provider is temporarily rate limiting requests. Try again later.",
-    ),
-    ApplicationErrorCode.PROVIDER_GEO_RESTRICTED: (
-        422,
-        "Provider region restricted",
-        "This media is not available from the configured service region.",
-    ),
-    ApplicationErrorCode.PROVIDER_CONTENT_RESTRICTED: (
+    ApplicationErrorCode.LOGIN_REQUIRED: (
         403,
-        "Provider content restricted",
-        "This media is private or requires an entitlement this service cannot use.",
+        "Platform login required",
+        "This media requires a platform login.",
     ),
-    ApplicationErrorCode.PROVIDER_DRM_PROTECTED: (
+    ApplicationErrorCode.CONTENT_UNAVAILABLE: (
         422,
-        "DRM protected media",
-        "DRM-protected media is outside the supported product boundary.",
+        "Content unavailable",
+        "The requested content is unavailable.",
     ),
-    ApplicationErrorCode.PROVIDER_TEMPORARILY_UNAVAILABLE: (
+    ApplicationErrorCode.IDENTITY_UNAVAILABLE: (
         503,
-        "Provider temporarily unavailable",
-        "The provider adapter is temporarily degraded. Try again later.",
+        "Platform identity unavailable",
+        "The required platform identity is unavailable.",
     ),
-    ApplicationErrorCode.PROVIDER_LINK_UNAVAILABLE: (
-        422,
-        "Provider link unavailable",
-        (
-            "This sharing link no longer resolves to a playable video. "
-            "Copy a fresh public sharing link and try again."
-        ),
+    ApplicationErrorCode.RATE_LIMITED: (
+        429,
+        "Platform rate limited",
+        "The provider rate limit was reached. Try again after the indicated delay.",
     ),
-    ApplicationErrorCode.PROVIDER_MEDIA_UNSUPPORTED: (
-        422,
-        "Unsupported media type",
-        (
-            "The submitted link does not contain one supported video. "
-            "Image and multi-attachment posts are not supported."
-        ),
+    ApplicationErrorCode.CONTEXT_CHANGED: (
+        409,
+        "Execution context changed",
+        "The media execution context changed. Resolve again and confirm the format.",
     ),
-    ApplicationErrorCode.PROVIDER_UNSUPPORTED: (
+    ApplicationErrorCode.CONTENT_PROTECTED: (
         422,
-        "Provider unsupported",
-        "The current secure media runner does not support this provider.",
+        "Protected content",
+        "Encrypted media cannot be downloaded. Import an existing clear file.",
+    ),
+    ApplicationErrorCode.EXTRACTOR_BROKEN: (
+        502,
+        "Extractor unavailable",
+        "The extractor could not resolve this media.",
+    ),
+    ApplicationErrorCode.TRANSIENT: (
+        503,
+        "Temporary failure",
+        "The media operation failed temporarily. Try again later.",
+    ),
+    ApplicationErrorCode.INVALID_INPUT: (
+        422,
+        "Invalid media input",
+        "The requested source is not supported.",
+    ),
+    ApplicationErrorCode.RUNTIME_UNAVAILABLE: (
+        503,
+        "Media runtime unavailable",
+        "The media runtime is temporarily unavailable.",
     ),
     ApplicationErrorCode.RESOURCE_EXPIRED: (
         404,

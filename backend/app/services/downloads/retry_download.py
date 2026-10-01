@@ -14,7 +14,11 @@ from app.services.downloads.errors import (
 )
 from app.services.downloads.ports import DownloadRepository, RequestFingerprinter
 from app.services.downloads.queries import _owned_job
-from app.services.downloads.rules.enums import DownloadSourceKind, DownloadStatus
+from app.services.downloads.rules.enums import (
+    DownloadErrorCode,
+    DownloadSourceKind,
+    DownloadStatus,
+)
 from app.services.downloads.validation import (
     validate_idempotency_key,
     validate_now,
@@ -58,6 +62,8 @@ class RetryDownload:
         original = await _owned_job(self._repository, job_id, owner_hash)
         if original.source_kind != DownloadSourceKind.REMOTE_PROVIDER.value:
             raise ApplicationError(ApplicationErrorCode.INVALID_STATE)
+        if original.error_code == DownloadErrorCode.CONTEXT_CHANGED.value:
+            raise ApplicationError(ApplicationErrorCode.CONTEXT_CHANGED)
         retryable_statuses = {
             DownloadStatus.FAILED.value,
             DownloadStatus.CANCELLED.value,

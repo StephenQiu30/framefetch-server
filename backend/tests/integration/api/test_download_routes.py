@@ -91,12 +91,11 @@ def test_explicit_policy_reaches_use_case_but_unknown_policy_does_not(
                 "source": {
                     "kind": "public_url",
                     "url": "https://media.example/video",
-                    "access_policy_id": "public",
                 },
             },
         )
         assert result.status_code == 201
-        assert stubs["inspect"].calls[0][1]["access_policy"] == "public"
+        assert stubs["inspect"].calls[0][1] == {}
         rejected = test_client.post(
             "/api/inspections",
             headers={"Idempotency-Key": "unknown"},
@@ -359,22 +358,18 @@ def test_provider_status_distinguishes_registered_verified_and_unsupported(
         response = test_client.get("/api/providers")
 
     assert response.status_code == 200
-    from app.services.provider_types import ProviderAccessMode
     from app.workers.runner.provider_registry import current_provider_registry
 
-    anonymous_keys = {
-        p.key
-        for p in current_provider_registry().profiles
-        if p.initial_access_mode is ProviderAccessMode.ANONYMOUS
-    }
+    declared = {p.key: p for p in current_provider_registry().profiles}
     items = {item["key"]: item for item in response.json()["data"]["items"]}
-    assert len(items) == 24
+    assert len(items) == len(declared) + 1
     for key, item in items.items():
         assert item["registered"] is True
-        assert item["access_modes"] == (["anonymous"] if key in anonymous_keys else [])
-        assert not item["download_available"]
-        if key not in anonymous_keys | {"wechat_official_account_article"}:
-            assert item["status"] == "access_required"
+        assert "access_modes" not in item
+        assert "download_available" not in item
+        if key in declared:
+            assert item["identity"] == declared[key].identity.value
+            assert item["status"] == declared[key].support_status.value
     assert items["wechat_official_account_article"]["status"] == "unknown"
     assert not {"acfun", "rutube", "vk", "dailymotion", "niconico"} & items.keys()
     assert "peertube" not in items
@@ -446,11 +441,11 @@ def test_application_errors_are_error_envelopes(tmp_path: Path) -> None:
     [
         (ApplicationErrorCode.IDEMPOTENCY_CONFLICT, 409),
         (ApplicationErrorCode.INVALID_URL, 422),
-        (ApplicationErrorCode.INSPECTION_FAILED, 502),
-        (ApplicationErrorCode.INSPECTION_TIMEOUT, 504),
-        (ApplicationErrorCode.PROVIDER_AUTH_REQUIRED, 422),
-        (ApplicationErrorCode.PROVIDER_LINK_UNAVAILABLE, 422),
-        (ApplicationErrorCode.PROVIDER_MEDIA_UNSUPPORTED, 422),
+        (ApplicationErrorCode.EXTRACTOR_BROKEN, 502),
+        (ApplicationErrorCode.TRANSIENT, 503),
+        (ApplicationErrorCode.LOGIN_REQUIRED, 403),
+        (ApplicationErrorCode.CONTENT_UNAVAILABLE, 422),
+        (ApplicationErrorCode.INVALID_INPUT, 422),
     ],
 )
 def test_inspection_errors_have_stable_http_mapping(

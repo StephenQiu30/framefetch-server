@@ -143,9 +143,7 @@ async def test_runtime_readiness_checks_the_active_postgres_schema(
 
 
 @pytest.mark.usefixtures("rabbitmq_is_available")
-@pytest.mark.parametrize(
-    "column", ["execution_access_context", "execution_context_attempt"]
-)
+@pytest.mark.parametrize("column", ["execution_context", "execution_context_attempt"])
 async def test_runtime_readiness_rejects_missing_download_execution_column(
     postgres_engine: AsyncEngine, column: str
 ) -> None:
