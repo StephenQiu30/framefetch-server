@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
+import { localizedErrorMessage } from '@/lib/error-messages';
 import { ApiError, apiErrorFrom, displayError } from '@/lib/request-error';
 
 describe('request errors', () => {
@@ -41,6 +42,17 @@ describe('request errors', () => {
         ),
       ),
     ).toBe('提交内容不符合要求，请检查各字段后重试。');
+  });
+
+  it('falls back safely for unknown, malformed or unrelated failure causes', () => {
+    for (const cause of ['unknown_cause', { secret: 'raw detail' }, null]) {
+      expect(localizedErrorMessage('identity_unavailable', cause)).toBe(
+        '平台登录材料暂不可用，请检查部署主机的登录状态后重新解析。',
+      );
+    }
+    expect(
+      localizedErrorMessage('content_protected', 'browser_not_implemented'),
+    ).toBe('该内容受加密保护，无法下载；可导入已取得的文件。');
   });
 
   it.each([

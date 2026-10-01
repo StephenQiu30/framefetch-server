@@ -207,3 +207,52 @@ it('shows parse failures once in Sonner without an inline status panel', async (
     'https://youtu.be/owned',
   );
 });
+
+it.each([
+  {
+    code: 'identity_unavailable',
+    cause: 'identity_cookie_rules_unverified',
+    expected: '该平台的身份规则尚未接通，当前无法解析；可导入已有本地视频。',
+  },
+  {
+    code: 'runtime_unavailable',
+    cause: 'browser_not_implemented',
+    expected: '该平台的解析尚未接通，当前无法解析；可导入已有本地视频。',
+  },
+  ...['extension_disconnected', 'credential_missing', 'session_missing'].map(
+    (cause) => ({
+      code: 'identity_unavailable' as const,
+      cause,
+      expected: '平台登录材料暂不可用，请检查部署主机的登录状态后重新解析。',
+    }),
+  ),
+] as const)(
+  'explains $cause in the failure notice',
+  async ({ code, cause, expected }) => {
+    mockHttpResponses(
+      intentFixture({
+        status: 'failed',
+        inspection_id: null,
+        reason_code: code,
+        failure: {
+          code,
+          failure_class: code,
+          layer: 'L3',
+          stage: 'resolve',
+          gate: '③',
+          evidence: { kind: 'runtime', cause_code: cause },
+          summary: 'upstream detail must not be shown',
+        },
+      }),
+    );
+    renderEntry();
+    enter('https://weixin.qq.com/sph/A9znfitafp');
+    await waitFor(() =>
+      expect(
+        document.querySelector('[data-sonner-toast][data-type="error"]'),
+      ).toHaveTextContent(expected),
+    );
+    expect(screen.queryByText('upstream detail must not be shown')).toBeNull();
+    expect(push).not.toHaveBeenCalled();
+  },
+);

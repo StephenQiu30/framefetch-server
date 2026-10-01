@@ -105,7 +105,10 @@ export function intentDescription(intent: API.IntentResponse): string {
   if (isActiveIntentStatus(intent.status))
     return intentStatusPresentation[intent.status].description(intent);
   if (intent.failure?.code) {
-    const reason = localizedErrorMessage(intent.failure.code);
+    const reason = localizedErrorMessage(
+      intent.failure.code,
+      intent.failure.evidence.cause_code,
+    );
     if (reason) return reason;
   }
   if (intent.reason_code) {

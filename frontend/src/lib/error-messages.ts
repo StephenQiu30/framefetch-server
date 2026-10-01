@@ -98,10 +98,23 @@ const localizedErrorMessages: Record<string, string> = {
   video_import_invalid: '视频未通过 MP4 安全校验，请更换有效文件。',
 };
 
+const localizedFailureCauses: Record<string, string> = {
+  'identity_unavailable:identity_cookie_rules_unverified':
+    '该平台的身份规则尚未接通，当前无法解析；可导入已有本地视频。',
+  'runtime_unavailable:browser_not_implemented':
+    '该平台的解析尚未接通，当前无法解析；可导入已有本地视频。',
+};
+
 export function localizedErrorMessage(
   code: string | null | undefined,
+  causeCode?: unknown,
 ): string | undefined {
-  return code ? localizedErrorMessages[code] : undefined;
+  if (!code) return undefined;
+  const cause =
+    typeof causeCode === 'string'
+      ? localizedFailureCauses[`${code}:${causeCode}`]
+      : undefined;
+  return cause ?? localizedErrorMessages[code];
 }
 
 export function statusErrorMessage(status: number): string {
