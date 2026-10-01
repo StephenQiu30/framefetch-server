@@ -26,6 +26,7 @@ def engine_revision(settings: RunnerSettings | None = None) -> str:
         "bgutil-ytdlp-pot-provider",
         "yt-dlp-ejs",
         "yt-dlp-getpot-wpc",
+        "nodriver",
         "playwright",
     ):
         try:
@@ -47,7 +48,12 @@ def engine_revision(settings: RunnerSettings | None = None) -> str:
     digest = hashlib.sha256(json.dumps(facts, sort_keys=True).encode())
     root = Path(__file__).resolve().parent
     # Local layer/proof code changes also invalidate previously confirmed plans.
-    paths = [*(root / "plugins").rglob("*.py"), *(root / "engine").rglob("*.py")]
+    paths = [
+        *(root / "plugins").rglob("*.py"),
+        *(root / "engine").rglob("*.py"),
+        root / "youtube_proof.py",
+        root / "wpc-chromium.sh",
+    ]
     for path in sorted(paths):
         digest.update(path.relative_to(root).as_posix().encode())
         digest.update(path.read_bytes())

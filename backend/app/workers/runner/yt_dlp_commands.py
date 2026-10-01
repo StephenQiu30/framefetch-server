@@ -172,7 +172,12 @@ class YtDlpCommandBuilder:
             command += ("--no-playlist",)
         provider_args = profile.command_args_for(self._settings)
         if profile.key == "youtube" and self._client is not None:
-            if self._client not in {"youtube:mweb", "youtube:tv", "youtube:default"}:
+            if self._client not in {
+                "youtube:mweb",
+                "youtube:tv",
+                "youtube:default",
+                "youtube:wpc:mweb",
+            }:
                 raise RunnerFailure("context_changed", status=409)
             # Replace only the registered player client; retain bgutil configuration.
             filtered = []
@@ -188,7 +193,12 @@ class YtDlpCommandBuilder:
                 index += 1
             provider_args = tuple(filtered) + (
                 "--extractor-args",
-                f"youtube:player_client={self._client.split(':')[1]}",
+                f"youtube:player_client={self._client.split(':')[-1]}",
+            )
+        if profile.key == "youtube" and self._client == "youtube:wpc:mweb":
+            provider_args += (
+                "--extractor-args",
+                "youtubepot-wpc:browser_path=/usr/local/bin/framefetch-wpc-chromium",
             )
         command += (*operation_args, *provider_args)
         if include_source:

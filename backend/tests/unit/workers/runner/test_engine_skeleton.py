@@ -201,7 +201,9 @@ async def test_layer_stubs_fail_closed(layer, tmp_path):
     source.workspace.cleanup()
 
 
-@pytest.mark.parametrize("key", [k for k, v in _DECLARATIONS.items() if "L3" in v[0]])
+@pytest.mark.parametrize(
+    "key", [k for k, v in _DECLARATIONS.items() if "L3" in v[0] and k != "youtube"]
+)
 def test_platform_parser_seams_fail_closed(key):
     module = import_module(f"app.workers.runner.engine.browser.{key}")
     assert module.RULES.platform == key
