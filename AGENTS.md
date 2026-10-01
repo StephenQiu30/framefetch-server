@@ -30,7 +30,7 @@
 ## 安全与运行约束
 
 - 帧取为单人自行部署的自用工具，解析引擎唯一目标与实施计划为 docs/design/17-解析引擎重建.md。Registry 分别声明平台阶梯、出口、identity 与 content_scope。公开线路（content_scope=public）只处理能够正向证明为公开、免费、非 DRM 的 HTTP(S) 内容；带着 Cookie 也不扩张到 private、follow-only、会员/购买或地域受限内容。personal_full 只适用于腾讯视频、优酷：处理账号可访问的完整非 DRM 单视频，必须保留原始完整时长，并通过最终文件校验。identity 与 content_scope 是两个独立维度，读取账号材料不等于放宽内容范围。仅处理用户有权获取的非 DRM 内容，不解密媒体、取得内容密钥、转换保护流或调用第三方公共解析站；私网 URL、任意 yt-dlp 参数和 shell 输入禁止。账号可见性不能表述为官方导出授权；不能证明 clear 完整媒体时返回 content_protected 并提示文件导入。Edge Agent 仅传输用户合法取得并显式选择的 clear 文件。
-- 身份层按设计 17 第 3.4 节在 R4 重建，唯一来源是用户普通 Chrome Profile 中的 MV3 扩展 `framefetch-identity`，通过 chrome.cookies 取得非分区 Cookie；不读取 Profile 文件、不访问钥匙串、不调用 yt-dlp Cookie 解密、不需要完全磁盘访问或专用可执行文件。扩展与普通宿主 cookie-source 使用独立配对密钥双向 HMAC 挑战应答，校验固定扩展 Origin，只允许一条已认证连接；先认证服务端再返回声明域的 Cookie。Runner 独占 Bearer、精确代理直连、材料摘要与私有 tmpfs 生命周期均以该节为准；配对配置为当前用户 0600，目录 0700，不能防御同用户恶意进程。真实 Chrome 保活、重连、假服务拒绝与完整文件按 R4 实测，身份不扩张内容范围。R0 仅保留匿名 L1。
+- 身份层按设计 17 第 3.4 节在 R4 重建，唯一来源是用户普通 Chrome Profile 中的 MV3 扩展 `framefetch-identity`，通过 chrome.cookies 取得非分区 Cookie；不读取 Profile 文件、不访问钥匙串、不调用 yt-dlp Cookie 解密、不需要完全磁盘访问或专用可执行文件。扩展与普通宿主 cookie-source 使用独立配对密钥双向 HMAC 挑战应答，校验固定扩展 Origin，只允许一条已认证连接；先认证服务端再返回声明域的 Cookie。Runner 独占 Bearer、精确代理直连、材料摘要与私有 tmpfs 生命周期均以该节为准；配对配置为当前用户 0600，目录 0700，不能防御同用户恶意进程。真实 Chrome 保活、重连、假服务拒绝与完整文件按 R4 实测，身份不扩张内容范围。实现与平台验收状态见设计 17 第 8 节。
 - PostgreSQL 保存业务事实；不新增 SQLite 业务库、Cookie 库、文件任务账本、第二调度器或通用 Agent 框架。浏览器原生 persistent Profile 只保存浏览器状态。Temporal 解析只编排单个 resolve Activity，解析总时限 120 秒，保留意图的业务 generation/fence、持久截止时间与取消确认，不维护操作级预算、策略尝试或 fence 账本；Skill 分析继续保留步骤日志与不确定调用保护，下载继续保留 RabbitMQ lease/heartbeat。
 - 在线媒体入口复用单个 session-runner，保留 URL/SSRF 与出口边界，Runner 不取得数据库、队列、对象存储或 AI 凭据。容器不挂载宿主 Chrome Profile、Keychain 或 CLI OAuth；Cookie 不进入普通业务 JSON、日志、队列、Temporal History 或持久字段。ExecutionContext 保存设计 17 第 3.7 节的十二字段非敏感摘要；失败按第 3.6 节的十三类记录 layer、stage、gate、结构化 evidence 与摘要。身份、浏览器与平台冷启动必须通过真实完整文件验收，技术健康不证明平台可用。
 - Worker 开工前重新解析语义下载计划；Provider format id 不能作为唯一恢复依据。
@@ -72,7 +72,7 @@ pnpm build
 ## 文档规范
 
 - 根 `README.md` 说明仓库入口和运行方式；`backend/README.md`、`frontend/README.md` 说明模块用法；详细事实放在 `docs/`，不要在多个文件复制大段内容。
-- 系统设计只维护在 `docs/design/`（按主题分文件，索引见 README.md），是本项目唯一保留的设计文档；目标架构、实施顺序与可判定的验收条件维护在对应主题，不另建平行 PRD、Plan、验收、调研与运维手册。运行说明写入 README，过程记录通过 Git 历史追溯。BACKLOG 仅作任务导航和历史记录。
+- 系统设计只维护在 `docs/design/`（按主题分文件，索引见 README.md），是本项目唯一保留的设计文档；目标架构、实施顺序与可判定的验收条件维护在对应主题，不另建平行 PRD、Plan、验收、调研与运维手册。运行说明写入 README，过程记录通过 Git 历史追溯。BACKLOG 仅作未完成任务导航；历史记录通过 Git 追溯。
 - 文档明确区分审查基线、目标要求、实现状态和验收事实；目标规格不得冒充当前实现。历史方案通过 Git 追溯，不保留已废弃内容作为“兼容说明”。
 
 ## Git 与任务交付

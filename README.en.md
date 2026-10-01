@@ -12,7 +12,7 @@
     <img src="https://img.shields.io/badge/Docker-Compose-2496ED.svg" alt="Docker Compose" />
   </p>
   <p>
-    <a href="#whats-new">What's new</a> ·
+    <a href="#resolution-engine">Resolution engine</a> ·
     <a href="#quick-start">Quick start</a> ·
     <a href="#use-cases">Use cases</a> ·
     <a href="#capabilities">Capabilities</a> ·
@@ -31,22 +31,11 @@
 
 FrameFetch is an open-source, self-hosted video downloader and media workflow for creators, content researchers and developers. It turns an authorized public-media URL, local video or screenplay into an observable, recoverable job: inspect the source, select a real format, download and verify it in an isolated runner, persist the artifact, and optionally produce a structured AI analysis report.
 
-FrameFetch handles HTTP(S), non-DRM content the user is authorized to obtain. R0 executes anonymous L1 only. Account-visible clear content requires identity-layer implementation and per-platform acceptance under design 17. Encrypted media and content keys are not decrypted or extracted.
+FrameFetch handles HTTP(S), non-DRM content the user is authorized to obtain. The Registry declares identity and content scope independently. Account cookies do not expand the content scope; encrypted media and content keys are not decrypted or extracted.
 
-## What's new
+## Resolution engine
 
-**Unreleased · Resolution engine R0**
-
-- Remove the old session relay, operational governance and resolution plan/attempt ledger. The Runner temporarily executes anonymous L1 yt-dlp only.
-- Keep one resolve Activity in Temporal, RabbitMQ downloads, controlled egress and final artifact verification. Acceptance is tracked in [design 17](docs/design/17-解析引擎重建.md).
-- Public samples now live in `backend/scripts/fixtures/fixed_public_cases.json`. Host identity injection is rebuilt in R4.
-
-**[v0.2.0](https://github.com/StephenQiu30/video-server/releases/tag/v0.2.0) · Container-owned platform sessions**
-
-- Media execution reuses the isolated Runner and controlled egress; provider availability is established by a real downloaded file.
-- Web UX: avatar upload and profile page, unified two-column result cards, recoverable error notices and shadcn component clean-up.
-
-Read the breaking changes in the [release notes](https://github.com/StephenQiu30/video-server/releases/tag/v0.2.0) before upgrading from v0.1.0.
+The current engine uses Registry ladders for HTTP extraction, proof preparation and browser resolution, with controlled egress and a Chrome extension identity source. Temporal runs a single resolve Activity; RabbitMQ workers download and verify artifacts. Implementation status, platform limits and complete-file evidence are maintained only in [design 17](docs/design/17-解析引擎重建.md).
 
 ## Use cases
 
@@ -112,7 +101,7 @@ The web application includes media inspection and download, job history and deta
 
 ## Quick start
 
-Use `docker-compose.yml` locally and `docker-compose-prod.yml` in production. R0 executes anonymous L1 only. Identity injection is rebuilt in R4. Actual availability requires complete-file acceptance.
+Use `docker-compose.yml` locally and `docker-compose-prod.yml` in production. Platform availability requires complete-file acceptance under design 17.
 
 ### Requirements
 
@@ -133,9 +122,7 @@ test -f .env || cp .env.example .env
 docker compose up -d --build --wait --remove-orphans
 ```
 
-Every containerized background loop (Outbox dispatch, inspection and downloads, imports, report publication) runs in one `worker` container with one RabbitMQ account, `RABBITMQ_WORKER_USER` / `RABBITMQ_WORKER_PASS`, which needs configure/write/read on `RABBITMQ_VHOST`. When upgrading from the former multi-worker topology, create that account first; `--remove-orphans` removes the retired `outbox`, `worker-*`, `provider-canary`, `provider-lease-redis` and `workspace-init` containers.
-
-R0 does not install a platform identity source.
+All containerized background loops run in the single `worker` container. Its `RABBITMQ_WORKER_USER` / `RABBITMQ_WORKER_PASS` account needs restricted permissions for current business queues in `RABBITMQ_VHOST`; see [design 13](docs/design/13-可靠性与运行.md).
 
 For an empty user table, create the first administrator on the deployment host. The command prompts for a password, refuses to run once any user exists, and does not expose a remote bootstrap endpoint:
 
@@ -146,9 +133,18 @@ uv run --project backend python -m app.workers.bootstrap_admin \
 
 ### Identity and upgrades
 
-R0 provides anonymous L1 only. The old host-source CLI and relay are removed. The cookie-source target is specified in [design 17 section 3.4](docs/design/17-解析引擎重建.md#34-身份层); operating instructions will be added when R4 is implemented. Login requirements currently produce a typed failure.
+Platform identity uses `framefetch-identity`, an MV3 extension loaded from the main checkout's `browser-extension/`, and a per-user `cookie-source` LaunchAgent. From the main checkout's `backend/`, run:
 
-Before upgrading, pause admissions, drain media operations and back up the business database. Apply the current schema.sql, then rebuild the API, worker, session-runner and frontend together. `--remove-orphans` retires the old broker while preserving business records and artifacts. Production:
+```bash
+uv run python -m app.workers.identity.cli install
+uv run python -m app.workers.identity.cli check
+```
+
+In Chrome 120+, enable developer mode and load that unpacked extension into the single ordinary Profile you use for platform sign-in. Do not load it from a worktree. After updates, run `install` again and reload the extension. Generated pairing configuration and manifest are ignored by Git; pairing configuration is private to the current user but cannot protect against malicious processes running as that same user.
+
+Only the Runner receives `COOKIE_SOURCE_TOKEN`; the extension pairing key is separate. Cookie requests use the exact host/port/path proxy exception, with no redirects or upstream Clash routing. Installation, permissions and operational details are in the [Chinese runtime instructions](README.md#平台身份与升级); the protocol and acceptance boundaries are in [design 17 section 3.4](docs/design/17-解析引擎重建.md#34-身份层).
+
+Before upgrading, pause admissions, drain media operations and back up the business database. Apply the current schema.sql, then rebuild the API, worker, session-runner and frontend together. Production:
 
 ```bash
 docker compose --env-file .env.prod -f docker-compose-prod.yml up -d --build --wait --remove-orphans
@@ -226,8 +222,8 @@ See [docs/design/README.md](docs/design/README.md) for the maintained system des
 ## Security and content boundaries
 
 - Process only content you are legally authorized to download or analyze.
-- R0 executes anonymous L1 with content-rights and non-DRM validation. Account paths require design 17 implementation and complete-file acceptance. Private-network URLs, arbitrary yt-dlp arguments and shell input are always rejected.
-- Normal API requests never accept raw cookies. Identity targets are specified in design 17 section 3.4 and are implemented in R4. ExecutionContext stores the twelve non-secret fields defined in design 17 section 3.7.
+- Content scope and identity follow design 17; platform support requires complete-file acceptance. Private-network URLs, arbitrary yt-dlp arguments and shell input are always rejected.
+- Normal API requests never accept raw cookies. Identity uses the Chrome extension and host cookie-source specified in design 17 section 3.4. ExecutionContext stores the twelve non-secret fields defined in design 17 section 3.7.
 - An edge agent may transfer only a clear file the user has legally obtained and explicitly selected. It must not inspect platform sessions, intercept traffic, extract content keys or transform protected media.
 - External media access must pass through an egress proxy that blocks private networks; input validation is not a substitute for network isolation.
 
@@ -235,7 +231,7 @@ Do not disclose exploit details, secrets or user content in a public issue. Foll
 
 ## Current limitations
 
-- Identity support for account platforms is rebuilt in R4; complete files require fresh design 17 acceptance.
+- Chrome extension identity is connected to the engine; login-platform files and the full matrix still require design 17 acceptance.
 - FrameFetch is evolving open-source software. It currently provides self-hosted source and Compose workflows, not an official SaaS, public demo or availability SLA.
 - Provider behavior can change with source pages and platforms. A platform name does not imply support for every item, region or account entitlement.
 - AI analysis needs a separate host agent or a deployment-configured model service. Disabling AI does not disable downloads or document imports.
@@ -250,11 +246,13 @@ The frontend requires Node.js `>=24.15 <25` and pnpm 12. The backend requires Py
 cd backend
 uv sync --frozen --dev
 uv run --frozen ruff check app tests
+uv run --frozen ruff format --check app tests
 uv run --frozen mypy --strict app
 uv run --frozen pytest -q
 
 cd ../frontend
 pnpm install --frozen-lockfile
+pnpm format:check
 pnpm lint
 pnpm test
 pnpm build
