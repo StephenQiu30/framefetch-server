@@ -1,1 +1,1645 @@
-[]
+[
+  {
+    "id": "bilibili-positive-1",
+    "platform": "bilibili",
+    "url": "https://www.bilibili.com/video/BV13x41117TL",
+    "expected_media_id": "BV13x41117TL",
+    "kind": "positive",
+    "content_scope": "public",
+    "needs_identity": false,
+    "duration_seconds": 554,
+    "duration_source": {
+      "url": "https://api.bilibili.com/x/web-interface/view?bvid=BV13x41117TL",
+      "kind": "platform_page_or_api",
+      "field": "data.duration / data.pages[0].duration",
+      "checked_at": "2026-10-01T05:39:19.485271+00:00",
+      "status": "verified",
+      "note": "官方 view API：state=0、rights.pay=0、ugc_pay=0、arc_pay=0、download=1，单页公开视频；公开播放为非 DRM H264/AAC。"
+    },
+    "availability_source": {
+      "url": "https://www.bilibili.com/video/BV13x41117TL",
+      "kind": "public_page",
+      "field": "public_free_clear_media",
+      "checked_at": "2026-10-01T05:39:19.485271+00:00",
+      "status": "verified",
+      "note": "官方 view API：state=0、rights.pay=0、ugc_pay=0、arc_pay=0、download=1，单页公开视频；公开播放为非 DRM H264/AAC。"
+    },
+    "minimum_spec": {
+      "width": 640,
+      "height": 360,
+      "audio": true
+    }
+  },
+  {
+    "id": "bilibili-positive-2",
+    "platform": "bilibili",
+    "url": "https://www.bilibili.com/video/BV11x411K7CN",
+    "expected_media_id": "BV11x411K7CN",
+    "kind": "positive",
+    "content_scope": "public",
+    "needs_identity": false,
+    "duration_seconds": 308,
+    "duration_source": {
+      "url": "https://api.bilibili.com/x/web-interface/view?bvid=BV11x411K7CN",
+      "kind": "platform_page_or_api",
+      "field": "data.duration / data.pages[0].duration",
+      "checked_at": "2026-10-01T05:39:19.485271+00:00",
+      "status": "verified",
+      "note": "官方 view API：state=0、rights.pay=0、ugc_pay=0、arc_pay=0、download=1，单页公开视频；公开播放为非 DRM H264/AAC。"
+    },
+    "availability_source": {
+      "url": "https://www.bilibili.com/video/BV11x411K7CN",
+      "kind": "public_page",
+      "field": "public_free_clear_media",
+      "checked_at": "2026-10-01T05:39:19.485271+00:00",
+      "status": "verified",
+      "note": "官方 view API：state=0、rights.pay=0、ugc_pay=0、arc_pay=0、download=1，单页公开视频；公开播放为非 DRM H264/AAC。"
+    },
+    "minimum_spec": {
+      "width": 640,
+      "height": 360,
+      "audio": true
+    }
+  },
+  {
+    "id": "youtube-positive-1",
+    "platform": "youtube",
+    "url": "https://www.youtube.com/watch?v=jNQXAC9IVRw",
+    "expected_media_id": "jNQXAC9IVRw",
+    "kind": "positive",
+    "content_scope": "public",
+    "needs_identity": false,
+    "duration_seconds": 19,
+    "duration_source": {
+      "url": "https://www.youtube.com/results?search_query=jNQXAC9IVRw",
+      "kind": "platform_page_or_api",
+      "field": "ytInitialData.videoRenderer[videoId].lengthText.simpleText",
+      "checked_at": "2026-10-01T05:39:19.485271+00:00",
+      "status": "verified",
+      "note": "官方匿名搜索页按精确 videoId 匹配 duration 文本 0:19；非被测媒体流。"
+    },
+    "availability_source": {
+      "url": "https://www.youtube.com/watch?v=jNQXAC9IVRw",
+      "kind": "public_page",
+      "field": "public_free_clear_media",
+      "checked_at": null,
+      "status": "unverified",
+      "note": "官方匿名搜索页与 oEmbed 公开可达，无付费字段；完整 clear 媒体仍待住宅出口验收。"
+    },
+    "minimum_spec": {
+      "width": 320,
+      "height": 180,
+      "audio": true
+    }
+  },
+  {
+    "id": "youtube-positive-2",
+    "platform": "youtube",
+    "url": "https://www.youtube.com/watch?v=aqz-KE-bpKQ",
+    "expected_media_id": "aqz-KE-bpKQ",
+    "kind": "positive",
+    "content_scope": "public",
+    "needs_identity": false,
+    "duration_seconds": 635,
+    "duration_source": {
+      "url": "https://www.youtube.com/results?search_query=aqz-KE-bpKQ",
+      "kind": "platform_page_or_api",
+      "field": "ytInitialData.videoRenderer[videoId].lengthText.simpleText",
+      "checked_at": "2026-10-01T05:39:19.485271+00:00",
+      "status": "verified",
+      "note": "官方匿名搜索页按精确 videoId 匹配 duration 文本 10:35；非被测媒体流。"
+    },
+    "availability_source": {
+      "url": "https://www.youtube.com/watch?v=aqz-KE-bpKQ",
+      "kind": "public_page",
+      "field": "public_free_clear_media",
+      "checked_at": null,
+      "status": "unverified",
+      "note": "官方匿名搜索页与 oEmbed 公开可达，无付费字段；完整 clear 媒体仍待住宅出口验收。"
+    },
+    "minimum_spec": {
+      "width": 320,
+      "height": 180,
+      "audio": true
+    }
+  },
+  {
+    "id": "vimeo-positive-1",
+    "platform": "vimeo",
+    "url": "https://vimeo.com/76979871",
+    "expected_media_id": "76979871",
+    "kind": "positive",
+    "content_scope": "public",
+    "needs_identity": false,
+    "duration_seconds": 62,
+    "duration_source": {
+      "url": "https://vimeo.com/api/v2/video/76979871.json",
+      "kind": "platform_page_or_api",
+      "field": "[0].duration",
+      "checked_at": "2026-10-01T05:39:19.485271+00:00",
+      "status": "verified",
+      "note": "官方 v2 元数据 API 返回该公开视频 duration / width / height，embed_privacy=anywhere；尚需完整媒体证实无 DRM。"
+    },
+    "availability_source": {
+      "url": "https://vimeo.com/76979871",
+      "kind": "public_page",
+      "field": "public_free_clear_media",
+      "checked_at": null,
+      "status": "unverified",
+      "note": "公开、免费、非 DRM 的完整媒体尚未独立证实；候选不能记通过。"
+    },
+    "minimum_spec": {
+      "width": 320,
+      "height": 180,
+      "audio": true
+    }
+  },
+  {
+    "id": "vimeo-positive-2",
+    "platform": "vimeo",
+    "url": "https://vimeo.com/75629013",
+    "expected_media_id": "75629013",
+    "kind": "positive",
+    "content_scope": "public",
+    "needs_identity": false,
+    "duration_seconds": 187,
+    "duration_source": {
+      "url": "https://vimeo.com/api/v2/video/75629013.json",
+      "kind": "platform_page_or_api",
+      "field": "[0].duration",
+      "checked_at": "2026-10-01T05:39:19.485271+00:00",
+      "status": "verified",
+      "note": "官方 v2 元数据 API 返回该公开视频 duration / width / height，embed_privacy=anywhere；尚需完整媒体证实无 DRM。"
+    },
+    "availability_source": {
+      "url": "https://vimeo.com/75629013",
+      "kind": "public_page",
+      "field": "public_free_clear_media",
+      "checked_at": null,
+      "status": "unverified",
+      "note": "公开、免费、非 DRM 的完整媒体尚未独立证实；候选不能记通过。"
+    },
+    "minimum_spec": {
+      "width": 320,
+      "height": 180,
+      "audio": true
+    }
+  },
+  {
+    "id": "telegram-positive-1",
+    "platform": "telegram",
+    "url": "https://t.me/europa_press/613",
+    "expected_media_id": "613",
+    "kind": "positive",
+    "content_scope": "public",
+    "needs_identity": false,
+    "duration_seconds": 61,
+    "duration_source": {
+      "url": "https://t.me/europa_press/613?embed=1",
+      "kind": "platform_page_or_api",
+      "field": "message_video_duration",
+      "checked_at": "2026-10-01T05:39:19.485271+00:00",
+      "status": "verified",
+      "note": "官方匿名 embed 页 video 标签与 1:01 时长；无账号或付费要求，公开 clear MP4。"
+    },
+    "availability_source": {
+      "url": "https://t.me/europa_press/613",
+      "kind": "public_page",
+      "field": "public_free_clear_media",
+      "checked_at": "2026-10-01T05:39:19.485271+00:00",
+      "status": "verified",
+      "note": "官方匿名 embed 页 video 标签与 1:01 时长；无账号或付费要求，公开 clear MP4。"
+    },
+    "minimum_spec": {
+      "width": 320,
+      "height": 180,
+      "audio": true
+    }
+  },
+  {
+    "id": "telegram-positive-2",
+    "platform": "telegram",
+    "url": "https://t.me/europa_press/18586",
+    "expected_media_id": "18586",
+    "kind": "positive",
+    "content_scope": "public",
+    "needs_identity": false,
+    "duration_seconds": 37,
+    "duration_source": {
+      "url": "https://t.me/s/europa_press",
+      "kind": "platform_page_or_api",
+      "field": "data-post=europa_press/18586: message_video_duration",
+      "checked_at": "2026-10-01T05:39:19.485271+00:00",
+      "status": "verified",
+      "note": "官方公开频道页精确匹配 data-post=europa_press/18586：视频时长 0:37。"
+    },
+    "availability_source": {
+      "url": "https://t.me/europa_press/18586",
+      "kind": "public_page",
+      "field": "public_free_clear_media",
+      "checked_at": "2026-10-01T05:39:19.485271+00:00",
+      "status": "verified",
+      "note": "官方匿名频道展示目标 video 与 MP4 播放地址，公开免费 clear 视频。"
+    },
+    "minimum_spec": {
+      "width": 320,
+      "height": 180,
+      "audio": true
+    }
+  },
+  {
+    "id": "linkedin-positive-1",
+    "platform": "linkedin",
+    "url": "https://www.linkedin.com/posts/mishalkhawaja_sendinblueviews-toronto-digitalmarketing-ugcPost-6850898786781339649-mM20",
+    "expected_media_id": "6850898786781339649",
+    "kind": "positive",
+    "content_scope": "public",
+    "needs_identity": false,
+    "duration_seconds": 13,
+    "duration_source": {
+      "url": "https://www.linkedin.com/posts/mishalkhawaja_sendinblueviews-toronto-digitalmarketing-ugcPost-6850898786781339649-mM20",
+      "kind": "platform_page_or_api",
+      "field": "VideoObject.duration",
+      "checked_at": "2026-10-01T05:39:19.485271+00:00",
+      "status": "verified",
+      "note": "匿名作品页 JSON-LD VideoObject.duration / contentUrl / encodingFormat=video/mp4；免费公开视频。"
+    },
+    "availability_source": {
+      "url": "https://www.linkedin.com/posts/mishalkhawaja_sendinblueviews-toronto-digitalmarketing-ugcPost-6850898786781339649-mM20",
+      "kind": "public_page",
+      "field": "public_free_clear_media",
+      "checked_at": "2026-10-01T05:39:19.485271+00:00",
+      "status": "verified",
+      "note": "匿名作品页 JSON-LD VideoObject.duration / contentUrl / encodingFormat=video/mp4；免费公开视频。"
+    },
+    "minimum_spec": {
+      "width": 320,
+      "height": 180,
+      "audio": true
+    }
+  },
+  {
+    "id": "linkedin-positive-2",
+    "platform": "linkedin",
+    "url": "https://www.linkedin.com/posts/the-mathworks_2_what-is-mathworks-cloud-center-activity-7151241570371948544-4Gu7",
+    "expected_media_id": "7151241570371948544",
+    "kind": "positive",
+    "content_scope": "public",
+    "needs_identity": false,
+    "duration_seconds": 161,
+    "duration_source": {
+      "url": "https://www.linkedin.com/posts/the-mathworks_2_what-is-mathworks-cloud-center-activity-7151241570371948544-4Gu7",
+      "kind": "platform_page_or_api",
+      "field": "VideoObject.duration",
+      "checked_at": "2026-10-01T05:39:19.485271+00:00",
+      "status": "verified",
+      "note": "匿名作品页 JSON-LD VideoObject.duration / contentUrl / encodingFormat=video/mp4；免费公开视频。"
+    },
+    "availability_source": {
+      "url": "https://www.linkedin.com/posts/the-mathworks_2_what-is-mathworks-cloud-center-activity-7151241570371948544-4Gu7",
+      "kind": "public_page",
+      "field": "public_free_clear_media",
+      "checked_at": "2026-10-01T05:39:19.485271+00:00",
+      "status": "verified",
+      "note": "匿名作品页 JSON-LD VideoObject.duration / contentUrl / encodingFormat=video/mp4；免费公开视频。"
+    },
+    "minimum_spec": {
+      "width": 320,
+      "height": 180,
+      "audio": true
+    }
+  },
+  {
+    "id": "pinterest-positive-1",
+    "platform": "pinterest",
+    "url": "https://www.pinterest.com/pin/2885187256207927/",
+    "expected_media_id": "2885187256207927",
+    "kind": "positive",
+    "content_scope": "public",
+    "needs_identity": false,
+    "duration_seconds": 7.967,
+    "duration_source": {
+      "url": "https://www.pinterest.com/pin/2885187256207927/",
+      "kind": "platform_page_or_api",
+      "field": "pin.videos.video_list.*.duration / 1000",
+      "checked_at": "2026-10-01T05:39:19.485271+00:00",
+      "status": "verified",
+      "note": "匿名目标 pin metadata：duration=7967ms，与当前视频清单关联。"
+    },
+    "availability_source": {
+      "url": "https://www.pinterest.com/pin/2885187256207927/",
+      "kind": "public_page",
+      "field": "public_free_clear_media",
+      "checked_at": "2026-10-01T05:39:19.485271+00:00",
+      "status": "verified",
+      "note": "匿名目标 pin 返回公开 MP4 与免费可访问的视频页。"
+    },
+    "minimum_spec": {
+      "width": 320,
+      "height": 180,
+      "audio": true
+    }
+  },
+  {
+    "id": "pinterest-positive-2",
+    "platform": "pinterest",
+    "url": "https://www.pinterest.com/pin/1084663891475263837/",
+    "expected_media_id": "1084663891475263837",
+    "kind": "positive",
+    "content_scope": "public",
+    "needs_identity": false,
+    "duration_seconds": 14.9,
+    "duration_source": {
+      "url": "https://www.pinterest.com/pin/1084663891475263837/",
+      "kind": "platform_page_or_api",
+      "field": "pin.videos.video_list.*.duration / 1000",
+      "checked_at": "2026-10-01T05:39:19.485271+00:00",
+      "status": "verified",
+      "note": "匿名页面 pin JSON 指定作品 duration=14900ms，公开 MP4 视频。"
+    },
+    "availability_source": {
+      "url": "https://www.pinterest.com/pin/1084663891475263837/",
+      "kind": "public_page",
+      "field": "public_free_clear_media",
+      "checked_at": "2026-10-01T05:39:19.485271+00:00",
+      "status": "verified",
+      "note": "匿名页面 pin JSON 指定作品 duration=14900ms，公开 MP4 视频。"
+    },
+    "minimum_spec": {
+      "width": 320,
+      "height": 180,
+      "audio": true
+    }
+  },
+  {
+    "id": "snapchat-positive-1",
+    "platform": "snapchat",
+    "url": "https://www.snapchat.com/spotlight/W7_EDlXWTBiXAEEniNoMPwAAYYWtidGhudGZpAX1TKn0JAX1TKnXJAAAAAA",
+    "expected_media_id": "W7_EDlXWTBiXAEEniNoMPwAAYYWtidGhudGZpAX1TKn0JAX1TKnXJAAAAAA",
+    "kind": "positive",
+    "content_scope": "public",
+    "needs_identity": false,
+    "duration_seconds": 4.665,
+    "duration_source": {
+      "url": "https://www.snapchat.com/spotlight/W7_EDlXWTBiXAEEniNoMPwAAYYWtidGhudGZpAX1TKn0JAX1TKnXJAAAAAA",
+      "kind": "platform_page_or_api",
+      "field": "spotlight.durationMs",
+      "checked_at": "2026-10-01T05:39:19.485271+00:00",
+      "status": "verified",
+      "note": "匿名目标作品 metadata.durationMs=4665、og:video:type=video/mp4，公开 clear Spotlight。"
+    },
+    "availability_source": {
+      "url": "https://www.snapchat.com/spotlight/W7_EDlXWTBiXAEEniNoMPwAAYYWtidGhudGZpAX1TKn0JAX1TKnXJAAAAAA",
+      "kind": "public_page",
+      "field": "public_free_clear_media",
+      "checked_at": "2026-10-01T05:39:19.485271+00:00",
+      "status": "verified",
+      "note": "匿名目标作品 metadata.durationMs=4665、og:video:type=video/mp4，公开 clear Spotlight。"
+    },
+    "minimum_spec": {
+      "width": 320,
+      "height": 180,
+      "audio": true
+    }
+  },
+  {
+    "id": "snapchat-positive-2",
+    "platform": "snapchat",
+    "url": "https://www.snapchat.com/spotlight/W7_EDlXWTBiXAEEniNoMPwAAYenNhcGZqa3JtAZ_Arr1JAZ_Arn4SAAAAAw",
+    "expected_media_id": "W7_EDlXWTBiXAEEniNoMPwAAYenNhcGZqa3JtAZ_Arr1JAZ_Arn4SAAAAAw",
+    "kind": "positive",
+    "content_scope": "public",
+    "needs_identity": false,
+    "duration_seconds": 6.83,
+    "duration_source": {
+      "url": "https://www.snapchat.com/spotlight/W7_EDlXWTBiXAEEniNoMPwAAYenNhcGZqa3JtAZ_Arr1JAZ_Arn4SAAAAAw",
+      "kind": "platform_page_or_api",
+      "field": "spotlightStories[storyId].metadata.videoMetadata.durationMs",
+      "checked_at": "2026-10-01T05:39:19.485271+00:00",
+      "status": "verified",
+      "note": "官方匿名 Spotlight 页推荐清单明确关联第二个不同 storyId 与 durationMs=6830；再按目标作品页复核可用性。"
+    },
+    "availability_source": {
+      "url": "https://www.snapchat.com/spotlight/W7_EDlXWTBiXAEEniNoMPwAAYenNhcGZqa3JtAZ_Arr1JAZ_Arn4SAAAAAw",
+      "kind": "public_page",
+      "field": "public_free_clear_media",
+      "checked_at": "2026-10-01T05:39:19.485271+00:00",
+      "status": "verified",
+      "note": "当前目标匿名作品页 duration=PT7S / durationMs=6830，og:video:type=video/mp4；公开免费 Spotlight。"
+    },
+    "minimum_spec": {
+      "width": 320,
+      "height": 180,
+      "audio": true
+    }
+  },
+  {
+    "id": "twitch-positive-1",
+    "platform": "twitch",
+    "url": "https://clips.twitch.tv/FaintLightGullWholeWheat",
+    "expected_media_id": "396245304",
+    "kind": "positive",
+    "content_scope": "public",
+    "needs_identity": false,
+    "duration_seconds": 32,
+    "duration_source": {
+      "url": "https://gql.twitch.tv/gql",
+      "kind": "platform_page_or_api",
+      "field": "data.clip(slug).durationSeconds",
+      "checked_at": "2026-10-01T05:39:19.485271+00:00",
+      "status": "verified",
+      "note": "官方匿名 GraphQL 按 URL 中 clip slug 查询：返回精确 id、durationSeconds、isPublished=true，与 videoQualities。"
+    },
+    "availability_source": {
+      "url": "https://clips.twitch.tv/FaintLightGullWholeWheat",
+      "kind": "public_page",
+      "field": "public_free_clear_media",
+      "checked_at": null,
+      "status": "unverified",
+      "note": "官方匿名 GraphQL clip.isPublished=true，公开可访问；完整 clear 媒体仍待复核。"
+    },
+    "minimum_spec": {
+      "width": 320,
+      "height": 180,
+      "audio": true
+    }
+  },
+  {
+    "id": "twitch-positive-2",
+    "platform": "twitch",
+    "url": "https://www.twitch.tv/xqc/clip/CulturedAmazingKuduDatSheffy-TiZ_-ixAGYR3y2Uy",
+    "expected_media_id": "3207364882",
+    "kind": "positive",
+    "content_scope": "public",
+    "needs_identity": false,
+    "duration_seconds": 60,
+    "duration_source": {
+      "url": "https://gql.twitch.tv/gql",
+      "kind": "platform_page_or_api",
+      "field": "data.clip(slug).durationSeconds",
+      "checked_at": "2026-10-01T05:39:19.485271+00:00",
+      "status": "verified",
+      "note": "官方匿名 GraphQL 按 URL 中 clip slug 查询：返回精确 id、durationSeconds、isPublished=true，与 videoQualities。"
+    },
+    "availability_source": {
+      "url": "https://www.twitch.tv/xqc/clip/CulturedAmazingKuduDatSheffy-TiZ_-ixAGYR3y2Uy",
+      "kind": "public_page",
+      "field": "public_free_clear_media",
+      "checked_at": null,
+      "status": "unverified",
+      "note": "官方匿名 GraphQL clip.isPublished=true，公开可访问；完整 clear 媒体仍待复核。"
+    },
+    "minimum_spec": {
+      "width": 320,
+      "height": 180,
+      "audio": true
+    }
+  },
+  {
+    "id": "kick-positive-1",
+    "platform": "kick",
+    "url": "https://kick.com/mxddy/clips/clip_01GYXVB5Y8PWAPWCWMSBCFB05X",
+    "expected_media_id": "clip_01GYXVB5Y8PWAPWCWMSBCFB05X",
+    "kind": "positive",
+    "content_scope": "public",
+    "needs_identity": false,
+    "duration_seconds": 35,
+    "duration_source": {
+      "url": "https://kick.com/api/v2/clips/clip_01GYXVB5Y8PWAPWCWMSBCFB05X",
+      "kind": "platform_page_or_api",
+      "field": "clip.duration",
+      "checked_at": "2026-10-01T05:39:19.485271+00:00",
+      "status": "verified",
+      "note": "官方匿名 clips API 返回指定 clip.id、duration 与公开 video_url；无 DRM 或付费标记。"
+    },
+    "availability_source": {
+      "url": "https://kick.com/mxddy/clips/clip_01GYXVB5Y8PWAPWCWMSBCFB05X",
+      "kind": "public_page",
+      "field": "public_free_clear_media",
+      "checked_at": "2026-10-01T05:39:19.485271+00:00",
+      "status": "verified",
+      "note": "官方匿名 clips API 返回指定 clip.id、duration 与公开 video_url；无 DRM 或付费标记。"
+    },
+    "minimum_spec": {
+      "width": 320,
+      "height": 180,
+      "audio": true
+    }
+  },
+  {
+    "id": "kick-positive-2",
+    "platform": "kick",
+    "url": "https://kick.com/spreen/clips/clip_01J8RGZRKHXHXXKJEHGRM932A5",
+    "expected_media_id": "clip_01J8RGZRKHXHXXKJEHGRM932A5",
+    "kind": "positive",
+    "content_scope": "public",
+    "needs_identity": false,
+    "duration_seconds": 43,
+    "duration_source": {
+      "url": "https://kick.com/api/v2/clips/clip_01J8RGZRKHXHXXKJEHGRM932A5",
+      "kind": "platform_page_or_api",
+      "field": "clip.duration",
+      "checked_at": "2026-10-01T05:39:19.485271+00:00",
+      "status": "verified",
+      "note": "官方匿名 clips API 返回指定 clip.id、duration 与公开 video_url；无 DRM 或付费标记。"
+    },
+    "availability_source": {
+      "url": "https://kick.com/spreen/clips/clip_01J8RGZRKHXHXXKJEHGRM932A5",
+      "kind": "public_page",
+      "field": "public_free_clear_media",
+      "checked_at": "2026-10-01T05:39:19.485271+00:00",
+      "status": "verified",
+      "note": "官方匿名 clips API 返回指定 clip.id、duration 与公开 video_url；无 DRM 或付费标记。"
+    },
+    "minimum_spec": {
+      "width": 320,
+      "height": 180,
+      "audio": true
+    }
+  },
+  {
+    "id": "reddit-positive-1",
+    "platform": "reddit",
+    "url": "https://www.reddit.com/r/videos/comments/6rrwyj/that_small_heart_attack/",
+    "expected_media_id": "zv89llsvexdz",
+    "kind": "positive",
+    "content_scope": "public",
+    "needs_identity": false,
+    "duration_seconds": null,
+    "duration_source": {
+      "url": "https://www.reddit.com/r/videos/comments/6rrwyj/that_small_heart_attack/",
+      "kind": "platform_page_or_api",
+      "field": "unavailable",
+      "checked_at": null,
+      "status": "unverified",
+      "note": "旧公开投稿候选；匿名页面与 JSON API 当前 403，未以测试流反填时长。"
+    },
+    "availability_source": {
+      "url": "https://www.reddit.com/r/videos/comments/6rrwyj/that_small_heart_attack/",
+      "kind": "public_page",
+      "field": "public_free_clear_media",
+      "checked_at": null,
+      "status": "unverified",
+      "note": "公开、免费、非 DRM 的完整媒体尚未独立证实；候选不能记通过。"
+    },
+    "minimum_spec": {
+      "width": 320,
+      "height": 180,
+      "audio": true
+    }
+  },
+  {
+    "id": "reddit-positive-2",
+    "platform": "reddit",
+    "url": "https://www.reddit.com/r/aww/comments/90bu6w/heat_index_was_110_degrees_so_we_offered_him_a/",
+    "expected_media_id": "gyh95hiqc0b11",
+    "kind": "positive",
+    "content_scope": "public",
+    "needs_identity": false,
+    "duration_seconds": null,
+    "duration_source": {
+      "url": "https://www.reddit.com/r/aww/comments/90bu6w/heat_index_was_110_degrees_so_we_offered_him_a/",
+      "kind": "platform_page_or_api",
+      "field": "unavailable",
+      "checked_at": null,
+      "status": "unverified",
+      "note": "旧公开投稿候选；匿名页面与 JSON API 当前 403，未以测试流反填时长。"
+    },
+    "availability_source": {
+      "url": "https://www.reddit.com/r/aww/comments/90bu6w/heat_index_was_110_degrees_so_we_offered_him_a/",
+      "kind": "public_page",
+      "field": "public_free_clear_media",
+      "checked_at": null,
+      "status": "unverified",
+      "note": "公开、免费、非 DRM 的完整媒体尚未独立证实；候选不能记通过。"
+    },
+    "minimum_spec": {
+      "width": 320,
+      "height": 180,
+      "audio": true
+    }
+  },
+  {
+    "id": "x-positive-1",
+    "platform": "x",
+    "url": "https://x.com/captainamerica/status/719944021058060289",
+    "expected_media_id": "717462543795523584",
+    "kind": "positive",
+    "content_scope": "public",
+    "needs_identity": false,
+    "duration_seconds": 3.17,
+    "duration_source": {
+      "url": "https://cdn.syndication.twimg.com/tweet-result?id=719944021058060289&lang=en&token=1",
+      "kind": "platform_page_or_api",
+      "field": "video.durationMs",
+      "checked_at": "2026-10-01T05:39:19.485271+00:00",
+      "status": "verified",
+      "note": "官方匿名 syndication API 返回指定推文 video.durationMs=3170，mediaDetails video_info.duration_millis=3170；作品预期 ID 来自源作品。"
+    },
+    "availability_source": {
+      "url": "https://x.com/captainamerica/status/719944021058060289",
+      "kind": "public_page",
+      "field": "public_free_clear_media",
+      "checked_at": "2026-10-01T05:39:19.485271+00:00",
+      "status": "verified",
+      "note": "官方匿名 syndication 返回 Tweet 与 video/mp4 变体，无付费或保护提示。"
+    },
+    "minimum_spec": {
+      "width": 320,
+      "height": 180,
+      "audio": true
+    }
+  },
+  {
+    "id": "x-positive-2",
+    "platform": "x",
+    "url": "https://x.com/MesoMax919/status/1575560063510810624",
+    "expected_media_id": "1575559336759263233",
+    "kind": "positive",
+    "content_scope": "public",
+    "needs_identity": false,
+    "duration_seconds": 21.321,
+    "duration_source": {
+      "url": "https://cdn.syndication.twimg.com/tweet-result?id=1575560063510810624&lang=en&token=1",
+      "kind": "platform_page_or_api",
+      "field": "video.durationMs",
+      "checked_at": "2026-10-01T05:39:19.485271+00:00",
+      "status": "verified",
+      "note": "官方匿名 syndication 精确推文返回 video.durationMs=21321 与公开媒体；mediaDetails 的媒体 ID 与源作品关联。"
+    },
+    "availability_source": {
+      "url": "https://x.com/MesoMax919/status/1575560063510810624",
+      "kind": "public_page",
+      "field": "public_free_clear_media",
+      "checked_at": "2026-10-01T05:39:19.485271+00:00",
+      "status": "verified",
+      "note": "官方匿名 syndication 返回目标 Tweet 与 mediaDetails.type=video、公开 MP4 变体，无付费或保护提示。"
+    },
+    "minimum_spec": {
+      "width": 320,
+      "height": 180,
+      "audio": true
+    }
+  },
+  {
+    "id": "instagram-positive-1",
+    "platform": "instagram",
+    "url": "https://instagram.com/p/aye83DjauH/?foo=bar#abc",
+    "expected_media_id": "aye83DjauH",
+    "kind": "positive",
+    "content_scope": "public",
+    "needs_identity": true,
+    "duration_seconds": null,
+    "duration_source": {
+      "url": "https://instagram.com/p/aye83DjauH/?foo=bar#abc",
+      "kind": "platform_page_or_api",
+      "field": "unavailable",
+      "checked_at": null,
+      "status": "unverified",
+      "note": "需要部署者平台身份；匿名页未返回目标完整时长，候选为公开视频但尚未证实当前可用。"
+    },
+    "availability_source": {
+      "url": "https://instagram.com/p/aye83DjauH/?foo=bar#abc",
+      "kind": "public_page",
+      "field": "public_free_clear_media",
+      "checked_at": null,
+      "status": "unverified",
+      "note": "公开、免费、非 DRM 的完整媒体尚未独立证实；候选不能记通过。"
+    },
+    "minimum_spec": {
+      "width": 320,
+      "height": 180,
+      "audio": true
+    }
+  },
+  {
+    "id": "instagram-positive-2",
+    "platform": "instagram",
+    "url": "https://www.instagram.com/reel/Chunk8-jurw/",
+    "expected_media_id": "Chunk8-jurw",
+    "kind": "positive",
+    "content_scope": "public",
+    "needs_identity": true,
+    "duration_seconds": null,
+    "duration_source": {
+      "url": "https://www.instagram.com/reel/Chunk8-jurw/",
+      "kind": "platform_page_or_api",
+      "field": "unavailable",
+      "checked_at": null,
+      "status": "unverified",
+      "note": "需要部署者平台身份；匿名页未返回目标完整时长，候选为公开视频但尚未证实当前可用。"
+    },
+    "availability_source": {
+      "url": "https://www.instagram.com/reel/Chunk8-jurw/",
+      "kind": "public_page",
+      "field": "public_free_clear_media",
+      "checked_at": null,
+      "status": "unverified",
+      "note": "公开、免费、非 DRM 的完整媒体尚未独立证实；候选不能记通过。"
+    },
+    "minimum_spec": {
+      "width": 320,
+      "height": 180,
+      "audio": true
+    }
+  },
+  {
+    "id": "facebook-positive-1",
+    "platform": "facebook",
+    "url": "https://www.facebook.com/video.php?v=274175099429670",
+    "expected_media_id": "274175099429670",
+    "kind": "positive",
+    "content_scope": "public",
+    "needs_identity": true,
+    "duration_seconds": null,
+    "duration_source": {
+      "url": "https://www.facebook.com/video.php?v=274175099429670",
+      "kind": "platform_page_or_api",
+      "field": "unavailable",
+      "checked_at": null,
+      "status": "unverified",
+      "note": "历史公开单视频；匿名页面有登录墙，完整元数据尚未独立取得。"
+    },
+    "availability_source": {
+      "url": "https://www.facebook.com/video.php?v=274175099429670",
+      "kind": "public_page",
+      "field": "public_free_clear_media",
+      "checked_at": null,
+      "status": "unverified",
+      "note": "公开、免费、非 DRM 的完整媒体尚未独立证实；候选不能记通过。"
+    },
+    "minimum_spec": {
+      "width": 320,
+      "height": 180,
+      "audio": true
+    }
+  },
+  {
+    "id": "facebook-positive-2",
+    "platform": "facebook",
+    "url": "https://www.facebook.com/cnn/videos/10155529876156509/",
+    "expected_media_id": "10155529876156509",
+    "kind": "positive",
+    "content_scope": "public",
+    "needs_identity": true,
+    "duration_seconds": null,
+    "duration_source": {
+      "url": "https://www.facebook.com/cnn/videos/10155529876156509/",
+      "kind": "platform_page_or_api",
+      "field": "unavailable",
+      "checked_at": null,
+      "status": "unverified",
+      "note": "历史公开单视频；匿名页面有登录墙，完整元数据尚未独立取得。"
+    },
+    "availability_source": {
+      "url": "https://www.facebook.com/cnn/videos/10155529876156509/",
+      "kind": "public_page",
+      "field": "public_free_clear_media",
+      "checked_at": null,
+      "status": "unverified",
+      "note": "公开、免费、非 DRM 的完整媒体尚未独立证实；候选不能记通过。"
+    },
+    "minimum_spec": {
+      "width": 320,
+      "height": 180,
+      "audio": true
+    }
+  },
+  {
+    "id": "tiktok-positive-1",
+    "platform": "tiktok",
+    "url": "https://www.tiktok.com/@leenabhushan/video/6748451240264420610",
+    "expected_media_id": "6748451240264420610",
+    "kind": "positive",
+    "content_scope": "public",
+    "needs_identity": false,
+    "duration_seconds": null,
+    "duration_source": {
+      "url": "https://www.tiktok.com/@leenabhushan/video/6748451240264420610",
+      "kind": "platform_page_or_api",
+      "field": "unavailable",
+      "checked_at": null,
+      "status": "unverified",
+      "note": "旧公开短视频候选；匿名页面只返回挑战脚本，未取得独立完整时长。"
+    },
+    "availability_source": {
+      "url": "https://www.tiktok.com/@leenabhushan/video/6748451240264420610",
+      "kind": "public_page",
+      "field": "public_free_clear_media",
+      "checked_at": null,
+      "status": "unverified",
+      "note": "公开、免费、非 DRM 的完整媒体尚未独立证实；候选不能记通过。"
+    },
+    "minimum_spec": {
+      "width": 320,
+      "height": 180,
+      "audio": true
+    }
+  },
+  {
+    "id": "tiktok-positive-2",
+    "platform": "tiktok",
+    "url": "https://www.tiktok.com/@patroxofficial/video/6742501081818877190?langCountry=en",
+    "expected_media_id": "6742501081818877190",
+    "kind": "positive",
+    "content_scope": "public",
+    "needs_identity": false,
+    "duration_seconds": null,
+    "duration_source": {
+      "url": "https://www.tiktok.com/@patroxofficial/video/6742501081818877190?langCountry=en",
+      "kind": "platform_page_or_api",
+      "field": "unavailable",
+      "checked_at": null,
+      "status": "unverified",
+      "note": "旧公开短视频候选；匿名页面只返回挑战脚本，未取得独立完整时长。"
+    },
+    "availability_source": {
+      "url": "https://www.tiktok.com/@patroxofficial/video/6742501081818877190?langCountry=en",
+      "kind": "public_page",
+      "field": "public_free_clear_media",
+      "checked_at": null,
+      "status": "unverified",
+      "note": "公开、免费、非 DRM 的完整媒体尚未独立证实；候选不能记通过。"
+    },
+    "minimum_spec": {
+      "width": 320,
+      "height": 180,
+      "audio": true
+    }
+  },
+  {
+    "id": "weibo-positive-1",
+    "platform": "weibo",
+    "url": "https://weibo.com/7827771738/N4xlMvjhI",
+    "expected_media_id": "4910815147462302",
+    "kind": "positive",
+    "content_scope": "public",
+    "needs_identity": false,
+    "duration_seconds": null,
+    "duration_source": {
+      "url": "https://weibo.com/7827771738/N4xlMvjhI",
+      "kind": "platform_page_or_api",
+      "field": "unavailable",
+      "checked_at": null,
+      "status": "unverified",
+      "note": "旧公开单视频候选；官方页面和 status API 当前访客挑战，独立时长未取得。"
+    },
+    "availability_source": {
+      "url": "https://weibo.com/7827771738/N4xlMvjhI",
+      "kind": "public_page",
+      "field": "public_free_clear_media",
+      "checked_at": null,
+      "status": "unverified",
+      "note": "公开、免费、非 DRM 的完整媒体尚未独立证实；候选不能记通过。"
+    },
+    "minimum_spec": {
+      "width": 320,
+      "height": 180,
+      "audio": true
+    }
+  },
+  {
+    "id": "weibo-positive-2",
+    "platform": "weibo",
+    "url": "https://m.weibo.cn/status/4189191225395228",
+    "expected_media_id": "4189191225395228",
+    "kind": "positive",
+    "content_scope": "public",
+    "needs_identity": false,
+    "duration_seconds": null,
+    "duration_source": {
+      "url": "https://m.weibo.cn/status/4189191225395228",
+      "kind": "platform_page_or_api",
+      "field": "unavailable",
+      "checked_at": null,
+      "status": "unverified",
+      "note": "旧公开单视频候选；官方页面和 status API 当前访客挑战，独立时长未取得。"
+    },
+    "availability_source": {
+      "url": "https://m.weibo.cn/status/4189191225395228",
+      "kind": "public_page",
+      "field": "public_free_clear_media",
+      "checked_at": null,
+      "status": "unverified",
+      "note": "公开、免费、非 DRM 的完整媒体尚未独立证实；候选不能记通过。"
+    },
+    "minimum_spec": {
+      "width": 320,
+      "height": 180,
+      "audio": true
+    }
+  },
+  {
+    "id": "youku-positive-1",
+    "platform": "youku",
+    "url": "https://v.youku.com/v_show/id_XOTUxMzg4NDMy.html",
+    "expected_media_id": "XOTUxMzg4NDMy",
+    "kind": "positive",
+    "content_scope": "personal_full",
+    "needs_identity": true,
+    "duration_seconds": 702.08,
+    "duration_source": {
+      "url": "https://v.youku.com/v_show/id_XOTUxMzg4NDMy.html",
+      "kind": "platform_page_or_api",
+      "field": "og:video:duration",
+      "checked_at": "2026-10-01T05:39:19.485271+00:00",
+      "status": "verified",
+      "note": "官方作品页 og:video:duration 与 JSON-LD 完整时长一致；免费 UGC，但 personal_full clear 完整媒体需身份实测。"
+    },
+    "availability_source": {
+      "url": "https://v.youku.com/v_show/id_XOTUxMzg4NDMy.html",
+      "kind": "public_page",
+      "field": "public_free_clear_media",
+      "checked_at": null,
+      "status": "unverified",
+      "note": "公开、免费、非 DRM 的完整媒体尚未独立证实；候选不能记通过。"
+    },
+    "minimum_spec": {
+      "width": 320,
+      "height": 180,
+      "audio": true
+    }
+  },
+  {
+    "id": "youku-positive-2",
+    "platform": "youku",
+    "url": "https://v.youku.com/v_show/id_XNTA2NTA0MjA1Mg==.html",
+    "expected_media_id": "XNTA2NTA0MjA1Mg",
+    "kind": "positive",
+    "content_scope": "personal_full",
+    "needs_identity": true,
+    "duration_seconds": 542.13,
+    "duration_source": {
+      "url": "https://v.youku.com/v_show/id_XNTA2NTA0MjA1Mg==.html",
+      "kind": "platform_page_or_api",
+      "field": "og:video:duration",
+      "checked_at": "2026-10-01T05:39:19.485271+00:00",
+      "status": "verified",
+      "note": "官方作品页 og:video:duration 与 JSON-LD 完整时长一致；免费 UGC，但 personal_full clear 完整媒体需身份实测。"
+    },
+    "availability_source": {
+      "url": "https://v.youku.com/v_show/id_XNTA2NTA0MjA1Mg==.html",
+      "kind": "public_page",
+      "field": "public_free_clear_media",
+      "checked_at": null,
+      "status": "unverified",
+      "note": "公开、免费、非 DRM 的完整媒体尚未独立证实；候选不能记通过。"
+    },
+    "minimum_spec": {
+      "width": 320,
+      "height": 180,
+      "audio": true
+    }
+  },
+  {
+    "id": "qqvideo-positive-1",
+    "platform": "qqvideo",
+    "url": "https://v.qq.com/x/page/q326831cny0.html",
+    "expected_media_id": "q326831cny0",
+    "kind": "positive",
+    "content_scope": "personal_full",
+    "needs_identity": true,
+    "duration_seconds": null,
+    "duration_source": {
+      "url": "https://v.qq.com/x/page/q326831cny0.html",
+      "kind": "platform_page_or_api",
+      "field": "unavailable",
+      "checked_at": null,
+      "status": "unverified",
+      "note": "personal_full 需要身份；官方页面可达但作品完整时长未取得，不能用预览时长代替。"
+    },
+    "availability_source": {
+      "url": "https://v.qq.com/x/page/q326831cny0.html",
+      "kind": "public_page",
+      "field": "public_free_clear_media",
+      "checked_at": null,
+      "status": "unverified",
+      "note": "公开、免费、非 DRM 的完整媒体尚未独立证实；候选不能记通过。"
+    },
+    "minimum_spec": {
+      "width": 320,
+      "height": 180,
+      "audio": true
+    }
+  },
+  {
+    "id": "qqvideo-positive-2",
+    "platform": "qqvideo",
+    "url": "https://v.qq.com/x/page/o3013za7cse.html",
+    "expected_media_id": "o3013za7cse",
+    "kind": "positive",
+    "content_scope": "personal_full",
+    "needs_identity": true,
+    "duration_seconds": null,
+    "duration_source": {
+      "url": "https://v.qq.com/x/page/o3013za7cse.html",
+      "kind": "platform_page_or_api",
+      "field": "unavailable",
+      "checked_at": null,
+      "status": "unverified",
+      "note": "personal_full 需要身份；官方页面可达但作品完整时长未取得，不能用预览时长代替。"
+    },
+    "availability_source": {
+      "url": "https://v.qq.com/x/page/o3013za7cse.html",
+      "kind": "public_page",
+      "field": "public_free_clear_media",
+      "checked_at": null,
+      "status": "unverified",
+      "note": "公开、免费、非 DRM 的完整媒体尚未独立证实；候选不能记通过。"
+    },
+    "minimum_spec": {
+      "width": 320,
+      "height": 180,
+      "audio": true
+    }
+  },
+  {
+    "id": "tumblr-positive-1",
+    "platform": "tumblr",
+    "url": "https://www.tumblr.com/maskofthedragon/626907179849564160/mona-talking-in-english",
+    "expected_media_id": "626907179849564160",
+    "kind": "positive",
+    "content_scope": "public",
+    "needs_identity": false,
+    "duration_seconds": 7,
+    "duration_source": {
+      "url": "https://maskofthedragon.tumblr.com/post/626907179849564160/mona-talking-in-english",
+      "kind": "platform_page_or_api",
+      "field": "VideoObject.duration",
+      "checked_at": "2026-10-01T05:39:19.485271+00:00",
+      "status": "verified",
+      "note": "匿名 blog 页 JSON-LD duration=PT7S，公开视频 contentUrl，非 DRM。"
+    },
+    "availability_source": {
+      "url": "https://www.tumblr.com/maskofthedragon/626907179849564160/mona-talking-in-english",
+      "kind": "public_page",
+      "field": "public_free_clear_media",
+      "checked_at": "2026-10-01T05:39:19.485271+00:00",
+      "status": "verified",
+      "note": "匿名 blog 页 JSON-LD duration=PT7S，公开视频 contentUrl，非 DRM。"
+    },
+    "minimum_spec": {
+      "width": 320,
+      "height": 180,
+      "audio": true
+    }
+  },
+  {
+    "id": "tumblr-positive-2",
+    "platform": "tumblr",
+    "url": "https://www.tumblr.com/bartlebyshop/180294460076/duality-of-bird",
+    "expected_media_id": "180294460076",
+    "kind": "positive",
+    "content_scope": "public",
+    "needs_identity": false,
+    "duration_seconds": null,
+    "duration_source": {
+      "url": "https://www.tumblr.com/bartlebyshop/180294460076/duality-of-bird",
+      "kind": "platform_page_or_api",
+      "field": "unavailable",
+      "checked_at": null,
+      "status": "unverified",
+      "note": "旧公开投稿候选；需独立页面元数据复核。"
+    },
+    "availability_source": {
+      "url": "https://www.tumblr.com/bartlebyshop/180294460076/duality-of-bird",
+      "kind": "public_page",
+      "field": "public_free_clear_media",
+      "checked_at": null,
+      "status": "unverified",
+      "note": "公开、免费、非 DRM 的完整媒体尚未独立证实；候选不能记通过。"
+    },
+    "minimum_spec": {
+      "width": 320,
+      "height": 180,
+      "audio": true
+    }
+  },
+  {
+    "id": "douyin-positive-1",
+    "platform": "douyin",
+    "url": "https://www.douyin.com/video/7674644830270473609",
+    "expected_media_id": "7674644830270473609",
+    "kind": "positive",
+    "content_scope": "public",
+    "needs_identity": false,
+    "duration_seconds": null,
+    "duration_source": {
+      "url": "https://www.douyin.com/video/7674644830270473609",
+      "kind": "platform_page_or_api",
+      "field": "unavailable",
+      "checked_at": null,
+      "status": "unverified",
+      "note": "既有固定候选；匿名页为 argus 挑战，未取得目标元数据。"
+    },
+    "availability_source": {
+      "url": "https://www.douyin.com/video/7674644830270473609",
+      "kind": "public_page",
+      "field": "public_free_clear_media",
+      "checked_at": null,
+      "status": "unverified",
+      "note": "公开、免费、非 DRM 的完整媒体尚未独立证实；候选不能记通过。"
+    },
+    "minimum_spec": {
+      "width": 320,
+      "height": 180,
+      "audio": true
+    }
+  },
+  {
+    "id": "douyin-positive-2",
+    "platform": "douyin",
+    "url": "https://www.douyin.com/video/6961737553342991651",
+    "expected_media_id": "6961737553342991651",
+    "kind": "positive",
+    "content_scope": "public",
+    "needs_identity": false,
+    "duration_seconds": null,
+    "duration_source": {
+      "url": "https://www.douyin.com/video/6961737553342991651",
+      "kind": "platform_page_or_api",
+      "field": "unavailable",
+      "checked_at": null,
+      "status": "unverified",
+      "note": "上游公开作品候选；匿名页为 argus 挑战，完整时长待 R3 浏览器核实。"
+    },
+    "availability_source": {
+      "url": "https://www.douyin.com/video/6961737553342991651",
+      "kind": "public_page",
+      "field": "public_free_clear_media",
+      "checked_at": null,
+      "status": "unverified",
+      "note": "公开、免费、非 DRM 的完整媒体尚未独立证实；候选不能记通过。"
+    },
+    "minimum_spec": {
+      "width": 320,
+      "height": 180,
+      "audio": true
+    }
+  },
+  {
+    "id": "kuaishou-positive-1",
+    "platform": "kuaishou",
+    "url": "https://www.kuaishou.com/short-video/3x888mrikrur4g2",
+    "expected_media_id": "3x888mrikrur4g2",
+    "kind": "positive",
+    "content_scope": "public",
+    "needs_identity": false,
+    "duration_seconds": 72.533,
+    "duration_source": {
+      "url": "https://v.m.chenzhongtech.com/fw/photo/3x888mrikrur4g2",
+      "kind": "platform_page_or_api",
+      "field": "photo.duration / 1000",
+      "checked_at": "2026-10-01T05:39:19.485271+00:00",
+      "status": "verified",
+      "note": "匿名分享页目标 photo.duration=72533ms（作品元数据）；不使用 adaptationSet 或 representation 的媒体时长。"
+    },
+    "availability_source": {
+      "url": "https://www.kuaishou.com/short-video/3x888mrikrur4g2",
+      "kind": "public_page",
+      "field": "public_free_clear_media",
+      "checked_at": "2026-10-01T05:39:19.485271+00:00",
+      "status": "verified",
+      "note": "匿名移动分享页目标作品、公开 MP4 视频播放地址，无付费/DRM 标记。"
+    },
+    "minimum_spec": {
+      "width": 320,
+      "height": 180,
+      "audio": true
+    }
+  },
+  {
+    "id": "kuaishou-positive-2",
+    "platform": "kuaishou",
+    "url": "https://www.kuaishou.com/short-video/3x5jvmsmmiahx3m",
+    "expected_media_id": "3x5jvmsmmiahx3m",
+    "kind": "positive",
+    "content_scope": "public",
+    "needs_identity": false,
+    "duration_seconds": 218.783,
+    "duration_source": {
+      "url": "https://v.m.chenzhongtech.com/fw/photo/3x5jvmsmmiahx3m",
+      "kind": "platform_page_or_api",
+      "field": "photo.duration / 1000",
+      "checked_at": "2026-10-01T05:39:19.485271+00:00",
+      "status": "verified",
+      "note": "匿名分享页目标 photo.duration=218783ms（作品元数据）；不使用 adaptationSet 或 representation 的媒体时长。"
+    },
+    "availability_source": {
+      "url": "https://www.kuaishou.com/short-video/3x5jvmsmmiahx3m",
+      "kind": "public_page",
+      "field": "public_free_clear_media",
+      "checked_at": "2026-10-01T05:39:19.485271+00:00",
+      "status": "verified",
+      "note": "匿名移动分享页目标 photo.duration=218910ms，目标播放规格 1080p；公开内容无付费或保护标记。"
+    },
+    "minimum_spec": {
+      "width": 320,
+      "height": 180,
+      "audio": true
+    }
+  },
+  {
+    "id": "xiaohongshu-positive-1",
+    "platform": "xiaohongshu",
+    "url": "https://www.xiaohongshu.com/explore/6a82c08c0000000029032447",
+    "expected_media_id": "6a82c08c0000000029032447",
+    "kind": "positive",
+    "content_scope": "public",
+    "needs_identity": true,
+    "duration_seconds": null,
+    "duration_source": {
+      "url": "https://www.xiaohongshu.com/explore/6a82c08c0000000029032447",
+      "kind": "platform_page_or_api",
+      "field": "unavailable",
+      "checked_at": null,
+      "status": "unverified",
+      "note": "当前返回 300031；需要有效的显式分享链接重新核实，不能把旧候选认作可用正例。"
+    },
+    "availability_source": {
+      "url": "https://www.xiaohongshu.com/explore/6a82c08c0000000029032447",
+      "kind": "public_page",
+      "field": "public_free_clear_media",
+      "checked_at": null,
+      "status": "unverified",
+      "note": "公开、免费、非 DRM 的完整媒体尚未独立证实；候选不能记通过。"
+    },
+    "minimum_spec": {
+      "width": 320,
+      "height": 180,
+      "audio": true
+    }
+  },
+  {
+    "id": "xiaohongshu-positive-2",
+    "platform": "xiaohongshu",
+    "url": "https://www.xiaohongshu.com/explore/662a12ca000000001c00a9df",
+    "expected_media_id": "662a12ca000000001c00a9df",
+    "kind": "positive",
+    "content_scope": "public",
+    "needs_identity": true,
+    "duration_seconds": null,
+    "duration_source": {
+      "url": "https://www.xiaohongshu.com/explore/662a12ca000000001c00a9df",
+      "kind": "platform_page_or_api",
+      "field": "unavailable",
+      "checked_at": null,
+      "status": "unverified",
+      "note": "当前返回 300031；需要有效的显式分享链接重新核实，不能把旧候选认作可用正例。"
+    },
+    "availability_source": {
+      "url": "https://www.xiaohongshu.com/explore/662a12ca000000001c00a9df",
+      "kind": "public_page",
+      "field": "public_free_clear_media",
+      "checked_at": null,
+      "status": "unverified",
+      "note": "公开、免费、非 DRM 的完整媒体尚未独立证实；候选不能记通过。"
+    },
+    "minimum_spec": {
+      "width": 320,
+      "height": 180,
+      "audio": true
+    }
+  },
+  {
+    "id": "wechat_channels-positive-1",
+    "platform": "wechat_channels",
+    "url": "https://weixin.qq.com/sph/A9znfitafp",
+    "expected_media_id": "A9znfitafp",
+    "kind": "positive",
+    "content_scope": "public",
+    "needs_identity": true,
+    "duration_seconds": null,
+    "duration_source": {
+      "url": "https://weixin.qq.com/sph/A9znfitafp",
+      "kind": "platform_page_or_api",
+      "field": "unavailable",
+      "checked_at": null,
+      "status": "unverified",
+      "note": "能力阻塞：身份来源域和真实响应规则待 R6，当前公开页不提供作品完整时长。"
+    },
+    "availability_source": {
+      "url": "https://weixin.qq.com/sph/A9znfitafp",
+      "kind": "public_page",
+      "field": "public_free_clear_media",
+      "checked_at": null,
+      "status": "unverified",
+      "note": "公开、免费、非 DRM 的完整媒体尚未独立证实；候选不能记通过。"
+    },
+    "minimum_spec": {
+      "width": 320,
+      "height": 180,
+      "audio": true
+    }
+  },
+  {
+    "id": "wechat_channels-positive-2",
+    "platform": "wechat_channels",
+    "url": "https://weixin.qq.com/sph/AFWYoXF5Bw",
+    "expected_media_id": "AFWYoXF5Bw",
+    "kind": "positive",
+    "content_scope": "public",
+    "needs_identity": true,
+    "duration_seconds": null,
+    "duration_source": {
+      "url": "https://weixin.qq.com/sph/AFWYoXF5Bw",
+      "kind": "platform_page_or_api",
+      "field": "unavailable",
+      "checked_at": null,
+      "status": "unverified",
+      "note": "能力阻塞：身份来源域和真实响应规则待 R6，当前公开页不提供作品完整时长。"
+    },
+    "availability_source": {
+      "url": "https://weixin.qq.com/sph/AFWYoXF5Bw",
+      "kind": "public_page",
+      "field": "public_free_clear_media",
+      "checked_at": null,
+      "status": "unverified",
+      "note": "公开、免费、非 DRM 的完整媒体尚未独立证实；候选不能记通过。"
+    },
+    "minimum_spec": {
+      "width": 320,
+      "height": 180,
+      "audio": true
+    }
+  },
+  {
+    "id": "wechat_official_account_article-positive-1",
+    "platform": "wechat_official_account_article",
+    "url": "https://mp.weixin.qq.com/s/Pc8D4Hy9CtgLqXzp41J2kw",
+    "expected_media_id": "Pc8D4Hy9CtgLqXzp41J2kw",
+    "kind": "positive",
+    "content_scope": "public",
+    "needs_identity": false,
+    "duration_seconds": null,
+    "duration_source": {
+      "url": "https://mp.weixin.qq.com/s/Pc8D4Hy9CtgLqXzp41J2kw",
+      "kind": "platform_page_or_api",
+      "field": "unavailable",
+      "checked_at": null,
+      "status": "unverified",
+      "note": "官方文章候选，匿名请求进入验证码页；视频资产 ID 和完整时长未取得，expected_media_id 暂为文章分享 ID，不能用于验收。"
+    },
+    "availability_source": {
+      "url": "https://mp.weixin.qq.com/s/Pc8D4Hy9CtgLqXzp41J2kw",
+      "kind": "public_page",
+      "field": "public_free_clear_media",
+      "checked_at": null,
+      "status": "unverified",
+      "note": "公开、免费、非 DRM 的完整媒体尚未独立证实；候选不能记通过。"
+    },
+    "minimum_spec": {
+      "width": 320,
+      "height": 180,
+      "audio": true
+    }
+  },
+  {
+    "id": "wechat_official_account_article-positive-2",
+    "platform": "wechat_official_account_article",
+    "url": "https://mp.weixin.qq.com/s/aSfT8jOifNQ-l6fcFUnryQ",
+    "expected_media_id": "aSfT8jOifNQ-l6fcFUnryQ",
+    "kind": "positive",
+    "content_scope": "public",
+    "needs_identity": false,
+    "duration_seconds": null,
+    "duration_source": {
+      "url": "https://mp.weixin.qq.com/s/aSfT8jOifNQ-l6fcFUnryQ",
+      "kind": "platform_page_or_api",
+      "field": "unavailable",
+      "checked_at": null,
+      "status": "unverified",
+      "note": "官方文章候选，匿名请求进入验证码页；视频资产 ID 和完整时长未取得，expected_media_id 暂为文章分享 ID，不能用于验收。"
+    },
+    "availability_source": {
+      "url": "https://mp.weixin.qq.com/s/aSfT8jOifNQ-l6fcFUnryQ",
+      "kind": "public_page",
+      "field": "public_free_clear_media",
+      "checked_at": null,
+      "status": "unverified",
+      "note": "公开、免费、非 DRM 的完整媒体尚未独立证实；候选不能记通过。"
+    },
+    "minimum_spec": {
+      "width": 320,
+      "height": 180,
+      "audio": true
+    }
+  },
+  {
+    "id": "hongguo_web-positive-1",
+    "platform": "hongguo_web",
+    "url": "https://hongguoduanju.com/player/7662704510720019480/7662705589293681726",
+    "expected_media_id": "7662705589293681726",
+    "kind": "positive",
+    "content_scope": "public",
+    "needs_identity": false,
+    "duration_seconds": 197.6,
+    "duration_source": {
+      "url": "https://hongguoduanju.com/player/7662704510720019480/7662705589293681726",
+      "kind": "platform_page_or_api",
+      "field": "video_player_info.duration",
+      "checked_at": "2026-10-01T05:39:19.485271+00:00",
+      "status": "verified",
+      "note": "官方目标播放器状态 duration=197.6 与 JSON-LD PT3M17S；公开免费剧集，clear 媒体仍需独立确认。"
+    },
+    "availability_source": {
+      "url": "https://hongguoduanju.com/player/7662704510720019480/7662705589293681726",
+      "kind": "public_page",
+      "field": "public_free_clear_media",
+      "checked_at": null,
+      "status": "unverified",
+      "note": "公开、免费、非 DRM 的完整媒体尚未独立证实；候选不能记通过。"
+    },
+    "minimum_spec": {
+      "width": 320,
+      "height": 180,
+      "audio": true
+    }
+  },
+  {
+    "id": "hongguo_web-positive-2",
+    "platform": "hongguo_web",
+    "url": "https://hongguoduanju.com/player/7690215859737873432/7690312773271555096",
+    "expected_media_id": "7690312773271555096",
+    "kind": "positive",
+    "content_scope": "public",
+    "needs_identity": false,
+    "duration_seconds": 153.345,
+    "duration_source": {
+      "url": "https://hongguoduanju.com/player/7690215859737873432/7690312773271555096",
+      "kind": "platform_page_or_api",
+      "field": "video_player_info.duration",
+      "checked_at": "2026-10-01T05:39:19.485271+00:00",
+      "status": "verified",
+      "note": "官方第二个独立剧集作品的播放器 metadata.duration=153.345；免费页面可达，媒体 clear 状态待确认。"
+    },
+    "availability_source": {
+      "url": "https://hongguoduanju.com/player/7690215859737873432/7690312773271555096",
+      "kind": "public_page",
+      "field": "public_free_clear_media",
+      "checked_at": null,
+      "status": "unverified",
+      "note": "免费公开剧集页面可达；完整 clear 媒体仍待独立确认。"
+    },
+    "minimum_spec": {
+      "width": 320,
+      "height": 180,
+      "audio": true
+    }
+  },
+  {
+    "id": "youtube-protected-1",
+    "platform": "youtube",
+    "url": "https://www.youtube.com/watch?v=s7_qI6_mIXc",
+    "expected_media_id": "s7_qI6_mIXc",
+    "kind": "protected",
+    "content_scope": "public",
+    "needs_identity": false,
+    "duration_seconds": null,
+    "duration_source": {
+      "url": "https://www.youtube.com/watch?v=s7_qI6_mIXc",
+      "kind": "platform_page_or_api",
+      "field": "unavailable",
+      "checked_at": null,
+      "status": "unverified",
+      "note": "负例无需完整时长；官方页面当前正向证明为非公开视频。"
+    },
+    "availability_source": {
+      "url": "https://www.youtube.com/watch?v=s7_qI6_mIXc",
+      "kind": "official_player_metadata",
+      "field": "ytInitialPlayerResponse.playabilityStatus.status/reason",
+      "checked_at": "2026-10-01T06:14:09.010690+00:00",
+      "status": "verified",
+      "note": "当前官方 watch 页嵌入的 player response 为 LOGIN_REQUIRED，reason=非公開動画；私有内容负例，不再把历史 DRM 测试备注当作当前 DRM 事实。"
+    },
+    "minimum_spec": {
+      "width": 320,
+      "height": 180,
+      "audio": true
+    }
+  },
+  {
+    "id": "vimeo-protected-1",
+    "platform": "vimeo",
+    "url": "https://vimeo.com/68375962",
+    "expected_media_id": "68375962",
+    "kind": "protected",
+    "content_scope": "public",
+    "needs_identity": false,
+    "duration_seconds": null,
+    "duration_source": {
+      "url": "https://vimeo.com/68375962",
+      "kind": "platform_page_or_api",
+      "field": "unavailable",
+      "checked_at": null,
+      "status": "unverified",
+      "note": "负例无需完整时长；官方 player config 正向证明为密码保护视频。"
+    },
+    "availability_source": {
+      "url": "https://player.vimeo.com/video/68375962/config",
+      "kind": "official_player_metadata",
+      "field": "view=4; video.id=68375962; request.files absent",
+      "checked_at": "2026-10-01T06:14:09.010690+00:00",
+      "status": "verified",
+      "note": "当前匿名官方 player config 的 view=4 表示密码保护（当前上游 Vimeo extractor 的 _verify_player_video_password 分支），无媒体 files；未提供密码、未解密。"
+    },
+    "minimum_spec": {
+      "width": 320,
+      "height": 180,
+      "audio": true
+    }
+  },
+  {
+    "id": "youku-protected-1",
+    "platform": "youku",
+    "url": "https://v.youku.com/v_show/id_XNjA1NzA2Njgw.html",
+    "expected_media_id": "XNjA1NzA2Njgw",
+    "kind": "protected",
+    "content_scope": "personal_full",
+    "needs_identity": true,
+    "duration_seconds": null,
+    "duration_source": {
+      "url": "https://v.youku.com/v_show/id_XNjA1NzA2Njgw.html",
+      "kind": "platform_page_or_api",
+      "field": "unavailable",
+      "checked_at": null,
+      "status": "unverified",
+      "note": "上游 password-protected 测试链接；不提供密码、不解密。当前保护状态尚待核实。"
+    },
+    "availability_source": {
+      "url": "https://v.youku.com/v_show/id_XNjA1NzA2Njgw.html",
+      "kind": "public_page",
+      "field": "content_access_restriction",
+      "checked_at": null,
+      "status": "unverified",
+      "note": "当前保护状态尚未被独立官方来源证实；拒绝结果不能单独证明此负例有效。"
+    },
+    "minimum_spec": {
+      "width": 320,
+      "height": 180,
+      "audio": true
+    }
+  },
+  {
+    "id": "qqvideo-protected-1",
+    "platform": "qqvideo",
+    "url": "https://v.qq.com/x/cover/7ce5noezvafma27/a00269ix3l8.html",
+    "expected_media_id": "a00269ix3l8",
+    "kind": "protected",
+    "content_scope": "personal_full",
+    "needs_identity": true,
+    "duration_seconds": null,
+    "duration_source": {
+      "url": "https://v.qq.com/x/cover/7ce5noezvafma27/a00269ix3l8.html",
+      "kind": "platform_page_or_api",
+      "field": "unavailable",
+      "checked_at": null,
+      "status": "unverified",
+      "note": "剧集的 DRM/付费保护候选；当前保护状态需账号页或 API 证实，不假定所有剧集都是 DRM。"
+    },
+    "availability_source": {
+      "url": "https://v.qq.com/x/cover/7ce5noezvafma27/a00269ix3l8.html",
+      "kind": "public_page",
+      "field": "content_access_restriction",
+      "checked_at": null,
+      "status": "unverified",
+      "note": "当前保护状态尚未被独立官方来源证实；拒绝结果不能单独证明此负例有效。"
+    },
+    "minimum_spec": {
+      "width": 320,
+      "height": 180,
+      "audio": true
+    }
+  },
+  {
+    "id": "bilibili-protected-1",
+    "platform": "bilibili",
+    "url": "https://www.bilibili.com/video/BV1vt1sBgEzc",
+    "expected_media_id": "BV1vt1sBgEzc",
+    "kind": "protected",
+    "content_scope": "public",
+    "needs_identity": false,
+    "duration_seconds": null,
+    "duration_source": {
+      "url": "https://www.bilibili.com/video/BV1vt1sBgEzc",
+      "kind": "platform_page_or_api",
+      "field": "not_required_for_protected_negative",
+      "checked_at": null,
+      "status": "unverified",
+      "note": "受保护负例不需要完整时长。"
+    },
+    "availability_source": {
+      "url": "https://api.bilibili.com/x/web-interface/view?bvid=BV1vt1sBgEzc",
+      "kind": "public_page",
+      "field": "data.bvid/state/is_upower_exclusive/is_upower_play",
+      "checked_at": "2026-10-01T06:14:36.315163+00:00",
+      "status": "verified",
+      "note": "当前匿名官方 API 返回 code=0、state=0、bvid 匹配，is_upower_exclusive=true 且 is_upower_play=false；官方页明确为 30 元包月充电专属视频。不得把片头预览交付为完整公开内容。"
+    },
+    "minimum_spec": {
+      "width": 640,
+      "height": 360,
+      "audio": true
+    }
+  }
+]
