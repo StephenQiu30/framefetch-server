@@ -3,7 +3,9 @@ from __future__ import annotations
 import asyncio
 import logging
 import re
+import sys
 from collections.abc import Awaitable, Callable, Mapping, Sequence
+from contextlib import nullcontext
 from copy import copy
 from datetime import UTC, datetime
 from pathlib import Path
@@ -21,6 +23,7 @@ from app.services.provider_failures import (
 )
 from app.services.provider_types import ProviderKey
 from app.workers.runner.command_support import child_environment, json_object
+from app.workers.runner.engine import identity
 from app.workers.runner.engine.run_context import RunContext
 from app.workers.runner.errors import RunnerFailure
 from app.workers.runner.metadata import (
@@ -503,30 +506,72 @@ class MediaCommands:
             else (self._ctx.egress.proxy_url if self._ctx is not None else "")
         )
         needs_pot_provider = command[0] == self._settings.runner_ytdlp_bin
-        if needs_pot_provider:
+        youtube = (
+            needs_pot_provider
+            and failure_context is not None
+            and failure_context.provider_key == "youtube"
+        )
+        wpc = youtube and self._client == "youtube:wpc:mweb"
+        if needs_pot_provider and not wpc:
             await self._ensure_youtube_pot_provider(failure_context)
-        try:
-            operation = self._supervisor.run(
-                command,
-                cwd=cwd,
-                timeout_seconds=timeout,
-                env=child_environment(cwd, selected_proxy),
+        if youtube:
+            command = (
+                sys.executable,
+                "-m",
+                "app.workers.runner.youtube_proof",
+                "wpc" if wpc else "bgutil",
+                *command[1:],
             )
-            if monitor_workspace:
-                result = await run_with_workspace_limit(
-                    operation,
-                    root=cwd,
-                    max_bytes=(
-                        workspace_limit_bytes
-                        if workspace_limit_bytes is not None
-                        else self._settings.runner_max_workspace_bytes
-                    ),
-                    poll_interval_seconds=(
-                        self._settings.runner_workspace_poll_interval_seconds
-                    ),
+            if wpc:
+                command = (
+                    "xvfb-run",
+                    "-a",
+                    "-s",
+                    "-screen 0 1280x720x24 -nolisten tcp",
+                    *command,
                 )
-            else:
-                result = await operation
+        try:
+            private_root = (
+                self._settings.runner_browser_temp_root
+                if wpc
+                else identity.COOKIE_TMPFS_ROOT
+            )
+            if youtube:
+                private_root.mkdir(mode=0o700, parents=True, exist_ok=True)
+            with (
+                TemporaryDirectory(prefix="youtube-proof-", dir=private_root)
+                if youtube
+                else nullcontext(str(cwd)) as private
+            ):
+                environment = child_environment(
+                    Path(private) if youtube else cwd, selected_proxy
+                )
+                if wpc:
+                    # nodriver uses urllib/WebSocket for container-local CDP.
+                    # Media/page requests still have the explicit EgressBinding.
+                    environment["NO_PROXY"] = "127.0.0.1,localhost"
+                    environment["no_proxy"] = environment["NO_PROXY"]
+                operation = self._supervisor.run(
+                    command,
+                    cwd=cwd,
+                    timeout_seconds=timeout,
+                    env=environment,
+                )
+                if monitor_workspace:
+                    result = await run_with_workspace_limit(
+                        operation,
+                        root=cwd,
+                        max_bytes=(
+                            workspace_limit_bytes
+                            if workspace_limit_bytes is not None
+                            else self._settings.runner_max_workspace_bytes
+                        ),
+                        poll_interval_seconds=(
+                            self._settings.runner_workspace_poll_interval_seconds
+                        ),
+                    )
+                else:
+                    result = await operation
         except ProcessTimeoutError as exc:
             raise RunnerFailure(
                 timeout_code,
@@ -556,13 +601,17 @@ class MediaCommands:
                 if failure_context is not None
                 else None
             )
-            if needs_pot_provider and (
-                provider_failure is None
-                or failure_definition(provider_failure[0])[0]
-                not in {
-                    FailureClass.CONTENT_UNAVAILABLE,
-                    FailureClass.CONTENT_PROTECTED,
-                }
+            if (
+                needs_pot_provider
+                and not wpc
+                and (
+                    provider_failure is None
+                    or failure_definition(provider_failure[0])[0]
+                    not in {
+                        FailureClass.CONTENT_UNAVAILABLE,
+                        FailureClass.CONTENT_PROTECTED,
+                    }
+                )
             ):
                 await self._ensure_youtube_pot_provider(failure_context)
             if provider_failure is not None:

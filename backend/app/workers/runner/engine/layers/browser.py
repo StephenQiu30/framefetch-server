@@ -14,7 +14,13 @@ from app.services.provider_failures import FailureClass
 from app.services.provider_types import ProviderIdentity
 from app.workers.runner.browser_runtime import BrowserOperation, _finish
 from app.workers.runner.engine import identity
-from app.workers.runner.engine.browser import douyin, kuaishou, weibo, xiaohongshu
+from app.workers.runner.engine.browser import (
+    douyin,
+    kuaishou,
+    weibo,
+    xiaohongshu,
+    youtube,
+)
 from app.workers.runner.engine.browser.intercept import (
     MAX_RESPONSE_BYTES,
     PageResponses,
@@ -141,6 +147,8 @@ async def _cookie_jar(operation: BrowserOperation, directory: Path) -> Path:
 class BrowserLayer:
     async def resolve(self, source: ResolutionSource, ctx: RunContext) -> ResolvedMedia:
         profile = source.request.profile
+        if profile.key == "youtube":
+            return await youtube.resolve(source, ctx)
         parser = PARSERS.get(profile.key)
         runtime = source.pipeline.browser
         if parser is None or runtime is None:

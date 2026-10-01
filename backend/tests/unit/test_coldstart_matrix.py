@@ -540,6 +540,21 @@ def test_g2_missing_xiaohongshu_evidence_blocks_complete_delivery(
     assert "independent full duration missing" in markdown
 
 
+def test_youtube_fixture_pair_has_complete_independent_qualification():
+    cases = matrix.load_cases(SCRIPT.parent / "fixtures/coldstart_cases.json")
+    positives = [c for c in cases if c.platform == "youtube" and c.kind == "positive"]
+    assert len(positives) == 2
+    assert len({c.expected_media_id for c in positives}) == 2
+    assert {c.duration_seconds for c in positives} == {19, 635}
+    assert all(c.needs_identity and c.content_scope == "public" for c in positives)
+    assert all(not c.qualification_gaps() for c in positives)
+    assert all(
+        c.availability_source.kind == "official_player_metadata"
+        and c.availability_source.checked_at
+        for c in positives
+    )
+
+
 def test_frame_rate_and_dynamic_range_are_checked_against_confirmed_plan():
     payload = probe()
     payload["streams"][0].update(avg_frame_rate="30000/1001", color_transfer="bt709")
@@ -721,3 +736,45 @@ def test_malformed_or_missing_rate_is_a_contract_failure(rate):
     payload["streams"][0]["avg_frame_rate"] = rate
     with pytest.raises(matrix.MatrixFailure, match="frame_rate_missing"):
         matrix.verify_probe(payload, case(), {**plan(), "fps_bucket": "fps_30"}, 3)
+
+
+@pytest.mark.parametrize(
+    "identity_used,expected", [(True, "passed"), (False, "blocked")]
+)
+def test_youtube_datacenter_requires_identity_and_complete_file(
+    monkeypatch, tmp_path, identity_used, expected
+):
+    fake_commands(monkeypatch)
+    context = {
+        **FakeApi().context,
+        "provider_key": "youtube",
+        "resolved_layer": "L2",
+        "client": "youtube:mweb",
+        "egress_class": "datacenter",
+        "identity_used": identity_used,
+    }
+    options = args()
+    options.reuse_cookie_source = True
+    row = matrix.run_case(
+        FakeApi(context=context),
+        case(platform="youtube", needs_identity=identity_used),
+        options,
+        tmp_path,
+    )
+    assert row["result"] == expected
+    assert row["full_decode_exit_code"] == 0
+    assert row["execution_context"]["egress_class"] == "datacenter"
+
+
+def test_shared_identity_service_still_requires_actual_injection(monkeypatch, tmp_path):
+    fake_commands(monkeypatch)
+    options = args()
+    options.reuse_cookie_source = True
+    row = matrix.run_case(
+        FakeApi(context={**FakeApi().context, "provider_key": "youtube"}),
+        case(platform="youtube", needs_identity=True),
+        options,
+        tmp_path,
+    )
+    assert row["result"] == "blocked"
+    assert row["failure_class"] == "identity_unavailable"

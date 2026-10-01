@@ -148,3 +148,15 @@ uv run ruff format --check app tests scripts/coldstart_matrix.py
 uv run mypy app scripts/coldstart_matrix.py
 uv run pytest
 ```
+
+YouTube 的 L2 只启用 bgutil HTTP PO Token 提供者；L3 只启用 WPC，
+由 yt-dlp 在 session-runner 内启动 nodriver Chromium，使用 Xvfb 提供显示。
+两层的代理均来自当前任务的 EgressBinding，账号 Cookie 仍由 cookie-source
+实时提供给 yt-dlp，WPC Profile、HOME 与缓存在操作私有 tmpfs 中，结束或取消后删除。
+WPC 不复用 Playwright context，也不操作宿主 Chrome。
+共享环境冷启动验收使用 `coldstart_matrix.py --platforms youtube --reuse-cookie-source`，
+复用已经连接的宿主身份服务；该模式只冷启动 API、Worker、Runner，报告如实记录
+宿主服务未重启。Runner 仍须通过环境变量 `COOKIE_SOURCE_TOKEN` 配置该服务的
+独立 Bearer；复用标志不会安装服务、读取配对密钥或绕过身份校验。
+机房出口必须实际注入登录身份，仍须两条独立公开、免费、非 DRM
+正例通过完整文件校验；当前可用性与实测结果见设计 17 第 8 节。

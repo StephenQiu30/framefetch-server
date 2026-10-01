@@ -68,7 +68,7 @@
     "expected_media_id": "jNQXAC9IVRw",
     "kind": "positive",
     "content_scope": "public",
-    "needs_identity": false,
+    "needs_identity": true,
     "duration_seconds": 19,
     "duration_source": {
       "url": "https://www.youtube.com/results?search_query=jNQXAC9IVRw",
@@ -80,11 +80,11 @@
     },
     "availability_source": {
       "url": "https://www.youtube.com/watch?v=jNQXAC9IVRw",
-      "kind": "public_page",
-      "field": "public_free_clear_media",
-      "checked_at": null,
-      "status": "unverified",
-      "note": "官方匿名搜索页与 oEmbed 公开可达，无付费字段；完整 clear 媒体仍待住宅出口验收。"
+      "kind": "official_player_metadata",
+      "field": "ytInitialPlayerResponse: playabilityStatus.status, videoDetails.isPrivate, microformat.hasYpcMetadata/isUnlisted/availableCountries, streamingData.formats[].drmFamilies; anonymous oEmbed",
+      "checked_at": "2026-10-01T10:18:05.535445+00:00",
+      "status": "verified",
+      "note": "独立于被测 yt-dlp/正式 API 直读官方 watch：HTTP200/Player OK，isPrivate=false/isUnlisted=false/hasYpcMetadata=false/isUnpluggedCorpus=false，playableInEmbed=true、availableCountries=249；一个 clear 格式、零 DRM 格式。匿名 oEmbed HTTP200 对应作品与作者；登录仅用于防机器人，不扩张内容范围。独立全片解码确认最终文件为 clear 媒体。"
     },
     "minimum_spec": {
       "width": 320,
@@ -99,7 +99,7 @@
     "expected_media_id": "aqz-KE-bpKQ",
     "kind": "positive",
     "content_scope": "public",
-    "needs_identity": false,
+    "needs_identity": true,
     "duration_seconds": 635,
     "duration_source": {
       "url": "https://www.youtube.com/results?search_query=aqz-KE-bpKQ",
@@ -111,11 +111,11 @@
     },
     "availability_source": {
       "url": "https://www.youtube.com/watch?v=aqz-KE-bpKQ",
-      "kind": "public_page",
-      "field": "public_free_clear_media",
-      "checked_at": null,
-      "status": "unverified",
-      "note": "官方匿名搜索页与 oEmbed 公开可达，无付费字段；完整 clear 媒体仍待住宅出口验收。"
+      "kind": "official_player_metadata",
+      "field": "ytInitialPlayerResponse: playabilityStatus.status, videoDetails.isPrivate, microformat.hasYpcMetadata/isUnlisted/availableCountries, streamingData.formats[].drmFamilies; anonymous oEmbed",
+      "checked_at": "2026-10-01T10:18:06.837301+00:00",
+      "status": "verified",
+      "note": "独立于被测 yt-dlp/正式 API 直读官方 watch：HTTP200/Player OK，isPrivate=false/isUnlisted=false/hasYpcMetadata=false/isUnpluggedCorpus=false，playableInEmbed=true、availableCountries=249；一个 clear 格式、零 DRM 格式。匿名 oEmbed HTTP200 对应作品与作者；登录仅用于防机器人，不扩张内容范围。独立全片解码确认最终文件为 clear 媒体。"
     },
     "minimum_spec": {
       "width": 320,
