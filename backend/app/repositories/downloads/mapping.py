@@ -21,6 +21,7 @@ from app.services.downloads.history_models import (
     DownloadHistorySummarySnapshot,
 )
 from app.services.downloads.inspection_models import FormatSnapshot, InspectionSnapshot
+from app.services.provider_types import ExecutionContext
 
 
 def inspection_snapshot(
@@ -56,6 +57,9 @@ def inspection_snapshot(
 
 def job_snapshot(row: DownloadJobRow) -> JobSnapshot:
     return JobSnapshot(
+        execution_context=None
+        if row.execution_context is None
+        else ExecutionContext.from_document(row.execution_context),
         id=row.id,
         inspection_id=row.inspection_id,
         format_id=row.format_id,

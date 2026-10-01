@@ -11,7 +11,7 @@ from app.workers.runner.provider_errors import (
     classify_provider_failure,
 )
 from app.workers.runner.service import MediaRunnerService
-from helpers import download_request, settings
+from helpers import bound_commands, download_request, settings
 
 
 @pytest.mark.parametrize("reason", list(ContentRestriction))
@@ -35,7 +35,7 @@ async def test_successful_ytdlp_preview_warning_is_still_rejected(
         False,
         False,
     )
-    commands = MediaCommands(settings(tmp_path), supervisor)
+    commands = bound_commands(settings(tmp_path), supervisor)
     with pytest.raises(RunnerFailure) as caught:
         await commands.inspect("https://www.bilibili.com/video/BV1xx411c7mD", tmp_path)
     assert caught.value.code == "content_unavailable"

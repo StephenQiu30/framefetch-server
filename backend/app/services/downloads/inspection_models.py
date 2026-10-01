@@ -137,3 +137,5 @@ class InspectionView:
     user_action: str | None = None
     media_kind: MediaKind = MediaKind.VIDEO
     asset_count: int = 0
+
+    execution_context: ExecutionContext | None = None

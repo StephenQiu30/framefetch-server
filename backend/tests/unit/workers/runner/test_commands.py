@@ -7,11 +7,11 @@ import httpx
 import pytest
 from app.services.downloads.rules.enums import Container
 from app.workers.runner import commands as commands_module
-from app.workers.runner.commands import MediaCommands
 from app.workers.runner.errors import RunnerFailure
 from app.workers.runner.process import ProcessResult
 from app.workers.runner.provider_errors import ProviderFailureContext
-from app.workers.runner.yt_dlp_commands import YtDlpCommandBuilder
+from helpers import bound_builder as YtDlpCommandBuilder
+from helpers import bound_commands as MediaCommands
 from helpers import settings
 
 

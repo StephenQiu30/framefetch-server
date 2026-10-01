@@ -4,6 +4,7 @@ import asyncio
 import logging
 import re
 from collections.abc import Awaitable, Callable, Mapping, Sequence
+from copy import copy
 from datetime import UTC, datetime
 from pathlib import Path
 from tempfile import TemporaryDirectory
@@ -20,6 +21,7 @@ from app.services.provider_failures import (
 )
 from app.services.provider_types import ProviderKey
 from app.workers.runner.command_support import child_environment, json_object
+from app.workers.runner.engine.run_context import RunContext
 from app.workers.runner.errors import RunnerFailure
 from app.workers.runner.metadata import (
     collection_fallback_assets,
@@ -72,7 +74,24 @@ class MediaCommands:
         self._settings = settings
         self._supervisor = supervisor
         self._pot_provider_probe = pot_provider_probe or _pot_provider_ready
-        self._ytdlp = YtDlpCommandBuilder(settings, _YTDLP_PLUGIN_ROOT)
+        self._ctx: RunContext | None = None
+
+    def with_context(self, ctx: RunContext) -> MediaCommands:
+        result = copy(self)
+        result._ctx = ctx
+        return result
+
+    @property
+    def _run_context(self) -> RunContext:
+        if self._ctx is None:
+            raise RunnerFailure("invalid_input", status=422)
+        return self._ctx
+
+    @property
+    def _ytdlp(self) -> YtDlpCommandBuilder:
+        return YtDlpCommandBuilder(
+            self._settings, _YTDLP_PLUGIN_ROOT, self._run_context
+        )
 
     async def inspect(
         self,
@@ -118,7 +137,7 @@ class MediaCommands:
         failure_context: ProviderFailureContext | None = None,
     ) -> dict[str, Any]:
         failure_context = failure_context or self._failure_context(referer or url)
-        egress_proxy = self._egress_proxy(referer or url)
+        egress_proxy = self._run_context.egress.proxy_url
         command = (
             self._settings.runner_ffprobe_bin,
             "-v",
@@ -130,7 +149,7 @@ class MediaCommands:
             "-protocol_whitelist",
             "http,https,tcp,tls,crypto,httpproxy",
             "-user_agent",
-            _REMOTE_PROBE_USER_AGENT,
+            self._run_context.user_agent or _REMOTE_PROBE_USER_AGENT,
             "-referer",
             referer or url,
             url,
@@ -162,7 +181,7 @@ class MediaCommands:
         data = bytearray()
         try:
             async with httpx.AsyncClient(
-                proxy=self._egress_proxy(referer),
+                proxy=self._run_context.egress.proxy_url,
                 timeout=10,
                 follow_redirects=True,
                 trust_env=False,
@@ -283,7 +302,7 @@ class MediaCommands:
         failure_context = failure_context or self._failure_context(referer)
         safe_url = safe_media_url(url)
         try:
-            selected_proxy = self._egress_proxy(referer)
+            selected_proxy = self._run_context.egress.proxy_url
             async with httpx.AsyncClient(
                 proxy=selected_proxy,
                 trust_env=False,
@@ -295,7 +314,8 @@ class MediaCommands:
                     safe_url,
                     headers={
                         "Referer": referer,
-                        "User-Agent": _REMOTE_PROBE_USER_AGENT,
+                        "User-Agent": self._run_context.user_agent
+                        or _REMOTE_PROBE_USER_AGENT,
                     },
                 ) as response:
                     safe_media_url(str(response.url))
@@ -462,7 +482,11 @@ class MediaCommands:
         egress_proxy: str | None = None,
         failure_context: ProviderFailureContext | None = None,
     ) -> ProcessResult:
-        selected_proxy = egress_proxy or self._settings.runner_egress_proxy
+        selected_proxy = (
+            egress_proxy
+            if egress_proxy is not None
+            else (self._ctx.egress.proxy_url if self._ctx is not None else "")
+        )
         needs_pot_provider = command[0] == self._settings.runner_ytdlp_bin
         if needs_pot_provider:
             await self._ensure_youtube_pot_provider(failure_context)
@@ -588,9 +612,6 @@ class MediaCommands:
             ready = False
         if not ready:
             raise RunnerFailure("runtime_unavailable", status=503)
-
-    def _egress_proxy(self, url: str) -> str:
-        return self._settings.egress_proxy_for(provider_request(url).profile.key)
 
     @staticmethod
     def _failure_context(url: str) -> ProviderFailureContext:

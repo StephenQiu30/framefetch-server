@@ -7,11 +7,11 @@ from unittest.mock import AsyncMock, Mock
 import pytest
 from app.services.downloads.rules.content_restrictions import ContentRestriction
 from app.services.downloads.rules.enums import MediaKind
-from app.workers.runner.commands import MediaCommands
 from app.workers.runner.errors import RunnerFailure
 from app.workers.runner.plugins.yt_dlp_plugins.extractor.douyin_note import DouyinNoteIE
 from app.workers.runner.process import ProcessResult
 from app.workers.runner.utilities import normalize_for_settings
+from helpers import bound_commands as MediaCommands
 from helpers import settings
 from yt_dlp import YoutubeDL
 

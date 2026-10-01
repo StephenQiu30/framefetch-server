@@ -84,3 +84,38 @@ def download_request(height: int = 1080, width: int = 1920) -> DownloadRequest:
             },
         }
     )
+
+
+def run_context(config: RunnerSettings, provider: str = "generic"):
+    from app.workers.runner.engine.egress import resolve_egress
+    from app.workers.runner.engine.run_context import RunContext
+    from app.workers.runner.provider_registry import current_provider_registry
+
+    return RunContext(
+        resolve_egress(
+            current_provider_registry().profile_for_key(provider), settings=config
+        ),
+        "",
+        "",
+        None,
+        None,
+        None,
+        datetime.now(UTC) + timedelta(seconds=120),
+    )
+
+
+def bound_commands(config, supervisor, **kwargs):
+    from app.workers.runner.commands import MediaCommands
+
+    provider = (
+        "youtube" if "youtube" in config.runner_provider_egress_proxies else "generic"
+    )
+    return MediaCommands(config, supervisor, **kwargs).with_context(
+        run_context(config, provider)
+    )
+
+
+def bound_builder(config, root):
+    from app.workers.runner.yt_dlp_commands import YtDlpCommandBuilder
+
+    return YtDlpCommandBuilder(config, root, run_context(config))

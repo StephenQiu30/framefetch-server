@@ -17,6 +17,7 @@ from app.workers.runner.browser_runtime import (
 from app.workers.runner.errors import RunnerFailure
 from app.workers.runner.provider_registry import provider_profile
 from app.workers.runner.settings import RunnerSettings
+from helpers import run_context
 
 
 def configured(tmp_path: Path, **overrides) -> RunnerSettings:
@@ -96,7 +97,9 @@ async def test_disabled_browser_has_no_resources_or_effect_on_http(tmp_path, chr
     runtime = BrowserRuntime(settings)
     profile = provider_profile("https://www.youtube.com/watch?v=owned")
     with pytest.raises(RunnerFailure) as caught:
-        async with runtime.operation(profile, anonymous_context()):
+        async with runtime.operation(
+            profile, anonymous_context(), ctx=run_context(runtime._settings, "youtube")
+        ):
             pytest.fail("disabled runtime started")
     assert caught.value.failure.failure_class is FailureClass.RUNTIME_UNAVAILABLE
     assert caught.value.failure.scope is FailureScope.RUNTIME
@@ -114,14 +117,18 @@ async def test_anonymous_context_is_temporary_and_bound_to_provider_proxy(
     )
     runtime = BrowserRuntime(settings)
     profile = provider_profile("https://www.youtube.com/watch?v=owned")
-    async with runtime.operation(profile, anonymous_context()) as operation:
-        assert operation.revision == browser_revision(settings, "youtube")
+    async with runtime.operation(
+        profile, anonymous_context(), ctx=run_context(runtime._settings, "youtube")
+    ) as operation:
+        assert operation.revision == browser_revision(
+            run_context(settings, "youtube").egress
+        )
         directory, options = chromium.calls[0]
         assert Path(directory).is_dir()
         assert options["proxy"] == {"server": "http://youtube-egress:3128"}
         assert "--proxy-bypass-list=<-loopback>" in options["args"]
         assert options["headless"] is True
-        assert options["accept_downloads"] is False
+        assert options["accept_downloads"] is True
         assert options["service_workers"] == "block"
     assert Path(directory).exists()
     assert chromium.contexts[0].closed
@@ -132,9 +139,15 @@ async def test_anonymous_context_is_temporary_and_bound_to_provider_proxy(
 async def test_same_runtime_cannot_start_a_second_holder(tmp_path, chromium):
     runtime = BrowserRuntime(configured(tmp_path))
     profile = provider_profile("https://www.youtube.com/watch?v=owned")
-    async with runtime.operation(profile, anonymous_context()):
+    async with runtime.operation(
+        profile, anonymous_context(), ctx=run_context(runtime._settings, "youtube")
+    ):
         with pytest.raises(RunnerFailure) as caught:
-            async with runtime.operation(profile, anonymous_context()):
+            async with runtime.operation(
+                profile,
+                anonymous_context(),
+                ctx=run_context(runtime._settings, "youtube"),
+            ):
                 pytest.fail("second browser started")
         assert caught.value.code == "browser_capacity_exhausted"
         assert caught.value.failure.scope is FailureScope.RUNTIME
@@ -151,7 +164,9 @@ async def test_cancel_does_not_release_profile_or_ack_before_native_cleanup(
     chromium.cleanup_allowed.clear()
 
     async def execute():
-        async with runtime.operation(profile, anonymous_context()):
+        async with runtime.operation(
+            profile, anonymous_context(), ctx=run_context(runtime._settings, "youtube")
+        ):
             started.set()
             await asyncio.Event().wait()
 
@@ -161,13 +176,17 @@ async def test_cancel_does_not_release_profile_or_ack_before_native_cleanup(
     await chromium.cleanup_started.wait()
     assert not owner.done()
     with pytest.raises(RunnerFailure, match="browser capacity exhausted"):
-        async with runtime.operation(profile, anonymous_context()):
+        async with runtime.operation(
+            profile, anonymous_context(), ctx=run_context(runtime._settings, "youtube")
+        ):
             pytest.fail("cleanup still holds browser")
     chromium.cleanup_allowed.set()
     with pytest.raises(asyncio.CancelledError):
         await owner
     assert chromium.contexts[0].closed
-    async with runtime.operation(profile, anonymous_context()):
+    async with runtime.operation(
+        profile, anonymous_context(), ctx=run_context(runtime._settings, "youtube")
+    ):
         pass
 
 
@@ -178,16 +197,18 @@ async def test_native_profile_uses_cross_runtime_os_lock_and_keeps_state(
     first, second = BrowserRuntime(settings), BrowserRuntime(settings)
     profile = provider_profile("https://www.youtube.com/watch?v=owned")
     context = anonymous_context()
-    async with first.operation(profile, context):
+    async with first.operation(profile, context, ctx=run_context(settings, "youtube")):
         directory = Path(chromium.calls[0][0])
         marker = directory / "native-state"
         marker.write_text("retained by browser")
         with pytest.raises(RunnerFailure) as caught:
-            async with second.operation(profile, context):
+            async with second.operation(
+                profile, context, ctx=run_context(settings, "youtube")
+            ):
                 pytest.fail("persistent profile has two holders")
         assert caught.value.code == "browser_capacity_exhausted"
     assert marker.exists()
-    async with second.operation(profile, context):
+    async with second.operation(profile, context, ctx=run_context(settings, "youtube")):
         assert chromium.calls[-1][0] == str(directory)
         assert marker.read_text() == "retained by browser"
 
@@ -217,11 +238,15 @@ def test_approved_lease_preserves_native_cookie_attributes_and_domain_scope(tmp_
 
 def test_browser_revision_changes_only_with_execution_configuration(tmp_path):
     first = configured(tmp_path)
-    assert browser_revision(first, "youtube") == browser_revision(first, "youtube")
+    assert browser_revision(run_context(first, "youtube").egress) == browser_revision(
+        run_context(first, "youtube").egress
+    )
     changed = first.model_copy(
         update={"runner_egress_proxy": "http://other-route:3128"}
     )
-    assert browser_revision(first, "youtube") != browser_revision(changed, "youtube")
+    assert browser_revision(run_context(first, "youtube").egress) != browser_revision(
+        run_context(changed, "youtube").egress
+    )
 
 
 async def test_page_adapter_error_is_not_rewritten_as_browser_startup_failure(
@@ -231,7 +256,30 @@ async def test_page_adapter_error_is_not_rewritten_as_browser_startup_failure(
     profile = provider_profile("https://www.youtube.com/watch?v=owned")
     failure = browser_runtime.Error("page structure changed")
     with pytest.raises(browser_runtime.Error) as caught:
-        async with runtime.operation(profile, anonymous_context()):
+        async with runtime.operation(
+            profile, anonymous_context(), ctx=run_context(runtime._settings, "youtube")
+        ):
             raise failure
     assert caught.value is failure
     assert chromium.contexts[0].closed
+
+
+async def test_browser_launch_uses_injected_egress_only(tmp_path, chromium):
+    from dataclasses import replace
+
+    from app.workers.runner.engine.egress import EgressBinding
+
+    runtime = BrowserRuntime(configured(tmp_path))
+    ctx = replace(
+        run_context(runtime._settings),
+        egress=EgressBinding(
+            "injected",
+            "http://browser-binding:3128",
+            "injected-revision",
+            "residential",
+            None,
+        ),
+    )
+    profile = provider_profile("https://www.youtube.com/watch?v=owned")
+    async with runtime.operation(profile, anonymous_context(), ctx=ctx):
+        assert chromium.calls[-1][1]["proxy"] == {"server": ctx.egress.proxy_url}

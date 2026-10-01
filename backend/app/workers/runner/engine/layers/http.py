@@ -11,7 +11,7 @@ from app.workers.runner.errors import RunnerFailure
 class HttpLayer:
     async def resolve(self, source: ResolutionSource, ctx: RunContext) -> ResolvedMedia:
         try:
-            media = await source.pipeline.inspect(
+            media = await source.pipeline.with_context(ctx).inspect(
                 source.request,
                 source.workspace,
                 context=source.execution_context,

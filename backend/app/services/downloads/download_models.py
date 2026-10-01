@@ -12,6 +12,7 @@ from app.services.downloads.rules.enums import (
     MediaKind,
 )
 from app.services.downloads.rules.formats import DownloadPlan
+from app.services.provider_types import ExecutionContext
 from app.services.quotas import UserQuota
 
 
@@ -58,6 +59,7 @@ class JobSnapshot:
     updated_at: datetime
     source_kind: str = DownloadSourceKind.REMOTE_PROVIDER.value
     error_message: str | None = None
+    execution_context: ExecutionContext | None = None
 
     @classmethod
     def queued(cls, command: DownloadCreate, *, now: datetime) -> JobSnapshot:
@@ -141,6 +143,7 @@ class DownloadView:
     media_kind: MediaKind = MediaKind.VIDEO
     asset_count: int = 0
     error_message: str | None = None
+    execution_context: ExecutionContext | None = None
 
 
 @dataclass(frozen=True, slots=True)

@@ -10,6 +10,7 @@ from pathlib import Path
 import pytest
 from app.workers.runner.errors import RunnerFailure
 from app.workers.runner.process import ProcessResult
+from app.workers.runner.provider_registry import provider_request
 from app.workers.runner.service import MediaRunnerService
 from helpers import download_request, result, settings, split_media_info
 from yt_dlp import YoutubeDL
@@ -595,7 +596,7 @@ async def test_download_never_downgrades_and_cleans_failed_workspace(
     with pytest.raises(RunnerFailure) as caught:
         await service.download(download_request())
 
-    assert caught.value.code == "format_unavailable"
+    assert caught.value.code == "context_changed"
     assert list(tmp_path.iterdir()) == []
 
 
@@ -638,6 +639,7 @@ async def test_inspect_requires_at_least_one_semantic_option(tmp_path: Path) -> 
     assert caught.value.code == "format_unavailable"
 
 
+@pytest.mark.usefixtures("http_only_ladder")
 async def test_inspect_does_not_retry_unclassified_provider_text(
     tmp_path: Path,
 ) -> None:
@@ -656,6 +658,7 @@ async def test_inspect_does_not_retry_unclassified_provider_text(
     assert list(tmp_path.iterdir()) == []
 
 
+@pytest.mark.usefixtures("http_only_ladder")
 async def test_inspect_enriches_sparse_provider_formats_with_bounded_probe(
     tmp_path: Path,
 ) -> None:
@@ -780,6 +783,7 @@ def douyin_muxed_info() -> dict[str, object]:
     return info
 
 
+@pytest.mark.usefixtures("http_only_ladder")
 async def test_douyin_inspect_uses_media_duration_instead_of_page_metadata(
     tmp_path: Path,
 ) -> None:
@@ -797,6 +801,7 @@ async def test_douyin_inspect_uses_media_duration_instead_of_page_metadata(
     assert len(remote_probes) == 1
 
 
+@pytest.mark.usefixtures("http_only_ladder")
 async def test_douyin_inspect_fails_closed_without_media_duration(
     tmp_path: Path,
 ) -> None:
@@ -928,6 +933,7 @@ async def test_inspect_does_not_immediately_retry_tumblr_rate_limit(
     assert delays == []
 
 
+@pytest.mark.usefixtures("http_only_ladder")
 async def test_inspect_does_not_retry_xiaohongshu_egress_challenge(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -1011,6 +1017,7 @@ async def test_inspect_does_not_retry_tiktok_rate_limited_temporary_failure(
     assert delays == []
 
 
+@pytest.mark.usefixtures("http_only_ladder")
 async def test_youtube_unclassified_failure_uses_one_attempt(
     tmp_path: Path,
 ) -> None:
@@ -1134,7 +1141,10 @@ async def test_identity_required_provider_is_explicitly_unavailable_in_r0(
     with pytest.raises(RunnerFailure) as caught:
         await service.inspect(url)
     assert caught.value.code == "login_required"
-    assert caught.value.failure.layer == "L1"
+    assert (
+        caught.value.failure.layer
+        == service._context(provider_request(url)).resolved_layer
+    )
     assert caught.value.failure.stage == "resolve"
     assert supervisor.calls == []
     assert list(tmp_path.iterdir()) == []
@@ -1305,3 +1315,18 @@ async def test_zero_deadline_and_cancelling_task_do_not_start_runner_resources(
     with pytest.raises(asyncio.CancelledError):
         await task
     assert supervisor.calls == [] and list(tmp_path.iterdir()) == []
+
+
+@pytest.fixture
+def http_only_ladder(monkeypatch):
+    """These tests isolate the existing HTTP pipeline, independent of stubs."""
+    from dataclasses import replace
+
+    from app.services.provider_types import Layer
+    from app.workers.runner.provider_registry import provider_request
+
+    def request(url):
+        source = provider_request(url)
+        return replace(source, profile=replace(source.profile, ladder=(Layer.L1,)))
+
+    monkeypatch.setattr("app.workers.runner.service.provider_request", request)

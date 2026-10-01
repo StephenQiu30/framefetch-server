@@ -27,6 +27,8 @@ from app.services.provider_failures import (
 )
 from app.services.provider_types import ExecutionContext
 from app.workers.runner._secure_file import no_follow_flag
+from app.workers.runner.engine.egress import EgressBinding
+from app.workers.runner.engine.run_context import RunContext
 from app.workers.runner.errors import RunnerFailure
 from app.workers.runner.netscape_cookie import parse_cookie_payload
 from app.workers.runner.provider_registry import ProviderProfile
@@ -53,7 +55,7 @@ _LAUNCH_ARGS = (
 )
 
 
-def browser_revision(settings: RunnerSettings, provider_key: str) -> str:
+def browser_revision(egress: EgressBinding) -> str:
     return sha256(
         json.dumps(
             {
@@ -64,7 +66,7 @@ def browser_revision(settings: RunnerSettings, provider_key: str) -> str:
                 "user_agent": BROWSER_USER_AGENT,
                 "args": _LAUNCH_ARGS,
                 "service_workers": "block",
-                "egress": settings.egress_proxy_for(provider_key),
+                "egress": egress.revision,
             },
             sort_keys=True,
             separators=(",", ":"),
@@ -123,6 +125,33 @@ class BrowserOperation:
     page: Page
     revision: str
 
+    @property
+    def user_agent(self) -> str:
+        return BROWSER_USER_AGENT
+
+    async def cookies(self) -> list[dict[str, object]]:
+        return [dict(cookie) for cookie in await self.context.cookies()]
+
+    async def download(self, url: str, dest: Path) -> None:
+        async with self.page.expect_download() as pending:
+            try:
+                await self.page.goto(safe_media_url(url), wait_until="commit")
+            except Error:
+                # Chromium aborts navigation when a response becomes a download.
+                # The download event and failure() determine transfer success.
+                pass
+        download = await pending.value
+        await download.save_as(str(dest))
+        if (
+            await download.failure() is not None
+            or not dest.is_file()
+            or dest.is_symlink()
+        ):
+            raise RunnerFailure("download_failed", status=502, stage="download")
+
+    async def close(self) -> None:
+        await self.context.close()
+
     async def navigate(self, url: str) -> int:
         response = await self.page.goto(
             safe_media_url(url), wait_until="domcontentloaded"
@@ -164,6 +193,7 @@ class BrowserRuntime:
         profile: ProviderProfile,
         execution_context: ExecutionContext,
         *,
+        ctx: RunContext,
         cookie_jar: Path | None = None,
     ) -> AsyncIterator[BrowserOperation]:
         if self._closed or not self._settings.runner_browser_enabled:
@@ -174,7 +204,7 @@ class BrowserRuntime:
             raise _failure("runtime_unavailable", status=409)
         if execution_context.identity_used != (cookie_jar is not None):
             raise _failure("invalid_input", status=422)
-        revision = browser_revision(self._settings, profile.key)
+        revision = browser_revision(ctx.egress)
         try:
             await asyncio.wait_for(
                 self._slot.acquire(), self._settings.runner_browser_lock_wait_seconds
@@ -198,12 +228,10 @@ class BrowserRuntime:
                             headless=True,
                             chromium_sandbox=False,
                             args=list(_LAUNCH_ARGS),
-                            proxy={
-                                "server": self._settings.egress_proxy_for(profile.key)
-                            },
+                            proxy={"server": ctx.egress.proxy_url},
                             user_agent=BROWSER_USER_AGENT,
                             service_workers="block",
-                            accept_downloads=False,
+                            accept_downloads=True,
                             timeout=self._settings.runner_browser_launch_timeout_seconds
                             * 1000,
                             viewport={"width": 1280, "height": 800},

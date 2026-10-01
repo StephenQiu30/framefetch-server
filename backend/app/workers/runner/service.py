@@ -5,17 +5,21 @@ import hashlib
 import json
 from dataclasses import asdict, is_dataclass, replace
 from datetime import UTC, datetime, timedelta
-from importlib.metadata import PackageNotFoundError, version
 from pathlib import Path
 from typing import Literal
 from uuid import uuid4
 
-from app.services.downloads.rules.enums import Container, MediaKind, StreamKind
+from app.services.downloads.rules.enums import (
+    AudioCodecFamily,
+    Container,
+    MediaKind,
+    StreamKind,
+)
 from app.services.downloads.rules.errors import FormatSelectionError
 from app.services.downloads.rules.formats import CandidateStream, ProviderHints
 from app.services.downloads.rules.selection import select_streams
 from app.services.provider_failures import FailurePhase
-from app.services.provider_types import ExecutionContext, ProviderIdentity
+from app.services.provider_types import ExecutionContext
 from app.workers.runner.active_tasks import ActiveTaskRegistry
 from app.workers.runner.browser_runtime import BrowserRuntime
 from app.workers.runner.collection import download_video_collection_zip
@@ -32,13 +36,13 @@ from app.workers.runner.contracts import (
     TaskStatusResponse,
 )
 from app.workers.runner.engine.egress import resolve_egress
-from app.workers.runner.engine.ladder import run_ladder
+from app.workers.runner.engine.ladder import close_material, run_ladder
+from app.workers.runner.engine.resolved import Resolution
 from app.workers.runner.engine.run_context import ResolutionSource, RunContext
 from app.workers.runner.errors import RunnerFailure
 from app.workers.runner.gallery import download_gallery_zip
 from app.workers.runner.inspection_pipeline import RunnerInspectionPipeline
 from app.workers.runner.metadata import (
-    MediaInspection,
     build_download_options,
     collection_fallback_assets,
 )
@@ -57,11 +61,16 @@ from app.workers.runner.utilities import (
     safe_media_url,
 )
 from app.workers.runner.verification import verify_probe
+from app.workers.runner.version import engine_revision
 from app.workers.runner.workspace import (
     TaskWorkspace,
     WorkspaceLimits,
     WorkspaceManager,
     WorkspaceViolation,
+)
+from app.workers.runner.workspace_monitor import (
+    WorkspaceLimitExceeded,
+    run_with_workspace_limit,
 )
 
 
@@ -89,7 +98,7 @@ class MediaRunnerService:
             ),
         )
         self._active = ActiveTaskRegistry(settings.runner_max_active_tasks)
-        self._engine_revision = _engine_revision(settings)
+        self._engine_revision = engine_revision(settings)
 
     async def close(self) -> None:
         await self._browser.close()
@@ -98,7 +107,7 @@ class MediaRunnerService:
         egress = resolve_egress(source.profile, settings=self._settings)
         return ExecutionContext(
             provider_key=source.profile.key,
-            resolved_layer="L1",
+            resolved_layer=source.profile.ladder[0],
             egress_route=egress.route,
             registry_revision=_registry_revision(source),
             client=source.profile.client_profile,
@@ -115,11 +124,20 @@ class MediaRunnerService:
         self, source: ProviderRequest, expected: ExecutionContext | None
     ) -> ExecutionContext:
         context = self._context(source)
-        if expected is not None and expected != context:
-            raise RunnerFailure("context_changed", status=409, gate="③")
-        if source.profile.identity is ProviderIdentity.REQUIRED:
-            raise RunnerFailure("login_required", status=422).attributed_to(context)
-        return context
+        if expected is not None and any(
+            getattr(expected, name) != getattr(context, name)
+            for name in (
+                "provider_key",
+                "registry_revision",
+                "engine_revision",
+                "egress_route",
+                "egress_revision",
+                "egress_class",
+                "egress_observed_ip",
+            )
+        ):
+            raise RunnerFailure("context_changed", status=409)
+        return expected or context
 
     async def inspect(
         self,
@@ -149,16 +167,21 @@ class MediaRunnerService:
         context = self._validate_context(source, execution_context)
         self._active.register(resource_id, task)
         workspace = None
+        resolution = None
         try:
             workspace = self._workspaces.create(resource_id)
             async with asyncio.timeout(remaining):
-                inspection = await self._resolve_with_retries(
+                resolution = await self._resolve_with_retries(
                     source,
                     workspace,
                     context=context,
                     cookie_jar=None,
                     deadline=deadline,
+                    expected_context=execution_context,
                 )
+                inspection = resolution.media
+                context = resolution.execution_context
+                assert resolution.run_context is not None
                 plans = (
                     build_download_options(
                         inspection.streams,
@@ -172,7 +195,7 @@ class MediaRunnerService:
                 thumbnail_data_url = await self._thumbnails.fetch(
                     inspection.thumbnail_urls,
                     referer=source.source_url,
-                    egress_proxy=self._settings.egress_proxy_for(context.provider_key),
+                    egress_proxy=resolution.run_context.egress.proxy_url,
                 )
                 return inspect_response(
                     inspection,
@@ -186,9 +209,13 @@ class MediaRunnerService:
             error.attributed_to(context)
             raise
         finally:
-            if workspace is not None:
-                workspace.cleanup()
-            self._active.discard(resource_id, task)
+            try:
+                if resolution is not None and resolution.run_context is not None:
+                    await close_material(resolution.run_context)
+            finally:
+                if workspace is not None:
+                    workspace.cleanup()
+                self._active.discard(resource_id, task)
 
     async def download(self, request: DownloadRequest) -> DownloadResponse:
         task = asyncio.current_task()
@@ -292,7 +319,8 @@ class MediaRunnerService:
         context: ExecutionContext,
         cookie_jar: Path | None,
         deadline: datetime,
-    ) -> MediaInspection:
+        expected_context: ExecutionContext | None = None,
+    ) -> Resolution:
         resolution = await run_ladder(
             ResolutionSource(
                 request=source,
@@ -302,19 +330,18 @@ class MediaRunnerService:
                 run_context=RunContext(
                     egress=resolve_egress(source.profile, settings=self._settings),
                     user_agent="",  # Preserve yt-dlp's R0 default user agent.
-                    referer=source.source_url,
+                    referer="",  # Retain yt-dlp default; layers add explicit material.
                     cookie_file=cookie_jar,
                     identity=None,
                     browser=None,
                     deadline=deadline,
                 ),
+                expected_context=expected_context,
             ),
             source.profile,
             deadline,
         )
-        if resolution.execution_context != context:
-            raise RunnerFailure("context_changed", status=409).attributed_to(context)
-        return resolution.media
+        return resolution
 
     async def _download_in_workspace(
         self,
@@ -325,7 +352,7 @@ class MediaRunnerService:
         context: ExecutionContext,
         cookie_jar: Path | None,
     ) -> DownloadResponse:
-        inspection = await self._resolve_with_retries(
+        resolution = await self._resolve_with_retries(
             source,
             workspace,
             context=context,
@@ -333,7 +360,27 @@ class MediaRunnerService:
             deadline=request.deadline
             or datetime.now(UTC)
             + timedelta(seconds=self._settings.runner_download_timeout_seconds),
+            expected_context=context,
         )
+        assert resolution.run_context is not None
+        try:
+            return await self._download_resolved(request, source, workspace, resolution)
+        finally:
+            await close_material(resolution.run_context)
+
+    async def _download_resolved(
+        self,
+        request: DownloadRequest,
+        source: ProviderRequest,
+        workspace: TaskWorkspace,
+        resolution: Resolution,
+    ) -> DownloadResponse:
+        inspection = resolution.media
+        context = resolution.execution_context
+        assert resolution.run_context is not None
+        ctx = resolution.run_context
+        cookie_jar = ctx.cookie_file
+        commands = self._commands.with_context(ctx)
         failure_context = ProviderFailureContext(
             provider_key=source.profile.key,
             source_url=source.source_url,
@@ -362,7 +409,7 @@ class MediaRunnerService:
                     expected_count=request.asset_count,
                     title=inspection.title,
                     referer=source.source_url,
-                    commands=self._commands,
+                    commands=commands,
                     max_video_bytes=self._settings.runner_max_output_bytes,
                     max_duration_seconds=self._settings.runner_max_duration_seconds,
                     max_assets=self._settings.runner_max_gallery_assets,
@@ -379,7 +426,7 @@ class MediaRunnerService:
                     workspace,
                     title=inspection.title,
                     referer=source.source_url,
-                    commands=self._commands,
+                    commands=commands,
                     max_asset_bytes=self._settings.runner_max_gallery_asset_bytes,
                     max_assets=self._settings.runner_max_gallery_assets,
                 )
@@ -415,7 +462,13 @@ class MediaRunnerService:
                 replace(plan, hints=ProviderHints()), inspection.streams
             )
         except FormatSelectionError as exc:
-            raise RunnerFailure(exc.code.value, status=409) from exc
+            raise RunnerFailure("context_changed", status=409) from exc
+
+        if not plan.matches_video(selection.video) or (
+            plan.audio_codec_family is not AudioCodecFamily.NONE
+            and not plan.matches_audio(selection.audio or selection.video)
+        ):
+            raise RunnerFailure("context_changed", status=409)
 
         info_json = workspace.path / "resolved.info.json"
         await asyncio.to_thread(
@@ -438,6 +491,7 @@ class MediaRunnerService:
             duration_seconds=inspection.duration_seconds,
             cookie_jar=cookie_jar,
             info_json=info_json,
+            resolution=resolution,
         )
         completed_streams = 1
         progress = 10 + 60 * completed_streams // total_streams
@@ -455,6 +509,7 @@ class MediaRunnerService:
                 duration_seconds=inspection.duration_seconds,
                 cookie_jar=cookie_jar,
                 info_json=info_json,
+                resolution=resolution,
             )
             completed_streams += 1
             progress = 10 + 60 * completed_streams // total_streams
@@ -536,9 +591,21 @@ class MediaRunnerService:
         duration_seconds: float,
         cookie_jar: Path | None,
         info_json: Path,
+        resolution: Resolution,
     ) -> None:
-        operation = asyncio.create_task(
-            self._commands.download_stream(
+        assert resolution.run_context is not None
+        ctx = resolution.run_context
+        if resolution.media.handoff == "browser":
+            if ctx.browser is None:
+                raise RunnerFailure("runtime_unavailable", status=503)
+            transfer = run_with_workspace_limit(
+                ctx.browser.download(_browser_stream_url(resolution, stream), output),
+                root=workspace.path,
+                max_bytes=self._settings.runner_max_workspace_bytes,
+                poll_interval_seconds=self._settings.runner_workspace_poll_interval_seconds,
+            )
+        else:
+            transfer = self._commands.with_context(ctx).download_stream(
                 source,
                 stream.provider_id,
                 output,
@@ -546,7 +613,7 @@ class MediaRunnerService:
                 cookie_jar=cookie_jar,
                 info_json=info_json,
             )
-        )
+        operation = asyncio.create_task(transfer)
         expected_bytes = _estimated_stream_bytes(stream, duration_seconds)
         last_progress = start_progress
         try:
@@ -574,7 +641,12 @@ class MediaRunnerService:
                         current,
                     )
                     last_progress = current
-            await operation
+            try:
+                await operation
+            except WorkspaceLimitExceeded as exc:
+                raise RunnerFailure("workspace_limit_exceeded", status=413) from exc
+            if not output.is_file() or output.is_symlink():
+                raise RunnerFailure("download_failed", status=502)
         except BaseException:
             if not operation.done():
                 operation.cancel()
@@ -637,25 +709,16 @@ def _registry_revision(source: ProviderRequest) -> str:
     ).hexdigest()
 
 
-def _engine_revision(settings: RunnerSettings) -> str:
-    facts = {}
-    for package in (
-        "yt-dlp",
-        "bgutil-ytdlp-pot-provider",
-        "yt-dlp-ejs",
-        "yt-dlp-getpot-wpc",
-        "playwright",
-    ):
-        try:
-            facts[package] = version(package)
-        except PackageNotFoundError:
-            facts[package] = "absent"
-    facts["yt-dlp-commit"] = settings.runner_ytdlp_commit
-    facts["javascript-runtime"] = settings.runner_ytdlp_js_runtime
-    facts["bgutil-service"] = settings.runner_youtube_pot_provider_version
-    digest = hashlib.sha256(json.dumps(facts, sort_keys=True).encode())
-    root = Path(__file__).resolve().parent
-    for path in sorted((root / "plugins").rglob("*.py")):
-        digest.update(path.relative_to(root).as_posix().encode())
-        digest.update(path.read_bytes())
-    return digest.hexdigest()
+def _browser_stream_url(resolution: Resolution, stream: CandidateStream) -> str:
+    payload = resolution.media.download_info
+    formats = payload.get("formats", [])
+    if isinstance(formats, list):
+        for item in formats:
+            if isinstance(item, dict) and item.get("format_id") == stream.provider_id:
+                url = item.get("url")
+                if isinstance(url, str):
+                    return safe_media_url(url)
+    url = payload.get("url")
+    if isinstance(url, str):
+        return safe_media_url(url)
+    raise RunnerFailure("format_unavailable", status=409)

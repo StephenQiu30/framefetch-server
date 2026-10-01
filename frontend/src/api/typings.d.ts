@@ -1031,6 +1031,8 @@ declare namespace API {
   };
 
   type DownloadResponse = {
+    /** 实际执行的十二字段非敏感上下文；本地导入无解析上下文。 */
+    execution_context?: ExecutionContext | null;
     /** Id */
     id: string;
     /** Inspection Id */
@@ -1241,6 +1243,33 @@ declare namespace API {
     evidence_shot_ids: string[];
   };
 
+  type ExecutionContext = {
+    /** Provider Key */
+    provider_key: string;
+    /** Registry Revision */
+    registry_revision: string;
+    /** Resolved Layer */
+    resolved_layer: string;
+    /** Client */
+    client: string;
+    /** Engine Revision */
+    engine_revision: string;
+    /** Egress Route */
+    egress_route: string;
+    /** Egress Revision */
+    egress_revision: string;
+    /** Egress Class */
+    egress_class: string;
+    /** Egress Observed Ip */
+    egress_observed_ip: string | null;
+    /** Identity Used */
+    identity_used: boolean;
+    /** Identity Digest */
+    identity_digest: string | null;
+    /** Browser Context Kind */
+    browser_context_kind: string;
+  };
+
   type ExecutionMode =
     | "provider_runner"
     | "article_native"
@@ -1437,6 +1466,8 @@ declare namespace API {
   };
 
   type InspectionResponse = {
+    /** 实际执行的十二字段非敏感上下文；本地导入无解析上下文。 */
+    execution_context?: ExecutionContext | null;
     /** Id */
     id: string;
     /** Extractor Key */

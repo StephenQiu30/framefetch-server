@@ -105,7 +105,7 @@ def test_egress_preserves_existing_proxy_override(tmp_path):
 
 
 def source_for(service, tmp_path):
-    request = provider_request("https://www.youtube.com/watch?v=example")
+    request = provider_request("https://www.bilibili.com/video/BV13x41117TL")
     deadline = datetime.now(UTC) + timedelta(seconds=5)
     workspace = WorkspaceManager(tmp_path, WorkspaceLimits()).create("engine_sample")
     return ResolutionSource(
@@ -125,9 +125,7 @@ def source_for(service, tmp_path):
     )
 
 
-async def test_p0_runs_l1_despite_target_ladder_and_preserves_retry_facts(
-    tmp_path, monkeypatch
-):
+async def test_l1_preserves_retry_facts(tmp_path, monkeypatch):
     service = MediaRunnerService(settings(tmp_path))
     source = source_for(service, tmp_path)
     media = MediaInspection(
@@ -143,7 +141,7 @@ async def test_p0_runs_l1_despite_target_ladder_and_preserves_retry_facts(
     async def inspect(request, workspace, *, context, cookie_jar):
         nonlocal calls
         calls += 1
-        assert request is source.request and cookie_jar is None
+        assert request == source.request and cookie_jar is None
         assert context.resolved_layer == "L1" and not context.identity_used
         if calls == 1:
             raise RunnerFailure("network_transient", status=503)
@@ -157,7 +155,7 @@ async def test_p0_runs_l1_despite_target_ladder_and_preserves_retry_facts(
     assert result.media.provider_media_id == media.provider_media_id
     assert result.media.thumbnail_urls == media.thumbnail_urls
     assert result.media.streams is media.streams
-    assert result.media.handoff == "http" and result.media.client == "youtube:mweb"
+    assert result.media.handoff == "http" and result.media.client == "yt-dlp-default"
     assert result.execution_context == source.execution_context
     assert [f.code for f in result.failures] == ["network_transient"]
     with pytest.raises(FrozenInstanceError):

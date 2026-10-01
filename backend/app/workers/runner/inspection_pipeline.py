@@ -4,12 +4,14 @@ from __future__ import annotations
 
 import asyncio
 import math
+from copy import copy
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
 from app.services.provider_failures import FailurePhase
 from app.services.provider_types import ExecutionContext
 from app.workers.runner.commands import MediaCommands
+from app.workers.runner.engine.run_context import RunContext
 from app.workers.runner.entitlements import enforce_media_rights
 from app.workers.runner.errors import RunnerFailure
 from app.workers.runner.metadata import (
@@ -37,6 +39,11 @@ class RunnerInspectionPipeline:
     def __init__(self, settings: RunnerSettings, commands: MediaCommands) -> None:
         self._settings = settings
         self._commands = commands
+
+    def with_context(self, ctx: RunContext) -> RunnerInspectionPipeline:
+        result = copy(self)
+        result._commands = self._commands.with_context(ctx)
+        return result
 
     async def inspect(
         self,

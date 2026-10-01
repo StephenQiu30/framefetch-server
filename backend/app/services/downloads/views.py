@@ -37,7 +37,7 @@ from app.services.downloads.thumbnail import (
     thumbnail_resource_url,
 )
 from app.services.downloads.validation import media_kind_from_metadata
-from app.services.provider_types import ProviderKey
+from app.services.provider_types import ExecutionContext, ProviderKey
 
 
 def inspection_view(snapshot: InspectionSnapshot) -> InspectionView:
@@ -76,6 +76,7 @@ def inspection_view(snapshot: InspectionSnapshot) -> InspectionView:
         safe_thumbnail_data_url(snapshot.metadata.get("thumbnail_url")) is not None
     )
     return InspectionView(
+        execution_context=_execution_context(snapshot.metadata),
         id=snapshot.id,
         extractor_key=snapshot.extractor_key,
         provider_media_id=snapshot.provider_media_id,
@@ -202,6 +203,7 @@ def download_view(
         except (TypeError, ValueError) as exc:
             raise ApplicationError(ApplicationErrorCode.INTERNAL_ERROR) from exc
     return DownloadView(
+        execution_context=snapshot.execution_context,
         id=snapshot.id,
         inspection_id=snapshot.inspection_id,
         format_id=snapshot.format_id,
@@ -252,3 +254,13 @@ def _asset_count(metadata: dict[str, object]) -> int:
     if isinstance(value, bool) or not isinstance(value, int) or value < 0:
         raise ApplicationError(ApplicationErrorCode.INTERNAL_ERROR)
     return value
+
+
+def _execution_context(metadata: dict[str, object]) -> ExecutionContext | None:
+    value = metadata.get("execution_context")
+    if value is None:
+        return None
+    try:
+        return ExecutionContext.from_document(value)
+    except ValueError as exc:
+        raise ApplicationError(ApplicationErrorCode.INTERNAL_ERROR) from exc

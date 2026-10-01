@@ -26,6 +26,7 @@ from app.services.downloads.rules.inspection import (
     RightsBasis,
     SourceOrigin,
 )
+from app.services.provider_types import ExecutionContext
 
 
 class PublicUrlInspectionSource(StrictModel):
@@ -74,6 +75,12 @@ class FormatResponse(StrictModel):
 class InspectionResponse(StrictModel):
     """Inspection resource with normalized semantic download formats."""
 
+    execution_context: ExecutionContext | None = Field(
+        default=None,
+        json_schema_extra={"readOnly": True},
+        description="实际执行的十二字段非敏感上下文；本地导入无解析上下文。",
+    )
+
     id: UUID
     extractor_key: str
     provider_media_id: str
@@ -97,6 +104,7 @@ class InspectionResponse(StrictModel):
     @classmethod
     def from_view(cls, view: InspectionView) -> InspectionResponse:
         return cls(
+            execution_context=view.execution_context,
             id=view.id,
             extractor_key=view.extractor_key,
             provider_media_id=view.provider_media_id,

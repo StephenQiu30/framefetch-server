@@ -5,6 +5,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 
+from app.workers.runner.engine.identity import validate_cookie_file
+from app.workers.runner.engine.run_context import RunContext
 from app.workers.runner.errors import RunnerFailure
 from app.workers.runner.provider_errors import ProviderFailureContext
 from app.workers.runner.provider_registry import ProviderRequest, provider_request
@@ -28,9 +30,12 @@ class BuiltYtDlpCommand:
 
 
 class YtDlpCommandBuilder:
-    def __init__(self, settings: RunnerSettings, plugin_root: Path) -> None:
+    def __init__(
+        self, settings: RunnerSettings, plugin_root: Path, ctx: RunContext
+    ) -> None:
         self._settings = settings
         self._plugin_root = plugin_root
+        self._ctx = ctx
 
     def inspect(
         self,
@@ -123,9 +128,11 @@ class YtDlpCommandBuilder:
         include_playlist: bool = False,
     ) -> BuiltYtDlpCommand:
         profile = request.profile
-        if cookie_jar is not None:
+        if cookie_jar != self._ctx.cookie_file:
             raise RunnerFailure("invalid_input", status=422)
-        egress_proxy = self._settings.egress_proxy_for(profile.key)
+        if cookie_jar is not None:
+            validate_cookie_file(cookie_jar)
+        egress_proxy = self._ctx.egress.proxy_url
         command: tuple[str, ...] = (
             self._settings.runner_ytdlp_bin,
             "--ignore-config",
@@ -147,6 +154,12 @@ class YtDlpCommandBuilder:
             "--proxy",
             egress_proxy,
         )
+        if cookie_jar is not None:
+            command += ("--cookies", str(cookie_jar))
+        if self._ctx.user_agent:
+            command += ("--user-agent", self._ctx.user_agent)
+        if self._ctx.referer:
+            command += ("--referer", self._ctx.referer)
         if not include_playlist:
             command += ("--no-playlist",)
         command += (*operation_args, *profile.command_args_for(self._settings))
@@ -156,7 +169,7 @@ class YtDlpCommandBuilder:
             argv=command,
             request=request,
             egress_proxy=egress_proxy,
-            authenticated=False,
+            authenticated=cookie_jar is not None,
         )
 
     @staticmethod

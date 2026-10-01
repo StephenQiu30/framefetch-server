@@ -15,6 +15,7 @@ from app.services.downloads.rules.enums import (
     DownloadStatus,
     MediaKind,
 )
+from app.services.provider_types import ExecutionContext
 
 
 class DownloadRequest(StrictModel):
@@ -26,6 +27,12 @@ class DownloadRequest(StrictModel):
 
 class DownloadResponse(StrictModel):
     """Current state of a durable asynchronous download resource."""
+
+    execution_context: ExecutionContext | None = Field(
+        default=None,
+        json_schema_extra={"readOnly": True},
+        description="实际执行的十二字段非敏感上下文；本地导入无解析上下文。",
+    )
 
     id: UUID
     inspection_id: UUID | None
@@ -55,6 +62,7 @@ class DownloadResponse(StrictModel):
     def from_view(cls, view: DownloadView) -> DownloadResponse:
         format_plan = view.format_plan
         return cls(
+            execution_context=view.execution_context,
             id=view.id,
             inspection_id=view.inspection_id,
             format_id=view.format_id,
