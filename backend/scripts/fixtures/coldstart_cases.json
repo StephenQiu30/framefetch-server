@@ -999,14 +999,14 @@
     "kind": "positive",
     "content_scope": "personal_full",
     "needs_identity": true,
-    "duration_seconds": null,
+    "duration_seconds": 216,
     "duration_source": {
-      "url": "https://v.qq.com/x/page/q326831cny0.html",
-      "kind": "platform_page_or_api",
-      "field": "unavailable",
-      "checked_at": null,
-      "status": "unverified",
-      "note": "personal_full 需要身份；官方页面可达但作品完整时长未取得，不能用预览时长代替。"
+      "url": "https://vd6.l.qq.com/vinfo_proxy",
+      "kind": "independent_official_metadata_api",
+      "field": "data.videoInfo.duration",
+      "checked_at": "2026-10-01T09:24:24.592795+00:00",
+      "status": "verified",
+      "note": "独立匿名 HTTP 请求按官方页 vinfoConfig 调用第一方元数据 API；ret=0、videoInfo.vid 精确匹配，完整时长为 216 秒。不解读或解密 proxyhttp.enc=1 包装。"
     },
     "availability_source": {
       "url": "https://v.qq.com/x/page/q326831cny0.html",
@@ -1014,7 +1014,7 @@
       "field": "public_free_clear_media",
       "checked_at": null,
       "status": "unverified",
-      "note": "公开、免费、非 DRM 的完整媒体尚未独立证实；候选不能记通过。"
+      "note": "独立官方 videoInfo.drm=0；原 content_protected 不能证明 DRM 或 VIP。完整 clear 媒体及账号可访问性仍待正式矩阵，元数据和 enc=1 包装均不代替媒体验收。"
     },
     "minimum_spec": {
       "width": 320,
@@ -1030,14 +1030,14 @@
     "kind": "positive",
     "content_scope": "personal_full",
     "needs_identity": true,
-    "duration_seconds": null,
+    "duration_seconds": 1290,
     "duration_source": {
-      "url": "https://v.qq.com/x/page/o3013za7cse.html",
-      "kind": "platform_page_or_api",
-      "field": "unavailable",
-      "checked_at": null,
-      "status": "unverified",
-      "note": "personal_full 需要身份；官方页面可达但作品完整时长未取得，不能用预览时长代替。"
+      "url": "https://vd6.l.qq.com/vinfo_proxy",
+      "kind": "independent_official_metadata_api",
+      "field": "data.videoInfo.duration",
+      "checked_at": "2026-10-01T09:24:24.595236+00:00",
+      "status": "verified",
+      "note": "独立匿名 HTTP 请求按官方页 vinfoConfig 调用第一方元数据 API；ret=0、videoInfo.vid 精确匹配，完整时长为 1290 秒。不解读或解密 proxyhttp.enc=1 包装。"
     },
     "availability_source": {
       "url": "https://v.qq.com/x/page/o3013za7cse.html",
@@ -1045,7 +1045,7 @@
       "field": "public_free_clear_media",
       "checked_at": null,
       "status": "unverified",
-      "note": "公开、免费、非 DRM 的完整媒体尚未独立证实；候选不能记通过。"
+      "note": "独立官方 videoInfo.drm=0；原 content_protected 不能证明 DRM 或 VIP。完整 clear 媒体及账号可访问性仍待正式矩阵，元数据和 enc=1 包装均不代替媒体验收。"
     },
     "minimum_spec": {
       "width": 320,

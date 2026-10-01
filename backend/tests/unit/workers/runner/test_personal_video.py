@@ -469,3 +469,47 @@ def test_tencent_inline_drm_cannot_be_overwritten_by_clear_api_flag() -> None:
     )
     assert formats == []
     assert extractor._saw_drm is True
+
+
+def test_tencent_metadata_initializes_missing_visitor_guid_without_granting_login(
+    monkeypatch,
+):
+    extractor = _VQQPersonalIE(YoutubeDL({"quiet": True}))
+    extractor._source_url = "https://v.qq.com/x/page/fixture.html"
+    page = (
+        "<script>window.__STARTUP_CONFIG__="
+        + json.dumps(
+            {
+                "vinfoConfig": {
+                    "playerVersion": "1.74.0",
+                    "adVersion": "4.4.2",
+                    "vinfoProtoVer": "7",
+                    "adProtoVer": "2026080601",
+                    "vinfoProxyDomain": "vd6.l.qq.com",
+                }
+            }
+        )
+        + "</script>"
+    )
+    sent = []
+
+    def fetch(url, vid, *args, **kwargs):
+        sent.append(json.loads(kwargs["data"]))
+        return {
+            "ret": 0,
+            "data": {
+                "videoInfo": {"vid": "fixture", "duration": 216},
+                "playInfo": {"vid": "fixture"},
+            },
+        }
+
+    monkeypatch.setattr(extractor, "_download_json", fetch)
+    extractor._get_webpage_metadata(page, "fixture")
+    cookies = extractor._get_cookies("https://v.qq.com/")
+    assert len(cookies["video_guid"].value) == 32
+    original = cookies["video_guid"].value
+    extractor._get_webpage_metadata(page, "fixture")
+    assert extractor._get_cookies("https://v.qq.com/")["video_guid"].value == original
+    assert all("video_guid=" in request["vqqcookie"] for request in sent)
+    with pytest.raises(ExtractorError, match="login_required"):
+        extractor._download_webpage(extractor._API_URL, "fixture")

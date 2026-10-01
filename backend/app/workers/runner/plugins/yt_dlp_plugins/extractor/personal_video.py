@@ -11,6 +11,7 @@ import json
 import math
 from typing import Any
 from urllib.parse import urljoin
+from uuid import uuid4
 
 from yt_dlp.extractor.tencent import VQQVideoIE  # type: ignore[import-untyped]
 from yt_dlp.extractor.youku import YoukuIE  # type: ignore[import-untyped]
@@ -153,6 +154,13 @@ class _VQQPersonalIE(VQQVideoIE, plugin_name="personal_video"):  # type: ignore[
         cid = matched.group("series_id") or ""
         params = {key: config[key] for key in keys}
         params["href"] = self._source_url
+        # The first-party page initializes video_guid as visitor state. Without
+        # it vinfo_proxy returns ret=5001 (missing guid), not a media DRM signal.
+        # Preserve an existing browser value; a fresh opaque visitor id conveys
+        # no account entitlement and never replaces the required login pair.
+        cookies = self._get_cookies("https://v.qq.com/")
+        if not cookies.get("video_guid") or not cookies["video_guid"].value:
+            self._set_cookie("v.qq.com", "video_guid", uuid4().hex)
         cookie = "; ".join(
             f"{name}={item.value}"
             for name, item in self._get_cookies("https://v.qq.com/").items()
