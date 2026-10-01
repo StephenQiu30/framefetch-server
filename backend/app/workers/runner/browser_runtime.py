@@ -10,10 +10,12 @@ import asyncio
 import fcntl
 import json
 import os
+import shutil
 import stat
-from collections.abc import AsyncIterator
+import tempfile
+from collections.abc import AsyncIterator, Awaitable, Callable
 from contextlib import asynccontextmanager
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from hashlib import sha256
 from importlib.metadata import version
@@ -39,8 +41,10 @@ from playwright.async_api import (
     BrowserContext,
     Error,
     Page,
+    Playwright,
     async_playwright,
 )
+from playwright.async_api._context_manager import PlaywrightContextManager
 
 PLAYWRIGHT_VERSION = "1.63.0"
 CHROMIUM_VERSION = "153.0.8010.12"
@@ -52,6 +56,7 @@ _LAUNCH_ARGS = (
     "--proxy-bypass-list=<-loopback>",
     "--disk-cache-size=16777216",
     "--media-cache-size=16777216",
+    "--autoplay-policy=user-gesture-required",
 )
 
 
@@ -124,6 +129,9 @@ class BrowserOperation:
     context: BrowserContext
     page: Page
     revision: str
+    release: Callable[[], Awaitable[None]] = field(repr=False)
+    abort: Callable[[], Awaitable[None]] = field(repr=False)
+    max_download_bytes: int = 512 * 1024**2
 
     @property
     def user_agent(self) -> str:
@@ -133,13 +141,33 @@ class BrowserOperation:
         return [dict(cookie) for cookie in await self.context.cookies()]
 
     async def download(self, url: str, dest: Path) -> None:
+        # A page fetch executes in the same native context, including its proofs.
+        # Creating a blob download also works for cross-origin inline MP4s.
         async with self.page.expect_download() as pending:
-            try:
-                await self.page.goto(safe_media_url(url), wait_until="commit")
-            except Error:
-                # Chromium aborts navigation when a response becomes a download.
-                # The download event and failure() determine transfer success.
-                pass
+            await self.page.evaluate(
+                """async ({url, limit}) => {
+                  const response = await fetch(url, {credentials: 'include'});
+                  if (!response.ok || !response.body) throw new Error('media transfer');
+                  if (Number(response.headers.get('content-length')) > limit)
+                    throw new Error('media size');
+                  const reader = response.body.getReader();
+                  const chunks = []; let size = 0;
+                  try {
+                    for (;;) {
+                      const {done, value} = await reader.read();
+                      if (done) break;
+                      size += value.byteLength;
+                      if (size > limit) throw new Error('media size');
+                      chunks.push(value);
+                    }
+                  } finally { await reader.cancel(); }
+                  const blob = URL.createObjectURL(new Blob(chunks));
+                  const a = document.createElement('a');
+                  a.href = blob; a.download = 'media.mp4'; a.click();
+                  setTimeout(() => URL.revokeObjectURL(blob), 60000);
+                }""",
+                {"url": safe_media_url(url), "limit": self.max_download_bytes},
+            )
         download = await pending.value
         await download.save_as(str(dest))
         if (
@@ -150,7 +178,7 @@ class BrowserOperation:
             raise RunnerFailure("download_failed", status=502, stage="download")
 
     async def close(self) -> None:
-        await self.context.close()
+        await self.release()
 
     async def navigate(self, url: str) -> int:
         response = await self.page.goto(
@@ -178,14 +206,126 @@ class BrowserOperation:
         return status
 
 
+@dataclass(slots=True)
+class _Resident:
+    context: BrowserContext
+    revision: str
+    directory: Path
+    descriptor: int | None
+    idle: asyncio.Task[None] | None = None
+    task_id: str | None = None
+    identity_digest: str | None = None
+
+
 class BrowserRuntime:
-    """One browser holder at a time, with OS locks for persistent profiles."""
+    """Lazily leased anonymous profiles; authenticated profiles never persist."""
+
+    IDLE_SECONDS = 600.0
 
     def __init__(self, settings: RunnerSettings) -> None:
         self._settings = settings
-        self._slot = asyncio.Lock()
+        self._locks: dict[str, asyncio.Lock] = {}
+        self._residents: dict[str, _Resident] = {}
         self._owners: set[asyncio.Task[object]] = set()
+        self._releases: set[Callable[[], Awaitable[None]]] = set()
+        self._driver_manager: PlaywrightContextManager | None = None
+        self._driver: Playwright | None = None
+        self._start_lock = asyncio.Lock()
         self._closed = False
+
+    async def acquire(
+        self, profile: ProviderProfile, *, ctx: RunContext, task_id: str
+    ) -> BrowserOperation:
+        if self._closed or not self._settings.runner_browser_enabled:
+            raise _failure()
+        if version("playwright") != PLAYWRIGHT_VERSION:
+            raise _failure("runtime_unavailable", status=409)
+        authenticated = ctx.identity is not None
+        if ctx.cookie_file is not None and not authenticated:
+            raise _failure("invalid_input", status=422)
+        # Browser acquisition accepts account material only as IdentityMaterial.
+        if authenticated:
+            from app.workers.runner.engine.identity import validate_cookie_file
+
+            assert ctx.identity is not None
+            validate_cookie_file(ctx.identity.cookie_file)
+        lock = (
+            asyncio.Lock()
+            if authenticated
+            else self._locks.setdefault(profile.key, asyncio.Lock())
+        )
+        remaining = (ctx.deadline - datetime.now(UTC)).total_seconds()
+        if remaining <= 0:
+            raise _failure("inspection_timeout", status=504)
+        try:
+            await asyncio.wait_for(lock.acquire(), remaining)
+        except TimeoutError:
+            raise _failure("inspection_timeout", status=504) from None
+        owner = asyncio.current_task()
+        assert owner is not None
+        self._owners.add(owner)
+        resident: _Resident | None = None
+        released = False
+
+        async def release(*, destroy: bool = False) -> None:
+            nonlocal released
+            if released:
+                return
+            released = True
+            try:
+                if resident is not None:
+                    if authenticated or destroy or owner.cancelling() or self._closed:
+                        if not authenticated:
+                            self._residents.pop(profile.key, None)
+                        await self._destroy(resident)
+                    else:
+                        try:
+                            for page in tuple(resident.context.pages):
+                                await _finish(page.close())
+                            if await asyncio.to_thread(
+                                _profile_bytes, resident.directory
+                            ) > (self._settings.runner_browser_max_profile_bytes):
+                                raise _failure("browser_profile_limit", status=413)
+                            resident.idle = asyncio.create_task(
+                                self._expire(profile.key, resident, lock)
+                            )
+                        except BaseException:
+                            self._residents.pop(profile.key, None)
+                            await self._destroy(resident)
+                            raise
+            finally:
+                self._owners.discard(owner)
+                self._releases.discard(release)
+                lock.release()
+
+        self._releases.add(release)
+        try:
+            if self._closed:
+                raise _failure()
+            revision = browser_revision(ctx.egress)
+            if not authenticated:
+                resident = self._residents.get(profile.key)
+                if resident is not None:
+                    if resident.idle is not None:
+                        resident.idle.cancel()
+                        resident.idle = None
+                    if resident.revision != revision:
+                        await self._destroy(resident)
+                        self._residents.pop(profile.key, None)
+                        resident = None
+            if resident is None:
+                resident = await self._launch(profile, ctx, task_id, authenticated)
+                if not authenticated:
+                    self._residents[profile.key] = resident
+            page = await resident.context.new_page()
+
+            async def abort() -> None:
+                await release(destroy=True)
+
+            return BrowserOperation(resident.context, page, revision, release, abort)
+        except BaseException:
+            await _finish(release(destroy=True))
+            raise
 
     @asynccontextmanager
     async def operation(
@@ -196,116 +336,122 @@ class BrowserRuntime:
         ctx: RunContext,
         cookie_jar: Path | None = None,
     ) -> AsyncIterator[BrowserOperation]:
-        if self._closed or not self._settings.runner_browser_enabled:
-            raise _failure()
-        if version("playwright") != PLAYWRIGHT_VERSION:
-            raise _failure("runtime_unavailable", status=409)
-        if profile.key != execution_context.provider_key:
-            raise _failure("runtime_unavailable", status=409)
-        if execution_context.identity_used != (cookie_jar is not None):
+        if profile.key != execution_context.provider_key or cookie_jar is not None:
+            # Account material must be supplied by fetch_identity, as IdentityMaterial.
             raise _failure("invalid_input", status=422)
-        revision = browser_revision(ctx.egress)
+        operation = await self.acquire(profile, ctx=ctx, task_id="operation")
         try:
-            await asyncio.wait_for(
-                self._slot.acquire(), self._settings.runner_browser_lock_wait_seconds
-            )
-        except TimeoutError:
-            raise _failure("browser_capacity_exhausted") from None
-        owner = asyncio.current_task()
-        assert owner is not None
-        self._owners.add(owner)
-        resources_ready = False
-        try:
-            if self._closed:
-                raise _failure()
-            async with self._directory(profile) as directory:
-                async with async_playwright() as driver:
-                    context: BrowserContext | None = None
-                    try:
-                        context = await driver.chromium.launch_persistent_context(
-                            str(directory),
-                            channel="chromium",
-                            headless=True,
-                            chromium_sandbox=False,
-                            args=list(_LAUNCH_ARGS),
-                            proxy={"server": ctx.egress.proxy_url},
-                            user_agent=BROWSER_USER_AGENT,
-                            service_workers="block",
-                            accept_downloads=True,
-                            timeout=self._settings.runner_browser_launch_timeout_seconds
-                            * 1000,
-                            viewport={"width": 1280, "height": 800},
-                        )
-                        browser = context.browser
-                        if browser is None or browser.version != CHROMIUM_VERSION:
-                            raise _failure("runtime_unavailable", status=409)
-                        if cookie_jar is not None:
-                            await context.add_cookies(
-                                leased_browser_cookies(cookie_jar, profile)
-                            )
-                        context.set_default_timeout(
-                            self._settings.runner_browser_page_timeout_seconds * 1000
-                        )
-                        page = (
-                            context.pages[0]
-                            if context.pages
-                            else await context.new_page()
-                        )
-                        for extra in context.pages[1:]:
-                            await extra.close()
-                        resources_ready = True
-                        yield BrowserOperation(context, page, revision)
-                    except Error:
-                        if resources_ready:
-                            raise
-                        raise _failure() from None
-                    finally:
-                        if context is not None:
-                            # A receipt is terminal only after Chromium releases
-                            # pages/profile/processes. Cancellation waits for this.
-                            cleanup = asyncio.create_task(context.close())
-                            try:
-                                await asyncio.shield(cleanup)
-                            except asyncio.CancelledError:
-                                await cleanup
-                                raise
-        except OSError:
-            if resources_ready:
-                raise
-            raise _failure() from None
+            yield operation
+        except BaseException:
+            await _finish(operation.abort())
+            raise
         finally:
-            self._owners.discard(owner)
-            self._slot.release()
+            await _finish(operation.close())
 
-    @asynccontextmanager
-    async def _directory(self, profile: ProviderProfile) -> AsyncIterator[Path]:
-        root = self._settings.runner_browser_profile_root
-        _private_root(root)
-        identity = profile.key
-        # The OS lock is a running-resource guard, not persisted task ownership.
-        descriptor = os.open(
-            root / f"{identity}.lock", os.O_CREAT | os.O_RDWR | no_follow_flag(), 0o600
+    async def _launch(
+        self,
+        profile: ProviderProfile,
+        ctx: RunContext,
+        task_id: str,
+        authenticated: bool,
+    ) -> _Resident:
+        descriptor = None
+        context = None
+        root = (
+            self._settings.runner_browser_temp_root
+            if authenticated
+            else self._settings.runner_browser_profile_root / "anonymous"
         )
-        try:
+        _private_root(root)
+        if authenticated:
+            directory = Path(tempfile.mkdtemp(prefix=f"{profile.key}-", dir=root))
+        else:
+            descriptor = os.open(
+                root / f"{profile.key}.lock",
+                os.O_CREAT | os.O_RDWR | no_follow_flag(),
+                0o600,
+            )
             try:
                 fcntl.flock(descriptor, fcntl.LOCK_EX | fcntl.LOCK_NB)
             except BlockingIOError:
+                os.close(descriptor)
                 raise _failure("browser_capacity_exhausted") from None
-            directory = root / identity
+            directory = root / profile.key
+        try:
             _private_root(directory)
-            if (
-                await asyncio.to_thread(_profile_bytes, directory)
-                > self._settings.runner_browser_max_profile_bytes
+            if await asyncio.to_thread(_profile_bytes, directory) > (
+                self._settings.runner_browser_max_profile_bytes
             ):
                 raise _failure("browser_profile_limit", status=413)
-            yield directory
-            if (
-                await asyncio.to_thread(_profile_bytes, directory)
-                > self._settings.runner_browser_max_profile_bytes
-            ):
-                raise _failure("browser_profile_limit", status=413)
+            async with self._start_lock:
+                if self._driver is None:
+                    self._driver_manager = async_playwright()
+                    self._driver = await self._driver_manager.__aenter__()
+            context = await self._driver.chromium.launch_persistent_context(
+                str(directory),
+                channel="chromium",
+                headless=True,
+                chromium_sandbox=False,
+                args=list(_LAUNCH_ARGS),
+                proxy={"server": ctx.egress.proxy_url},
+                user_agent=BROWSER_USER_AGENT,
+                service_workers="block",
+                accept_downloads=True,
+                timeout=self._settings.runner_browser_launch_timeout_seconds * 1000,
+                viewport={"width": 1280, "height": 800},
+            )
+            if context.browser is None or context.browser.version != CHROMIUM_VERSION:
+                raise _failure("runtime_unavailable", status=409)
+            if authenticated:
+                assert ctx.identity is not None
+                await context.add_cookies(
+                    leased_browser_cookies(ctx.identity.cookie_file, profile)
+                )
+            context.set_default_timeout(
+                self._settings.runner_browser_page_timeout_seconds * 1000
+            )
+            for page in context.pages:
+                await page.close()
+            return _Resident(
+                context,
+                browser_revision(ctx.egress),
+                directory,
+                descriptor,
+                task_id=task_id if authenticated else None,
+                identity_digest=ctx.identity.digest if ctx.identity else None,
+            )
+        except BaseException as error:
+            if context is not None:
+                await _finish(context.close())
+            if descriptor is not None:
+                os.close(descriptor)
+            if authenticated:
+                shutil.rmtree(directory)
+            if isinstance(error, (Error, OSError)):
+                raise _failure() from None
+            raise
+
+    async def _destroy(self, resident: _Resident | BrowserContext) -> None:
+        if not isinstance(resident, _Resident):
+            await resident.close()
+            return
+        try:
+            await _finish(resident.context.close())
         finally:
-            os.close(descriptor)
+            if resident.descriptor is not None:
+                os.close(resident.descriptor)
+                resident.descriptor = None
+            elif resident.directory.is_relative_to(
+                self._settings.runner_browser_temp_root
+            ):
+                await asyncio.to_thread(shutil.rmtree, resident.directory)
+
+    async def _expire(self, key: str, resident: _Resident, lock: asyncio.Lock) -> None:
+        await asyncio.sleep(self.IDLE_SECONDS)
+        async with lock:
+            if self._residents.get(key) is resident:
+                self._residents.pop(key)
+                await self._destroy(resident)
 
     async def close(self) -> None:
         self._closed = True
@@ -314,3 +460,22 @@ class BrowserRuntime:
         for owner in owners:
             owner.cancel()
         await asyncio.gather(*owners, return_exceptions=True)
+        for release in tuple(self._releases):
+            await _finish(release())
+        for resident in tuple(self._residents.values()):
+            if resident.idle is not None:
+                resident.idle.cancel()
+            await self._destroy(resident)
+        self._residents.clear()
+        if self._driver_manager is not None:
+            await self._driver_manager.__aexit__(None, None, None)
+            self._driver = None
+
+
+async def _finish(operation: Awaitable[None]) -> None:
+    cleanup = asyncio.ensure_future(operation)
+    try:
+        await asyncio.shield(cleanup)
+    except asyncio.CancelledError:
+        await cleanup
+        raise

@@ -87,7 +87,9 @@ class MediaRunnerService:
             settings,
             supervisor or default_supervisor(settings),
         )
-        self._inspection = RunnerInspectionPipeline(settings, self._commands)
+        self._inspection = RunnerInspectionPipeline(
+            settings, self._commands, browser=self._browser
+        )
         self._thumbnails = ThumbnailFetcher(settings)
         self._workspaces = WorkspaceManager(
             settings.runner_workspace_root,

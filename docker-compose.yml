@@ -461,6 +461,10 @@ services:
   # Shared anonymous L1 media execution.
   session-runner:
     <<: *media-runner
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=512m
+      - /tmp/video-browser:rw,noexec,nosuid,uid=10001,gid=10001,mode=0700,size=256m
+      - /tmp/framefetch-identity:rw,noexec,nosuid,uid=10001,gid=10001,mode=0700,size=16m
     container_name: session-runner
     read_only: true
     cap_drop: [ALL]
