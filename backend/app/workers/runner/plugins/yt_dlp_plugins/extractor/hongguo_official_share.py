@@ -10,6 +10,8 @@ from urllib.parse import urlsplit
 from yt_dlp.extractor.common import InfoExtractor  # type: ignore[import-untyped]
 from yt_dlp.utils import ExtractorError  # type: ignore[import-untyped]
 
+from ._content_access import reject
+
 _PLAYER_URL = "https://hongguoduanju.com/player/{series_id}/{vid}"
 _SHARE_HOSTS = ("novelquickapp.com",)
 _MEDIA_HOST_SUFFIX = ".qznovelvod.com"
@@ -87,6 +89,7 @@ class HongguoOfficialShareIE(InfoExtractor):  # type: ignore[misc]
             raise ExtractorError(
                 "Hongguo official player data is unavailable", expected=True
             )
+        _enforce_public_clear(page)
 
         actual_series_id = _identifier(page.get("series_id"))
         actual_vid = _identifier(page.get("vid"))
@@ -207,6 +210,32 @@ def _find_loader_node(payload: object, suffix: str) -> dict[str, Any] | None:
         if str(key).endswith(suffix) and isinstance(value, dict):
             return value
     return None
+
+
+def _enforce_public_clear(value: object) -> None:
+    """Reject explicit protection/payment metadata before exposing a URL."""
+    if isinstance(value, Mapping):
+        for key, item in value.items():
+            name = str(key).replace("_", "").casefold()
+            if name in {
+                "drm",
+                "hasdrm",
+                "isdrm",
+                "isencrypt",
+                "isencrypted",
+                "encrypted",
+                "encryption",
+                "decodekey",
+                "encryptkey",
+            } and item not in (None, False, 0, "", "0", "false", "none"):
+                reject("drm_protected")
+            if name in {"ispaid", "isvip", "ismemberonly", "requirespurchase"}:
+                if item not in (None, False, 0, "", "0", "false"):
+                    reject("content_paid_only")
+            _enforce_public_clear(item)
+    elif isinstance(value, list):
+        for item in value:
+            _enforce_public_clear(item)
 
 
 def _find_player_page(payload: object) -> dict[str, Any] | None:

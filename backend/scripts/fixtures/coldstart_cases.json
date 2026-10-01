@@ -1444,11 +1444,11 @@
     },
     "availability_source": {
       "url": "https://hongguoduanju.com/player/7662704510720019480/7662705589293681726",
-      "kind": "public_page",
-      "field": "public_free_clear_media",
-      "checked_at": null,
-      "status": "unverified",
-      "note": "公开、免费、非 DRM 的完整媒体尚未独立证实；候选不能记通过。"
+      "kind": "independent_anonymous_official_page_and_mp4_header",
+      "field": "anonymous_free_page_and_clear_sample_entries",
+      "checked_at": "2026-10-01T09:11:14.753821+00:00",
+      "status": "verified",
+      "note": "独立于被测 Runner 的无登录 HTTP 客户端访问官方页返回 200，标题为全集在线免费观看；匿名 Range 请求返回 206 video/mp4，完整 moov 的采样项为 avc1/mp4a，无 pssh/encv/enca/sinf/tenc。只取得访客 ttwid，不视作登录。完整时长来自官方页面；最终完整性仍由正式矩阵交付校验。"
     },
     "minimum_spec": {
       "width": 320,
@@ -1475,11 +1475,11 @@
     },
     "availability_source": {
       "url": "https://hongguoduanju.com/player/7690215859737873432/7690312773271555096",
-      "kind": "public_page",
-      "field": "public_free_clear_media",
-      "checked_at": null,
-      "status": "unverified",
-      "note": "免费公开剧集页面可达；完整 clear 媒体仍待独立确认。"
+      "kind": "independent_anonymous_official_page_and_mp4_header",
+      "field": "anonymous_free_page_and_clear_sample_entries",
+      "checked_at": "2026-10-01T09:11:17.059955+00:00",
+      "status": "verified",
+      "note": "独立于被测 Runner 的无登录 HTTP 客户端访问官方页返回 200，标题为全集在线免费观看；匿名 Range 请求返回 206 video/mp4，完整 moov 的采样项为 avc1/mp4a，无 pssh/encv/enca/sinf/tenc。只取得访客 ttwid，不视作登录。完整时长来自官方页面；最终完整性仍由正式矩阵交付校验。"
     },
     "minimum_spec": {
       "width": 320,

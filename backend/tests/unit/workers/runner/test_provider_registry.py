@@ -494,3 +494,14 @@ def test_article_registry_has_no_direct_video_capability() -> None:
                 ),
             )
         )
+
+
+def test_hongguo_public_web_share_does_not_request_account_cookies() -> None:
+    from app.services.provider_types import ProviderIdentity
+
+    profile = provider_profile(
+        "https://hongguoduanju.com/player/7662704510720019480/7662705589293681726"
+    )
+    assert profile.content_scope == "public"
+    assert profile.identity is ProviderIdentity.NONE
+    assert not profile.cookie_domain_allowlist

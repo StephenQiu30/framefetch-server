@@ -114,10 +114,6 @@ _ACCOUNT_COOKIES: dict[
     ),
     # Design 17 section 4: yuanbao page headers are not proven by Chrome Cookies.
     "wechat_channels": None,
-    # Current hongguo_official_share.py is anonymous; no reliable account-Cookie
-    # rule for novelquickapp.com/hongguoduanju.com was found. Never infer login
-    # from unrelated Douyin/Fanqie cookies or broaden to their account domains.
-    "hongguo_web": None,
 }
 AUTH_TIMEOUT = 5.0
 REQUEST_TIMEOUT = 5.0
