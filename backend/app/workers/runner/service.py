@@ -3,7 +3,7 @@ from __future__ import annotations
 import asyncio
 import hashlib
 import json
-from dataclasses import replace
+from dataclasses import asdict, is_dataclass, replace
 from datetime import UTC, datetime, timedelta
 from importlib.metadata import PackageNotFoundError, version
 from pathlib import Path
@@ -14,7 +14,7 @@ from app.services.downloads.rules.enums import Container, MediaKind, StreamKind
 from app.services.downloads.rules.errors import FormatSelectionError
 from app.services.downloads.rules.formats import CandidateStream, ProviderHints
 from app.services.downloads.rules.selection import select_streams
-from app.services.provider_failures import FailureClass, FailurePhase
+from app.services.provider_failures import FailurePhase
 from app.services.provider_types import ExecutionContext, ProviderIdentity
 from app.workers.runner.active_tasks import ActiveTaskRegistry
 from app.workers.runner.browser_runtime import BrowserRuntime
@@ -31,6 +31,9 @@ from app.workers.runner.contracts import (
     SelectedStreamsContract,
     TaskStatusResponse,
 )
+from app.workers.runner.engine.egress import resolve_egress
+from app.workers.runner.engine.ladder import run_ladder
+from app.workers.runner.engine.run_context import ResolutionSource, RunContext
 from app.workers.runner.errors import RunnerFailure
 from app.workers.runner.gallery import download_gallery_zip
 from app.workers.runner.inspection_pipeline import RunnerInspectionPipeline
@@ -92,17 +95,16 @@ class MediaRunnerService:
         await self._browser.close()
 
     def _context(self, source: ProviderRequest) -> ExecutionContext:
+        egress = resolve_egress(source.profile, settings=self._settings)
         return ExecutionContext(
             provider_key=source.profile.key,
             resolved_layer="L1",
-            egress_route=self._settings.egress_route_for(source.profile.key),
+            egress_route=egress.route,
             registry_revision=_registry_revision(source),
             client=source.profile.client_profile,
-            egress_revision=hashlib.sha256(
-                self._settings.egress_proxy_for(source.profile.key).encode()
-            ).hexdigest(),
-            egress_class="unknown",
-            egress_observed_ip=None,
+            egress_revision=egress.revision,
+            egress_class=egress.egress_class,
+            egress_observed_ip=egress.observed_ip,
             identity_digest=None,
             browser_context_kind="none",
             identity_used=False,
@@ -291,40 +293,28 @@ class MediaRunnerService:
         cookie_jar: Path | None,
         deadline: datetime,
     ) -> MediaInspection:
-        # R0 has one anonymous L1. Recovery does not create another time budget.
-        # Local/runtime and rate-limit retries are per task; transient is per layer.
-        retried: set[FailureClass] = set()
-        while True:
-            if deadline <= datetime.now(UTC):
-                raise RunnerFailure("inspection_timeout", status=504).attributed_to(
-                    context
-                )
-            try:
-                return await self._inspection.inspect(
-                    source, workspace, context=context, cookie_jar=cookie_jar
-                )
-            except RunnerFailure as error:
-                kind = error.failure.failure_class
-                if kind in retried or kind not in {
-                    FailureClass.TRANSIENT,
-                    FailureClass.RUNTIME_UNAVAILABLE,
-                    FailureClass.RATE_LIMITED,
-                }:
-                    raise
-                delay = 0.0
-                if kind is FailureClass.RATE_LIMITED:
-                    # Without a provider Retry-After there is no safe wait to infer.
-                    if error.failure.retry_after is None:
-                        raise
-                    delay = max(
-                        0.0,
-                        (error.failure.retry_after - datetime.now(UTC)).total_seconds(),
-                    )
-                remaining = (deadline - datetime.now(UTC)).total_seconds()
-                if delay >= remaining:
-                    raise
-                retried.add(kind)
-                await asyncio.sleep(delay)
+        resolution = await run_ladder(
+            ResolutionSource(
+                request=source,
+                workspace=workspace,
+                pipeline=self._inspection,
+                execution_context=context,
+                run_context=RunContext(
+                    egress=resolve_egress(source.profile, settings=self._settings),
+                    user_agent="",  # Preserve yt-dlp's R0 default user agent.
+                    referer=source.source_url,
+                    cookie_file=cookie_jar,
+                    identity=None,
+                    browser=None,
+                    deadline=deadline,
+                ),
+            ),
+            source.profile,
+            deadline,
+        )
+        if resolution.execution_context != context:
+            raise RunnerFailure("context_changed", status=409).attributed_to(context)
+        return resolution.media
 
     async def _download_in_workspace(
         self,
@@ -635,6 +625,8 @@ def _registry_revision(source: ProviderRequest) -> str:
         if isinstance(value, frozenset)
         else f"{value.__module__}:{value.__qualname__}"
         if callable(value)
+        else asdict(value)
+        if is_dataclass(value) and not isinstance(value, type)
         else value
         for name in profile.__dataclass_fields__
         if name != "display_name"

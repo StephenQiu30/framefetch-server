@@ -96,6 +96,34 @@ class ProviderCapability(StrEnum):
     PLAYLIST = "playlist"
 
 
+class Layer(StrEnum):
+    L1 = "L1"
+    L2 = "L2"
+    L3 = "L3"
+
+
+class EgressRoute(StrEnum):
+    CN = "cn_residential"
+    GLOBAL = "global_residential"
+    BY_DOMAIN = "by_domain"
+
+
+@dataclass(frozen=True, slots=True)
+class PrepareSpec:
+    """Proof preparation declared here and implemented in R2."""
+
+    kind: str
+    clients: tuple[str, ...] = ()
+
+
+@dataclass(frozen=True, slots=True)
+class BrowserRules:
+    """Platform parser and interception patterns, implemented in R3."""
+
+    platform: str
+    response_patterns: tuple[str, ...] = ()
+
+
 class ProviderIdentity(StrEnum):
     NONE = "none"
     OPTIONAL = "optional"

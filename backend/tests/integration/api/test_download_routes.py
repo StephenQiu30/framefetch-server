@@ -362,7 +362,9 @@ def test_provider_status_distinguishes_registered_verified_and_unsupported(
 
     declared = {p.key: p for p in current_provider_registry().profiles}
     items = {item["key"]: item for item in response.json()["data"]["items"]}
-    assert len(items) == len(declared) + 1
+    assert len(items) == len(declared)
+    assert len(response.json()["data"]["items"]) == len(items)
+    assert items["wechat_official_account_article"]["extractor_exists"] is False
     for key, item in items.items():
         assert item["registered"] is True
         assert "access_modes" not in item

@@ -8,6 +8,10 @@ from typing import Literal, Protocol
 from urllib.parse import SplitResult, urlsplit
 
 from app.services.provider_types import (
+    BrowserRules,
+    EgressRoute,
+    Layer,
+    PrepareSpec,
     ProviderCapability,
     ProviderIdentity,
     ProviderProfileVersion,
@@ -59,6 +63,10 @@ class ProviderProfile:
     capabilities: frozenset[ProviderCapability] = frozenset(
         {ProviderCapability.SINGLE_VIDEO}
     )
+    ladder: tuple[Layer, ...] = (Layer.L1,)
+    egress_route: EgressRoute = EgressRoute.GLOBAL
+    l2_prepare: PrepareSpec | None = None
+    l3_rules: BrowserRules | None = None
     identity: ProviderIdentity = ProviderIdentity.NONE
     content_scope: Literal["public", "personal_full"] = "public"
     cookie_domain_allowlist: frozenset[str] = frozenset()
@@ -109,6 +117,18 @@ class ProviderRegistry:
                 raise ValueError(f"provider {profile.key} must declare hosts")
             if profile.content_scope not in {"public", "personal_full"}:
                 raise ValueError(f"provider {profile.key} has invalid content scope")
+            if not profile.ladder or len(set(profile.ladder)) != len(profile.ladder):
+                raise ValueError(f"provider {profile.key} has invalid ladder")
+            if any(not isinstance(layer, Layer) for layer in profile.ladder):
+                raise ValueError(f"provider {profile.key} has invalid layer")
+            if not isinstance(profile.egress_route, EgressRoute):
+                raise ValueError(f"provider {profile.key} has invalid egress route")
+            if (Layer.L2 in profile.ladder) != (profile.l2_prepare is not None):
+                raise ValueError(f"provider {profile.key} has invalid L2 preparation")
+            if (Layer.L3 in profile.ladder) != (profile.l3_rules is not None):
+                raise ValueError(f"provider {profile.key} has invalid L3 rules")
+            if profile.l3_rules and profile.l3_rules.platform != profile.key:
+                raise ValueError(f"provider {profile.key} has mismatched L3 rules")
             if profile.yt_dlp_retry_count < 0:
                 raise ValueError(f"provider {profile.key} has invalid retry policy")
             if (
@@ -143,6 +163,7 @@ class ProviderRegistry:
             "Generic media source",
             frozenset(),
             support_status=ProviderSupportStatus.UNKNOWN,
+            egress_route=EgressRoute.BY_DOMAIN,
         )
 
     @property
