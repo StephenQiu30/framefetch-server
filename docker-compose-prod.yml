@@ -2,20 +2,18 @@ x-backend-build: &backend-build
   context: ./backend
   dockerfile: Dockerfile
 
-x-provider-session-runner: &provider-session-runner
+x-media-runner: &media-runner
   build: *backend-build
   image: video-server:prod
   restart: unless-stopped
   stop_grace_period: 90s
   shm_size: 256m
   networks:
-    - runner_rpc_net
     - runner_egress_net
   extra_hosts:
     - "host.docker.internal:host-gateway"
   tmpfs:
     - /tmp:rw,noexec,nosuid,size=512m
-    - /run/provider-session:rw,noexec,nosuid,size=16m,mode=0700,uid=10001,gid=10001
   depends_on:
     egress-proxy:
       condition: service_healthy
@@ -45,20 +43,18 @@ x-provider-session-runner: &provider-session-runner
       "--no-access-log",
     ]
 
-x-provider-session-environment: &provider-session-environment
+x-runner-environment: &runner-environment
   APP_ENV: "${APP_ENV:-production}"
   RUNNER_HMAC_SECRET: "${RUNNER_HMAC_SECRET:-development-runner-secret-change-me}"
   RUNNER_EGRESS_PROXY: http://egress-proxy:3128
   RUNNER_PROVIDER_EGRESS_PROXIES: "${RUNNER_PROVIDER_EGRESS_PROXIES:-{}}"
   RUNNER_WORKSPACE_ROOT: /work
-  RUNNER_ACCESS_MODE: operator_managed
   RUNNER_MAX_ACTIVE_TASKS: "1"
   RUNNER_DOWNLOAD_TIMEOUT_SECONDS: "${RUNNER_DOWNLOAD_TIMEOUT_SECONDS:-7200}"
   RUNNER_INSPECT_TIMEOUT_SECONDS: "${RUNNER_INSPECT_TIMEOUT_SECONDS:-120}"
   RUNNER_MAX_DURATION_SECONDS: "${RUNNER_MAX_DURATION_SECONDS:-86400}"
   RUNNER_MAX_OUTPUT_BYTES: "${RUNNER_MAX_OUTPUT_BYTES:-21474836480}"
   RUNNER_MAX_WORKSPACE_BYTES: "${RUNNER_MAX_WORKSPACE_BYTES:-42949672960}"
-  RUNNER_PROVIDER_SESSION_TEMP_ROOT: /run/provider-session
   RUNNER_BROWSER_ENABLED: "${RUNNER_BROWSER_ENABLED:-true}"
   RUNNER_BROWSER_PROFILE_ROOT: /var/lib/video-browser
   PEERTUBE_ALLOWED_INSTANCES: "${PEERTUBE_ALLOWED_INSTANCES:-[]}"
@@ -205,7 +201,7 @@ services:
       IMPORT_UPLOAD_MAX_PARTS: '${IMPORT_UPLOAD_MAX_PARTS:-1000}'
       IMPORT_UPLOAD_PART_SIZE_BYTES: '${IMPORT_UPLOAD_PART_SIZE_BYTES:-33554432}'
       IMPORT_UPLOAD_SESSION_TTL_SECONDS: '${IMPORT_UPLOAD_SESSION_TTL_SECONDS:-900}'
-      INSPECT_TIMEOUT_SECONDS: '${INSPECT_TIMEOUT_SECONDS:-150}'
+      INSPECT_TIMEOUT_SECONDS: '${INSPECT_TIMEOUT_SECONDS:-120}'
       INSPECTION_TTL_SECONDS: '${INSPECTION_TTL_SECONDS:-900}'
       MAX_ANALYSIS_ATTEMPTS: '${MAX_ANALYSIS_ATTEMPTS:-3}'
       MAX_DOWNLOAD_ATTEMPTS: '${MAX_DOWNLOAD_ATTEMPTS:-3}'
@@ -219,7 +215,6 @@ services:
       MINIO_REGION: '${MINIO_REGION:-us-east-1}'
       MINIO_SECRET_KEY: '${MINIO_SECRET_KEY:-video-secret-change-me}'
       PEERTUBE_ALLOWED_INSTANCES: '${PEERTUBE_ALLOWED_INSTANCES:-[]}'
-      PROVIDER_VERIFIED_KEYS: '${PROVIDER_VERIFIED_KEYS:-[]}'
       QUOTA_LIMITS: '${QUOTA_LIMITS:-{"max_active_per_owner":5,"daily_tasks":50,"daily_bytes":107374182400,"storage_bytes":107374182400,"daily_analysis_attempts":60}}'
       RABBITMQ_CONNECTION_TIMEOUT_SECONDS: '${RABBITMQ_CONNECTION_TIMEOUT_SECONDS:-10}'
       RABBITMQ_EXCHANGE: '${RABBITMQ_EXCHANGE:-video.events}'
@@ -259,7 +254,6 @@ services:
       - "host.docker.internal:host-gateway"
     networks:
       - app_net
-      - runner_rpc_net
       - runner_egress_net
     ports:
       - "${APP_HOST_BIND:-127.0.0.1}:${APP_HOST_PORT:-8111}:8111"
@@ -327,7 +321,7 @@ services:
     command: ["node", "server.js"]
 
   # Every containerized background loop: Outbox dispatch, inspection and
-  # downloads, imports, report publication and Provider canaries.
+  # downloads, imports and report publication.
   worker:
     build: *backend-build
     image: video-server:prod
@@ -354,7 +348,7 @@ services:
       HEARTBEAT_INTERVAL_SECONDS: '${HEARTBEAT_INTERVAL_SECONDS:-15}'
       IMPORT_QUEUE: '${IMPORT_QUEUE:-video.import}'
       IMPORT_ROUTING_KEY: '${IMPORT_ROUTING_KEY:-content.import.verify.requested}'
-      INSPECT_TIMEOUT_SECONDS: '${INSPECT_TIMEOUT_SECONDS:-150}'
+      INSPECT_TIMEOUT_SECONDS: '${INSPECT_TIMEOUT_SECONDS:-120}'
       JOB_LEASE_SECONDS: '${JOB_LEASE_SECONDS:-60}'
       MAX_FILE_SIZE_BYTES: '${MAX_FILE_SIZE_BYTES:-21474836480}'
       MAX_VIDEO_DURATION_SECONDS: '${MAX_VIDEO_DURATION_SECONDS:-86400}'
@@ -407,18 +401,13 @@ services:
       ANALYSIS_REPORT_MAX_BYTES: '${ANALYSIS_REPORT_MAX_BYTES:-16777216}'
       ANALYSIS_REPORT_ORPHAN_GRACE_SECONDS: '${ANALYSIS_REPORT_ORPHAN_GRACE_SECONDS:-3600}'
       ARTIFACT_DELETE_TIMEOUT_SECONDS: '${ARTIFACT_DELETE_TIMEOUT_SECONDS:-30}'
-      PROVIDER_CANARY_MEDIA_INTERVAL_SECONDS: '${PROVIDER_CANARY_MEDIA_INTERVAL_SECONDS:-86400}'
-      PROVIDER_CANARY_METADATA_INTERVAL_SECONDS: '${PROVIDER_CANARY_METADATA_INTERVAL_SECONDS:-21600}'
-      PROVIDER_CANARY_POLL_SECONDS: '${PROVIDER_CANARY_POLL_SECONDS:-60}'
-      PROVIDER_CANARY_TARGETS: '${PROVIDER_CANARY_TARGETS:-[]}'
-      PROVIDER_CANARY_DEFAULT_TARGETS: '${PROVIDER_CANARY_DEFAULT_TARGETS:-true}'
       SERVICE_ROLE: worker
       RABBITMQ_URL: "amqp://${RABBITMQ_WORKER_USER:-video-worker}:${RABBITMQ_WORKER_PASS:-video-worker-secret}@${RABBITMQ_HOST:-host.docker.internal}:${RABBITMQ_PORT:-5672}/${RABBITMQ_VHOST:-video}"
     extra_hosts:
       - "host.docker.internal:host-gateway"
     networks:
       - app_net
-      - runner_rpc_net
+      - runner_egress_net
     volumes:
       - runner_work:/work
     depends_on:
@@ -469,50 +458,18 @@ services:
       retries: 12
       start_period: 5s
 
-  # Network-boundary bridge to the host Chrome session source. Leases are
-  # sealed directly to Runner keys; this process never decrypts session data.
-  session-broker:
-    build: *backend-build
-    image: video-server:prod
-    container_name: session-broker
-    restart: unless-stopped
-    read_only: true
-    cap_drop: [ALL]
-    security_opt: ["no-new-privileges:true"]
-    networks: [app_net, runner_rpc_net]
-    extra_hosts: ["host.docker.internal:host-gateway"]
-    tmpfs: ["/tmp:rw,noexec,nosuid,size=16m"]
-    environment:
-      APP_ENV: "${APP_ENV:-production}"
-      SERVICE_ROLE: session-broker
-      SITE_SESSION_RPC_SECRET: "${SITE_SESSION_RPC_SECRET:?SITE_SESSION_RPC_SECRET is required}"
-      SITE_SESSION_AGENT_URL: "${SITE_SESSION_AGENT_URL:-http://host.docker.internal:19250}"
-      SITE_SESSION_AGENT_SECRET: "${SITE_SESSION_AGENT_SECRET:?SITE_SESSION_AGENT_SECRET is required}"
-    command: ["python", "-m", "app.workers.session.broker_app"]
-    healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:19200/health/ready', timeout=3)"]
-      interval: 10s
-      timeout: 5s
-      retries: 6
-      start_period: 30s
-
-  # The single Runner for every site session (046): per-task leases from the
-  # broker, one operation per site through an in-process lock.
+  # Shared anonymous L1 media execution.
   session-runner:
-    <<: *provider-session-runner
+    <<: *media-runner
     container_name: session-runner
     read_only: true
     cap_drop: [ALL]
     security_opt: ["no-new-privileges:true"]
     environment:
-      <<: *provider-session-environment
+      <<: *runner-environment
       RUNNER_MAX_ACTIVE_TASKS: "${SESSION_RUNNER_MAX_ACTIVE_TASKS:-4}"
-      RUNNER_SESSION_BROKER_URL: http://session-broker:19200
-      RUNNER_SESSION_RPC_SECRET: "${SITE_SESSION_RPC_SECRET:?SITE_SESSION_RPC_SECRET is required}"
       RUNNER_YOUTUBE_POT_BASE_URL: http://youtube-pot-provider:4416
-      RUNNER_YOUTUBE_POT_PROVIDER_VERSION: bgutil-http-1.3.2
     networks:
-      - runner_rpc_net
       - runner_egress_net
       - youtube_pot_net
     volumes:
@@ -522,8 +479,6 @@ services:
       egress-proxy:
         condition: service_healthy
       youtube-pot-provider:
-        condition: service_healthy
-      session-broker:
         condition: service_healthy
 
   youtube-pot-provider:
@@ -535,13 +490,12 @@ services:
       ["/usr/local/bin/node", "/opt/video/youtube-pot-supervisor.mjs"]
     healthcheck:
       test:
-        ["CMD", "/usr/local/bin/node", "/opt/video/youtube-pot-supervisor.mjs", "--check-identity"]
+        ["CMD", "/usr/local/bin/node", "/opt/video/youtube-pot-supervisor.mjs", "--check-health"]
       interval: 10s
       timeout: 5s
       retries: 3
       start_period: 10s
     environment:
-      YOUTUBE_POT_EXPECTED_VERSION: "1.3.2"
       RUNNER_EGRESS_PROXY: http://egress-proxy:3128
       RUNNER_PROVIDER_EGRESS_PROXIES: "${RUNNER_PROVIDER_EGRESS_PROXIES:-{}}"
     networks:
@@ -569,8 +523,6 @@ networks:
       config:
         - subnet: "${APP_NETWORK_SUBNET:-10.251.0.0/24}"
           ip_range: "${APP_NETWORK_IP_RANGE:-10.251.0.128/25}"
-  runner_rpc_net:
-    internal: true
   runner_egress_net:
     internal: true
   youtube_pot_net:

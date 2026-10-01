@@ -18,7 +18,7 @@ async def test_worker_process_builds_every_background_component_lazily() -> None
     engine = create_engine(settings.database_url)
     components = build_components(settings, engine)
     try:
-        assert set(components) == {"outbox", "download", "import", "report", "canary"}
+        assert set(components) == {"outbox", "download", "import", "report"}
     finally:
         for component in components.values():
             await component.close()

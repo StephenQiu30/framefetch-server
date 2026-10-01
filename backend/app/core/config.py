@@ -112,8 +112,7 @@ class Settings(BaseSettings):
         "api",
         "worker",
         "analysis-worker",
-        "provider-sources",
-        "session-broker",
+        "schema",
     ] = "api"
     app_host: str = "0.0.0.0"
     app_port: int = Field(default=8111, ge=1, le=65535)
@@ -131,11 +130,6 @@ class Settings(BaseSettings):
     )
 
     database_url: str = "postgresql+asyncpg://video:video@localhost:5432/video"
-    # Runner -> broker and broker -> host agent use independent HMAC secrets.
-    site_session_rpc_secret: SecretStr | None = None
-    # Host source reads the configured daily Chrome Profile (single-user deployment).
-    site_session_agent_url: str = "http://host.docker.internal:19250"
-    site_session_agent_secret: SecretStr | None = None
     rabbitmq_url: str = "amqp://video-api:video-api-secret@localhost:5673/video"
     rabbitmq_exchange: str = "video.events"
     download_queue: str = "video.download"
@@ -233,25 +227,12 @@ class Settings(BaseSettings):
         pattern=r"^[a-z0-9_-]+$",
     )
 
-    # One Runner serves every site with a deployment session (046). A site with a
-    # session record never falls back to the anonymous Runner.
+    # R0 uses one anonymous L1 Runner; identity injection is rebuilt in R4.
     session_runner_base_url: str | None = None
     runner_workspace_root: Path = Path("/work")
     runner_hmac_secret: SecretStr = SecretStr("development-runner-secret-change-me")
-    provider_canary_targets: SecretStr = SecretStr("[]")
-    # With no explicit targets, the canary probes the repository's fixed public
-    # samples so a cold start always refreshes provider evidence on its own.
-    provider_canary_default_targets: bool = True
-    provider_verified_keys: frozenset[str] = frozenset()
     peertube_allowed_instances: frozenset[str] = frozenset()
-    provider_canary_metadata_interval_seconds: int = Field(
-        default=21_600, ge=300, le=604_800
-    )
-    provider_canary_media_interval_seconds: int = Field(
-        default=86_400, ge=300, le=2_592_000
-    )
-    provider_canary_poll_seconds: float = Field(default=60, ge=5, le=3600)
-    inspect_timeout_seconds: int = Field(default=150, ge=1, le=300)
+    inspect_timeout_seconds: int = Field(default=120, ge=1, le=120)
     download_timeout_seconds: int = Field(default=7200, ge=1, le=7200)
     max_video_duration_seconds: int = Field(default=86400, ge=1, le=86400)
     max_file_size_bytes: int = Field(default=20 * 1024**3, ge=1, le=20 * 1024**3)
@@ -516,13 +497,6 @@ class Settings(BaseSettings):
             raise ValueError("URL_ENCRYPTION_KEY must be a Fernet key") from exc
         return value
 
-    @field_validator("provider_verified_keys")
-    @classmethod
-    def validate_provider_verified_keys(cls, value: frozenset[str]) -> frozenset[str]:
-        if any(re.fullmatch(r"[a-z][a-z0-9_-]{0,31}", key) is None for key in value):
-            raise ValueError("PROVIDER_VERIFIED_KEYS contains an invalid key")
-        return value
-
     @field_validator("peertube_allowed_instances")
     @classmethod
     def validate_peertube_instances(cls, value: frozenset[str]) -> frozenset[str]:
@@ -533,8 +507,6 @@ class Settings(BaseSettings):
         "auth_bootstrap_admin_secret",
         "request_fingerprint_secret",
         "runner_hmac_secret",
-        "site_session_rpc_secret",
-        "site_session_agent_secret",
     )
     @classmethod
     def validate_signing_secret(cls, value: SecretStr | None) -> SecretStr | None:
@@ -595,11 +567,7 @@ class Settings(BaseSettings):
             for value in secret_values
         )
         rabbitmq_url = ""
-        if self.service_role not in {
-            "analysis-worker",
-            "provider-sources",
-            "session-broker",
-        }:
+        if self.service_role in {"api", "worker"}:
             rabbitmq_url = self.rabbitmq_url
         insecure_urls = any(
             marker in f"{self.database_url} {rabbitmq_url}"

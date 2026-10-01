@@ -27,7 +27,7 @@ def test_download_limits_are_validated() -> None:
     defaults = Settings(app_env="test", _env_file=None)
 
     assert defaults.request_timeout_seconds == 180
-    assert defaults.inspect_timeout_seconds == 150
+    assert defaults.inspect_timeout_seconds == 120
     assert defaults.download_timeout_seconds == 7_200
     assert defaults.max_video_duration_seconds == 86_400
     assert defaults.max_file_size_bytes == 20 * 1024**3
@@ -193,16 +193,6 @@ def test_persistent_artifacts_have_no_retention_ttl_setting() -> None:
 def test_signing_secrets_require_adequate_entropy_capacity() -> None:
     with pytest.raises(ValidationError, match="at least 32 bytes"):
         Settings(app_env="test", auth_jwt_secret=SecretStr("too-short"))
-
-
-def test_provider_release_approvals_are_typed_keys() -> None:
-    settings = Settings(
-        app_env="test", provider_verified_keys=frozenset({"tiktok", "vimeo"})
-    )
-
-    assert settings.provider_verified_keys == frozenset({"tiktok", "vimeo"})
-    with pytest.raises(ValidationError, match="invalid key"):
-        Settings(app_env="test", provider_verified_keys=frozenset({"VK Clips"}))
 
 
 def test_peertube_allowlist_accepts_only_exact_domain_names() -> None:

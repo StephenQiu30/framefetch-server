@@ -1,7 +1,7 @@
 """Run with: python -m app.workers.main.
 
 One process owns every containerized background loop: Outbox dispatch, link
-inspection and downloads, imports, report publication and Provider canaries.
+inspection and downloads, imports, report publication.
 Each component is supervised on its own, so one failing loop restarts without
 stopping the others. The host AI worker and the media Runner stay separate
 processes because they hold different credentials and trust boundaries.
@@ -19,7 +19,6 @@ from typing import Protocol
 
 from app.core.config import Settings, get_settings_for_role
 from app.core.db import create_engine
-from app.workers.canary import runtime as canary
 from app.workers.download import runtime as download
 from app.workers.imports import runtime as imports
 from app.workers.outbox import runtime as outbox
@@ -49,7 +48,6 @@ def build_components(
         "report": report.build_runtime(
             settings, engine, worker_id=f"report-{identity}"
         ),
-        "canary": canary.build_runtime(settings, engine),
     }
 
 

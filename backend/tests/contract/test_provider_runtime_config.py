@@ -35,12 +35,10 @@ def test_pyproject_and_compose_pin_provider_runtime() -> None:
     assert "3a08beaf031ab68f966401ead017ac81fe8486cf.tar.gz" in pyproject
     assert image in compose
     assert image in production_compose
-    assert 'YOUTUBE_POT_EXPECTED_VERSION: "1.3.2"' in compose
-    assert 'YOUTUBE_POT_EXPECTED_VERSION: "1.3.2"' in production_compose
     assert "youtube-pot-supervisor.mjs" in compose
     assert "youtube-pot-supervisor.mjs" in production_compose
     assert "const FAILURE_THRESHOLD = 3" in supervisor
-    assert "payload?.version !== expectedVersion" in supervisor
+    assert "expectedVersion" not in supervisor
     assert 'stdio: ["ignore", "ignore", "ignore"]' in supervisor
     assert 'stdio: "inherit"' not in supervisor
     assert "delete childEnvironment.RUNNER_EGRESS_PROXY" in supervisor
@@ -59,7 +57,7 @@ def test_youtube_sidecar_and_runners_can_only_egress_through_a_gateway() -> None
             "CMD",
             "/usr/local/bin/node",
             "/opt/video/youtube-pot-supervisor.mjs",
-            "--check-identity",
+            "--check-health",
         ]
         assert (
             services["session-runner"]["depends_on"]["youtube-pot-provider"][
@@ -154,7 +152,6 @@ def _supervisor_config_check(
 ) -> subprocess.CompletedProcess[str]:
     environment = {
         **os.environ,
-        "YOUTUBE_POT_EXPECTED_VERSION": "1.3.2",
         "RUNNER_EGRESS_PROXY": fallback,
         "RUNNER_PROVIDER_EGRESS_PROXIES": overrides,
     }
@@ -169,3 +166,14 @@ def _supervisor_config_check(
         text=True,
         env=environment,
     )
+
+
+def test_compose_inspection_timeout_matches_the_120_second_design_limit() -> None:
+    root = Path(__file__).resolve().parents[3]
+    for filename in ("docker-compose.yml", "docker-compose-prod.yml"):
+        services = yaml.safe_load((root / filename).read_text())["services"]
+        for role in ("api", "worker"):
+            assert services[role]["environment"]["INSPECT_TIMEOUT_SECONDS"] == (
+                "${INSPECT_TIMEOUT_SECONDS:-120}"
+            )
+    assert "INSPECT_TIMEOUT_SECONDS=120" in (root / ".env.example").read_text()

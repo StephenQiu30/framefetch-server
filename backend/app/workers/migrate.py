@@ -42,7 +42,7 @@ async def apply_schema(database_url: str, schema: Path = SCHEMA) -> None:
 
 def main() -> int:
     # A queue-less role: migration needs only the database connection.
-    settings = Settings(service_role="provider-sources")
+    settings = Settings(service_role="schema")
     try:
         asyncio.run(apply_schema(settings.database_url))
     except Exception as exc:
