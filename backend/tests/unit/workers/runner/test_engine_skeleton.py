@@ -43,6 +43,7 @@ _DECLARATIONS = {
     "x": ("L1,L3", "global", "prefer", "public"),
     "instagram": ("L1,L3", "global", "required", "public"),
     "facebook": ("L1,L3", "global", "prefer", "public"),
+    "reddit": ("L1", "global", "prefer", "public"),
     "wechat_official_account_article": ("L1", "cn", "none", "public"),
 }
 

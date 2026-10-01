@@ -60,7 +60,10 @@ def _engine_profile(profile: ProviderProfile) -> ProviderProfile:
                 "weibo", ("/ajax/statuses/show", "/ajax/statuses/longtext")
             )
             if profile.key == "weibo"
-            else BrowserRules(profile.key)
+            else BrowserRules(
+                profile.key,
+                ("/api/item/detail/",) if profile.key == "tiktok" else (),
+            )
             if Layer.L3 in ladder
             else None
         ),

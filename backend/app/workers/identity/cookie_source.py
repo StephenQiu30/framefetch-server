@@ -95,6 +95,9 @@ _ACCOUNT_COOKIES: dict[
     # https://github.com/0xEnc0der/fbcli#accepted-cookie-formats-auto-detected
     # Both authentication cookies are needed; datr/sb alone identify a browser.
     "facebook": ((frozenset({"c_user", "xs"}),), frozenset({"c_user", "xs"})),
+    # Upstream RedditIE._is_logged_in checks reddit_session, not visitor loid:
+    # https://github.com/yt-dlp/yt-dlp/blob/master/yt_dlp/extractor/reddit.py
+    "reddit": ((frozenset({"reddit_session"}),), frozenset({"reddit_session"})),
     # https://github.com/yt-dlp/yt-dlp/blob/master/yt_dlp/extractor/instagram.py
     # InstagramBaseIE._AUTH_COOKIE_NAME/is_logged_in.
     "instagram": (

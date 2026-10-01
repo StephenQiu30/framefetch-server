@@ -17,6 +17,7 @@ from app.workers.runner.engine import identity
 from app.workers.runner.engine.browser import (
     douyin,
     kuaishou,
+    tiktok,
     weibo,
     xiaohongshu,
     youtube,
@@ -38,6 +39,7 @@ PARSERS = {
     "xiaohongshu": xiaohongshu,
     "kuaishou": kuaishou,
     "weibo": weibo,
+    "tiktok": tiktok,
 }
 
 
@@ -92,6 +94,8 @@ def _expected_id(url: str, platform: str) -> str | None:
     if platform == "douyin":
         value = parse_qs(parsed.query).get("modal_id", [segments[-1]])[0]
         return value if value.isdigit() else None
+    if platform == "tiktok":
+        return segments[-1] if segments[-1].isdigit() else None
     value = segments[-1]
     if platform == "kuaishou":
         return (

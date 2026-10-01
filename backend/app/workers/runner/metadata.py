@@ -247,7 +247,10 @@ def enrich_direct_metadata(
 
 
 def enrich_format_metadata(
-    raw: dict[str, Any], probe: dict[str, Any]
+    raw: dict[str, Any],
+    probe: dict[str, Any],
+    *,
+    prefer_nominal_fps: bool = False,
 ) -> dict[str, Any]:
     """Fill a single sparse yt-dlp format with bounded ffprobe metadata."""
     probe_streams = probe.get("streams")
@@ -260,15 +263,24 @@ def enrich_format_metadata(
     if video is None:
         enriched["vcodec"] = "none"
     else:
+        fps = _frame_rate(video.get("avg_frame_rate") or video.get("r_frame_rate"))
+        nominal = _frame_rate(video.get("r_frame_rate"))
+        # Twitch clip edit lists can make the remote container average 30.016
+        # or 60.017 while the actual cadence is 30/60. Keep materially different
+        # averages (including variable-rate media); final-file checks stay strict.
+        if (
+            prefer_nominal_fps
+            and fps is not None
+            and nominal is not None
+            and abs(fps - nominal) <= nominal * 0.001
+        ):
+            fps = nominal
         enriched.update(
             {
                 "vcodec": video.get("codec_name") or enriched.get("vcodec"),
                 "width": video.get("width") or enriched.get("width"),
                 "height": video.get("height") or enriched.get("height"),
-                "fps": _frame_rate(
-                    video.get("avg_frame_rate") or video.get("r_frame_rate")
-                )
-                or enriched.get("fps"),
+                "fps": fps or enriched.get("fps"),
                 "dynamic_range": _probe_dynamic_range(video),
             }
         )

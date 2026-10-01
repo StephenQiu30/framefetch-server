@@ -477,6 +477,22 @@ def test_enriches_single_sparse_provider_format_with_ffprobe_metadata() -> None:
     assert enriched["tbr"] == pytest.approx(885.064)
 
 
+def test_nominal_clip_rate_is_opt_in_and_preserves_material_average_difference():
+    probe = {
+        "streams": [
+            {
+                "codec_type": "video",
+                "avg_frame_rate": "4613120/153687",
+                "r_frame_rate": "30/1",
+            }
+        ]
+    }
+    assert enrich_format_metadata({}, probe)["fps"] > 30.01
+    assert enrich_format_metadata({}, probe, prefer_nominal_fps=True)["fps"] == 30
+    probe["streams"][0]["avg_frame_rate"] = "25/1"
+    assert enrich_format_metadata({}, probe, prefer_nominal_fps=True)["fps"] == 25
+
+
 def test_ignores_sub_unit_provider_metrics_after_integer_normalization() -> None:
     payload = media_info()
     formats = payload["formats"]

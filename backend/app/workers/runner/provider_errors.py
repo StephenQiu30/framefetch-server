@@ -105,6 +105,12 @@ PROVIDER_FAILURE_RULES: tuple[FailureRule, ...] = (
         providers=frozenset({ProviderKey.BILIBILI}),
     ),
     FailureRule(
+        "content_protected",
+        422,
+        any_stderr=(b"this video is protected by a password",),
+        providers=frozenset({ProviderKey.VIMEO}),
+    ),
+    FailureRule(
         "runtime_unavailable",
         503,
         all_stderr=(b"error reaching get ", b"/ping", b"server is reachable"),

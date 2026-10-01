@@ -689,6 +689,11 @@ def test_datacenter_does_not_disqualify_complete_youtube_delivery(
         {"kind": "ffprobe"},
         {"kind": "yt_dlp"},
         {"kind": "platform_player_ui"},
+        {"kind": "official_anonymous_api"},
+        {"kind": "official_anonymous_embed_metadata"},
+        {"kind": "official_anonymous_watch_metadata"},
+        {"kind": "official_page_metadata"},
+        {"kind": "official_public_blog_metadata"},
         {"url": "file:///tmp/probe"},
         {"checked_at": "yesterday"},
         {"checked_at": None},
@@ -778,3 +783,65 @@ def test_shared_identity_service_still_requires_actual_injection(monkeypatch, tm
     )
     assert row["result"] == "blocked"
     assert row["failure_class"] == "identity_unavailable"
+
+
+# Recorded G1/G3 file metadata (2026-10-01), kept as deterministic regressions.
+# These facts do not rerun a platform or imply current cold-start acceptance.
+@pytest.mark.parametrize(
+    "sample_id,duration,width,height,codec,rate",
+    [
+        ("youtube-positive-1", 18.947483, 320, 240, "h264", "15/1"),
+        ("youtube-positive-2", 634.578141, 640, 360, "h264", "30/1"),
+        ("twitch-positive-1", 32.099, 1920, 1080, "h264", "960000/32099"),
+        ("twitch-positive-2", 60.066341, 360, 640, "h264", "13839360/461317"),
+        ("x-positive-1", 3.178667, 320, 180, "h264", "24000/1001"),
+        ("x-positive-2", 21.333333, 480, 270, "h264", "30000/1001"),
+        ("instagram-positive-1", 11.887007, 640, 640, "h264", "2997/100"),
+        ("instagram-positive-2", 19.133243, 480, 854, "h264", "30/1"),
+        ("facebook-positive-1", 131.030204, 400, 300, "h264", "30/1"),
+        ("facebook-positive-2", 44.33, 400, 400, "h264", "119070000/3972973"),
+        ("tiktok-positive-1", 18.666667, 540, 960, "hevc", "30/1"),
+        ("tiktok-positive-2", 27.466667, 540, 960, "h264", "30/1"),
+        ("tumblr-positive-1", 7.620998, 1280, 720, "h264", "24000/1001"),
+        ("tumblr-positive-2", 127.175714, 1280, 720, "h264", "30/1"),
+    ],
+)
+def test_merged_g1_g3_samples_pass_strict_recorded_file_checks(
+    sample_id, duration, width, height, codec, rate
+):
+    samples = matrix.load_cases(SCRIPT.parent / "fixtures/coldstart_cases.json")
+    sample = next(c for c in samples if c.id == sample_id)
+    assert sample.qualification_gaps() == []
+    for source in (sample.duration_source, sample.availability_source):
+        assert source.status == "verified"
+        assert (
+            datetime.fromisoformat(source.checked_at).date().isoformat() == "2026-10-01"
+        )
+        assert source.field and source.note
+    actual = probe(duration)
+    actual["streams"][0].update(
+        width=width, height=height, codec_name=codec, avg_frame_rate=rate
+    )
+    confirmed = {
+        **plan(),
+        "width": width,
+        "height": height,
+        "video_codec_family": codec,
+        "fps_bucket": "fps_30",
+        "dynamic_range": "sdr",
+    }
+    assert (
+        matrix.verify_probe(actual, sample, confirmed, 3)["duration_seconds"]
+        == duration
+    )
+    with pytest.raises(matrix.MatrixFailure, match="frame_rate_mismatch"):
+        matrix.verify_probe(actual, sample, {**confirmed, "fps_bucket": "fps_60"}, 3)
+
+
+@pytest.mark.parametrize("platform", ["reddit", "vimeo"])
+def test_g3_unverified_public_or_duration_evidence_still_blocks(platform):
+    samples = matrix.load_cases(SCRIPT.parent / "fixtures/coldstart_cases.json")
+    positives = [c for c in samples if c.platform == platform and c.kind == "positive"]
+    assert len(positives) == 2
+    assert all(c.qualification_gaps() for c in positives)
+    assert all(c.availability_source.status == "unverified" for c in positives)
