@@ -167,10 +167,10 @@ class RunnerInspectionPipeline:
             streams = normalize_for_settings(payload, self._settings).streams
             if not any(stream.audio_codec_family is not None for stream in streams):
                 raise RunnerFailure("format_unavailable", status=409)
-        if source.profile.key == "bilibili":
-            # Bilibili advertises 30.303fps for some actual 29.97fps tracks.
-            # Confirm each representation with the existing bounded, proxy-bound
-            # probe before its advertised rate becomes a semantic download plan.
+        if source.profile.key in {"bilibili", "instagram", "twitch"}:
+            # Instagram can omit audio metadata on muxed videos; Twitch and
+            # Bilibili can advertise rates different from the actual stream.
+            # Resolve each bounded representation before confirming the plan.
             payload = await self._enrich_sparse_formats(
                 payload,
                 workspace,
