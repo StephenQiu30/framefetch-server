@@ -165,7 +165,7 @@ async def run_ladder(
                         attempt_failures = error.failures or (error.failure,)
                         failures.extend(attempt_failures)
                         for failure in attempt_failures:
-                            _LOG.info(
+                            _LOG.warning(
                                 "resolver failed task=%s provider=%s layer=%s "
                                 "stage=%s class=%s gate=%s evidence=%s",
                                 source.workspace.path.name.rsplit("-", 1)[0],

@@ -102,8 +102,10 @@ async def test_clients_record_actual_success_and_attempts(
     ],
 )
 async def test_protected_requires_every_client_to_prove_drm(
-    source, monkeypatch, outcomes, expected
+    source, monkeypatch, outcomes, expected, caplog
 ):
+    caplog.set_level("WARNING", logger="app.workers.runner.engine.layers.prepared")
+
     async def resolve(self, item, ctx):
         raise LayerFailure(outcomes.pop(0), "②", {"kind": "unknown"})
 
@@ -112,6 +114,7 @@ async def test_protected_requires_every_client_to_prove_drm(
         await PreparedLayer().resolve(source, source.run_context)
     assert caught.value.failure.failure_class is expected
     assert len(caught.value.failures) == 3
+    assert caplog.text.count("proof client failed task=") == 3
 
 
 @pytest.mark.parametrize(
@@ -235,6 +238,7 @@ async def test_guest_status_and_retry_after(source, guest_runtime, status, expec
         await prepare_visitor("weibo", source.run_context)
     assert caught.value.failure.failure_class is expected
     if status == 429:
+        assert caught.value.status == 429
         assert caught.value.failure.retry_after is not None
         assert caught.value.failure.evidence == {
             "kind": "upstream_response",

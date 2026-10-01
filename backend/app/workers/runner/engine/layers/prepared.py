@@ -96,7 +96,7 @@ class PreparedLayer:
                 )
             except RunnerFailure as error:
                 error.attributed_to(context)
-                _LOG.info(
+                _LOG.warning(
                     "proof client failed task=%s provider=youtube layer=L2 "
                     "client=%s class=%s gate=%s evidence=%s",
                     source.workspace.path.name.rsplit("-", 1)[0],
@@ -160,7 +160,7 @@ async def _request(
             raise _failure(FailureClass.INVALID_INPUT, "visitor_redirect_denied")
         async with client.stream(method, url, **kwargs) as response:  # type: ignore[arg-type]
             if response.status_code == 429:
-                raise LayerFailure(
+                failure = LayerFailure(
                     FailureClass.RATE_LIMITED,
                     "①",
                     {"kind": "upstream_response", "http_status": 429},
@@ -168,6 +168,8 @@ async def _request(
                         response.headers.get("Retry-After"), datetime.now(UTC)
                     ),
                 )
+                failure.status = 429
+                raise failure
             if response.status_code in {301, 302, 303, 307, 308}:
                 location = response.headers.get("location")
                 if not location:

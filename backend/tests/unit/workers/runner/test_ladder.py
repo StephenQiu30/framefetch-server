@@ -63,7 +63,7 @@ def dispatch(monkeypatch, sequence, *, after=None):
     ],
 )
 async def test_next_layer_once_and_terminal_history(source, monkeypatch, kind, caplog):
-    caplog.set_level("INFO", logger="app.workers.runner.engine.ladder")
+    caplog.set_level("WARNING", logger="app.workers.runner.engine.ladder")
     source = layers(source, Layer.L1, Layer.L2, Layer.L3)
     calls = dispatch(monkeypatch, {"L1": [kind], "L2": [kind], "L3": [kind]})
     with pytest.raises(RunnerFailure) as caught:
