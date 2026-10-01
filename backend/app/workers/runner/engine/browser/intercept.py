@@ -6,7 +6,7 @@ import asyncio
 from collections.abc import Mapping
 from dataclasses import fields
 from typing import Any
-from urllib.parse import urlsplit
+from urllib.parse import parse_qs, urlsplit
 
 from app.services.provider_failures import FailureClass
 from app.workers.runner.engine.layers.base import LayerFailure
@@ -107,9 +107,17 @@ class PageResponses:
         ):
             self.media_urls.add(response.url)
         host = parsed.hostname or ""
-        if not (
-            host == f"{self.platform}.com" or host.endswith(f".{self.platform}.com")
-        ):
+        if self.platform == "youku":
+            allowed = (
+                host == "ups.youku.com"
+                and parsed.scheme == "https"
+                and parsed.path == "/ups/get.json"
+            )
+        else:
+            allowed = host == f"{self.platform}.com" or host.endswith(
+                f".{self.platform}.com"
+            )
+        if not allowed:
             return
         if not any(pattern in parsed.path for pattern in self.patterns):
             return
@@ -131,6 +139,11 @@ class PageResponses:
 
             payload = json.loads(body)
             if isinstance(payload, dict) and not self.queue.full():
+                if self.platform == "youku":
+                    requested = parse_qs(urlsplit(response.url).query).get("vid", [""])[
+                        0
+                    ]
+                    payload["_framefetch_requested_id"] = requested.rstrip("=")
                 self.queue.put_nowait(payload)
         except Exception:
             # A cancelled navigation can invalidate a response. No raw text escapes.

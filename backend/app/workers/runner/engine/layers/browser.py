@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import re
 import shutil
 import tempfile
 from dataclasses import fields, replace
@@ -14,7 +15,7 @@ from app.services.provider_failures import FailureClass
 from app.services.provider_types import ProviderIdentity
 from app.workers.runner.browser_runtime import BrowserOperation, _finish
 from app.workers.runner.engine import identity
-from app.workers.runner.engine.browser import douyin, xiaohongshu
+from app.workers.runner.engine.browser import douyin, xiaohongshu, youku
 from app.workers.runner.engine.browser.intercept import (
     MAX_RESPONSE_BYTES,
     PageResponses,
@@ -27,7 +28,7 @@ from app.workers.runner.metadata import enrich_format_metadata
 from app.workers.runner.utilities import normalize_for_settings
 from playwright.async_api import Error
 
-PARSERS = {"douyin": douyin, "xiaohongshu": xiaohongshu}
+PARSERS = {"douyin": douyin, "xiaohongshu": xiaohongshu, "youku": youku}
 
 
 class _Handoff:
@@ -81,6 +82,9 @@ def _expected_id(url: str, platform: str) -> str | None:
     if platform == "douyin":
         value = parse_qs(parsed.query).get("modal_id", [segments[-1]])[0]
         return value if value.isdigit() else None
+    if platform == "youku":
+        matched = re.fullmatch(r"/v_show/id_([A-Za-z0-9]+)=*\.html", parsed.path)
+        return matched.group(1) if matched else None
     value = segments[-1]
     return (
         value
@@ -222,15 +226,24 @@ class BrowserLayer:
                 referer=operation.page.url,
             )
             commands = source.pipeline._commands.with_context(updated)
+            if profile.key == "youku":
+                await youku.prepare_manifests(media, updated)
             payload = media.download_info
             # Reuse the media probe to establish actual codecs/fps, not guesses.
             usable = []
             handoff_kind = media.handoff
             for raw in payload["formats"][:8]:
                 try:
-                    probe = await commands.probe_remote(
-                        raw["url"], source.workspace.path, referer=updated.referer
-                    )
+                    if profile.key == "youku":
+                        probe = await commands.probe_remote_prefix(
+                            raw["_framefetch_probe_url"],
+                            source.workspace.path,
+                            referer=updated.referer,
+                        )
+                    else:
+                        probe = await commands.probe_remote(
+                            raw["url"], source.workspace.path, referer=updated.referer
+                        )
                     usable.append(enrich_format_metadata(raw, probe))
                 except RunnerFailure:
                     # Only a successful native media response proves browser binding.
