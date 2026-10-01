@@ -26,6 +26,7 @@ class FailureRule:
     providers: frozenset[str] = frozenset()
     any_url: tuple[str, ...] = ()
     authenticated: bool | None = None
+    clear_media_overrides: bool = False
 
     def matches(self, context: ProviderFailureContext, stderr: bytes) -> bool:
         source_url = context.source_url.casefold()
@@ -235,6 +236,7 @@ PROVIDER_FAILURE_RULES: tuple[FailureRule, ...] = (
             b"this video is drm protected",
             b"this format is drm protected",
         ),
+        clear_media_overrides=True,
     ),
     FailureRule(
         "content_unavailable",
@@ -468,10 +470,15 @@ def _rule_priority(rule: FailureRule) -> int:
 def classify_provider_failure(
     context: ProviderFailureContext,
     stderr: bytes,
+    *,
+    has_clear_media: bool = False,
 ) -> tuple[str, int] | None:
     normalized = stderr.lower()
     matched = [
-        rule for rule in PROVIDER_FAILURE_RULES if rule.matches(context, normalized)
+        rule
+        for rule in PROVIDER_FAILURE_RULES
+        if rule.matches(context, normalized)
+        and not (has_clear_media and rule.clear_media_overrides)
     ]
     if (
         context.provider_key == ProviderKey.YOUTUBE

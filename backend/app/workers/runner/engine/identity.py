@@ -120,6 +120,8 @@ async def fetch_identity(
         endpoint = f"http://host.docker.internal:{settings.cookie_source_port}/cookies"
         async with asyncio.timeout(remaining):
             async with httpx.AsyncClient(
+                # Design 17 §3.4 identity exception: the fixed host route uses
+                # Squid's always_direct rule, never a platform EgressBinding.
                 proxy=settings.runner_egress_proxy,
                 trust_env=False,
                 follow_redirects=False,

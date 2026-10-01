@@ -2,6 +2,8 @@
 
 import asyncio
 import base64
+import json
+from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
@@ -9,9 +11,20 @@ from unittest.mock import AsyncMock
 import httpx
 import pytest
 from app.services.provider_failures import FailureClass
+from app.services.provider_types import Layer
+from app.workers.runner.commands import MediaCommands
 from app.workers.runner.engine import identity
+from app.workers.runner.engine.egress import EgressBinding
+from app.workers.runner.engine.ladder import LAYER_TABLE, close_material, run_ladder
 from app.workers.runner.engine.layers.base import LayerFailure
+from app.workers.runner.errors import RunnerFailure
+from app.workers.runner.provider_registry import provider_request
+from app.workers.runner.service import MediaRunnerService
+from helpers import settings as runner_settings
 from pydantic import SecretStr
+from test_commands import RecordingSupervisor
+from test_engine_skeleton import source_for
+from test_p1_wiring import resolved
 
 TOKEN = "unit-test-only-identity-token-32-bytes"
 COOKIES = (
@@ -248,3 +261,92 @@ async def test_host_error_cannot_leak_arbitrary_cause(transport):
         await identity.fetch_identity("instagram", "task", deadline())
     assert error.value.failure.evidence["cause_code"] == "cookie_source_rejected"
     assert list(root.iterdir()) == []
+
+
+@pytest.mark.parametrize("site", ["instagram", "bilibili"])
+@pytest.mark.parametrize("success", [True, False])
+async def test_ladder_uses_real_identity_transport_and_separate_media_binding(
+    transport, tmp_path, monkeypatch, site, success
+):
+    root, host_settings, state, requests = transport
+    if site == "bilibili":
+        state.reply["cookies"] = base64.b64encode(
+            COOKIES.replace(b"instagram.com", b"bilibili.com")
+        ).decode()
+    monkeypatch.setattr(identity, "COOKIE_TMPFS_ROOT", root)
+    monkeypatch.setattr(identity, "_on_tmpfs", lambda _: True)
+    config = runner_settings(tmp_path)
+    service = MediaRunnerService(config)
+    source = source_for(service, tmp_path)
+    request = provider_request(
+        "https://www.instagram.com/p/example/"
+        if site == "instagram"
+        else "https://www.bilibili.com/video/BV13x41117TL"
+    )
+    binding = EgressBinding(
+        "platform", "http://media-binding:3128", "revision", "residential", None
+    )
+    assert binding.proxy_url != host_settings.runner_egress_proxy
+    source = replace(
+        source,
+        request=request,
+        execution_context=service._context(request),
+        run_context=replace(source.run_context, egress=binding),
+    )
+    supervisor = RecordingSupervisor()
+    calls = []
+
+    class LayerWithIdentity:
+        async def resolve(self, item, ctx):
+            calls.append(ctx.identity)
+            if ctx.identity is None:
+                # Optional policy calls the real R4 transport only after evidence.
+                raise LayerFailure(FailureClass.LOGIN_REQUIRED, "③", {})
+            assert ctx.cookie_file == ctx.identity.cookie_file
+            identity.validate_cookie_file(ctx.cookie_file)
+            # Media IO still consumes P1's injected EgressBinding and Cookie path.
+            await (
+                MediaCommands(config, supervisor)
+                .with_context(ctx)
+                .inspect(item.request, item.workspace.path, cookie_jar=ctx.cookie_file)
+            )
+            assert (
+                supervisor.argv[supervisor.argv.index("--proxy") + 1]
+                == binding.proxy_url
+            )
+            assert supervisor.env["HTTPS_PROXY"] == binding.proxy_url
+            assert supervisor.argv[supervisor.argv.index("--cookies") + 1] == str(
+                ctx.cookie_file
+            )
+            if not success:
+                raise LayerFailure(FailureClass.CONTENT_PROTECTED, "①", {})
+            return resolved(ctx)
+
+    monkeypatch.setitem(LAYER_TABLE, Layer.L1, LayerWithIdentity)
+    result = None
+    try:
+        if success:
+            result = await run_ladder(
+                source, request.profile, source.run_context.deadline
+            )
+            assert result.execution_context.identity_used
+            assert result.execution_context.identity_digest == "a" * 64
+            assert result.execution_context.egress_route == binding.route
+            assert result.run_context.identity is calls[-1]
+            await close_material(result.run_context)
+        else:
+            with pytest.raises(RunnerFailure) as caught:
+                await run_ladder(source, request.profile, source.run_context.deadline)
+            assert caught.value.code == "content_protected"
+        assert len(requests) == 1
+        assert json.loads(requests[0].content) == {
+            "site": site,
+            "task_id": source.workspace.path.name.rsplit("-", 1)[0],
+            "deadline": source.run_context.deadline.isoformat(),
+        }
+        assert len(calls) == (1 if site == "instagram" else 2)
+        assert list(root.iterdir()) == []
+    finally:
+        if result is not None:
+            await close_material(result.run_context)
+        source.workspace.cleanup()

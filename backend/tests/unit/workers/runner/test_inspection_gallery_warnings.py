@@ -80,6 +80,99 @@ async def test_gallery_assets_do_not_override_paid_content_restrictions(
     assert caught.value.code == "content_protected"
 
 
+@pytest.mark.parametrize("reason", list(ContentRestriction))
+@pytest.mark.parametrize(
+    "payload",
+    [
+        gallery(),
+        {"id": "123", "url": "https://cdn.example/video.mp4"},
+        {
+            "id": "123",
+            "formats": [{"url": "https://cdn.example/video.mp4", "has_drm": False}],
+        },
+        {"_type": "playlist", "entries": [gallery()]},
+        {
+            "_type": "playlist",
+            "entries": [{"id": "123", "url": "https://cdn.example/video.mp4"}],
+        },
+        {
+            "_type": "playlist",
+            "entries": [{"id": "123", "url": "https://cdn.example/image.webp"}],
+        },
+        {
+            "id": "123",
+            "media_type": "image",
+            "thumbnails": [{"url": "https://cdn.example/image.webp"}],
+        },
+    ],
+    ids=[
+        "gallery",
+        "direct",
+        "formats",
+        "gallery-entry",
+        "video-entry",
+        "photos",
+        "thumbnail",
+    ],
+)
+async def test_content_restrictions_precede_drm_and_other_warnings_on_all_assets(
+    tmp_path: Path, reason: ContentRestriction, payload: dict
+) -> None:
+    warning = (
+        b"This format is DRM protected\nHTTP Error 429\nThis video requires login\n"
+        + f"FrameFetch {reason.value}".encode()
+    )
+    with pytest.raises(RunnerFailure) as caught:
+        await commands(tmp_path, payload, warning).inspect(URL, tmp_path)
+    assert caught.value.code == "content_protected"
+    assert caught.value.status == 422
+    assert caught.value.failure.stage == "resolve"
+
+
+@pytest.mark.parametrize(
+    "warning,expected,status",
+    [
+        (b"Only the preview will be extracted", "content_protected", 422),
+        (b"This is a supporter-only video", "content_protected", 422),
+        (b"Members-only content", "content_unavailable", 403),
+        (b"This video is private", "content_unavailable", 403),
+        (b"This video has been deleted", "content_unavailable", 422),
+    ],
+)
+async def test_clear_gallery_cannot_override_explicit_content_warnings(
+    tmp_path: Path, warning: bytes, expected: str, status: int
+) -> None:
+    # The DRM rule appears before membership/private rules in the rule table.
+    warning = b"This format is DRM protected\n" + warning + b"\nHTTP Error 429"
+    with pytest.raises(RunnerFailure) as caught:
+        await commands(tmp_path, gallery(), warning).inspect(
+            "https://www.bilibili.com/video/BV13x41117TL", tmp_path
+        )
+    assert caught.value.code == expected
+    assert caught.value.status == status
+
+
+@pytest.mark.parametrize("reason", list(ContentRestriction))
+@pytest.mark.parametrize(
+    "payload",
+    [
+        {"_type": "playlist", "entries": []},
+        {"_type": "playlist", "entries": [None]},
+        {"_type": "playlist", "entries": [{"_type": "playlist", "entries": []}]},
+    ],
+    ids=["empty", "invalid-member", "nested"],
+)
+async def test_content_restriction_precedes_collection_validation(
+    tmp_path: Path, reason: ContentRestriction, payload: dict
+) -> None:
+    with pytest.raises(RunnerFailure) as caught:
+        await commands(
+            tmp_path, payload, f"FrameFetch {reason.value}".encode()
+        ).inspect(URL, tmp_path)
+    assert caught.value.code == "content_protected"
+    assert caught.value.status == 422
+
+
 @pytest.mark.parametrize(
     "assets", [None, [], {}, [None], [{}], [{"url": None}], [{"url": "  "}]]
 )
