@@ -252,7 +252,7 @@ class Settings(BaseSettings):
         pattern=r"^[a-z0-9_-]+$",
     )
 
-    # R0 uses one anonymous L1 Runner; identity injection is rebuilt in R4.
+    # All platform ladders share one isolated Runner.
     session_runner_base_url: str | None = None
     runner_workspace_root: Path = Path("/work")
     runner_hmac_secret: SecretStr = SecretStr("development-runner-secret-change-me")

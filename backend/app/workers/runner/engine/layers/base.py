@@ -37,7 +37,7 @@ class LayerFailure(RunnerFailure):
             error.failure.evidence,
             error.failure.retry_after,
         )
-        # Keep R0's precise code/status/phase and safe diagnostic facts.
+        # Keep the precise code/status/phase and safe diagnostic facts.
         result.code = error.code
         result.status = error.status
         result.message = error.message

@@ -1,4 +1,4 @@
-"""L1: preserve R0's yt-dlp, entitlement and bounded probing pipeline."""
+"""L1: yt-dlp extraction, content checks and bounded probing."""
 
 from dataclasses import fields, replace
 

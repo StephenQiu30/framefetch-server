@@ -4,14 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 from typing import Any, TypeGuard
-from urllib.parse import parse_qs, urlsplit
-
-
-def successful_data(payload: object) -> Mapping[str, Any]:
-    if not isinstance(payload, Mapping) or payload.get("code") not in (0, "0"):
-        return {}
-    data = payload.get("data")
-    return data if isinstance(data, Mapping) else {}
+from urllib.parse import urlsplit
 
 
 def feed_info(payload: object) -> Mapping[str, Any] | None:
@@ -28,29 +21,6 @@ def author_info(payload: object) -> Mapping[str, Any]:
     data = payload.get("data")
     author = data.get("authorInfo") if isinstance(data, Mapping) else None
     return author if isinstance(author, Mapping) else {}
-
-
-def playable_parameters(data: Mapping[str, Any]) -> tuple[str, str] | None:
-    value = data.get("playable_url") or data.get("playableUrl")
-    if not isinstance(value, str):
-        return None
-    parsed = urlsplit(value)
-    try:
-        query = parse_qs(parsed.query, strict_parsing=True)
-    except ValueError:
-        return None
-    if (
-        parsed.scheme != "https"
-        or parsed.hostname != "channels.weixin.qq.com"
-        or parsed.port not in (None, 443)
-        or parsed.path != "/finder-preview/pages/feed"
-        or any(len(query.get(key, ())) != 1 for key in ("token", "eid"))
-    ):
-        return None
-    token, export_id = query["token"][0], query["eid"][0]
-    if not token or not export_id or len(token) > 2048 or len(export_id) > 512:
-        return None
-    return token, export_id
 
 
 def video_formats(feed: Mapping[str, Any]) -> list[dict[str, Any]]:

@@ -372,7 +372,7 @@ class MediaRunnerService:
                     execution_context=context,
                     run_context=RunContext(
                         egress=egress,
-                        user_agent="",  # Preserve yt-dlp's R0 default user agent.
+                        user_agent="",  # Use yt-dlp's default user agent.
                         referer="",  # Layers add explicit material.
                         cookie_file=cookie_jar,
                         identity=None,

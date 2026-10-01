@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import signal
 import subprocess
 from pathlib import Path
 
@@ -134,7 +133,7 @@ def test_windows_uninstall_preserves_definition_when_stop_fails(
     assert paths.definition.is_file()
 
 
-def test_macos_install_migrates_legacy_and_verifies_running(
+def test_macos_install_stops_only_current_service_and_verifies_running(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     paths = _paths(tmp_path)
@@ -142,11 +141,6 @@ def test_macos_install_migrates_legacy_and_verifies_running(
     monkeypatch.setattr(agent_platforms.sys, "platform", "darwin")
     monkeypatch.setattr(agent_platforms.os, "getuid", lambda: 501, raising=False)
     monkeypatch.setattr(agent_platforms, "agent_paths", lambda: paths)
-    monkeypatch.setattr(
-        agent_platforms,
-        "_migrate_legacy_macos_agent",
-        lambda: actions.append("migrate"),
-    )
     monkeypatch.setattr(
         agent_platforms,
         "_stop_macos_service",
@@ -157,30 +151,11 @@ def test_macos_install_migrates_legacy_and_verifies_running(
 
     agent_platforms.install_agent()
 
-    assert actions[:2] == ["migrate", ("stop", agent_platforms.SERVICE_ID)]
+    assert actions[0] == ("stop", agent_platforms.SERVICE_ID)
     assert ("launchctl", "bootstrap", "gui/501", str(paths.definition)) in actions
 
 
-def test_macos_legacy_migration_refuses_unrelated_label(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    monkeypatch.setattr(
-        agent_platforms,
-        "_launchctl_print",
-        lambda label: _result(
-            0, "program = /tmp/unrelated\nstate = running\npid = 4\n"
-        ),
-    )
-    monkeypatch.setattr(
-        agent_platforms,
-        "_run",
-        lambda command: pytest.fail(f"must not stop: {command}"),
-    )
-    with pytest.raises(SystemExit, match="unrelated legacy macOS"):
-        agent_platforms._migrate_legacy_macos_agent()
-
-
-def test_macos_uninstall_migrates_legacy_before_canonical_stop(
+def test_macos_uninstall_stops_only_current_service(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     paths = _paths(tmp_path)
@@ -191,11 +166,6 @@ def test_macos_uninstall_migrates_legacy_before_canonical_stop(
     monkeypatch.setattr(agent_platforms, "agent_paths", lambda: paths)
     monkeypatch.setattr(
         agent_platforms,
-        "_migrate_legacy_macos_agent",
-        lambda: actions.append("migrate"),
-    )
-    monkeypatch.setattr(
-        agent_platforms,
         "_stop_macos_service",
         lambda label: actions.append(("stop", label)),
     )
@@ -203,7 +173,7 @@ def test_macos_uninstall_migrates_legacy_before_canonical_stop(
 
     agent_platforms.uninstall_agent()
 
-    assert actions == ["migrate", ("stop", agent_platforms.SERVICE_ID)]
+    assert actions == [("stop", agent_platforms.SERVICE_ID)]
     assert not paths.definition.exists()
 
 
@@ -214,7 +184,6 @@ def test_linux_install_restarts_and_verifies_active(
     actions: list[tuple[str, ...]] = []
     monkeypatch.setattr(agent_platforms.sys, "platform", "linux")
     monkeypatch.setattr(agent_platforms, "agent_paths", lambda: paths)
-    monkeypatch.setattr(agent_platforms, "_migrate_legacy_linux_worker", lambda: None)
     monkeypatch.setattr(agent_platforms, "_linux_active_state", lambda: 0)
     monkeypatch.setattr(agent_platforms, "_run", actions.append)
 
@@ -238,12 +207,6 @@ def test_linux_uninstall_stops_before_removing_definition(
     actions: list[tuple[str, ...]] = []
     monkeypatch.setattr(agent_platforms.sys, "platform", "linux")
     monkeypatch.setattr(agent_platforms, "agent_paths", lambda: paths)
-    migrated: list[bool] = []
-    monkeypatch.setattr(
-        agent_platforms,
-        "_migrate_legacy_linux_worker",
-        lambda: migrated.append(True),
-    )
     monkeypatch.setattr(agent_platforms, "_linux_load_state", lambda: next(load_states))
     monkeypatch.setattr(agent_platforms, "_linux_active_state", lambda: 3)
     monkeypatch.setattr(agent_platforms, "_run", actions.append)
@@ -251,38 +214,42 @@ def test_linux_uninstall_stops_before_removing_definition(
     agent_platforms.uninstall_agent()
 
     assert actions[0][2:4] == ("disable", "--now")
-    assert migrated == [True]
     assert not paths.definition.exists()
 
 
-def test_linux_legacy_migration_requires_exact_process(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+@pytest.mark.parametrize("platform", ("darwin", "linux"))
+@pytest.mark.parametrize("operation", ("install", "uninstall"))
+def test_agent_lifecycle_preserves_other_services_and_old_state(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, platform: str, operation: str
 ) -> None:
-    state = tmp_path / "legacy"
-    pid_path = state / "worker.pid"
-    state.mkdir()
-    pid_path.write_text("42")
-    expected = (
-        (
-            str(agent_platforms.BACKEND_ROOT / ".venv" / "bin" / "python"),
-            "-m",
-            agent_platforms.LEGACY_MODULE,
-        ),
-        agent_platforms.BACKEND_ROOT,
-    )
-    snapshots = iter((expected, expected, None))
-    killed: list[tuple[int, signal.Signals]] = []
-    monkeypatch.setattr(agent_platforms, "LEGACY_STATE_DIR", state)
-    monkeypatch.setattr(agent_platforms, "LEGACY_PID_PATH", pid_path)
-    monkeypatch.setattr(agent_platforms, "LEGACY_PLIST_PATH", state / "plist")
+    paths = _paths(tmp_path)
+    paths.definition.parent.mkdir(parents=True)
+    paths.definition.write_text("definition")
+    old_state = tmp_path / ".local-runtime" / "analysis-worker"
+    old_state.mkdir(parents=True)
+    old_pid = old_state / "worker.pid"
+    old_pid.write_text("42")
+    monkeypatch.setattr(agent_platforms, "PROJECT_ROOT", tmp_path)
+    monkeypatch.setattr(agent_platforms.sys, "platform", platform)
+    monkeypatch.setattr(agent_platforms.os, "getuid", lambda: 501, raising=False)
+    monkeypatch.setattr(agent_platforms, "agent_paths", lambda: paths)
+    commands: list[tuple[str, ...]] = []
+    monkeypatch.setattr(agent_platforms, "_run", commands.append)
+    monkeypatch.setattr(agent_platforms, "_launchctl_print", lambda label: _result(113))
     monkeypatch.setattr(
-        agent_platforms, "_legacy_linux_process", lambda pid: next(snapshots)
+        agent_platforms, "_macos_state", lambda: 0 if operation == "install" else 4
     )
-    monkeypatch.setattr(
-        agent_platforms.os, "kill", lambda pid, sig: killed.append((pid, sig))
+    monkeypatch.setattr(agent_platforms, "_linux_active_state", lambda: 0)
+    monkeypatch.setattr(agent_platforms, "_linux_load_state", lambda: 4)
+
+    if operation == "install":
+        agent_platforms.install_agent()
+    else:
+        agent_platforms.uninstall_agent()
+
+    assert old_pid.read_text() == "42"
+    assert all(
+        "com.stephenqiu.video.analysis-worker" not in arg
+        for command in commands
+        for arg in command
     )
-
-    agent_platforms._migrate_legacy_linux_worker()
-
-    assert killed == [(42, signal.SIGTERM)]
-    assert not pid_path.exists()
