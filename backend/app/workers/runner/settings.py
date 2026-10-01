@@ -60,7 +60,7 @@ class RunnerSettings(ProviderEgressSettings):
     runner_hmac_secret: SecretStr
     cookie_source_token: SecretStr | None = None
     cookie_source_port: int = Field(default=19101, ge=1024, le=65535)
-    runner_identity_tmpfs_root: Path = Path("/tmp/video-identity")
+    runner_identity_tmpfs_root: Path = Path("/tmp/framefetch-identity")
     runner_workspace_root: Path = Path("/var/lib/video-runner")
     peertube_allowed_instances: frozenset[str] = frozenset()
 
@@ -128,9 +128,13 @@ class RunnerSettings(ProviderEgressSettings):
             raise ValueError("runner HMAC secret must contain at least 32 bytes")
         return value
 
-    @field_validator("cookie_source_token")
+    @field_validator("cookie_source_token", mode="before")
     @classmethod
-    def validate_identity_token(cls, value: SecretStr | None) -> SecretStr | None:
+    def validate_identity_token(cls, value: str | SecretStr | None) -> SecretStr | None:
+        if value == "":
+            return None
+        if isinstance(value, str):
+            value = SecretStr(value)
         if value is not None:
             from app.core.config import CookieSourceSettings
 

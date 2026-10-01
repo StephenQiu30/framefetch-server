@@ -59,7 +59,11 @@ def _is_tmpfs(root: Path) -> bool:
 
 
 def _private_root(root: Path) -> Path:
-    if not root.is_absolute() or root == Path("/") or root.name != "video-identity":
+    if (
+        not root.is_absolute()
+        or root == Path("/")
+        or root.name != "framefetch-identity"
+    ):
         raise _unavailable("identity_tmpfs_path_invalid")
     # Refuse symlinks in every ancestor, before mkdir or deletion.
     for part in (root, *root.parents):
@@ -116,7 +120,10 @@ async def fetch_identity(
         endpoint = f"http://host.docker.internal:{settings.cookie_source_port}/cookies"
         async with asyncio.timeout(remaining):
             async with httpx.AsyncClient(
-                trust_env=False, follow_redirects=False, timeout=min(30, remaining)
+                proxy=settings.runner_egress_proxy,
+                trust_env=False,
+                follow_redirects=False,
+                timeout=min(120, remaining),
             ) as client:
                 async with client.stream(
                     "POST",

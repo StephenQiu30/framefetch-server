@@ -468,6 +468,8 @@ services:
     environment:
       <<: *runner-environment
       RUNNER_MAX_ACTIVE_TASKS: "${SESSION_RUNNER_MAX_ACTIVE_TASKS:-4}"
+      COOKIE_SOURCE_TOKEN: "${COOKIE_SOURCE_TOKEN:-}"
+      COOKIE_SOURCE_PORT: "19101"
       RUNNER_YOUTUBE_POT_BASE_URL: http://youtube-pot-provider:4416
     networks:
       - runner_egress_net

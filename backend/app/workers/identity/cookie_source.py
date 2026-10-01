@@ -9,14 +9,18 @@ import hmac
 import os
 import signal
 import sys
+from collections.abc import AsyncIterator, Callable
+from contextlib import asynccontextmanager
 from datetime import UTC, datetime
+from functools import partial
 from pathlib import Path
 
 from app.core.config import CookieSourceSettings
 from app.workers.identity.keychain import (
     KeychainUnavailable,
-    launchd_storage_password,
     require_unlocked,
+    storage_password,
+    validate_storage_acl,
 )
 from app.workers.runner.netscape_cookie import MAX_COOKIE_BYTES, parse_cookie_payload
 from app.workers.runner.provider_registry import provider_profile_for_key
@@ -61,15 +65,61 @@ class CookieSource:
         self._password: bytes | None = None
         self._lock = asyncio.Lock()
         self.session_evidence: dict[str, int | bool] | None = None
+        self.acl_evidence: dict[str, int | bool] | None = None
+        self._disabled = False
+
+    def close(self) -> None:
+        # Release references; Python cannot guarantee reliable memory zeroing.
+        self._password = None
+
+    def _validate_acl(self, timeout: float = 60) -> None:
+        try:
+            self.acl_evidence = validate_storage_acl(timeout)
+        except KeychainUnavailable:
+            self._disabled = True
+            self.close()
+            raise
+
+    async def start(self) -> None:
+        try:
+            await asyncio.to_thread(require_unlocked)
+            await self._bounded_thread(self._validate_acl)
+        except KeychainUnavailable:
+            # Locked startup remains unavailable until a later unlocked request;
+            # malformed/denied ACL permanently disables this process.
+            pass
+
+    async def _bounded_thread[T](self, function: Callable[[], T]) -> T:
+        task = asyncio.create_task(asyncio.to_thread(function))
+        try:
+            return await asyncio.shield(task)
+        except asyncio.CancelledError:
+            try:
+                await task
+            except Exception:
+                pass
+            raise
+
+    def _read_password(self, deadline: datetime) -> tuple[bytes, dict[str, int | bool]]:
+        remaining = (deadline - datetime.now(UTC)).total_seconds()
+        if remaining <= 0:
+            raise KeychainUnavailable("identity_deadline_invalid")
+        self._validate_acl(min(60, remaining))
+        remaining = (deadline - datetime.now(UTC)).total_seconds()
+        if remaining <= 0:
+            raise KeychainUnavailable("identity_deadline_invalid")
+        return storage_password(min(5, remaining))
 
     async def cookies(self, request: CookieRequest) -> dict[str, str]:
         remaining = (request.deadline - datetime.now(UTC)).total_seconds()
         if remaining <= 0:
             raise KeychainUnavailable("identity_deadline_invalid")
-        async with asyncio.timeout(min(30, remaining)):
+        async with asyncio.timeout(min(120, remaining)):
             async with self._lock:
                 # Always query current lock state, even on cache hits.
                 await asyncio.to_thread(require_unlocked)
+                if self._disabled:
+                    raise KeychainUnavailable("keychain_acl_disabled")
                 profile = provider_profile_for_key(request.site)
                 if not profile.cookie_domain_allowlist or profile.identity == "none":
                     raise KeychainUnavailable("identity_not_declared")
@@ -79,27 +129,11 @@ class CookieSource:
                     raise KeychainUnavailable("chrome_profile_missing")
                 for attempt in range(2):
                     if self._password is None:
-                        remaining = (
-                            request.deadline - datetime.now(UTC)
-                        ).total_seconds()
-                        read = asyncio.create_task(
-                            asyncio.to_thread(
-                                launchd_storage_password, min(10, remaining)
-                            )
+                        password, evidence = await self._bounded_thread(
+                            partial(self._read_password, request.deadline)
                         )
-                        try:
-                            (
-                                self._password,
-                                self.session_evidence,
-                            ) = await asyncio.shield(read)
-                        except asyncio.CancelledError:
-                            # The bounded thread owns launchctl/socket cleanup.
-                            # Do not report cancellation before it has finished.
-                            try:
-                                await read
-                            except Exception:
-                                pass
-                            raise
+                        self._password = password
+                        self.session_evidence = evidence
                     payload = await self._extract(request)
                     if payload is None:
                         self._password = None
@@ -166,16 +200,27 @@ class CookieSource:
         if process.returncode == 68:
             return None
         if process.returncode != 0 or len(payload) > MAX_COOKIE_BYTES:
-            cause = {66: "chrome_profile_missing", 67: "site_not_logged_in"}.get(
-                process.returncode or 0, "cookie_read_failed"
-            )
+            cause = {
+                66: "chrome_profile_missing",
+                67: "site_not_logged_in",
+                69: "chrome_profile_unreadable",
+            }.get(process.returncode or 0, "cookie_read_failed")
             raise KeychainUnavailable(cause)
         return payload
 
 
 def create_app(settings: CookieSourceSettings) -> FastAPI:
     source = CookieSource(settings)
-    app = FastAPI(docs_url=None, redoc_url=None, openapi_url=None)
+
+    @asynccontextmanager
+    async def lifespan(_: FastAPI) -> AsyncIterator[None]:
+        try:
+            await source.start()
+            yield
+        finally:
+            source.close()
+
+    app = FastAPI(docs_url=None, redoc_url=None, openapi_url=None, lifespan=lifespan)
     app.state.cookie_source = source
 
     @app.exception_handler(RequestValidationError)

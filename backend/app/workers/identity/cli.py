@@ -1,4 +1,4 @@
-"""Host run/install/uninstall/doctor entrypoint; launchd user domain only."""
+"""Host run/install/uninstall/doctor entrypoint; Aqua LaunchAgent only."""
 
 from __future__ import annotations
 
@@ -16,8 +16,9 @@ from app.core.config import CookieSourceSettings
 from app.workers.identity.keychain import (
     KeychainUnavailable,
     keychain_status,
-    launchd_storage_password,
     require_unlocked,
+    storage_password,
+    validate_storage_acl,
 )
 
 LABEL = "com.framefetch.cookie-source"
@@ -41,8 +42,7 @@ def agent_spec(env_file: Path) -> dict[str, object]:
         "WorkingDirectory": str(Path(__file__).resolve().parents[3]),
         "RunAtLoad": True,
         "KeepAlive": True,
-        "SessionCreate": True,
-        "LimitLoadToSessionType": "Background",
+        "LimitLoadToSessionType": "Aqua",
         "StandardOutPath": "/dev/null",
         "StandardErrorPath": "/dev/null",
     }
@@ -59,7 +59,7 @@ def install(env_file: Path) -> None:
         plistlib.dump(agent_spec(env_file), stream)
     try:
         subprocess.run(
-            ["/bin/launchctl", "bootstrap", f"user/{os.getuid()}", str(destination)],
+            ["/bin/launchctl", "bootstrap", f"gui/{os.getuid()}", str(destination)],
             check=True,
             capture_output=True,
             timeout=5,
@@ -70,7 +70,7 @@ def install(env_file: Path) -> None:
 
 
 def uninstall() -> None:
-    target = f"user/{os.getuid()}/{LABEL}"
+    target = f"gui/{os.getuid()}/{LABEL}"
     result = subprocess.run(
         ["/bin/launchctl", "bootout", target], capture_output=True, timeout=5
     )
@@ -103,9 +103,8 @@ async def doctor(settings: CookieSourceSettings) -> int:
     try:
         result["keychain_status_bits"] = keychain_status()
         require_unlocked()
-        _, result["child_session"] = await asyncio.to_thread(
-            launchd_storage_password, 10
-        )
+        result["acl"] = await asyncio.to_thread(validate_storage_acl)
+        _, result["aqua_session"] = await asyncio.to_thread(storage_password)
         result["key_read"] = "succeeded"
         source = CookieSource(settings)
         sites: dict[str, str] = {}
@@ -121,18 +120,19 @@ async def doctor(settings: CookieSourceSettings) -> int:
                 sites[site] = "material_available_not_platform_acceptance"
             except KeychainUnavailable as error:
                 sites[site] = error.cause
+        source.close()
         result["sites"] = sites
         code = 0
     except KeychainUnavailable as error:
         result["key_read"] = error.cause
-        result["child_session"] = error.evidence
+        result["aqua_session"] = error.evidence
         code = 2
     print(json.dumps(result, ensure_ascii=False))
     return code
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="帧取宿主身份服务（禁止图形会话回退）")
+    parser = argparse.ArgumentParser(description="帧取宿主身份服务（Aqua LaunchAgent）")
     parser.add_argument("command", choices=("run", "install", "uninstall", "doctor"))
     parser.add_argument("--env-file", type=Path)
     args = parser.parse_args()

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import os
 import sys
 import time
 from pathlib import Path
@@ -38,6 +39,10 @@ def read_cookies(profile: Path, site: str, password: bytes) -> bytes:
 
     if not profile.is_dir() or not (profile / "Cookies").is_file():
         raise FileNotFoundError("chrome_profile_missing")
+    # yt-dlp's os.walk suppresses directory permission errors. Surface host
+    # access denial rather than incorrectly claiming a missing Profile/logout.
+    with os.scandir(profile) as entries:
+        next(entries, None)
     original = cookies._get_mac_keyring_password
     cookies._get_mac_keyring_password = lambda *args: password
     logger = _QuietLogger()
@@ -76,6 +81,8 @@ def main() -> int:
         return 65
     try:
         payload = read_cookies(args.profile, args.site, password)
+    except PermissionError:
+        return 69
     except FileNotFoundError:
         return 66
     except LookupError:

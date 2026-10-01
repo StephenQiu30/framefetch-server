@@ -181,9 +181,9 @@ createdb -O framefetch_temporal framefetch_temporal_visibility
 
 ### 平台身份与升级
 
-宿主身份服务位于 `backend/app/workers/identity/`，遵循[设计 17 第 3.4 节](docs/design/17-解析引擎重建.md#34-身份层)。它仅监听 `127.0.0.1:19101` 的 `POST /cookies`，要求 Bearer 令牌；业务 API/worker 不得持有该令牌。每次请求查询登录钥匙串锁状态，密钥仅在内存缓存；读取任务放在 launchd `user/<uid>` 域的 Background 会话中，实际子进程检查 `SessionGetInfo` 无图形访问位后才执行固定的 `/usr/bin/security` 命令（5 秒超时）。拒绝或超时不会解锁、修改 ACL 或回退图形会话。
+宿主身份服务位于 `backend/app/workers/identity/`，遵循[设计 17 第 3.4 节](docs/design/17-解析引擎重建.md#34-身份层)。LaunchAgent 在 `gui/<uid>` 的 Aqua 会话中运行，只监听 `127.0.0.1:19101` 的 `POST /cookies`。每次请求（含缓存命中）查询固定登录钥匙串的锁状态；启动和每次秘密读取前完整解析同一钥匙串目标 service/account 的 ACL。失败时禁用身份层；固定 `/usr/bin/security` 命令显式指定登录钥匙串绝对路径，秘密读取最长 5 秒，超时终止进程组。密钥仅缓存于进程内存，停止时释放引用，不保证 Python 对象可靠清零。锁预检、ACL 校验和读取不是原子授权，仍可能出现窗口，风险以设计 17 为准。
 
-从 `backend/` 使用独立的宿主 `0600` 配置文件，包含随机 `COOKIE_SOURCE_TOKEN`（至少 32 个无空白 ASCII 字节）、可选的 `COOKIE_SOURCE_PORT` 与固定 `COOKIE_SOURCE_CHROME_PROFILE`；默认 Profile 为当前用户的 Chrome `Default`。不要修改现有部署环境文件，不要把身份配置文件提交或给业务容器加载。
+从 `backend/` 使用独立的宿主 `0600` 配置文件，包含随机 `COOKIE_SOURCE_TOKEN`（至少 32 个无空白 ASCII 字节）与固定 `COOKIE_SOURCE_CHROME_PROFILE`；默认 Profile 为当前用户的 Chrome `Default`。当前 Compose 与 squid 配套固定使用端口 `19101`，调整端口须同时修改精确代理 ACL。不要覆盖现有环境文件或提交身份配置。
 
 ```bash
 uv run python -m app.workers.identity.cli doctor --env-file /绝对路径/identity.env
@@ -191,11 +191,18 @@ uv run python -m app.workers.identity.cli install --env-file /绝对路径/ident
 uv run python -m app.workers.identity.cli uninstall
 ```
 
-`install` 注册当前用户的 LaunchAgent（Background、独立安全会话），不会覆盖已有安装；`uninstall` 停止并移除它。前台调试使用 `run --env-file ...`，服务不输出访问日志、Cookie 或密钥。`doctor` 只输出锁状态、子进程会话属性与站点材料可用性；材料可用不代表账号仍有效或平台已通过完整文件验收。
+`install` 注册 Aqua LaunchAgent，不覆盖已有安装；`uninstall` 停止并移除它。`doctor` 输出锁状态、ACL 布尔摘要、会话属性与必要账号 Cookie 的存在性，不输出密钥、Cookie 值或 dump 元数据。材料存在不代表账号有效，也不证明平台完整文件验收。
 
-Runner 的 `fetch_identity(site, task_id, deadline)` 保持设计 17 接口，返回操作私有的 `IdentityMaterial(cookie_file, digest)`。文件只能写入实际 Linux tmpfs 下的 `video-identity` 私有目录（目录 `0700`、文件 `0600`）；`IdentityOperation` 按 required 每次、optional 在登录证据后一次、none 永不注入管理材料，退出时删除。Runner 启动时必须在接单前调用 `initialize_identity_tmpfs()` 清除异常退出残留。材料摘要只计算必要账号 Cookie 的稳定 HMAC，忽略访客 Cookie 与过期时间续期；目前核对了 Instagram 的 `sessionid` 等和腾讯提取器的 `v_vuserid`/`v_vusession` 等输入，其他平台必要账号字段尚未核对，明确返回 `identity_cookie_rules_unverified`。Cookie 仍只返回 Registry 已声明域，身份不放宽内容范围。
+Compose 仅向 `session-runner` 注入 `COOKIE_SOURCE_TOKEN`。可通过调用 Compose 的进程环境提供与宿主配置相同的令牌；API、worker、egress-proxy 和 bgutil 不持有它。Runner 身份客户端显式使用 `RUNNER_EGRESS_PROXY`，不使用环境代理、不跟随重定向；squid 只放行 `POST host.docker.internal:19101/cookies`，并强制直连，不经过 Clash／住宅上游。其他宿主端口、私网和 IP 字面量仍被拒绝。身份传输是明文 HTTP，egress-proxy 属于敏感信任组件，配置关闭访问日志、缓存和响应体存储。
 
-**R4 当前未验收、未接入正式链路。** 本机登录钥匙串状态为已解锁，但已确认无图形访问位的读取子进程仍返回 `keychain_read_denied`，按任务约束停止，不采用图形回退；Chrome 登录状态未能确认。当前 Runner 的内部网络访问宿主端口返回 `Network is unreachable`。共享 Compose 需要由集成方保留出口边界并修通此端口，且只向 session-runner 注入令牌；R2 阶梯与 Runner lifespan 尚需调用上述注入和清理钩子。本文命令只能用于专项验证，不代表 Instagram／腾讯视频已经可以下载。
+R2 调用约定（不改动 `ladder.py` 或 3.8 的签名）：
+
+- `await fetch_identity(site, task_id, deadline)` 返回 `IdentityMaterial(cookie_file, digest)`；失败统一抛出 `LayerFailure(identity_unavailable)`，不自动重试。deadline 传本次操作的原截止时间。
+- required 在每次解析／下载操作开始时获取；optional 仅在分类后的 `login_required` 证据出现后，同任务获取一次并重试同层；none 永不调用。身份策略不扩张 content_scope。
+- 将材料及 `material.cookie_file` 放入不可变 `RunContext` 的副本（P1 的 `with_material`，未接入时可用 `dataclasses.replace`），执行层消费此副本。成功时写 `identity_used=true`、`identity_digest=material.digest`，并通过 `Resolution.run_context` 返回材料；下载前重新获取并核对摘要。
+- 失败／取消路径调用 `material.cleanup()`；成功路径由 service 持有到 HTTP／浏览器下载交接结束后再清理。不要在 `run_ladder` 返回之前销毁材料。`IdentityOperation` 仅适用于上下文范围覆盖完整操作及交接的调用者：进入时处理 required，`after_login_required()` 处理 optional 一次，退出统一清理；只包围阶梯函数会提前删除成功材料。直接使用 `fetch_identity` 时调用方承担相同的 finally 所有权。
+
+Cookie 文件位于 Linux tmpfs `/tmp/framefetch-identity/<operation>/cookies.txt`，目录 `0700`、文件 `0600`；Runner lifespan 接单前清空此目录。摘要仅使用必要账号 Cookie 的稳定 HMAC，忽略访客 Cookie 与过期时间续期。当前已核对 Instagram 和腾讯视频必要字段；Aqua LaunchAgent 若受系统权限限制无法枚举 Chrome Profile，会明确返回 `chrome_profile_unreadable`，不能据此判定未登录。其他平台字段尚未核对时返回 `identity_cookie_rules_unverified`。R4 专项验证不代表登录平台已经端到端可用，需要身份的正例待 R2 阶梯接入后执行，阶段状态与实际证据见设计 17 第 8 节。
 
 升级前暂停接单并排空媒体操作，备份业务库，幂等执行当前 schema.sql，再配套重建 API、worker、session-runner 与前端。移除旧 broker 由 Compose 的 `--remove-orphans` 完成，不删除用户业务记录或制品。生产入口：
 

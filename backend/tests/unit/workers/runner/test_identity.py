@@ -26,10 +26,11 @@ def deadline():
 
 @pytest.fixture
 def transport(tmp_path, monkeypatch):
-    root = tmp_path / "video-identity"
+    root = tmp_path / "framefetch-identity"
     settings = SimpleNamespace(
         cookie_source_token=SecretStr(TOKEN),
         cookie_source_port=19101,
+        runner_egress_proxy="http://proxy:3128",
         runner_identity_tmpfs_root=root,
     )
     monkeypatch.setattr(identity, "get_runner_settings", lambda: settings)
@@ -50,6 +51,7 @@ def transport(tmp_path, monkeypatch):
 
     def factory(**kwargs):
         assert kwargs["trust_env"] is False and kwargs["follow_redirects"] is False
+        assert kwargs.pop("proxy") == settings.runner_egress_proxy
         return client(transport=httpx.MockTransport(respond), **kwargs)
 
     monkeypatch.setattr(identity.httpx, "AsyncClient", factory)
@@ -117,7 +119,7 @@ async def test_non_tmpfs_and_symlink_roots_fail_closed(
     assert not requests
     outside = tmp_path / "outside"
     outside.mkdir()
-    settings.runner_identity_tmpfs_root = tmp_path / "sym" / "video-identity"
+    settings.runner_identity_tmpfs_root = tmp_path / "sym" / "framefetch-identity"
     (tmp_path / "sym").symlink_to(outside, target_is_directory=True)
     with pytest.raises(LayerFailure):
         identity.initialize_identity_tmpfs(settings.runner_identity_tmpfs_root)
@@ -207,3 +209,21 @@ async def test_optional_identity_failure_is_terminal_and_not_retried(
             await operation.after_login_required()
         assert not await operation.after_login_required()
     assert fetched.await_count == 1
+
+
+async def test_runner_lifespan_clears_tmpfs_before_accepting_requests(transport):
+    from app.workers.runner.main import create_app
+    from app.workers.runner.settings import RunnerSettings
+
+    root, _, _, _ = transport
+    root.mkdir(mode=0o700)
+    (root / "crashed").mkdir()
+    (root / "crashed" / "cookies.txt").write_bytes(COOKIES)
+    settings = RunnerSettings(
+        runner_hmac_secret=SecretStr("h" * 32),
+        runner_egress_proxy="http://proxy:3128",
+        runner_identity_tmpfs_root=root,
+    )
+    app = create_app(settings)
+    async with app.router.lifespan_context(app):
+        assert list(root.iterdir()) == []

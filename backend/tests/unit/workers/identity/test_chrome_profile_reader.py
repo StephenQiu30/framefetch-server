@@ -118,6 +118,7 @@ def test_no_current_site_cookies_is_not_login_success(extraction):
 @pytest.mark.parametrize(
     "error,exit_code",
     [
+        (PermissionError(), 69),
         (FileNotFoundError(), 66),
         (LookupError(), 67),
         (ValueError("cookie_decryption_failed"), 68),
@@ -134,3 +135,15 @@ def test_child_failure_exit_code_is_safe(monkeypatch, capsys, error, exit_code):
     monkeypatch.setattr(reader, "read_cookies", Mock(side_effect=error))
     assert reader.main() == exit_code
     assert capsys.readouterr() == ("", "")
+
+
+def test_profile_enumeration_denial_is_not_missing_or_logged_out(
+    extraction, monkeypatch
+):
+    state, profile, original = extraction
+    denied = Mock(side_effect=PermissionError(1, "synthetic denial"))
+    monkeypatch.setattr(reader.os, "scandir", denied)
+    with pytest.raises(PermissionError):
+        reader.read_cookies(profile, "instagram", b"synthetic-key")
+    denied.assert_called_once_with(profile)
+    original.assert_not_called()

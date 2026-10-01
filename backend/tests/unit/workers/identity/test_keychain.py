@@ -1,4 +1,4 @@
-"""Native ABI, no-UI guard, race refusal and bounded subprocess regression tests."""
+"""Native ABI, Aqua guard, complete ACL parsing and bounded subprocess tests."""
 
 import ctypes
 import subprocess
@@ -75,53 +75,62 @@ def test_status_failure_is_released_and_fails_closed(monkeypatch):
     assert calls[-1] == "release"
 
 
-@pytest.mark.parametrize("attrs,status", [(16, 0), (48, 0), (0, -60500)])
-def test_graphical_or_unknown_session_never_starts_security(monkeypatch, attrs, status):
-    calls, _ = fake_library(monkeypatch, attrs=attrs, session_status=status)
+@pytest.mark.parametrize("attrs,status", [(0, 0), (0, -60500)])
+def test_non_aqua_or_unknown_session_never_starts_security(monkeypatch, attrs, status):
+    fake_library(monkeypatch, attrs=attrs, session_status=status)
     unexpected = Mock(side_effect=AssertionError("security must not run"))
     monkeypatch.setattr(keychain.subprocess, "Popen", unexpected)
-    with pytest.raises(keychain.KeychainUnavailable, match="graphic_session_refused"):
-        keychain.read_in_child()
+    with pytest.raises(keychain.KeychainUnavailable, match="aqua_session_required"):
+        keychain.storage_password()
     unexpected.assert_not_called()
-    assert calls == ["session"]
 
 
-def test_actual_child_checks_session_before_fixed_security_command(monkeypatch):
-    calls, _ = fake_library(monkeypatch)
+def test_aqua_reads_fixed_keychain_without_launchctl(monkeypatch):
+    fake_library(monkeypatch, attrs=16)
     process = Mock(returncode=0, pid=123)
     process.communicate.return_value = (b"synthetic-key\n", None)
-
-    def spawn(command, **kwargs):
-        assert calls == ["session"]
-        assert command == [
-            "/usr/bin/security",
-            "find-generic-password",
-            "-w",
-            "-s",
-            "Chrome Safe Storage",
-            "-a",
-            "Chrome",
-        ]
-        assert kwargs["start_new_session"] and kwargs["stderr"] == subprocess.DEVNULL
-        return process
-
+    spawn = Mock(return_value=process)
     monkeypatch.setattr(keychain.subprocess, "Popen", spawn)
-    password, evidence = keychain.read_in_child()
-    assert password == b"synthetic-key"
-    assert evidence == {
-        "status": 0,
-        "session_id": 42,
-        "attributes": 0,
-        "graphic_access": False,
-    }
+    password, evidence = keychain.storage_password()
+    assert password == b"synthetic-key" and evidence["graphic_access"]
+    assert spawn.call_args.args[0] == [
+        "/usr/bin/security",
+        "find-generic-password",
+        "-w",
+        "-s",
+        "Chrome Safe Storage",
+        "-a",
+        "Chrome",
+        str(keychain.login_keychain()),
+    ]
+    assert spawn.call_args.kwargs["start_new_session"]
+    assert spawn.call_args.kwargs["stderr"] == subprocess.DEVNULL
     process.communicate.assert_called_once_with(timeout=5)
 
 
+@pytest.mark.parametrize(
+    "failure", [subprocess.TimeoutExpired("security", 5), SystemExit(143)]
+)
+def test_timeout_or_termination_kills_entire_group(monkeypatch, failure):
+    fake_library(monkeypatch, attrs=16)
+    process = Mock(pid=123)
+    process.communicate.side_effect = [failure, (b"", None)]
+    monkeypatch.setattr(keychain.subprocess, "Popen", Mock(return_value=process))
+    kill = Mock()
+    monkeypatch.setattr(keychain.os, "killpg", kill)
+    with pytest.raises(
+        keychain.KeychainUnavailable
+        if isinstance(failure, subprocess.TimeoutExpired)
+        else SystemExit
+    ):
+        keychain.storage_password()
+    kill.assert_called_once_with(123, keychain.signal.SIGKILL)
+    assert process.communicate.call_count == 2
+
+
 @pytest.mark.parametrize("returncode", [36, 44, 45])
-def test_lock_race_or_acl_denial_never_falls_back_or_exposes_material(
-    monkeypatch, returncode
-):
-    fake_library(monkeypatch)
+def test_read_denial_does_not_retry_or_expose_material(monkeypatch, returncode):
+    fake_library(monkeypatch, attrs=16)
     process = Mock(returncode=returncode)
     process.communicate.return_value = (b"private-value", None)
     spawn = Mock(return_value=process)
@@ -129,64 +138,101 @@ def test_lock_race_or_acl_denial_never_falls_back_or_exposes_material(
     with pytest.raises(
         keychain.KeychainUnavailable, match="keychain_read_denied"
     ) as caught:
-        keychain.read_in_child()
-    assert "private-value" not in str(caught.value)
-    assert spawn.call_count == 1
+        keychain.storage_password()
+    assert "private-value" not in str(caught.value) and spawn.call_count == 1
 
 
-def test_security_timeout_kills_entire_group(monkeypatch):
-    fake_library(monkeypatch)
-    process = Mock(pid=123)
-    process.communicate.side_effect = [
-        subprocess.TimeoutExpired("security", 5),
-        (b"", None),
+# Synthetic metadata only; reflects the complete security dump grammar.
+ACL = b"""keychain: "/synthetic/login.keychain-db"
+class: "genp"
+attributes:
+    "acct"<blob>="Chrome"
+    "svce"<blob>="Chrome Safe Storage"
+access: 3 entries
+    entry 0:
+        authorizations (1): encrypt
+        don't-require-password
+        description: synthetic
+        applications: <null>
+    entry 1:
+        authorizations (2): decrypt derive
+        don't-require-password
+        description: synthetic
+        applications (1):
+            0: /usr/bin/security (OK)
+                requirement: identifier "com.apple.security" and anchor apple
+    entry 2:
+        authorizations (1): partition_id
+        don't-require-password
+        description: teamid:SYNTHETIC, apple-tool:, apple:
+        applications: <null>
+"""
+
+
+def test_complete_acl_and_fixed_dump_command(monkeypatch):
+    fake_library(monkeypatch, attrs=16)
+    process = Mock(returncode=0)
+    process.communicate.return_value = (ACL, None)
+    spawn = Mock(return_value=process)
+    monkeypatch.setattr(keychain.subprocess, "Popen", spawn)
+    evidence = keychain.validate_storage_acl()
+    assert evidence["acl_valid"] and evidence["acl_entries"] == 3
+    assert "synthetic" not in str(evidence)
+    assert spawn.call_args.args[0] == [
+        "/usr/bin/security",
+        "dump-keychain",
+        "-a",
+        str(keychain.login_keychain()),
     ]
-    monkeypatch.setattr(keychain.subprocess, "Popen", Mock(return_value=process))
-    kill = Mock()
-    monkeypatch.setattr(keychain.os, "killpg", kill)
-    with pytest.raises(keychain.KeychainUnavailable, match="keychain_read_timeout"):
-        keychain.read_in_child()
-    kill.assert_called_once_with(123, keychain.signal.SIGKILL)
-    assert process.communicate.call_count == 2
 
 
-def test_launchctl_failure_still_boots_out_transient_job_and_removes_files(monkeypatch):
-    monkeypatch.setattr(keychain.sys, "platform", "darwin")
-    calls = []
-    paths = []
+@pytest.mark.parametrize(
+    "before,after",
+    [
+        (b'"Chrome"', b'"Other"'),
+        (b'"Chrome Safe Storage"', b'"Other"'),
+        (b'"genp"', b'"inet"'),
+        (b"decrypt derive", b"encrypt derive"),
+        (b"/usr/bin/security", b"/tmp/security"),
+        (b"(OK)", b"(FAIL)"),
+        (
+            b'identifier "com.apple.security" and anchor apple',
+            b'identifier "com.apple.security"',
+        ),
+        (b'identifier "com.apple.security"', b'identifier "evil.security"'),
+        (b"apple-tool:", b"evil-tool:"),
+        (b"don't-require-password", b"require-password"),
+        (b"applications (1)", b"applications (2)"),
+        (b"authorizations (2)", b"authorizations (3)"),
+        (b"access: 3 entries", b"access: 2 entries"),
+        (b"entry 2:", b"entry 3:"),
+        (b"0: /usr/bin/security", b"1: /usr/bin/security"),
+        (b"application", b"unknown"),
+    ],
+)
+def test_acl_any_missing_condition_or_incomplete_structure_fails_closed(before, after):
+    with pytest.raises(keychain.KeychainUnavailable, match="keychain_acl_invalid"):
+        keychain.parse_storage_acl(ACL.replace(before, after))
 
-    def run(command, **kwargs):
-        import plistlib
-        from pathlib import Path
 
-        calls.append(command)
-        if command[1] == "bootstrap":
-            path = Path(command[-1])
-            paths.append(path)
-            spec = plistlib.loads(path.read_bytes())
-            assert command[2].startswith("user/")
-            assert spec["SessionCreate"] is True
-            assert spec["LimitLoadToSessionType"] == "Background"
-            assert "security" not in spec["ProgramArguments"]
-            assert path.stat().st_mode & 0o777 == 0o600
-        return SimpleNamespace(returncode=5)
-
-    monkeypatch.setattr(keychain.subprocess, "run", run)
-    with pytest.raises(
-        keychain.KeychainUnavailable, match="launchd_user_domain_unavailable"
-    ):
-        keychain.launchd_storage_password(5)
-    assert [item[1] for item in calls] == ["bootstrap", "bootout"]
-    assert all(not path.parent.exists() for path in paths)
+@pytest.mark.parametrize(
+    "payload",
+    [
+        b"invalid",
+        ACL + ACL,
+        ACL[:-35],
+        ACL + b"unknown\n",
+        ACL.replace(b"decrypt derive", b"decrypt decrypt"),
+    ],
+)
+def test_acl_rejects_parse_failure_duplicate_item_and_truncation(payload):
+    with pytest.raises(keychain.KeychainUnavailable, match="keychain_acl_invalid"):
+        keychain.parse_storage_acl(payload)
 
 
-def test_read_child_termination_cleans_security_process_group(monkeypatch):
-    fake_library(monkeypatch)
-    process = Mock(pid=123)
-    process.communicate.side_effect = [SystemExit(143), (b"", None)]
-    monkeypatch.setattr(keychain.subprocess, "Popen", Mock(return_value=process))
-    kill = Mock()
-    monkeypatch.setattr(keychain.os, "killpg", kill)
-    with pytest.raises(SystemExit):
-        keychain.read_in_child()
-    kill.assert_called_once_with(123, keychain.signal.SIGKILL)
+def test_decrypt_requirements_cannot_be_borrowed_from_other_entry():
+    payload = ACL.replace(b"decrypt derive", b"encrypt derive").replace(
+        b"authorizations (1): encrypt", b"authorizations (1): decrypt"
+    )
+    with pytest.raises(keychain.KeychainUnavailable):
+        keychain.parse_storage_acl(payload)

@@ -1,21 +1,14 @@
-"""Read via a short-lived launchd user-domain job; never use a GUI fallback."""
+"""Read-only Aqua-session Keychain access with complete, fail-closed ACL parsing."""
 
 from __future__ import annotations
 
-import argparse
-import base64
 import ctypes
-import json
 import os
-import plistlib
+import re
 import signal
-import socket
 import subprocess
 import sys
-import tempfile
-import time
 from pathlib import Path
-from uuid import uuid4
 
 SECURITY_FRAMEWORK = "/System/Library/Frameworks/Security.framework/Security"
 SESSION_HAS_GRAPHIC_ACCESS = 0x10
@@ -26,6 +19,10 @@ class KeychainUnavailable(Exception):
         super().__init__(cause)
         self.cause = cause
         self.evidence = evidence or {}
+
+
+def login_keychain() -> Path:
+    return Path.home() / "Library/Keychains/login.keychain-db"
 
 
 def keychain_status() -> int:
@@ -49,7 +46,7 @@ def keychain_status() -> int:
     core.CFRelease.argtypes = [ctypes.c_void_p]
     core.CFRelease.restype = None
     reference = ctypes.c_void_p()
-    path = Path.home() / "Library/Keychains/login.keychain-db"
+    path = login_keychain()
     result = security.SecKeychainOpen(os.fsencode(path), ctypes.byref(reference))
     try:
         if result != 0 or not reference.value:
@@ -89,146 +86,144 @@ def session_info() -> dict[str, int | bool]:
     }
 
 
-def read_in_child() -> tuple[bytes, dict[str, int | bool]]:
-    """Called only inside the launchd job, before spawning /usr/bin/security."""
+def require_aqua() -> dict[str, int | bool]:
+    if sys.platform != "darwin":
+        raise KeychainUnavailable("host_not_macos")
     evidence = session_info()
-    if evidence["status"] != 0 or evidence["graphic_access"]:
-        raise KeychainUnavailable("graphic_session_refused", evidence)
-    command = [
-        "/usr/bin/security",
-        "find-generic-password",
-        "-w",
-        "-s",
-        "Chrome Safe Storage",
-        "-a",
-        "Chrome",
-    ]
+    if evidence["status"] != 0 or not evidence["graphic_access"]:
+        raise KeychainUnavailable("aqua_session_required", evidence)
+    return evidence
+
+
+def _security(arguments: list[str], *, timeout: float, cause: str) -> bytes:
     process = subprocess.Popen(
-        command,
+        ["/usr/bin/security", *arguments, str(login_keychain())],
         stdout=subprocess.PIPE,
         stderr=subprocess.DEVNULL,
         start_new_session=True,
     )
     try:
-        value, _ = process.communicate(timeout=5)
+        value, _ = process.communicate(timeout=timeout)
     except subprocess.TimeoutExpired:
         os.killpg(process.pid, signal.SIGKILL)
         process.communicate()
-        raise KeychainUnavailable("keychain_read_timeout", evidence) from None
+        raise KeychainUnavailable(f"{cause}_timeout") from None
     except BaseException:
         os.killpg(process.pid, signal.SIGKILL)
         process.communicate()
         raise
     if process.returncode != 0:
-        raise KeychainUnavailable("keychain_read_denied", evidence)
-    value = value.removesuffix(b"\n")
-    if not 0 < len(value) <= 16384:
-        raise KeychainUnavailable("keychain_read_invalid", evidence)
-    return value, evidence
+        raise KeychainUnavailable(f"{cause}_denied")
+    if len(value) > 32 * 1024**2:
+        raise KeychainUnavailable(f"{cause}_invalid")
+    return value
 
 
-def launchd_storage_password(timeout: float) -> tuple[bytes, dict[str, int | bool]]:
-    """A private local socket carries the key; no secret files or arguments."""
-    if sys.platform != "darwin":
-        raise KeychainUnavailable("host_not_macos")
-    end = time.monotonic() + timeout
-    label = f"com.framefetch.key-read.{uuid4().hex}"
-    target = f"user/{os.getuid()}"
-    with tempfile.TemporaryDirectory(prefix="ff-key-", dir="/tmp") as folder:
-        root = Path(folder)
-        endpoint = root / "pipe"
-        plist = root / "job.plist"
-        job = {
-            "Label": label,
-            "ProgramArguments": [
-                sys.executable,
-                "-m",
-                "app.workers.identity.keychain",
-                "--socket",
-                str(endpoint),
-            ],
-            "WorkingDirectory": str(Path(__file__).resolve().parents[3]),
-            "SessionCreate": True,
-            "LimitLoadToSessionType": "Background",
-            "RunAtLoad": True,
-            "StandardOutPath": "/dev/null",
-            "StandardErrorPath": "/dev/null",
-        }
-        plist.write_bytes(plistlib.dumps(job))
-        plist.chmod(0o600)
-        with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as server:
-            server.bind(str(endpoint))
-            endpoint.chmod(0o600)
-            server.listen(1)
-            try:
-                result = subprocess.run(
-                    ["/bin/launchctl", "bootstrap", target, str(plist)],
-                    capture_output=True,
-                    timeout=min(3, timeout),
-                )
-                if result.returncode != 0:
-                    raise KeychainUnavailable("launchd_user_domain_unavailable")
-                server.settimeout(max(0.001, end - time.monotonic()))
-                connection, _ = server.accept()
-                with connection:
-                    connection.settimeout(max(0.001, end - time.monotonic()))
-                    chunks = bytearray()
-                    while True:
-                        connection.settimeout(max(0.001, end - time.monotonic()))
-                        data = connection.recv(4096)
-                        if not data:
-                            break
-                        chunks.extend(data)
-                        if len(chunks) > 32768:
-                            raise KeychainUnavailable("keychain_read_invalid")
-                response = json.loads(chunks)
-                evidence = response["session"]
-                if response["cause"]:
-                    raise KeychainUnavailable(response["cause"], evidence)
-                # Validate the child attestation again; no graphical-session fallback.
-                if evidence["status"] != 0 or evidence["graphic_access"]:
-                    raise KeychainUnavailable("graphic_session_refused", evidence)
-                password = base64.b64decode(response["password"], validate=True)
-                if not 0 < len(password) <= 16384:
-                    raise KeychainUnavailable("keychain_read_invalid", evidence)
-                return password, evidence
-            except (TimeoutError, subprocess.TimeoutExpired):
-                raise KeychainUnavailable("keychain_read_timeout") from None
-            finally:
-                subprocess.run(
-                    ["/bin/launchctl", "bootout", f"{target}/{label}"],
-                    stdout=subprocess.DEVNULL,
-                    stderr=subprocess.DEVNULL,
-                    timeout=3,
-                )
-
-
-def main() -> int:
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--socket", required=True)
-    args = parser.parse_args()
-
-    # launchctl bootout must terminate the security subprocess group as well.
-    def terminated(signum: int, frame: object) -> None:
-        raise SystemExit(128 + signum)
-
-    signal.signal(signal.SIGTERM, terminated)
-    response: dict[str, object]
+def parse_storage_acl(output: bytes) -> dict[str, int | bool]:
+    """Consume the complete target ACL, keeping metadata out of diagnostics."""
     try:
-        value, evidence = read_in_child()
-        response = {
-            "cause": None,
-            "session": evidence,
-            "password": base64.b64encode(value).decode("ascii"),
+        blocks = re.split(r"(?=^keychain:)", output.decode("utf-8"), flags=re.M)
+        targets = [
+            block
+            for block in blocks
+            if re.search(r'^    "svce"<blob>="Chrome Safe Storage"$', block, re.M)
+            and re.search(r'^    "acct"<blob>="Chrome"$', block, re.M)
+        ]
+        if len(targets) != 1:
+            raise ValueError
+        block = targets[0]
+        if not re.search(r'^class: "genp"$', block, re.M):
+            raise ValueError
+        header = re.search(r"^access: ([0-9]+) entries\n", block, re.M)
+        if header is None:
+            raise ValueError
+        entries = re.split(r"(?=^    entry [0-9]+:)", block[header.end() :], flags=re.M)
+        entries = [entry for entry in entries if entry.strip()]
+        if len(entries) != int(header[1]) or not entries:
+            raise ValueError
+        decrypt = partition = False
+        for index, entry in enumerate(entries):
+            match = re.fullmatch(
+                rf"    entry {index}:\n"
+                r"        authorizations \(([0-9]+)\): ([a-z_ ]+)\n"
+                r"        (don't-require-password|require-password)\n"
+                r"        description: ([^\n]*)\n"
+                r"        applications(?:: <null>| \(([0-9]+)\):)\n(.*)",
+                entry.rstrip("\n") + "\n",
+                re.S,
+            )
+            if match is None:
+                raise ValueError
+            authorizations = match[2].split()
+            if len(authorizations) != int(match[1]) or len(set(authorizations)) != len(
+                authorizations
+            ):
+                raise ValueError
+            apps = match[6]
+            count = int(match[5]) if match[5] is not None else 0
+            applications = re.findall(
+                r"            ([0-9]+): ([^\n]+) \(([^\n]+)\)\n"
+                r"                requirement: ([^\n]+)\n",
+                apps,
+            )
+            rebuilt = "".join(
+                f"            {number}: {path} ({status})\n"
+                f"                requirement: {requirement}\n"
+                for number, path, status, requirement in applications
+            )
+            if (
+                rebuilt != apps
+                or len(applications) != count
+                or [int(app[0]) for app in applications] != list(range(count))
+            ):
+                raise ValueError
+            if "decrypt" in authorizations:
+                valid = match[3] == "don't-require-password" and any(
+                    path == "/usr/bin/security"
+                    and status == "OK"
+                    and requirement
+                    == 'identifier "com.apple.security" and anchor apple'
+                    for _, path, status, requirement in applications
+                )
+                if not valid:
+                    raise ValueError
+                decrypt = True
+            if "partition_id" in authorizations:
+                parts = [part.strip() for part in match[4].split(",")]
+                if not parts or any(
+                    not re.fullmatch(r"[a-z-]+:[A-Za-z0-9]*", part) for part in parts
+                ):
+                    raise ValueError
+                partition = "apple-tool:" in parts
+        if not decrypt or not partition:
+            raise ValueError
+        return {
+            "acl_valid": True,
+            "acl_entries": len(entries),
+            "security_decrypt": True,
+            "apple_tool_partition": True,
+            "password_not_required": True,
         }
-    except KeychainUnavailable as error:
-        response = {"cause": error.cause, "session": error.evidence}
-    with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as channel:
-        channel.settimeout(2)
-        channel.connect(args.socket)
-        channel.sendall(json.dumps(response).encode())
-    return 0
+    except (ValueError, UnicodeError, IndexError):
+        raise KeychainUnavailable("keychain_acl_invalid") from None
 
 
-if __name__ == "__main__":
-    raise SystemExit(main())
+def validate_storage_acl(timeout: float = 60) -> dict[str, int | bool]:
+    require_aqua()
+    return parse_storage_acl(
+        _security(
+            ["dump-keychain", "-a"], timeout=min(60, timeout), cause="keychain_acl"
+        )
+    )
+
+
+def storage_password(timeout: float = 5) -> tuple[bytes, dict[str, int | bool]]:
+    evidence = require_aqua()
+    value = _security(
+        ["find-generic-password", "-w", "-s", "Chrome Safe Storage", "-a", "Chrome"],
+        timeout=min(5, timeout),
+        cause="keychain_read",
+    ).removesuffix(b"\n")
+    if not 0 < len(value) <= 16384:
+        raise KeychainUnavailable("keychain_read_invalid")
+    return value, evidence

@@ -33,9 +33,12 @@ def source(tmp_path, monkeypatch):
     )
     source = module.CookieSource(settings)
     preflight = Mock()
-    read = Mock(return_value=(b"synthetic-key", {"graphic_access": False}))
+    read = Mock(return_value=(b"synthetic-key", {"graphic_access": True}))
     monkeypatch.setattr(module, "require_unlocked", preflight)
-    monkeypatch.setattr(module, "launchd_storage_password", read)
+    monkeypatch.setattr(module, "storage_password", read)
+    monkeypatch.setattr(
+        module, "validate_storage_acl", Mock(return_value={"acl_valid": True})
+    )
     source._extract = AsyncMock(return_value=COOKIES)
     return source, preflight, read
 
@@ -69,7 +72,7 @@ async def test_repeat_decryption_failure_is_terminal(source):
     assert service._password is None
 
 
-async def test_denied_key_read_never_extracts_and_has_no_gui_fallback(source):
+async def test_denied_key_read_never_extracts_and_does_not_retry(source):
     service, _, read = source
     read.side_effect = KeychainUnavailable("keychain_read_denied")
     with pytest.raises(KeychainUnavailable, match="keychain_read_denied"):
@@ -240,3 +243,79 @@ async def test_extractor_cancellation_kills_group_and_waits_for_exit(
         await task
     kill.assert_called_once_with(123, module.signal.SIGKILL)
     process.wait.assert_awaited_once()
+
+
+async def test_acl_failure_disables_service_and_releases_cache(source, monkeypatch):
+    service, _, read = source
+    acl = Mock(side_effect=KeychainUnavailable("keychain_acl_invalid"))
+    monkeypatch.setattr(module, "validate_storage_acl", acl)
+    with pytest.raises(KeychainUnavailable, match="keychain_acl_invalid"):
+        await service.cookies(request())
+    with pytest.raises(KeychainUnavailable, match="keychain_acl_disabled"):
+        await service.cookies(request())
+    assert service._password is None and acl.call_count == 1
+    read.assert_not_called()
+    service._extract.assert_not_called()
+
+
+async def test_startup_acl_and_every_secret_refresh_are_validated(source, monkeypatch):
+    service, preflight, read = source
+    acl = Mock(return_value={"acl_valid": True})
+    monkeypatch.setattr(module, "validate_storage_acl", acl)
+    await service.start()
+    await service.cookies(request())
+    await service.cookies(request())
+    assert acl.call_count == 2 and read.call_count == 1
+    service._extract.side_effect = [None, COOKIES]
+    await service.cookies(request())
+    assert acl.call_count == 3 and read.call_count == 2
+    assert preflight.call_count == 5
+
+
+async def test_lifespan_releases_password_even_after_failure(source, monkeypatch):
+    service, _, _ = source
+    monkeypatch.setattr(module, "CookieSource", lambda _: service)
+    app = module.create_app(service.settings)
+    with pytest.raises(RuntimeError):
+        async with app.router.lifespan_context(app):
+            await service.cookies(request())
+            assert service._password
+            raise RuntimeError("synthetic")
+    assert service._password is None
+
+
+async def test_locked_startup_never_dumps_acl_or_reads_security(source, monkeypatch):
+    service, preflight, read = source
+    preflight.side_effect = KeychainUnavailable("keychain_locked")
+    acl = Mock()
+    monkeypatch.setattr(module, "validate_storage_acl", acl)
+    await service.start()
+    with pytest.raises(KeychainUnavailable, match="keychain_locked"):
+        await service.cookies(request())
+    acl.assert_not_called()
+    read.assert_not_called()
+
+
+def test_acl_consuming_deadline_never_reads_secret(source, monkeypatch):
+    service, _, read = source
+    value = request(seconds=1)
+    clock = Mock()
+    clock.now.side_effect = [value.deadline - timedelta(seconds=1), value.deadline]
+    monkeypatch.setattr(module, "datetime", clock)
+    monkeypatch.setattr(
+        module, "validate_storage_acl", Mock(return_value={"acl_valid": True})
+    )
+    with pytest.raises(KeychainUnavailable, match="identity_deadline_invalid"):
+        service._read_password(value.deadline)
+    read.assert_not_called()
+
+
+async def test_unreadable_profile_has_explicit_safe_cause(source, monkeypatch):
+    service, _, _ = source
+    process = Mock(pid=123, returncode=69)
+    process.communicate = AsyncMock(return_value=(b"", None))
+    monkeypatch.setattr(
+        module.asyncio, "create_subprocess_exec", AsyncMock(return_value=process)
+    )
+    with pytest.raises(KeychainUnavailable, match="chrome_profile_unreadable"):
+        await module.CookieSource._extract(service, request())

@@ -21,7 +21,7 @@ def env_file(tmp_path):
     return path
 
 
-def test_launch_agent_user_domain_background_session_and_no_token_in_plist(
+def test_launch_agent_gui_domain_aqua_session_and_no_token_in_plist(
     monkeypatch, tmp_path
 ):
     environment = env_file(tmp_path)
@@ -31,19 +31,17 @@ def test_launch_agent_user_domain_background_session_and_no_token_in_plist(
     monkeypatch.setattr(cli.subprocess, "run", run)
     cli.install(environment)
     spec = plistlib.loads(target.read_bytes())
-    assert spec["LimitLoadToSessionType"] == "Background" and spec["SessionCreate"]
+    assert spec["LimitLoadToSessionType"] == "Aqua" and "SessionCreate" not in spec
     assert TOKEN not in target.read_text()
     assert spec["ProgramArguments"][-1] == str(environment)
     assert target.stat().st_mode & 0o777 == 0o600
-    assert run.call_args.args[0][2] == f"user/{os.getuid()}"
+    assert run.call_args.args[0][2] == f"gui/{os.getuid()}"
     cli.uninstall()
     assert not target.exists()
     assert run.call_args.args[0][1] == "bootout"
 
 
-def test_failed_bootstrap_removes_plist_and_does_not_use_gui_domain(
-    monkeypatch, tmp_path
-):
+def test_failed_bootstrap_removes_plist_and_does_not_fallback(monkeypatch, tmp_path):
     target = tmp_path / "agent.plist"
     monkeypatch.setattr(cli, "agent_path", lambda: target)
     run = Mock(side_effect=RuntimeError("launch failed"))
@@ -51,7 +49,7 @@ def test_failed_bootstrap_removes_plist_and_does_not_use_gui_domain(
     with pytest.raises(RuntimeError):
         cli.install(env_file(tmp_path))
     assert not target.exists() and run.call_count == 1
-    assert run.call_args.args[0][2].startswith("user/")
+    assert run.call_args.args[0][2].startswith("gui/")
 
 
 def test_install_never_overwrites_existing_agent(monkeypatch, tmp_path):
@@ -87,5 +85,14 @@ def test_host_and_runner_refuse_unsafe_identity_tokens(token):
 def test_none_is_valid_for_anonymous_runner():
     settings = RunnerSettings(
         runner_hmac_secret=SecretStr("h" * 32), runner_egress_proxy="http://proxy:3128"
+    )
+    assert settings.cookie_source_token is None
+
+
+def test_empty_compose_token_keeps_anonymous_runner_disabled():
+    settings = RunnerSettings(
+        runner_hmac_secret=SecretStr("h" * 32),
+        runner_egress_proxy="http://proxy:3128",
+        cookie_source_token="",
     )
     assert settings.cookie_source_token is None
