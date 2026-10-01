@@ -229,3 +229,13 @@ def test_registry_permissions_cover_every_identity_platform():
             assert profile.cookie_domain_allowlist
             assert set(profile.cookie_domain_allowlist) <= domains
     assert {"kuaishou.com", "weibo.com", "hongguoduanju.com"} <= domains
+
+
+def test_reddit_prefer_generates_cookie_permissions_without_install():
+    from app.services.provider_types import ProviderIdentity
+    from app.workers.runner.provider_registry import current_provider_registry
+
+    profile = current_provider_registry().profile_for_key("reddit")
+    assert profile.identity is ProviderIdentity.PREFER
+    assert profile.cookie_domain_allowlist == frozenset({"reddit.com"})
+    assert "*://*.reddit.com/*" in extension.manifest(19101)["host_permissions"]

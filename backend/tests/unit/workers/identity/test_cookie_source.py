@@ -392,6 +392,7 @@ def test_server_application_heartbeat(monkeypatch):
         ("x", "twitter.com", ["auth_token", "ct0"]),
         ("facebook", "facebook.com", ["c_user", "xs"]),
         ("instagram", "instagram.com", ["sessionid"]),
+        ("reddit", "reddit.com", ["reddit_session"]),
         ("qqvideo", "v.qq.com", ["v_vuserid", "v_vusession"]),
         ("youku", "youku.com", ["P_sck"]),
     ],
