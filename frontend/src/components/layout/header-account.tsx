@@ -192,7 +192,7 @@ export function HeaderAccount({
                     href="/admin/analytics"
                   >
                     <ChartLineUpIcon aria-hidden className="size-4" />
-                    下载分析
+                    使用统计
                   </Link>
                 </DropdownMenuItem>
                 <DropdownMenuItem asChild>

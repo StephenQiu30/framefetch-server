@@ -11,11 +11,13 @@ import { render } from '../helpers/query-render';
 
 const runtime = vi.hoisted(() => ({
   getAdminDownloadAnalytics: vi.fn(),
+  getAnalysisAnalytics: vi.fn(),
 }));
 
-describe('administrator download analytics', () => {
+describe('administrator usage analytics', () => {
   beforeEach(() => {
     runtime.getAdminDownloadAnalytics.mockReset();
+    runtime.getAnalysisAnalytics.mockReset();
   });
 
   it('renders KPI, trend data and source details', async () => {
@@ -23,7 +25,7 @@ describe('administrator download analytics', () => {
     render(<AdminAnalyticsView />);
 
     expect(
-      await screen.findByRole('heading', { level: 1, name: '下载分析' }),
+      await screen.findByRole('heading', { level: 1, name: '使用统计' }),
     ).toBeInTheDocument();
     expect(runtime.getAdminDownloadAnalytics).toHaveBeenCalledWith(
       {
@@ -132,10 +134,10 @@ describe('administrator download analytics', () => {
     await act(async () => periodRefresh.resolve(analytics()));
     await waitFor(() =>
       expect(
-        screen.getByRole('button', { name: '刷新下载分析' }),
+        screen.getByRole('button', { name: '刷新使用统计' }),
       ).toBeEnabled(),
     );
-    fireEvent.click(screen.getByRole('button', { name: '刷新下载分析' }));
+    fireEvent.click(screen.getByRole('button', { name: '刷新使用统计' }));
     await waitFor(() =>
       expect(runtime.getAdminDownloadAnalytics).toHaveBeenCalledTimes(3),
     );
@@ -165,7 +167,289 @@ describe('administrator download analytics', () => {
       await screen.findByText('当前周期还没有下载数据'),
     ).toBeInTheDocument();
   });
+
+  it('loads AI execution statistics only after selecting its tab', async () => {
+    runtime.getAdminDownloadAnalytics.mockResolvedValue(analytics());
+    runtime.getAnalysisAnalytics.mockResolvedValue(analysisAnalytics());
+    render(<AdminAnalyticsView />);
+    await screen.findByRole('img', { name: '每日下载任务交互趋势图' });
+    expect(runtime.getAnalysisAnalytics).not.toHaveBeenCalled();
+
+    selectAnalyticsTab('AI 分析');
+    expect(
+      await screen.findByRole('img', { name: '每日 AI 分析执行趋势图' }),
+    ).toBeInTheDocument();
+    expect(runtime.getAnalysisAnalytics).toHaveBeenCalledWith(
+      { days: 30 },
+      { signal: expect.any(AbortSignal) },
+    );
+    expect(
+      screen.queryByRole('img', { name: '每日下载任务交互趋势图' }),
+    ).not.toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: 'AI 分析' })).toHaveAttribute(
+      'aria-selected',
+      'true',
+    );
+    expect(
+      screen.getByRole('tabpanel', { name: 'AI 分析' }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText('执行次数', { selector: '[data-slot="item-title"]' })
+        .nextElementSibling,
+    ).toHaveTextContent('20');
+    expect(
+      screen.getByText('成功率', { selector: '[data-slot="item-title"]' })
+        .nextElementSibling,
+    ).toHaveTextContent('83.3%');
+    expect(
+      screen.getByText('平均完成耗时').nextElementSibling,
+    ).toHaveTextContent('1 分 22 秒');
+    expect(
+      screen.getByText('进行中', { selector: '[data-slot="item-title"]' })
+        .nextElementSibling,
+    ).toHaveTextContent('5');
+    expect(screen.getByText('12 次有效完成记录')).toBeInTheDocument();
+    expect(
+      screen.getByText(/按创建日期（UTC）统计分析执行记录/),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole('img', { name: 'AI 分析执行状态环形图' }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole('img', { name: 'AI 分析输入类型环形图' }),
+    ).toBeInTheDocument();
+    expect(screen.getByLabelText('AI 分析输入类型精确数据')).toHaveTextContent(
+      '视频1260%剧本840%',
+    );
+    expect(screen.getByLabelText('AI 分析状态精确数据')).toHaveTextContent(
+      '成功1050%进行中525%失败210%取消315%',
+    );
+    const detailsTrigger = screen.getByRole('button', { name: '查看每日明细' });
+    expect(detailsTrigger).toHaveAttribute('aria-expanded', 'false');
+    expect(
+      screen.queryByRole('table', { name: '每日 AI 分析执行精确数据' }),
+    ).not.toBeInTheDocument();
+    fireEvent.click(detailsTrigger);
+    expect(detailsTrigger).toHaveAttribute('aria-expanded', 'true');
+    expect(
+      within(
+        screen.getByRole('table', { name: '每日 AI 分析执行精确数据' }),
+      ).getByRole('row', { name: /2026-08-10 20 10 2 3 5/ }),
+    ).toBeInTheDocument();
+    fireEvent.click(detailsTrigger);
+    expect(detailsTrigger).toHaveAttribute('aria-expanded', 'false');
+    expect(
+      screen.queryByRole('table', { name: '每日 AI 分析执行精确数据' }),
+    ).not.toBeInTheDocument();
+  });
+
+  it('shares periods across tabs and retains AI data during refresh recovery', async () => {
+    const period = deferred<API.AnalysisAnalyticsResponse>();
+    const refresh = deferred<API.AnalysisAnalyticsResponse>();
+    runtime.getAdminDownloadAnalytics.mockResolvedValue(analytics());
+    runtime.getAnalysisAnalytics
+      .mockResolvedValueOnce(analysisAnalytics())
+      .mockReturnValueOnce(period.promise)
+      .mockReturnValueOnce(refresh.promise)
+      .mockResolvedValueOnce(analysisAnalytics());
+    render(<AdminAnalyticsView />);
+    selectAnalyticsTab('AI 分析');
+    await screen.findByRole('img', { name: '每日 AI 分析执行趋势图' });
+    const select = screen.getByRole('combobox', { name: '统计周期' });
+    fireEvent.click(select);
+    fireEvent.click(await screen.findByRole('option', { name: '最近 7 天' }));
+    await waitFor(() =>
+      expect(runtime.getAnalysisAnalytics).toHaveBeenLastCalledWith(
+        { days: 7 },
+        { signal: expect.any(AbortSignal) },
+      ),
+    );
+    expect(
+      screen.getByText('执行次数', { selector: '[data-slot="item-title"]' })
+        .nextElementSibling,
+    ).toHaveTextContent('20');
+    expect(
+      screen.queryByRole('status', { name: '正在加载 AI 分析统计' }),
+    ).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '刷新使用统计' })).toBeDisabled();
+    await act(async () =>
+      period.resolve(analysisAnalytics({ period_days: 7 })),
+    );
+    await waitFor(() =>
+      expect(
+        screen.getByRole('button', { name: '刷新使用统计' }),
+      ).toBeEnabled(),
+    );
+    fireEvent.click(screen.getByRole('button', { name: '刷新使用统计' }));
+    await act(async () => refresh.reject(new Error('AI 统计刷新暂不可用')));
+    expect(await screen.findByText('AI 分析统计刷新失败')).toBeInTheDocument();
+    expect(
+      screen.getByRole('img', { name: '每日 AI 分析执行趋势图' }),
+    ).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: '重新加载' }));
+    await waitFor(() =>
+      expect(runtime.getAnalysisAnalytics).toHaveBeenCalledTimes(4),
+    );
+    await waitFor(() =>
+      expect(screen.queryByText('AI 分析统计刷新失败')).not.toBeInTheDocument(),
+    );
+
+    selectAnalyticsTab('下载');
+    expect(select).toHaveTextContent('最近 7 天');
+    await waitFor(() =>
+      expect(runtime.getAdminDownloadAnalytics).toHaveBeenLastCalledWith(
+        { days: 7 },
+        { signal: expect.any(AbortSignal) },
+      ),
+    );
+    await screen.findByRole('img', { name: '每日下载任务交互趋势图' });
+    fireEvent.click(select);
+    fireEvent.click(await screen.findByRole('option', { name: '最近 3 个月' }));
+    await waitFor(() =>
+      expect(runtime.getAdminDownloadAnalytics).toHaveBeenLastCalledWith(
+        { days: 90 },
+        { signal: expect.any(AbortSignal) },
+      ),
+    );
+    expect(runtime.getAnalysisAnalytics).toHaveBeenCalledTimes(4);
+  });
+
+  it('recovers AI initial errors to a true empty state without zero charts', async () => {
+    const first = deferred<API.AnalysisAnalyticsResponse>();
+    runtime.getAdminDownloadAnalytics.mockResolvedValue(analytics());
+    runtime.getAnalysisAnalytics
+      .mockReturnValueOnce(first.promise)
+      .mockResolvedValueOnce(
+        analysisAnalytics({
+          summary: {
+            total: 0,
+            succeeded: 0,
+            failed: 0,
+            cancelled: 0,
+            active: 0,
+            average_duration_seconds: null,
+            completed_duration_count: 0,
+          },
+          daily: [
+            {
+              date: '2026-08-10',
+              total: 0,
+              succeeded: 0,
+              failed: 0,
+              cancelled: 0,
+              active: 0,
+            },
+          ],
+          inputs: [
+            { input_kind: 'video', total: 0 },
+            { input_kind: 'screenplay', total: 0 },
+          ],
+        }),
+      );
+    render(<AdminAnalyticsView />);
+    selectAnalyticsTab('AI 分析');
+    expect(
+      screen.getByRole('status', { name: '正在加载 AI 分析统计' }),
+    ).toBeInTheDocument();
+    await act(async () => first.reject(new Error('AI 统计暂不可用')));
+    expect(await screen.findByText('无法加载 AI 分析统计')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: '重试' }));
+    expect(
+      await screen.findByText('当前周期还没有 AI 分析记录'),
+    ).toBeInTheDocument();
+    expect(
+      within(screen.getByRole('tabpanel', { name: 'AI 分析' })).queryByRole(
+        'img',
+      ),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByText('执行次数', { selector: '[data-slot="item-title"]' }),
+    ).not.toBeInTheDocument();
+  });
+
+  it('keeps unavailable success and duration metrics distinct from zero', async () => {
+    runtime.getAdminDownloadAnalytics.mockResolvedValue(analytics());
+    runtime.getAnalysisAnalytics.mockResolvedValue(
+      analysisAnalytics({
+        summary: {
+          total: 2,
+          succeeded: 0,
+          failed: 0,
+          cancelled: 1,
+          active: 1,
+          average_duration_seconds: null,
+          completed_duration_count: 0,
+        },
+        daily: [
+          {
+            date: '2026-08-10',
+            total: 2,
+            succeeded: 0,
+            failed: 0,
+            cancelled: 1,
+            active: 1,
+          },
+        ],
+        inputs: [
+          { input_kind: 'video', total: 1 },
+          { input_kind: 'screenplay', total: 1 },
+        ],
+      }),
+    );
+    render(<AdminAnalyticsView />);
+    selectAnalyticsTab('AI 分析');
+    await screen.findByRole('img', { name: '每日 AI 分析执行趋势图' });
+    expect(
+      screen.getByText('成功率', { selector: '[data-slot="item-title"]' })
+        .nextElementSibling,
+    ).toHaveTextContent('—');
+    expect(
+      screen.getByText('平均完成耗时').nextElementSibling,
+    ).toHaveTextContent('—');
+    expect(screen.getByText('暂无完成耗时')).toBeInTheDocument();
+  });
 });
+
+function selectAnalyticsTab(name: '下载' | 'AI 分析') {
+  fireEvent.mouseDown(screen.getByRole('tab', { name }), {
+    button: 0,
+    ctrlKey: false,
+  });
+}
+
+function analysisAnalytics(
+  overrides: Partial<API.AnalysisAnalyticsResponse> = {},
+): API.AnalysisAnalyticsResponse {
+  return {
+    period_days: 30,
+    start: '2026-07-12',
+    end: '2026-08-10',
+    summary: {
+      total: 20,
+      succeeded: 10,
+      failed: 2,
+      cancelled: 3,
+      active: 5,
+      average_duration_seconds: 82.4,
+      completed_duration_count: 12,
+    },
+    daily: [
+      {
+        date: '2026-08-10',
+        total: 20,
+        succeeded: 10,
+        failed: 2,
+        cancelled: 3,
+        active: 5,
+      },
+    ],
+    inputs: [
+      { input_kind: 'video', total: 12 },
+      { input_kind: 'screenplay', total: 8 },
+    ],
+    ...overrides,
+  };
+}
 
 function analytics(
   overrides: Partial<API.DownloadAnalyticsResponse> = {},
@@ -249,4 +533,5 @@ vi.mock('@/lib/request-error', async (original) => ({
 vi.mock('@/api/admin', async (original) => ({
   ...(await original<typeof import('@/api/admin')>()),
   getDownloadAnalytics: runtime.getAdminDownloadAnalytics,
+  getAnalysisAnalytics: runtime.getAnalysisAnalytics,
 }));

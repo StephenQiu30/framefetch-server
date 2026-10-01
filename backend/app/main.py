@@ -15,6 +15,7 @@ from app.api.openapi import (
     SWAGGER_UI_PARAMETERS,
 )
 from app.api.routes.admin_ai_providers import router as admin_ai_providers_router
+from app.api.routes.admin_analyses import router as admin_analyses_router
 from app.api.routes.admin_downloads import router as admin_downloads_router
 from app.api.routes.admin_files import router as admin_files_router
 from app.api.routes.admin_operation_logs import router as admin_operation_logs_router
@@ -76,6 +77,7 @@ def create_app(
     api_router.include_router(admin_users_router)
     api_router.include_router(admin_operation_logs_router)
     api_router.include_router(admin_downloads_router)
+    api_router.include_router(admin_analyses_router)
     api_router.include_router(admin_files_router)
     api_router.include_router(admin_ai_providers_router)
     api_router.include_router(admin_providers_router)

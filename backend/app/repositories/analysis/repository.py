@@ -2,6 +2,7 @@
 
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
+from app.repositories.analysis.analytics_repository import AnalysisAnalyticsRepository
 from app.repositories.analysis.repository_base import AnalysisRepositoryBase
 from app.repositories.analysis.repository_create import AnalysisCreationRepository
 from app.repositories.analysis.repository_inputs import AnalysisInputRepository
@@ -25,6 +26,8 @@ class SqlAlchemyAnalysisRepository:
         self.get_result = reads.get_result
         self.get_latest_report = reads.get_latest_report
         self.get_current_report_file = reads.get_current_report_file
+        analytics = AnalysisAnalyticsRepository(sessions, quota_policy=quota_policy)
+        self.get_analysis_analytics = analytics.get_analysis_analytics
         creation = AnalysisCreationRepository(sessions, quota_policy=quota_policy)
         self.create_job_and_enqueue = creation.create_job_and_enqueue
         inputs = AnalysisInputRepository(sessions, quota_policy=quota_policy)

@@ -72,6 +72,7 @@ from app.repositories.source_discoveries.repository import (
 from app.repositories.storage_files.repository import SqlAlchemyStorageFileRepository
 from app.repositories.task_event_store import TaskEventStore
 from app.services.ai_providers import AiProviderService
+from app.services.analysis.analytics import GetAnalysisAnalytics
 from app.services.analysis.cancel_analysis import CancelAnalysis
 from app.services.analysis.create_analysis import CreateAnalysis
 from app.services.analysis.create_document_analysis import CreateDocumentAnalysis
@@ -423,6 +424,7 @@ def build_api_runtime(settings: Settings) -> ApiRuntime:
     get_analysis = GetAnalysis(analysis_repository)
     skill_catalog = BuiltinAnalysisSkillCatalog()
     analysis_use_cases = AnalysisUseCases(
+        get_analysis_analytics=GetAnalysisAnalytics(analysis_repository, now=clock),
         list_analysis_skills=ListAnalysisSkills(skill_catalog),
         create_analysis=CreateAnalysis(
             repository=analysis_repository,

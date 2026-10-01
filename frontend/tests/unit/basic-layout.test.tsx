@@ -391,7 +391,7 @@ describe('BasicLayout', () => {
     };
     render(
       <BasicLayout>
-        <div>下载分析页面</div>
+        <div>使用统计页面</div>
       </BasicLayout>,
     );
 
@@ -400,7 +400,7 @@ describe('BasicLayout', () => {
       { button: 0, ctrlKey: false },
     );
     const desktopLink = await screen.findByRole('menuitem', {
-      name: '下载分析',
+      name: '使用统计',
     });
     expect(desktopLink).toHaveAttribute('href', '/admin/analytics');
     expect(
@@ -414,7 +414,7 @@ describe('BasicLayout', () => {
     fireEvent.keyDown(document, { key: 'Escape' });
     await waitFor(() =>
       expect(
-        screen.queryByRole('menuitem', { name: '下载分析' }),
+        screen.queryByRole('menuitem', { name: '使用统计' }),
       ).not.toBeInTheDocument(),
     );
 
@@ -423,7 +423,7 @@ describe('BasicLayout', () => {
       name: '移动导航',
     });
     const mobileLink = within(mobileNavigation).getByRole('link', {
-      name: '下载分析',
+      name: '使用统计',
     });
     expect(mobileLink).toHaveAttribute('href', '/admin/analytics');
     expect(mobileLink).toHaveAttribute('aria-current', 'page');

@@ -59,7 +59,7 @@ type Notice = { text: string } | null;
 const MAX_AVATAR_UPLOAD_BYTES = 4 * 1024 * 1024;
 const AVATAR_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp']);
 const formClassName = 'mt-14 sm:mt-16';
-const summaryClassName = 'flex min-w-0 flex-col gap-6';
+const summaryClassName = 'flex min-w-0 flex-col gap-4 self-start';
 const identityClassName = 'flex flex-col items-center gap-3 text-center';
 
 export function AccountView() {
@@ -186,9 +186,9 @@ export function AccountView() {
               <Skeleton className="h-5 w-40" />
               <Skeleton className="h-5 w-16" />
             </div>
-            <div className="mt-auto flex flex-col items-center gap-2">
-              <Skeleton className="h-10 w-full" />
+            <div className="flex flex-col items-center gap-2">
               <Skeleton className="h-8 w-28" />
+              <Skeleton className="h-10 w-full" />
             </div>
           </div>
           <div aria-hidden className="flex min-w-0 flex-col gap-6">
@@ -247,7 +247,7 @@ export function AccountView() {
               <p className="text-sm text-muted-foreground">{user.email}</p>
               <Badge variant="secondary">{role}</Badge>
             </div>
-            <div className="mt-auto">
+            <div>
               <Input
                 accept="image/jpeg,image/png,image/webp"
                 aria-describedby={
@@ -268,16 +268,6 @@ export function AccountView() {
                 className="items-center text-center"
                 data-invalid={avatarError ? true : undefined}
               >
-                <FieldDescription
-                  aria-live="polite"
-                  className="text-center"
-                  id="avatar-help"
-                >
-                  JPEG、PNG 或 WebP，最大 4 MB。上传后自动裁切为方形。
-                </FieldDescription>
-                {avatarError ? (
-                  <FieldError id="avatar-error">{avatarError}</FieldError>
-                ) : null}
                 <FieldGroup className="flex-row flex-wrap justify-center gap-2">
                   <Button
                     aria-describedby={
@@ -307,6 +297,16 @@ export function AccountView() {
                     </Button>
                   ) : null}
                 </FieldGroup>
+                <FieldDescription
+                  aria-live="polite"
+                  className="text-center"
+                  id="avatar-help"
+                >
+                  JPEG、PNG 或 WebP，最大 4 MB。上传后自动裁切为方形。
+                </FieldDescription>
+                {avatarError ? (
+                  <FieldError id="avatar-error">{avatarError}</FieldError>
+                ) : null}
               </Field>
             </div>
           </section>

@@ -109,7 +109,7 @@ const adminDestinations = [
     icon: RobotIcon,
   },
   {
-    label: '下载分析',
+    label: '使用统计',
     href: '/admin/analytics',
     keywords: '管理员 统计',
     icon: ChartLineUpIcon,

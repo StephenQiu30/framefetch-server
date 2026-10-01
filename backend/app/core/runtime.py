@@ -21,6 +21,7 @@ from app.repositories.operational_metrics import OperationalMetrics
 from app.repositories.task_event_store import TaskEventStore
 from app.schemas.engine_catalog import EngineCatalogResponse
 from app.services.ai_providers import AiProviderService
+from app.services.analysis.analytics import GetAnalysisAnalytics
 from app.services.analysis.cancel_analysis import CancelAnalysis
 from app.services.analysis.create_analysis import CreateAnalysis
 from app.services.analysis.create_document_analysis import CreateDocumentAnalysis
@@ -103,6 +104,7 @@ class SourceDiscoveryUseCases:
 
 @dataclass(frozen=True, slots=True)
 class AnalysisUseCases:
+    get_analysis_analytics: GetAnalysisAnalytics
     list_analysis_skills: ListAnalysisSkills
     create_analysis: CreateAnalysis
     create_document_analysis: CreateDocumentAnalysis

@@ -67,6 +67,58 @@ declare namespace API {
     updated_at: string;
   };
 
+  type AnalysisAnalyticsDailyResponse = {
+    /** Date 执行 created_at 所属的 UTC 日期。 */
+    date: string;
+    /** Total */
+    total: number;
+    /** Succeeded */
+    succeeded: number;
+    /** Failed */
+    failed: number;
+    /** Cancelled */
+    cancelled: number;
+    /** Active */
+    active: number;
+  };
+
+  type AnalysisAnalyticsInputResponse = {
+    input_kind: AnalysisInputKind;
+    /** Total */
+    total: number;
+  };
+
+  type AnalysisAnalyticsResponse = {
+    /** Period Days */
+    period_days: number;
+    /** Start UTC 窗口起始日零时，含此时刻。 */
+    start: string;
+    /** End 查询时刻，含此时刻。 */
+    end: string;
+    summary: AnalysisAnalyticsSummaryResponse;
+    /** Daily */
+    daily: AnalysisAnalyticsDailyResponse[];
+    /** Inputs */
+    inputs: AnalysisAnalyticsInputResponse[];
+  };
+
+  type AnalysisAnalyticsSummaryResponse = {
+    /** Total 保留的分析执行次数，不代表模型请求次数。 */
+    total: number;
+    /** Succeeded */
+    succeeded: number;
+    /** Failed */
+    failed: number;
+    /** Cancelled */
+    cancelled: number;
+    /** Active queued、running、retry_wait 的执行数量。 */
+    active: number;
+    /** Average Duration Seconds 终态执行的 finished_at-started_at 均值，包含重试与发布；只纳入两时间齐全且非负的样本，没有有效样本时为 null。 */
+    average_duration_seconds: number | null;
+    /** Completed Duration Count 平均执行耗时的有效终态样本数。 */
+    completed_duration_count: number;
+  };
+
   type AnalysisErrorCode =
     | "cancelled"
     | "analysis_cli_unavailable"
@@ -266,6 +318,15 @@ declare namespace API {
     message: string;
     /** 成功时为业务数据，错误时为 null。 */
     data: AiProviderProfileResponse;
+  };
+
+  type ApiResponseAnalysisAnalyticsResponse_ = {
+    /** 稳定的业务结果码。 */
+    code: ErrorCode;
+    /** Message 安全的结果说明。 */
+    message: string;
+    /** 成功时为业务数据，错误时为 null。 */
+    data: AnalysisAnalyticsResponse;
   };
 
   type ApiResponseAnalysisResponse_ = {
@@ -1312,6 +1373,10 @@ declare namespace API {
   };
 
   type FpsBucket = "fps_30" | "fps_60" | "above_60";
+
+  type getAnalysisAnalyticsParams = {
+    days?: number;
+  };
 
   type getAnalysisHistoryRecordParams = {
     analysis_id: string;

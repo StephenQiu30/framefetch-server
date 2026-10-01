@@ -107,7 +107,7 @@ export function MobileNavigationItems({
             href="/admin/analytics"
           >
             <ChartLineUpIcon aria-hidden />
-            下载分析
+            使用统计
           </MobileLink>
           <MobileLink
             active={pathname.startsWith('/admin/files')}

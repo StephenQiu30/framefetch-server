@@ -95,6 +95,31 @@ export async function listOpenRouterModels(options?: RequestOptions) {
   );
 }
 
+/** 查询 AI 分析执行统计 按每次 analysis_run 的 created_at UTC 自然日统计其当前状态。
+
+手动重试与重新分析各计一次执行；包含所属任务已软删除但数据库仍保留的
+执行记录。统计不代表供应商模型请求次数，不推算 token、费用或 Provider
+延迟。平均耗时只纳入有有效开始、结束时间的终态执行，包含执行内重试和
+报告发布；没有有效样本时返回 null。 GET /api/admin/analyses/analytics */
+export async function getAnalysisAnalytics(
+  // 叠加生成的Param类型 (非body参数swagger默认没有生成对象)
+  params: API.getAnalysisAnalyticsParams,
+  options?: RequestOptions
+) {
+  return request<API.ApiResponseAnalysisAnalyticsResponse_>(
+    "/api/admin/analyses/analytics",
+    {
+      method: "GET",
+      params: {
+        // days has a default value: 30
+        days: "30",
+        ...params,
+      },
+      ...(options || {}),
+    }
+  );
+}
+
 /** 查询下载分析 按 UTC 自然日查询管理员可见的全局下载聚合。 GET /api/admin/downloads/analytics */
 export async function getDownloadAnalytics(
   // 叠加生成的Param类型 (非body参数swagger默认没有生成对象)

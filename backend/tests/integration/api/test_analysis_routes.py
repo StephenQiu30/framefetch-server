@@ -185,6 +185,7 @@ def client(tmp_path: Path) -> tuple[TestClient, dict[str, StubUseCase]]:
         "latest_document": StubUseCase(None),
     }
     application.state.services.analysis_use_cases = AnalysisUseCases(
+        get_analysis_analytics=StubUseCase(None),
         list_analysis_skills=lambda input_kind: (
             (
                 AnalysisSkillView(

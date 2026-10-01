@@ -1,4 +1,5 @@
 import { ArrowClockwiseIcon } from '@phosphor-icons/react';
+import type { ReactNode } from 'react';
 
 import { AnalyticsKpis } from '@/components/admin/admin-analytics/analytics-kpis';
 import { AnalyticsLoading } from '@/components/admin/admin-analytics/analytics-states';
@@ -21,6 +22,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Spinner } from '@/components/ui/spinner';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 import { formatDateRange } from './analytics-format';
 
@@ -30,34 +32,49 @@ const periodLabels = {
   90: '最近 3 个月',
 } as const;
 
+export type AnalyticsTab = 'downloads' | 'analysis';
+
 type AdminAnalyticsScreenProps = {
-  data: API.DownloadAnalyticsResponse | null;
+  analysisContent: ReactNode;
+  dateRange: { start: string; end: string } | null;
   days: 7 | 30 | 90;
-  error: string | null;
+  downloadContent: ReactNode;
   loading: boolean;
   onDaysChange: (days: 7 | 30 | 90) => void;
   onRetry: () => void;
+  onTabChange: (tab: AnalyticsTab) => void;
+  tab: AnalyticsTab;
 };
 
 export function AdminAnalyticsScreen({
-  data,
+  analysisContent,
+  dateRange,
   days,
-  error,
+  downloadContent,
   loading,
   onDaysChange,
   onRetry,
+  onTabChange,
+  tab,
 }: AdminAnalyticsScreenProps) {
   return (
-    <div aria-busy={loading} className="flex flex-col gap-16 sm:gap-20">
+    <Tabs
+      aria-busy={loading}
+      className="gap-10 sm:gap-12"
+      onValueChange={(value) => {
+        if (value === 'downloads' || value === 'analysis') onTabChange(value);
+      }}
+      value={tab}
+    >
       <div>
         <PageNavigation fallbackHref="/account" />
         <PageHeader
           action={
             <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
               <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-                {data ? (
+                {dateRange ? (
                   <p className="text-xs text-muted-foreground tabular-nums">
-                    {formatDateRange(data.start, data.end)}
+                    {formatDateRange(dateRange.start, dateRange.end)}
                   </p>
                 ) : null}
                 <Select
@@ -84,7 +101,7 @@ export function AdminAnalyticsScreen({
                 </Select>
               </div>
               <Button
-                aria-label="刷新下载分析"
+                aria-label="刷新使用统计"
                 className="w-full shrink-0 sm:w-auto"
                 disabled={loading}
                 onClick={onRetry}
@@ -96,15 +113,41 @@ export function AdminAnalyticsScreen({
                 ) : (
                   <ArrowClockwiseIcon aria-hidden data-icon="inline-start" />
                 )}
-                <span className="hidden sm:inline">刷新</span>
+                刷新
               </Button>
             </div>
           }
-          description="集中查看下载规模、完成质量与视频源表现。"
-          title="下载分析"
+          description="查看下载表现与 AI 分析执行情况。"
+          title="使用统计"
         />
       </div>
+      <TabsList aria-label="统计内容">
+        <TabsTrigger value="downloads">下载</TabsTrigger>
+        <TabsTrigger value="analysis">AI 分析</TabsTrigger>
+      </TabsList>
+      <TabsContent className="flex flex-col gap-10 sm:gap-12" value="downloads">
+        {downloadContent}
+      </TabsContent>
+      <TabsContent className="flex flex-col gap-10 sm:gap-12" value="analysis">
+        {analysisContent}
+      </TabsContent>
+    </Tabs>
+  );
+}
 
+export function DownloadAnalyticsContent({
+  data,
+  error,
+  loading,
+  onRetry,
+}: {
+  data: API.DownloadAnalyticsResponse | null;
+  error: string | null;
+  loading: boolean;
+  onRetry: () => void;
+}) {
+  return (
+    <>
       {error && !data ? (
         <PageErrorNotice
           message={error}
@@ -124,13 +167,12 @@ export function AdminAnalyticsScreen({
           tone="error"
         />
       ) : null}
-
       {loading && !data ? <AnalyticsLoading /> : null}
       {data ? <DailyTrendChart daily={data.daily} /> : null}
       {data && data.summary.total > 0 ? (
-        <div className="flex flex-col gap-20 sm:gap-28">
+        <div className="flex flex-col gap-10 sm:gap-12">
           <AnalyticsKpis summary={data.summary} />
-          <div className="flex flex-col gap-20 sm:gap-28">
+          <div className="flex flex-col gap-10 sm:gap-12">
             <StatusDistributionChart summary={data.summary} />
             <CompletionRateChart daily={data.daily} />
             <SourceBreakdown
@@ -141,6 +183,6 @@ export function AdminAnalyticsScreen({
           <SourcePerformance sources={data.sources} />
         </div>
       ) : null}
-    </div>
+    </>
   );
 }

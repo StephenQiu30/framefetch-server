@@ -4,6 +4,7 @@ from datetime import datetime
 from typing import Protocol
 from uuid import UUID
 
+from app.services.analysis.analytics_models import AnalysisAnalyticsSnapshot
 from app.services.analysis.input_models import AnalysisDocumentSnapshot
 from app.services.analysis.models import (
     AnalysisArtifactSnapshot,
@@ -26,6 +27,10 @@ class RequestFingerprinter(Protocol):
 
 
 class AnalysisRepository(Protocol):
+    async def get_analysis_analytics(
+        self, *, start: datetime, end: datetime
+    ) -> AnalysisAnalyticsSnapshot: ...
+
     async def get_artifact_for_download(
         self, download_id: UUID
     ) -> AnalysisArtifactSnapshot | None: ...

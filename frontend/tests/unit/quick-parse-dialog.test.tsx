@@ -172,7 +172,7 @@ describe('quick parse', () => {
   it.each([
     ['系统操作日志', '/admin/operation-logs'],
     ['AI 服务', '/admin/ai-providers'],
-    ['下载分析', '/admin/analytics'],
+    ['使用统计', '/admin/analytics'],
     ['文件管理', '/admin/files'],
     ['平台目录', '/admin/providers'],
     ['用户管理', '/admin/users'],
