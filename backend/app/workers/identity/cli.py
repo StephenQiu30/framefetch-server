@@ -148,7 +148,9 @@ def install(env_file: Path) -> Path:
 def uninstall() -> None:
     target = f"gui/{os.getuid()}/{LABEL}"
     result = subprocess.run(
-        ["/bin/launchctl", "bootout", target], capture_output=True, timeout=5
+        ["/bin/launchctl", "bootout", "--wait", target],
+        capture_output=True,
+        timeout=5,
     )
     if result.returncode != 0:
         status = subprocess.run(

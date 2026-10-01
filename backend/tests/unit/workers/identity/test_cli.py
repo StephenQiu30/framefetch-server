@@ -97,6 +97,49 @@ def test_supplied_runner_token_preserved(installation):
     assert settings.cookie_source_pairing_key.get_secret_value() != TOKEN
 
 
+def test_upgrade_waits_for_previous_launchd_registration(installation):
+    environment, target, home, run = installation
+    cli.install(environment)
+    before = environment.read_bytes()
+    registered = True
+
+    def launchd(argv, **kwargs):
+        nonlocal registered
+        if argv[1] == "bootout":
+            if "--wait" in argv:
+                registered = False
+            return SimpleNamespace(returncode=0)
+        if argv[1] == "print":
+            return SimpleNamespace(returncode=0 if registered else 113)
+        if argv[1] == "bootstrap":
+            if registered:
+                raise subprocess.CalledProcessError(5, argv)
+            registered = True
+        return SimpleNamespace(returncode=0)
+
+    run.side_effect = launchd
+    assert cli.install(environment) == home
+    assert environment.read_bytes() == before
+    assert plistlib.loads(target.read_bytes())["Label"] == cli.LABEL
+
+
+def test_upgrade_bootout_timeout_preserves_existing_installation(installation):
+    environment, target, _, run = installation
+    cli.install(environment)
+    before_config, before_agent = environment.read_bytes(), target.read_bytes()
+
+    def launchd(argv, **kwargs):
+        if argv[1] == "bootout":
+            raise subprocess.TimeoutExpired(argv, kwargs["timeout"])
+        raise AssertionError("must not bootstrap while previous service remains")
+
+    run.side_effect = launchd
+    with pytest.raises(subprocess.TimeoutExpired):
+        cli.install(environment)
+    assert environment.read_bytes() == before_config
+    assert target.read_bytes() == before_agent
+
+
 def test_failed_bootstrap_cleans_plist(installation):
     environment, target, _, run = installation
     run.side_effect = RuntimeError("launch failed")
