@@ -505,3 +505,9 @@ def test_hongguo_public_web_share_does_not_request_account_cookies() -> None:
     assert profile.content_scope == "public"
     assert profile.identity is ProviderIdentity.NONE
     assert not profile.cookie_domain_allowlist
+
+
+def test_channels_identity_domains_match_first_party_preview_entry() -> None:
+    profile = provider_profile("https://weixin.qq.com/sph/A9znfitafp")
+    assert profile.cookie_domain_allowlist == frozenset({"channels.weixin.qq.com"})
+    assert profile.content_scope == "public"

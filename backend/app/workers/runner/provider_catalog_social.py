@@ -26,7 +26,9 @@ SOCIAL_PROVIDER_PROFILES: tuple[ProviderProfile, ...] = (
             {ProviderCapability.SINGLE_VIDEO, ProviderCapability.SHORT_VIDEO}
         ),
         status=ProviderSupportStatus.UNKNOWN,
-        cookie_domain_allowlist=frozenset({ProviderCookieDomain.YUANBAO}),
+        # Current first-party preview entry, not the retired Yuanbao header route.
+        # The necessary-account rule remains unverified and required fails closed.
+        cookie_domain_allowlist=frozenset({"channels.weixin.qq.com"}),
         command_args=CHROME_IMPERSONATION,
         client_profile="chrome-136-macos-15",
         probe_authenticated_media=True,

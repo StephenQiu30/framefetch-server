@@ -112,7 +112,10 @@ _ACCOUNT_COOKIES: dict[
         (frozenset({"P_sck"}),),
         frozenset({"P_sck", "P_pck", "P_pck_rm", "P_gck"}),
     ),
-    # Design 17 section 4: yuanbao page headers are not proven by Chrome Cookies.
+    # R6-G4: finder-preview returns public metadata (HTTP 201, errCode=0),
+    # but no media/duration/account cookies for the observed sample. Yuanbao's page
+    # auth headers cannot be reconstructed from this bridge's chrome.cookies.
+    # Leave required identity fail-closed until those materials are proven.
     "wechat_channels": None,
 }
 AUTH_TIMEOUT = 5.0
