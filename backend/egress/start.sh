@@ -15,6 +15,23 @@ peer_host() {
   ipv4=$(getent ahostsv4 "$1" 2>/dev/null | awk 'NR == 1 { print $1; exit }')
   printf '%s' "${ipv4:-$1}"
 }
+# The direct identity exception bypasses cache_peer, so its host mapping also
+# needs IPv4 when Docker Desktop advertises an unroutable IPv6 host gateway.
+# Change only this fixed hostname; preserve other hosts and destination ACLs.
+# Squid 6 hosts_file: https://www.squid-cache.org/Doc/config/hosts_file/
+identity_host=$(peer_host host.docker.internal)
+if [ "$identity_host" != host.docker.internal ]; then
+  awk '{
+    if ($1 ~ /^#/) { print; next }
+    line = $1
+    for (i = 2; i <= NF; i++)
+      if ($i != "host.docker.internal") line = line " " $i
+    if (line != $1) print line
+  }' /etc/hosts > /tmp/identity-hosts
+  printf '%s host.docker.internal\n' "$identity_host" >> /tmp/identity-hosts
+else
+  cp /etc/hosts /tmp/identity-hosts
+fi
 cn_host=${EGRESS_CN_UPSTREAM_HOST:-}
 cn_port=${EGRESS_CN_UPSTREAM_PORT:-7897}
 global_host=${EGRESS_GLOBAL_UPSTREAM_HOST:-${EGRESS_FALLBACK_UPSTREAM_HOST:-host.docker.internal}}

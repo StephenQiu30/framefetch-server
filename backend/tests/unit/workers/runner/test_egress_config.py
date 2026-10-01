@@ -197,10 +197,17 @@ def render_routes(tmp_path, *, ipv4=None, **environment):
     )
     resolver.chmod(0o700)
     routes = tmp_path / "routes.conf"
+    hosts = tmp_path / "hosts.input"
+    hosts.write_text(
+        "127.0.0.1 localhost\n192.0.2.1 host.docker.internal\n"
+        "fdc4::254 host.docker.internal gateway-alias\n198.51.100.1 unrelated-host\n"
+    )
     script = (
         (CONFIG_ROOT / "start.sh")
         .read_text()
         .replace("/tmp/egress-routes.conf", str(routes))
+        .replace("/etc/hosts", str(hosts))
+        .replace("/tmp/identity-hosts", str(tmp_path / "identity-hosts"))
     )
     result = subprocess.run(
         ["/bin/sh"],
@@ -210,6 +217,26 @@ def render_routes(tmp_path, *, ipv4=None, **environment):
         env={"PATH": str(tmp_path) + ":" + os.defpath, **environment},
     )
     return result, routes.read_text() if routes.exists() else ""
+
+
+def test_identity_direct_host_prefers_ipv4_without_changing_other_hosts(tmp_path):
+    result, _ = render_routes(tmp_path, ipv4="192.0.2.25")
+    assert result.returncode == 0, result.stderr
+    hosts = (tmp_path / "identity-hosts").read_text()
+    assert hosts.count("host.docker.internal") == 1
+    assert "192.0.2.25 host.docker.internal" in hosts
+    assert "fdc4::254 gateway-alias" in hosts
+    assert "127.0.0.1 localhost" in hosts
+    assert "198.51.100.1 unrelated-host" in hosts
+    assert "hosts_file /tmp/identity-hosts" in CONFIG.read_text()
+
+
+def test_identity_direct_host_preserves_ipv6_only_resolution(tmp_path):
+    result, _ = render_routes(tmp_path)
+    assert result.returncode == 0, result.stderr
+    assert (tmp_path / "identity-hosts").read_bytes() == (
+        tmp_path / "hosts.input"
+    ).read_bytes()
 
 
 def test_squid_routes_use_distinct_configured_parents(tmp_path):
