@@ -12,17 +12,17 @@
       "url": "https://api.bilibili.com/x/web-interface/view?bvid=BV13x41117TL",
       "kind": "platform_page_or_api",
       "field": "data.duration / data.pages[0].duration",
-      "checked_at": "2026-10-01T05:39:19.485271+00:00",
+      "checked_at": "2026-10-01T09:10:53.909875+00:00",
       "status": "verified",
-      "note": "官方 view API：state=0、rights.pay=0、ugc_pay=0、arc_pay=0、download=1，单页公开视频；公开播放为非 DRM H264/AAC。"
+      "note": "2026-10-01 匿名官方 view API 按 bvid=BV13x41117TL 核对单页 cid=14694589，data.duration 与 pages[0].duration 均为 554 秒；时长独立于被测媒体。"
     },
     "availability_source": {
       "url": "https://www.bilibili.com/video/BV13x41117TL",
       "kind": "public_page",
       "field": "public_free_clear_media",
-      "checked_at": "2026-10-01T05:39:19.485271+00:00",
+      "checked_at": "2026-10-01T09:10:53.909875+00:00",
       "status": "verified",
-      "note": "官方 view API：state=0、rights.pay=0、ugc_pay=0、arc_pay=0、download=1，单页公开视频；公开播放为非 DRM H264/AAC。"
+      "note": "2026-10-01 匿名官方 API：bvid 匹配、state=0、单页、is_upower_exclusive=false、rights.pay/ugc_pay/arc_pay=0、download=1；匿名 playurl code=0 返回完整 mp4 durl，不需账号或购买，无 DRM 标记。clear 媒体再由矩阵完整解码验证。"
     },
     "minimum_spec": {
       "width": 640,
@@ -43,17 +43,17 @@
       "url": "https://api.bilibili.com/x/web-interface/view?bvid=BV11x411K7CN",
       "kind": "platform_page_or_api",
       "field": "data.duration / data.pages[0].duration",
-      "checked_at": "2026-10-01T05:39:19.485271+00:00",
+      "checked_at": "2026-10-01T09:10:53.910721+00:00",
       "status": "verified",
-      "note": "官方 view API：state=0、rights.pay=0、ugc_pay=0、arc_pay=0、download=1，单页公开视频；公开播放为非 DRM H264/AAC。"
+      "note": "2026-10-01 匿名官方 view API 按 bvid=BV11x411K7CN 核对单页 cid=1554319，data.duration 与 pages[0].duration 均为 308 秒；时长独立于被测媒体。"
     },
     "availability_source": {
       "url": "https://www.bilibili.com/video/BV11x411K7CN",
       "kind": "public_page",
       "field": "public_free_clear_media",
-      "checked_at": "2026-10-01T05:39:19.485271+00:00",
+      "checked_at": "2026-10-01T09:10:53.910721+00:00",
       "status": "verified",
-      "note": "官方 view API：state=0、rights.pay=0、ugc_pay=0、arc_pay=0、download=1，单页公开视频；公开播放为非 DRM H264/AAC。"
+      "note": "2026-10-01 匿名官方 API：bvid 匹配、state=0、单页、is_upower_exclusive=false、rights.pay/ugc_pay/arc_pay=0、download=1；匿名 playurl code=0 返回完整 mp4 durl，不需账号或购买，无 DRM 标记。clear 媒体再由矩阵完整解码验证。"
     },
     "minimum_spec": {
       "width": 640,
@@ -198,17 +198,17 @@
       "url": "https://t.me/europa_press/613?embed=1",
       "kind": "platform_page_or_api",
       "field": "message_video_duration",
-      "checked_at": "2026-10-01T05:39:19.485271+00:00",
+      "checked_at": "2026-10-01T09:10:54.160377+00:00",
       "status": "verified",
-      "note": "官方匿名 embed 页 video 标签与 1:01 时长；无账号或付费要求，公开 clear MP4。"
+      "note": "2026-10-01 官方匿名 embed 页 data-post=europa_press/613 精确关联目标作品，显示 message_video_duration=1:01；独立于被测文件时长。"
     },
     "availability_source": {
-      "url": "https://t.me/europa_press/613",
+      "url": "https://t.me/europa_press/613?embed=1",
       "kind": "public_page",
       "field": "public_free_clear_media",
-      "checked_at": "2026-10-01T05:39:19.485271+00:00",
+      "checked_at": "2026-10-01T09:10:54.160377+00:00",
       "status": "verified",
-      "note": "官方匿名 embed 页 video 标签与 1:01 时长；无账号或付费要求，公开 clear MP4。"
+      "note": "2026-10-01 官方匿名 embed 返回目标公开频道帖子与原生 video src，不需登录或购买，直供 MP4；不从推荐视频推断目标时长。clear 媒体再由矩阵全片解码验证。"
     },
     "minimum_spec": {
       "width": 320,
@@ -226,20 +226,20 @@
     "needs_identity": false,
     "duration_seconds": 37,
     "duration_source": {
-      "url": "https://t.me/s/europa_press",
+      "url": "https://t.me/europa_press/18586?embed=1",
       "kind": "platform_page_or_api",
       "field": "data-post=europa_press/18586: message_video_duration",
-      "checked_at": "2026-10-01T05:39:19.485271+00:00",
+      "checked_at": "2026-10-01T09:10:54.171197+00:00",
       "status": "verified",
-      "note": "官方公开频道页精确匹配 data-post=europa_press/18586：视频时长 0:37。"
+      "note": "2026-10-01 官方匿名 embed 页 data-post=europa_press/18586 精确关联目标作品，显示 message_video_duration=0:37；独立于被测文件时长。"
     },
     "availability_source": {
-      "url": "https://t.me/europa_press/18586",
+      "url": "https://t.me/europa_press/18586?embed=1",
       "kind": "public_page",
       "field": "public_free_clear_media",
-      "checked_at": "2026-10-01T05:39:19.485271+00:00",
+      "checked_at": "2026-10-01T09:10:54.171197+00:00",
       "status": "verified",
-      "note": "官方匿名频道展示目标 video 与 MP4 播放地址，公开免费 clear 视频。"
+      "note": "2026-10-01 官方匿名 embed 返回目标公开频道帖子与原生 video src，不需登录或购买，直供 MP4；不从推荐视频推断目标时长。clear 媒体再由矩阵全片解码验证。"
     },
     "minimum_spec": {
       "width": 320,
@@ -260,17 +260,17 @@
       "url": "https://www.linkedin.com/posts/mishalkhawaja_sendinblueviews-toronto-digitalmarketing-ugcPost-6850898786781339649-mM20",
       "kind": "platform_page_or_api",
       "field": "VideoObject.duration",
-      "checked_at": "2026-10-01T05:39:19.485271+00:00",
+      "checked_at": "2026-10-01T09:10:55.367530+00:00",
       "status": "verified",
-      "note": "匿名作品页 JSON-LD VideoObject.duration / contentUrl / encodingFormat=video/mp4；免费公开视频。"
+      "note": "2026-10-01 匿名目标作品页 JSON-LD VideoObject.duration=PT13S；精确作品 URL 的独立完整时长。"
     },
     "availability_source": {
       "url": "https://www.linkedin.com/posts/mishalkhawaja_sendinblueviews-toronto-digitalmarketing-ugcPost-6850898786781339649-mM20",
       "kind": "public_page",
       "field": "public_free_clear_media",
-      "checked_at": "2026-10-01T05:39:19.485271+00:00",
+      "checked_at": "2026-10-01T09:10:55.367530+00:00",
       "status": "verified",
-      "note": "匿名作品页 JSON-LD VideoObject.duration / contentUrl / encodingFormat=video/mp4；免费公开视频。"
+      "note": "2026-10-01 匿名官方目标帖子直接返回 VideoObject 与 contentUrl，可免费访问，无登录或购买关口；原生视频源交由矩阵验证 clear 完整文件与全片解码。当前 JSON-LD 未声明 encodingFormat，不把该字段冒充证据。"
     },
     "minimum_spec": {
       "width": 320,
@@ -291,17 +291,17 @@
       "url": "https://www.linkedin.com/posts/the-mathworks_2_what-is-mathworks-cloud-center-activity-7151241570371948544-4Gu7",
       "kind": "platform_page_or_api",
       "field": "VideoObject.duration",
-      "checked_at": "2026-10-01T05:39:19.485271+00:00",
+      "checked_at": "2026-10-01T09:10:55.378537+00:00",
       "status": "verified",
-      "note": "匿名作品页 JSON-LD VideoObject.duration / contentUrl / encodingFormat=video/mp4；免费公开视频。"
+      "note": "2026-10-01 匿名目标作品页 JSON-LD VideoObject.duration=PT2M41S；精确作品 URL 的独立完整时长。"
     },
     "availability_source": {
       "url": "https://www.linkedin.com/posts/the-mathworks_2_what-is-mathworks-cloud-center-activity-7151241570371948544-4Gu7",
       "kind": "public_page",
       "field": "public_free_clear_media",
-      "checked_at": "2026-10-01T05:39:19.485271+00:00",
+      "checked_at": "2026-10-01T09:10:55.378537+00:00",
       "status": "verified",
-      "note": "匿名作品页 JSON-LD VideoObject.duration / contentUrl / encodingFormat=video/mp4；免费公开视频。"
+      "note": "2026-10-01 匿名官方目标帖子直接返回 VideoObject 与 contentUrl，可免费访问，无登录或购买关口；原生视频源交由矩阵验证 clear 完整文件与全片解码。当前 JSON-LD 未声明 encodingFormat，不把该字段冒充证据。"
     },
     "minimum_spec": {
       "width": 320,
@@ -319,20 +319,20 @@
     "needs_identity": false,
     "duration_seconds": 7.967,
     "duration_source": {
-      "url": "https://www.pinterest.com/pin/2885187256207927/",
+      "url": "https://www.pinterest.com/resource/PinResource/get/",
       "kind": "platform_page_or_api",
-      "field": "pin.videos.video_list.*.duration / 1000",
-      "checked_at": "2026-10-01T05:39:19.485271+00:00",
+      "field": "resource_response.data.videos.video_list.*.duration / 1000",
+      "checked_at": "2026-10-01T09:10:56.157148+00:00",
       "status": "verified",
-      "note": "匿名目标 pin metadata：duration=7967ms，与当前视频清单关联。"
+      "note": "2026-10-01 匿名官方 PinResource，options.id=2885187256207927、field_set_key=detailed；目标视频表示均为 7967ms，不使用 yt-dlp 夹具预期或被测文件。"
     },
     "availability_source": {
-      "url": "https://www.pinterest.com/pin/2885187256207927/",
+      "url": "https://www.pinterest.com/resource/PinResource/get/",
       "kind": "public_page",
       "field": "public_free_clear_media",
-      "checked_at": "2026-10-01T05:39:19.485271+00:00",
+      "checked_at": "2026-10-01T09:10:56.157148+00:00",
       "status": "verified",
-      "note": "匿名目标 pin 返回公开 MP4 与免费可访问的视频页。"
+      "note": "2026-10-01 官方匿名 PinResource 精确返回 pin.id=2885187256207927 与原生 v1.pinimg.com 视频表示，免费公开，无付费或 DRM 关口；MP4 clear 完整性再由矩阵全片解码验证。"
     },
     "minimum_spec": {
       "width": 320,
@@ -350,20 +350,20 @@
     "needs_identity": false,
     "duration_seconds": 14.9,
     "duration_source": {
-      "url": "https://www.pinterest.com/pin/1084663891475263837/",
+      "url": "https://www.pinterest.com/resource/PinResource/get/",
       "kind": "platform_page_or_api",
-      "field": "pin.videos.video_list.*.duration / 1000",
-      "checked_at": "2026-10-01T05:39:19.485271+00:00",
+      "field": "resource_response.data.story_pin_data.pages[].blocks[].video.video_list.*.duration / 1000",
+      "checked_at": "2026-10-01T09:14:37.667132+00:00",
       "status": "verified",
-      "note": "匿名页面 pin JSON 指定作品 duration=14900ms，公开 MP4 视频。"
+      "note": "2026-10-01 官方匿名 PinResource，options.id=1084663891475263837、field_set_key=detailed；精确作品 story_pin_data 原生视频表示均为 14900ms，不使用 yt-dlp 夹具预期或被测文件。"
     },
     "availability_source": {
-      "url": "https://www.pinterest.com/pin/1084663891475263837/",
+      "url": "https://www.pinterest.com/resource/PinResource/get/",
       "kind": "public_page",
       "field": "public_free_clear_media",
-      "checked_at": "2026-10-01T05:39:19.485271+00:00",
+      "checked_at": "2026-10-01T09:14:37.667132+00:00",
       "status": "verified",
-      "note": "匿名页面 pin JSON 指定作品 duration=14900ms，公开 MP4 视频。"
+      "note": "2026-10-01 官方匿名 PinResource 精确返回 pin.id 与 story_pin_data 的 v1.pinimg.com 原生视频表示，免费公开，无登录或付费关口；MP4 clear 完整性再由矩阵全片解码验证。"
     },
     "minimum_spec": {
       "width": 320,
@@ -383,18 +383,18 @@
     "duration_source": {
       "url": "https://www.snapchat.com/spotlight/W7_EDlXWTBiXAEEniNoMPwAAYYWtidGhudGZpAX1TKn0JAX1TKnXJAAAAAA",
       "kind": "platform_page_or_api",
-      "field": "spotlight.durationMs",
-      "checked_at": "2026-10-01T05:39:19.485271+00:00",
+      "field": "props.pageProps.spotlightFeed.spotlightStories[target storyId].metadata.videoMetadata.durationMs",
+      "checked_at": "2026-10-01T09:10:56.824653+00:00",
       "status": "verified",
-      "note": "匿名目标作品 metadata.durationMs=4665、og:video:type=video/mp4，公开 clear Spotlight。"
+      "note": "2026-10-01 匿名目标 Spotlight 页 __NEXT_DATA__，按完整 storyId 精确选择目标 metadata.videoMetadata.durationMs=4665；不取推荐作品时长。"
     },
     "availability_source": {
       "url": "https://www.snapchat.com/spotlight/W7_EDlXWTBiXAEEniNoMPwAAYYWtidGhudGZpAX1TKn0JAX1TKnXJAAAAAA",
       "kind": "public_page",
       "field": "public_free_clear_media",
-      "checked_at": "2026-10-01T05:39:19.485271+00:00",
+      "checked_at": "2026-10-01T09:10:56.824653+00:00",
       "status": "verified",
-      "note": "匿名目标作品 metadata.durationMs=4665、og:video:type=video/mp4，公开 clear Spotlight。"
+      "note": "2026-10-01 匿名官方目标 Spotlight 页提供匹配 storyId 的 contentUrl 与 og:video:type=video/mp4，无账号、购买或 DRM 关口；clear 完整文件再由矩阵全片解码验证。"
     },
     "minimum_spec": {
       "width": 320,
@@ -414,18 +414,18 @@
     "duration_source": {
       "url": "https://www.snapchat.com/spotlight/W7_EDlXWTBiXAEEniNoMPwAAYenNhcGZqa3JtAZ_Arr1JAZ_Arn4SAAAAAw",
       "kind": "platform_page_or_api",
-      "field": "spotlightStories[storyId].metadata.videoMetadata.durationMs",
-      "checked_at": "2026-10-01T05:39:19.485271+00:00",
+      "field": "props.pageProps.spotlightFeed.spotlightStories[target storyId].metadata.videoMetadata.durationMs",
+      "checked_at": "2026-10-01T09:10:56.826741+00:00",
       "status": "verified",
-      "note": "官方匿名 Spotlight 页推荐清单明确关联第二个不同 storyId 与 durationMs=6830；再按目标作品页复核可用性。"
+      "note": "2026-10-01 匿名目标 Spotlight 页 __NEXT_DATA__，按完整 storyId 精确选择目标 metadata.videoMetadata.durationMs=6830；不取推荐作品时长。"
     },
     "availability_source": {
       "url": "https://www.snapchat.com/spotlight/W7_EDlXWTBiXAEEniNoMPwAAYenNhcGZqa3JtAZ_Arr1JAZ_Arn4SAAAAAw",
       "kind": "public_page",
       "field": "public_free_clear_media",
-      "checked_at": "2026-10-01T05:39:19.485271+00:00",
+      "checked_at": "2026-10-01T09:10:56.826741+00:00",
       "status": "verified",
-      "note": "当前目标匿名作品页 duration=PT7S / durationMs=6830，og:video:type=video/mp4；公开免费 Spotlight。"
+      "note": "2026-10-01 匿名官方目标 Spotlight 页提供匹配 storyId 的 contentUrl 与 og:video:type=video/mp4，无账号、购买或 DRM 关口；clear 完整文件再由矩阵全片解码验证。"
     },
     "minimum_spec": {
       "width": 320,
@@ -508,17 +508,17 @@
       "url": "https://kick.com/api/v2/clips/clip_01GYXVB5Y8PWAPWCWMSBCFB05X",
       "kind": "platform_page_or_api",
       "field": "clip.duration",
-      "checked_at": "2026-10-01T05:39:19.485271+00:00",
+      "checked_at": "2026-10-01T09:10:58.103182+00:00",
       "status": "verified",
-      "note": "官方匿名 clips API 返回指定 clip.id、duration 与公开 video_url；无 DRM 或付费标记。"
+      "note": "2026-10-01 官方匿名 clips API：clip.id=clip_01GYXVB5Y8PWAPWCWMSBCFB05X、clip.duration=35 秒，独立于被测视频。"
     },
     "availability_source": {
-      "url": "https://kick.com/mxddy/clips/clip_01GYXVB5Y8PWAPWCWMSBCFB05X",
+      "url": "https://kick.com/api/v2/clips/clip_01GYXVB5Y8PWAPWCWMSBCFB05X",
       "kind": "public_page",
       "field": "public_free_clear_media",
-      "checked_at": "2026-10-01T05:39:19.485271+00:00",
+      "checked_at": "2026-10-01T09:10:58.103182+00:00",
       "status": "verified",
-      "note": "官方匿名 clips API 返回指定 clip.id、duration 与公开 video_url；无 DRM 或付费标记。"
+      "note": "2026-10-01 官方匿名 clips API 直接提供匹配 clip.id 的 video_url，无登录、订阅或购买关口；原生 MP4 clear 完整性再由矩阵全片解码验证。"
     },
     "minimum_spec": {
       "width": 320,
@@ -539,17 +539,17 @@
       "url": "https://kick.com/api/v2/clips/clip_01J8RGZRKHXHXXKJEHGRM932A5",
       "kind": "platform_page_or_api",
       "field": "clip.duration",
-      "checked_at": "2026-10-01T05:39:19.485271+00:00",
+      "checked_at": "2026-10-01T09:10:58.405871+00:00",
       "status": "verified",
-      "note": "官方匿名 clips API 返回指定 clip.id、duration 与公开 video_url；无 DRM 或付费标记。"
+      "note": "2026-10-01 官方匿名 clips API：clip.id=clip_01J8RGZRKHXHXXKJEHGRM932A5、clip.duration=43 秒，独立于被测视频。"
     },
     "availability_source": {
-      "url": "https://kick.com/spreen/clips/clip_01J8RGZRKHXHXXKJEHGRM932A5",
+      "url": "https://kick.com/api/v2/clips/clip_01J8RGZRKHXHXXKJEHGRM932A5",
       "kind": "public_page",
       "field": "public_free_clear_media",
-      "checked_at": "2026-10-01T05:39:19.485271+00:00",
+      "checked_at": "2026-10-01T09:10:58.405871+00:00",
       "status": "verified",
-      "note": "官方匿名 clips API 返回指定 clip.id、duration 与公开 video_url；无 DRM 或付费标记。"
+      "note": "2026-10-01 官方匿名 clips API 直接提供匹配 clip.id 的 video_url，无登录、订阅或购买关口；原生 MP4 clear 完整性再由矩阵全片解码验证。"
     },
     "minimum_spec": {
       "width": 320,
