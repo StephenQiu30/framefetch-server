@@ -43,6 +43,7 @@ _DECLARATIONS = {
     "x": ("L1,L3", "global", "prefer", "public"),
     "instagram": ("L1,L3", "global", "required", "public"),
     "facebook": ("L1,L3", "global", "prefer", "public"),
+    "reddit": ("L1", "global", "prefer", "public"),
     "wechat_official_account_article": ("L1", "cn", "none", "public"),
 }
 
@@ -201,7 +202,9 @@ async def test_layer_stubs_fail_closed(layer, tmp_path):
     source.workspace.cleanup()
 
 
-@pytest.mark.parametrize("key", [k for k, v in _DECLARATIONS.items() if "L3" in v[0]])
+@pytest.mark.parametrize(
+    "key", [k for k, v in _DECLARATIONS.items() if "L3" in v[0] and k != "youtube"]
+)
 def test_platform_parser_seams_fail_closed(key):
     module = import_module(f"app.workers.runner.engine.browser.{key}")
     assert module.RULES.platform == key

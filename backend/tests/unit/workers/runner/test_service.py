@@ -1027,8 +1027,13 @@ async def test_youtube_unclassified_failure_uses_one_attempt(
 
     assert caught.value.code == "inspection_failed"
     assert caught.value.failure.failure_class.value == "extractor_broken"
-    ytdlp = [command for command, _ in supervisor.calls if command[0] == "yt-dlp"]
+    ytdlp = [
+        command
+        for command, _ in supervisor.calls
+        if "app.workers.runner.youtube_proof" in command
+    ]
     assert len(ytdlp) == 1
+    assert ytdlp[0][3] == "bgutil"
 
 
 async def test_inspect_fetches_a_bounded_thumbnail_through_the_proxy(

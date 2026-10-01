@@ -228,4 +228,17 @@ def test_registry_permissions_cover_every_identity_platform():
         if profile.identity is not ProviderIdentity.NONE:
             assert profile.cookie_domain_allowlist
             assert set(profile.cookie_domain_allowlist) <= domains
-    assert {"kuaishou.com", "weibo.com", "hongguoduanju.com"} <= domains
+    assert {"kuaishou.com", "weibo.com", "hongguoduanju.com", "reddit.com"} <= domains
+    permissions = extension.manifest(19101)["host_permissions"]
+    assert all(f"*://*.{domain}/*" in permissions for domain in domains)
+    assert "*://*.tiktok.com/*" not in permissions
+
+
+def test_reddit_prefer_generates_cookie_permissions_without_install():
+    from app.services.provider_types import ProviderIdentity
+    from app.workers.runner.provider_registry import current_provider_registry
+
+    profile = current_provider_registry().profile_for_key("reddit")
+    assert profile.identity is ProviderIdentity.PREFER
+    assert profile.cookie_domain_allowlist == frozenset({"reddit.com"})
+    assert "*://*.reddit.com/*" in extension.manifest(19101)["host_permissions"]

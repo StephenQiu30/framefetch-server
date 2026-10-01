@@ -109,5 +109,7 @@ SOCIAL_PROVIDER_PROFILES: tuple[ProviderProfile, ...] = (
         version=ProviderProfileVersion.REDDIT,
         capabilities=frozenset({ProviderCapability.SINGLE_VIDEO}),
         status=ProviderSupportStatus.UNKNOWN,
+        cookie_domain_allowlist=frozenset({ProviderCookieDomain.REDDIT}),
+        identity=ProviderIdentity.PREFER,
     ),
 )

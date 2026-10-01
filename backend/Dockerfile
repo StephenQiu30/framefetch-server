@@ -37,7 +37,7 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     rm -f /etc/apt/apt.conf.d/docker-clean \
     && apt-get -o Acquire::Retries=5 update \
     && apt-get -o Acquire::Retries=5 install --no-install-recommends -y \
-        ca-certificates ffmpeg libstdc++6 \
+        ca-certificates ffmpeg libstdc++6 xauth \
     && useradd --create-home --uid 10001 appuser \
     && chown -R appuser:appuser /app \
     && install -d -o 10001 -g 10001 -m 0700 /work
@@ -49,6 +49,11 @@ COPY --link --from=node-runtime /usr/local/bin/node /usr/local/bin/node
 RUN python -m playwright install --with-deps --no-shell chromium \
     && chmod -R a+rX /opt/playwright \
     && install -d -o 10001 -g 10001 -m 0700 /var/lib/video-browser
+
+# nodriver needs a visible Chromium under Xvfb. Container isolation supplies the
+# sandbox boundary; never use a host Chrome executable or Profile.
+COPY --link app/workers/runner/wpc-chromium.sh /usr/local/bin/framefetch-wpc-chromium
+RUN chmod 0755 /usr/local/bin/framefetch-wpc-chromium
 
 USER appuser
 EXPOSE 8111

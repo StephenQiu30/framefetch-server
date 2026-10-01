@@ -68,7 +68,7 @@
     "expected_media_id": "jNQXAC9IVRw",
     "kind": "positive",
     "content_scope": "public",
-    "needs_identity": false,
+    "needs_identity": true,
     "duration_seconds": 19,
     "duration_source": {
       "url": "https://www.youtube.com/results?search_query=jNQXAC9IVRw",
@@ -80,11 +80,11 @@
     },
     "availability_source": {
       "url": "https://www.youtube.com/watch?v=jNQXAC9IVRw",
-      "kind": "public_page",
-      "field": "public_free_clear_media",
-      "checked_at": null,
-      "status": "unverified",
-      "note": "官方匿名搜索页与 oEmbed 公开可达，无付费字段；完整 clear 媒体仍待住宅出口验收。"
+      "kind": "official_player_metadata",
+      "field": "ytInitialPlayerResponse: playabilityStatus.status, videoDetails.isPrivate, microformat.hasYpcMetadata/isUnlisted/availableCountries, streamingData.formats[].drmFamilies; anonymous oEmbed",
+      "checked_at": "2026-10-01T10:18:05.535445+00:00",
+      "status": "verified",
+      "note": "独立于被测 yt-dlp/正式 API 直读官方 watch：HTTP200/Player OK，isPrivate=false/isUnlisted=false/hasYpcMetadata=false/isUnpluggedCorpus=false，playableInEmbed=true、availableCountries=249；一个 clear 格式、零 DRM 格式。匿名 oEmbed HTTP200 对应作品与作者；登录仅用于防机器人，不扩张内容范围。独立全片解码确认最终文件为 clear 媒体。"
     },
     "minimum_spec": {
       "width": 320,
@@ -99,7 +99,7 @@
     "expected_media_id": "aqz-KE-bpKQ",
     "kind": "positive",
     "content_scope": "public",
-    "needs_identity": false,
+    "needs_identity": true,
     "duration_seconds": 635,
     "duration_source": {
       "url": "https://www.youtube.com/results?search_query=aqz-KE-bpKQ",
@@ -111,11 +111,11 @@
     },
     "availability_source": {
       "url": "https://www.youtube.com/watch?v=aqz-KE-bpKQ",
-      "kind": "public_page",
-      "field": "public_free_clear_media",
-      "checked_at": null,
-      "status": "unverified",
-      "note": "官方匿名搜索页与 oEmbed 公开可达，无付费字段；完整 clear 媒体仍待住宅出口验收。"
+      "kind": "official_player_metadata",
+      "field": "ytInitialPlayerResponse: playabilityStatus.status, videoDetails.isPrivate, microformat.hasYpcMetadata/isUnlisted/availableCountries, streamingData.formats[].drmFamilies; anonymous oEmbed",
+      "checked_at": "2026-10-01T10:18:06.837301+00:00",
+      "status": "verified",
+      "note": "独立于被测 yt-dlp/正式 API 直读官方 watch：HTTP200/Player OK，isPrivate=false/isUnlisted=false/hasYpcMetadata=false/isUnpluggedCorpus=false，playableInEmbed=true、availableCountries=249；一个 clear 格式、零 DRM 格式。匿名 oEmbed HTTP200 对应作品与作者；登录仅用于防机器人，不扩张内容范围。独立全片解码确认最终文件为 clear 媒体。"
     },
     "minimum_spec": {
       "width": 320,
@@ -141,12 +141,12 @@
       "note": "官方 v2 元数据 API 返回该公开视频 duration / width / height，embed_privacy=anywhere；尚需完整媒体证实无 DRM。"
     },
     "availability_source": {
-      "url": "https://vimeo.com/76979871",
-      "kind": "public_page",
-      "field": "public_free_clear_media",
-      "checked_at": null,
+      "url": "https://player.vimeo.com/video/76979871/config",
+      "kind": "official_anonymous_player_config",
+      "field": "view=1; video.privacy=anybody; request.files.hls; clear child playlists",
+      "checked_at": "2026-10-01T09:32:57.619918+00:00",
       "status": "unverified",
-      "note": "公开、免费、非 DRM 的完整媒体尚未独立证实；候选不能记通过。"
+      "note": "官方匿名 config 明确 anybody/view=1，完整时长仍为62秒；DASH 带 ContentProtection。HLS 主／子清单无 EXT-X-KEY 不能证明初始化段为 clear：当前上游 --check-formats 逐轨返回 This format is DRM protected。尚无可证明的完整 clear 媒体，不以公开页面认定非 DRM。"
     },
     "minimum_spec": {
       "width": 320,
@@ -446,17 +446,17 @@
       "url": "https://gql.twitch.tv/gql",
       "kind": "platform_page_or_api",
       "field": "data.clip(slug).durationSeconds",
-      "checked_at": "2026-10-01T05:39:19.485271+00:00",
+      "checked_at": "2026-10-01T09:13:54.463407+00:00",
       "status": "verified",
       "note": "官方匿名 GraphQL 按 URL 中 clip slug 查询：返回精确 id、durationSeconds、isPublished=true，与 videoQualities。"
     },
     "availability_source": {
-      "url": "https://clips.twitch.tv/FaintLightGullWholeWheat",
-      "kind": "public_page",
-      "field": "public_free_clear_media",
-      "checked_at": null,
-      "status": "unverified",
-      "note": "官方匿名 GraphQL clip.isPublished=true，公开可访问；完整 clear 媒体仍待复核。"
+      "url": "https://gql.twitch.tv/gql",
+      "kind": "platform_api",
+      "field": "data.clip.id; isPublished=true; videoQualities.sourceURL",
+      "checked_at": "2026-10-01T09:13:54.463407+00:00",
+      "status": "verified",
+      "note": "独立匿名官方 GraphQL 按精确 slug 返回目标 clip ID、isPublished=true、完整 durationSeconds 与 clear MP4 播放变体，无登录、付费或 DRM 要求。"
     },
     "minimum_spec": {
       "width": 320,
@@ -477,17 +477,17 @@
       "url": "https://gql.twitch.tv/gql",
       "kind": "platform_page_or_api",
       "field": "data.clip(slug).durationSeconds",
-      "checked_at": "2026-10-01T05:39:19.485271+00:00",
+      "checked_at": "2026-10-01T09:13:54.463407+00:00",
       "status": "verified",
       "note": "官方匿名 GraphQL 按 URL 中 clip slug 查询：返回精确 id、durationSeconds、isPublished=true，与 videoQualities。"
     },
     "availability_source": {
-      "url": "https://www.twitch.tv/xqc/clip/CulturedAmazingKuduDatSheffy-TiZ_-ixAGYR3y2Uy",
-      "kind": "public_page",
-      "field": "public_free_clear_media",
-      "checked_at": null,
-      "status": "unverified",
-      "note": "官方匿名 GraphQL clip.isPublished=true，公开可访问；完整 clear 媒体仍待复核。"
+      "url": "https://gql.twitch.tv/gql",
+      "kind": "platform_api",
+      "field": "data.clip.id; isPublished=true; videoQualities.sourceURL",
+      "checked_at": "2026-10-01T09:13:54.463407+00:00",
+      "status": "verified",
+      "note": "独立匿名官方 GraphQL 按精确 slug 返回目标 clip ID、isPublished=true、完整 durationSeconds 与 clear MP4 播放变体，无登录、付费或 DRM 要求。"
     },
     "minimum_spec": {
       "width": 320,
@@ -684,27 +684,27 @@
   {
     "id": "instagram-positive-1",
     "platform": "instagram",
-    "url": "https://instagram.com/p/aye83DjauH/?foo=bar#abc",
-    "expected_media_id": "aye83DjauH",
+    "url": "https://www.instagram.com/p/-Cmh1cukG2/",
+    "expected_media_id": "-Cmh1cukG2",
     "kind": "positive",
     "content_scope": "public",
     "needs_identity": true,
-    "duration_seconds": null,
+    "duration_seconds": 11.772,
     "duration_source": {
-      "url": "https://instagram.com/p/aye83DjauH/?foo=bar#abc",
-      "kind": "platform_page_or_api",
-      "field": "unavailable",
-      "checked_at": null,
-      "status": "unverified",
-      "note": "需要部署者平台身份；匿名页未返回目标完整时长，候选为公开视频但尚未证实当前可用。"
+      "url": "https://www.instagram.com/p/-Cmh1cukG2/embed/captioned/",
+      "kind": "official_player_metadata",
+      "field": "shortcode_media.shortcode; video_duration",
+      "checked_at": "2026-10-01T09:40:26.266396+00:00",
+      "status": "verified",
+      "note": "独立匿名官方 embed 提供精确 shortcode/is_video、完整 video_duration 和 native MP4 video_url；独立媒体探针确认 H264+AAC，公开免费无 DRM。时长来自页面元数据，不从被测流或上游测试预期反填。旧 aye83DjauH 实测无音轨，旧 Chunk8-jurw embed 无 playable URL，换用符合现有音频门槛的不同作品。"
     },
     "availability_source": {
-      "url": "https://instagram.com/p/aye83DjauH/?foo=bar#abc",
-      "kind": "public_page",
-      "field": "public_free_clear_media",
-      "checked_at": null,
-      "status": "unverified",
-      "note": "公开、免费、非 DRM 的完整媒体尚未独立证实；候选不能记通过。"
+      "url": "https://www.instagram.com/p/-Cmh1cukG2/embed/captioned/",
+      "kind": "official_player_metadata",
+      "field": "anonymous shortcode_media.video_url; native clear MP4",
+      "checked_at": "2026-10-01T09:40:26.266396+00:00",
+      "status": "verified",
+      "note": "独立匿名官方 embed 提供精确 shortcode/is_video、完整 video_duration 和 native MP4 video_url；独立媒体探针确认 H264+AAC，公开免费无 DRM。时长来自页面元数据，不从被测流或上游测试预期反填。旧 aye83DjauH 实测无音轨，旧 Chunk8-jurw embed 无 playable URL，换用符合现有音频门槛的不同作品。"
     },
     "minimum_spec": {
       "width": 320,
@@ -715,27 +715,27 @@
   {
     "id": "instagram-positive-2",
     "platform": "instagram",
-    "url": "https://www.instagram.com/reel/Chunk8-jurw/",
-    "expected_media_id": "Chunk8-jurw",
+    "url": "https://www.instagram.com/p/Cop84x6u7CP/",
+    "expected_media_id": "Cop84x6u7CP",
     "kind": "positive",
     "content_scope": "public",
     "needs_identity": true,
-    "duration_seconds": null,
+    "duration_seconds": 18.993,
     "duration_source": {
-      "url": "https://www.instagram.com/reel/Chunk8-jurw/",
-      "kind": "platform_page_or_api",
-      "field": "unavailable",
-      "checked_at": null,
-      "status": "unverified",
-      "note": "需要部署者平台身份；匿名页未返回目标完整时长，候选为公开视频但尚未证实当前可用。"
+      "url": "https://www.instagram.com/p/Cop84x6u7CP/embed/captioned/",
+      "kind": "official_player_metadata",
+      "field": "shortcode_media.shortcode; video_duration",
+      "checked_at": "2026-10-01T09:40:26.266396+00:00",
+      "status": "verified",
+      "note": "独立匿名官方 embed 提供精确 shortcode/is_video、完整 video_duration 和 native MP4 video_url；独立媒体探针确认 H264+AAC，公开免费无 DRM。时长来自页面元数据，不从被测流或上游测试预期反填。旧 aye83DjauH 实测无音轨，旧 Chunk8-jurw embed 无 playable URL，换用符合现有音频门槛的不同作品。"
     },
     "availability_source": {
-      "url": "https://www.instagram.com/reel/Chunk8-jurw/",
-      "kind": "public_page",
-      "field": "public_free_clear_media",
-      "checked_at": null,
-      "status": "unverified",
-      "note": "公开、免费、非 DRM 的完整媒体尚未独立证实；候选不能记通过。"
+      "url": "https://www.instagram.com/p/Cop84x6u7CP/embed/captioned/",
+      "kind": "official_player_metadata",
+      "field": "anonymous shortcode_media.video_url; native clear MP4",
+      "checked_at": "2026-10-01T09:40:26.266396+00:00",
+      "status": "verified",
+      "note": "独立匿名官方 embed 提供精确 shortcode/is_video、完整 video_duration 和 native MP4 video_url；独立媒体探针确认 H264+AAC，公开免费无 DRM。时长来自页面元数据，不从被测流或上游测试预期反填。旧 aye83DjauH 实测无音轨，旧 Chunk8-jurw embed 无 playable URL，换用符合现有音频门槛的不同作品。"
     },
     "minimum_spec": {
       "width": 320,
@@ -751,22 +751,22 @@
     "kind": "positive",
     "content_scope": "public",
     "needs_identity": true,
-    "duration_seconds": null,
+    "duration_seconds": 131.03,
     "duration_source": {
-      "url": "https://www.facebook.com/video.php?v=274175099429670",
-      "kind": "platform_page_or_api",
-      "field": "unavailable",
-      "checked_at": null,
-      "status": "unverified",
-      "note": "历史公开单视频；匿名页面有登录墙，完整元数据尚未独立取得。"
+      "url": "https://www.facebook.com/watch/?v=274175099429670",
+      "kind": "official_player_metadata",
+      "field": "Video.id; playable_duration_in_ms",
+      "checked_at": "2026-10-01T09:18:31.813910+00:00",
+      "status": "verified",
+      "note": "独立匿名 Chrome HTTP 官方 watch 页精确 Video.id 匹配目标作品，返回完整 playable_duration_in_ms；license URI 为空、DASH 无 ContentProtection、native clear MP4 可公开播放，匿名 embed 亦返回 sd_src/hd_src。未从被测流或 yt-dlp 测试反填。"
     },
     "availability_source": {
-      "url": "https://www.facebook.com/video.php?v=274175099429670",
-      "kind": "public_page",
-      "field": "public_free_clear_media",
-      "checked_at": null,
-      "status": "unverified",
-      "note": "公开、免费、非 DRM 的完整媒体尚未独立证实；候选不能记通过。"
+      "url": "https://www.facebook.com/watch/?v=274175099429670",
+      "kind": "official_player_metadata",
+      "field": "anonymous Video.id; license URI absent; clear native MP4",
+      "checked_at": "2026-10-01T09:18:31.813910+00:00",
+      "status": "verified",
+      "note": "独立匿名 Chrome HTTP 官方 watch 页精确 Video.id 匹配目标作品，返回完整 playable_duration_in_ms；license URI 为空、DASH 无 ContentProtection、native clear MP4 可公开播放，匿名 embed 亦返回 sd_src/hd_src。未从被测流或 yt-dlp 测试反填。"
     },
     "minimum_spec": {
       "width": 320,
@@ -782,22 +782,22 @@
     "kind": "positive",
     "content_scope": "public",
     "needs_identity": true,
-    "duration_seconds": null,
+    "duration_seconds": 44.181,
     "duration_source": {
-      "url": "https://www.facebook.com/cnn/videos/10155529876156509/",
-      "kind": "platform_page_or_api",
-      "field": "unavailable",
-      "checked_at": null,
-      "status": "unverified",
-      "note": "历史公开单视频；匿名页面有登录墙，完整元数据尚未独立取得。"
+      "url": "https://www.facebook.com/watch/?v=10155529876156509",
+      "kind": "official_player_metadata",
+      "field": "Video.id; playable_duration_in_ms",
+      "checked_at": "2026-10-01T09:18:31.813910+00:00",
+      "status": "verified",
+      "note": "独立匿名 Chrome HTTP 官方 watch 页精确 Video.id 匹配目标作品，返回完整 playable_duration_in_ms；license URI 为空、DASH 无 ContentProtection、native clear MP4 可公开播放，匿名 embed 亦返回 sd_src/hd_src。未从被测流或 yt-dlp 测试反填。"
     },
     "availability_source": {
-      "url": "https://www.facebook.com/cnn/videos/10155529876156509/",
-      "kind": "public_page",
-      "field": "public_free_clear_media",
-      "checked_at": null,
-      "status": "unverified",
-      "note": "公开、免费、非 DRM 的完整媒体尚未独立证实；候选不能记通过。"
+      "url": "https://www.facebook.com/watch/?v=10155529876156509",
+      "kind": "official_player_metadata",
+      "field": "anonymous Video.id; license URI absent; clear native MP4",
+      "checked_at": "2026-10-01T09:18:31.813910+00:00",
+      "status": "verified",
+      "note": "独立匿名 Chrome HTTP 官方 watch 页精确 Video.id 匹配目标作品，返回完整 playable_duration_in_ms；license URI 为空、DASH 无 ContentProtection、native clear MP4 可公开播放，匿名 embed 亦返回 sd_src/hd_src。未从被测流或 yt-dlp 测试反填。"
     },
     "minimum_spec": {
       "width": 320,
@@ -808,27 +808,27 @@
   {
     "id": "tiktok-positive-1",
     "platform": "tiktok",
-    "url": "https://www.tiktok.com/@leenabhushan/video/6748451240264420610",
-    "expected_media_id": "6748451240264420610",
+    "url": "https://www.tiktok.com/@barudakhb_/video/6984138651336838402",
+    "expected_media_id": "6984138651336838402",
     "kind": "positive",
     "content_scope": "public",
     "needs_identity": false,
-    "duration_seconds": null,
+    "duration_seconds": 18,
     "duration_source": {
-      "url": "https://www.tiktok.com/@leenabhushan/video/6748451240264420610",
+      "url": "https://www.tiktok.com/@barudakhb_/video/6984138651336838402",
       "kind": "platform_page_or_api",
-      "field": "unavailable",
-      "checked_at": null,
-      "status": "unverified",
-      "note": "旧公开短视频候选；匿名页面只返回挑战脚本，未取得独立完整时长。"
+      "field": "webapp.video-detail.itemInfo.itemStruct.video.duration",
+      "checked_at": "2026-10-01T09:11:30.456262+00:00",
+      "status": "verified",
+      "note": "独立匿名官方页面 hydration 精确作品 ID 与完整时长；公开作者／投稿，页面提供 MP4 playAddr，无付费或 DRM 标记。非来自 yt-dlp 测试预期或被测流；原第一条样本 statusCode=10204，改为当前可用作品。"
     },
     "availability_source": {
-      "url": "https://www.tiktok.com/@leenabhushan/video/6748451240264420610",
-      "kind": "public_page",
-      "field": "public_free_clear_media",
-      "checked_at": null,
-      "status": "unverified",
-      "note": "公开、免费、非 DRM 的完整媒体尚未独立证实；候选不能记通过。"
+      "url": "https://www.tiktok.com/@barudakhb_/video/6984138651336838402",
+      "kind": "platform_page_or_api",
+      "field": "statusCode=0; privateItem=false; author.privateAccount=false; video.playAddr",
+      "checked_at": "2026-10-01T09:11:30.456262+00:00",
+      "status": "verified",
+      "note": "独立匿名官方页面 hydration 精确作品 ID 与完整时长；公开作者／投稿，页面提供 MP4 playAddr，无付费或 DRM 标记。非来自 yt-dlp 测试预期或被测流；原第一条样本 statusCode=10204，改为当前可用作品。"
     },
     "minimum_spec": {
       "width": 320,
@@ -844,22 +844,22 @@
     "kind": "positive",
     "content_scope": "public",
     "needs_identity": false,
-    "duration_seconds": null,
+    "duration_seconds": 27,
     "duration_source": {
       "url": "https://www.tiktok.com/@patroxofficial/video/6742501081818877190?langCountry=en",
       "kind": "platform_page_or_api",
-      "field": "unavailable",
-      "checked_at": null,
-      "status": "unverified",
-      "note": "旧公开短视频候选；匿名页面只返回挑战脚本，未取得独立完整时长。"
+      "field": "webapp.video-detail.itemInfo.itemStruct.video.duration",
+      "checked_at": "2026-10-01T09:11:30.456262+00:00",
+      "status": "verified",
+      "note": "独立匿名官方页面 hydration 精确作品 ID 与完整时长；公开作者／投稿，页面提供 MP4 playAddr，无付费或 DRM 标记。非来自 yt-dlp 测试预期或被测流；原第一条样本 statusCode=10204，改为当前可用作品。"
     },
     "availability_source": {
       "url": "https://www.tiktok.com/@patroxofficial/video/6742501081818877190?langCountry=en",
-      "kind": "public_page",
-      "field": "public_free_clear_media",
-      "checked_at": null,
-      "status": "unverified",
-      "note": "公开、免费、非 DRM 的完整媒体尚未独立证实；候选不能记通过。"
+      "kind": "platform_page_or_api",
+      "field": "statusCode=0; privateItem=false; author.privateAccount=false; video.playAddr",
+      "checked_at": "2026-10-01T09:11:30.456262+00:00",
+      "status": "verified",
+      "note": "独立匿名官方页面 hydration 精确作品 ID 与完整时长；公开作者／投稿，页面提供 MP4 playAddr，无付费或 DRM 标记。非来自 yt-dlp 测试预期或被测流；原第一条样本 statusCode=10204，改为当前可用作品。"
     },
     "minimum_spec": {
       "width": 320,
@@ -1087,27 +1087,27 @@
   {
     "id": "tumblr-positive-2",
     "platform": "tumblr",
-    "url": "https://www.tumblr.com/bartlebyshop/180294460076/duality-of-bird",
-    "expected_media_id": "180294460076",
+    "url": "https://tatianamaslanydaily.tumblr.com/post/54196191430/orphan-black-dvd-extra-behind-the-scenes",
+    "expected_media_id": "54196191430",
     "kind": "positive",
     "content_scope": "public",
     "needs_identity": false,
-    "duration_seconds": null,
+    "duration_seconds": 127,
     "duration_source": {
-      "url": "https://www.tumblr.com/bartlebyshop/180294460076/duality-of-bird",
-      "kind": "platform_page_or_api",
-      "field": "unavailable",
-      "checked_at": null,
-      "status": "unverified",
-      "note": "旧公开投稿候选；需独立页面元数据复核。"
+      "url": "https://tatianamaslanydaily.tumblr.com/post/54196191430/orphan-black-dvd-extra-behind-the-scenes",
+      "kind": "public_page",
+      "field": "VideoObject.duration=PT127S",
+      "checked_at": "2026-10-01T09:37:38.192979+00:00",
+      "status": "verified",
+      "note": "独立匿名官方 blog 页面 JSON-LD 声明完整 PT127S 与 Tumblr native clear MP4 contentUrl，无付费或 DRM。旧 bartlebyshop 投稿当前返回无作品内容，替换为可访问的独立作品；不从被测文件取时长。"
     },
     "availability_source": {
-      "url": "https://www.tumblr.com/bartlebyshop/180294460076/duality-of-bird",
+      "url": "https://tatianamaslanydaily.tumblr.com/post/54196191430/orphan-black-dvd-extra-behind-the-scenes",
       "kind": "public_page",
-      "field": "public_free_clear_media",
-      "checked_at": null,
-      "status": "unverified",
-      "note": "公开、免费、非 DRM 的完整媒体尚未独立证实；候选不能记通过。"
+      "field": "anonymous VideoObject.contentUrl; native MP4",
+      "checked_at": "2026-10-01T09:37:38.192979+00:00",
+      "status": "verified",
+      "note": "独立匿名官方 blog 页面 JSON-LD 声明完整 PT127S 与 Tumblr native clear MP4 contentUrl，无付费或 DRM。旧 bartlebyshop 投稿当前返回无作品内容，替换为可访问的独立作品；不从被测文件取时长。"
     },
     "minimum_spec": {
       "width": 320,

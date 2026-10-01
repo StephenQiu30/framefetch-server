@@ -39,6 +39,7 @@ dependencies = [
   "pillow>=12,<13",
   "temporalio==1.33.0",
   "playwright==1.63.0",
+  "yt-dlp-getpot-wpc==1.1.2",
 ]
 
 [dependency-groups]

@@ -11,7 +11,7 @@ import pytest
 from app.services.provider_failures import FailureClass
 from app.services.provider_types import ProviderIdentity
 from app.workers.runner.engine import identity
-from app.workers.runner.engine.browser import douyin, xiaohongshu
+from app.workers.runner.engine.browser import douyin, kuaishou, weibo, xiaohongshu
 from app.workers.runner.engine.browser.intercept import (
     MAX_RESPONSE_BYTES,
     PageResponses,
@@ -22,6 +22,7 @@ from app.workers.runner.provider_registry import provider_request
 from app.workers.runner.service import MediaRunnerService
 from helpers import settings
 from test_engine_skeleton import source_for
+from test_g2_browser import status
 
 NOTE_ID = "6a82c08c0000000029032447"
 MEDIA = "https://media.example.org/video.mp4"
@@ -151,14 +152,33 @@ async def test_interception_first_party_path_and_bounded_body():
 
 
 @pytest.mark.parametrize("handoff", ["http", "browser"])
+@pytest.mark.parametrize(
+    "parser,url,payload,work",
+    [
+        (douyin, "https://www.douyin.com/video/123", douyin_payload(), "123"),
+        (
+            kuaishou,
+            "https://www.kuaishou.com/short-video/123",
+            {
+                "photo": {
+                    "id": "123",
+                    "photoUrl": MEDIA,
+                    "durationMs": 12000,
+                    "width": 1280,
+                    "height": 720,
+                }
+            },
+            "123",
+        ),
+        (weibo, "https://weibo.com/123/Abc", status(), "123"),
+    ],
+)
 async def test_home_initialization_material_handoff_and_terminal_cleanup(
-    tmp_path, monkeypatch, handoff
+    tmp_path, monkeypatch, handoff, parser, url, payload, work
 ):
     service = MediaRunnerService(settings(tmp_path))
     source = source_for(service, tmp_path)
-    source = replace(
-        source, request=provider_request("https://www.douyin.com/video/123")
-    )
+    source = replace(source, request=provider_request(url))
     monkeypatch.setattr(identity, "COOKIE_TMPFS_ROOT", tmp_path / "private")
     monkeypatch.setattr(identity, "validate_cookie_file", lambda _: None)
     events = []
@@ -167,14 +187,14 @@ async def test_home_initialization_material_handoff_and_terminal_cleanup(
     page.remove_listener = lambda *args: None
     page.wait_for_timeout = AsyncMock()
     page.close = AsyncMock()
-    page.evaluate = AsyncMock(return_value=json.dumps(douyin_payload()))
+    page.evaluate = AsyncMock(return_value=json.dumps(payload))
     operation = SimpleNamespace(
         page=page,
         user_agent="browser-UA",
         cookies=AsyncMock(
             return_value=[
                 {
-                    "domain": ".douyin.com",
+                    "domain": f".{parser.RULES.platform}.com",
                     "name": "visitor",
                     "value": "fixture",
                     "path": "/",
@@ -224,7 +244,9 @@ async def test_home_initialization_material_handoff_and_terminal_cleanup(
     if handoff == "browser":
         source.pipeline._commands.probe_remote.side_effect = RunnerFailure("challenge")
     result = await BrowserLayer().resolve(source, source.run_context)
-    assert events == [douyin.HOME, "intercept", source.request.source_url]
+    assert events == [parser.HOME, "intercept", source.request.source_url]
+    assert result.provider_media_id == work
+    assert result.client == f"{parser.RULES.platform}:browser"
     assert result.handoff == handoff
     assert page.close.await_count == (1 if handoff == "http" else 0)
     ctx = result.run_context

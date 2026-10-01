@@ -391,6 +391,7 @@ def test_server_application_heartbeat(monkeypatch):
         ("x", "twitter.com", ["auth_token", "ct0"]),
         ("facebook", "facebook.com", ["c_user", "xs"]),
         ("instagram", "instagram.com", ["sessionid"]),
+        ("reddit", "reddit.com", ["reddit_session"]),
         ("qqvideo", "v.qq.com", ["v_vuserid", "v_vusession"]),
         ("youku", "youku.com", ["P_sck"]),
     ],
@@ -452,13 +453,22 @@ async def test_chrome_cookie_names_roundtrip_without_reencoding_values(source, n
         ({"domain": "outside.example"}, "identity_cookie_domain_invalid"),
     ],
 )
+@pytest.mark.parametrize(
+    "site,domain,name",
+    [
+        ("instagram", ".instagram.com", "sessionid"),
+        ("douyin", ".douyin.com", "sessionid"),
+        ("kuaishou", ".kuaishou.com", "passToken"),
+        ("reddit", ".reddit.com", "reddit_session"),
+    ],
+)
 async def test_material_subcauses_are_fixed_and_never_include_values(
-    source, change, cause
+    source, change, cause, site, domain, name
 ):
     service, state = source
-    state["cookies"] = [{**COOKIE, **change}]
+    state["cookies"] = [{**COOKIE, "domain": domain, "name": name, **change}]
     with pytest.raises(m.IdentityUnavailable) as caught:
-        await service.cookies(request())
+        await service.cookies(request(site))
     assert str(caught.value) == cause
     assert not service._pending and service._requests == 0
 
@@ -505,3 +515,14 @@ async def test_http_material_validation_never_serializes_cookie_input():
     assert response.status_code == 503
     assert response.json() == {"cause": "identity_cookie_value_invalid"}
     assert "synthetic-secret" not in response.text
+
+
+@pytest.mark.parametrize("names", [[], ["loid"], ["token_v2"], ["sessionid"]])
+async def test_reddit_visitor_or_other_platform_session_is_not_identity(source, names):
+    service, state = source
+    state["cookies"] = [
+        {**COOKIE, "domain": ".reddit.com", "name": name} for name in names
+    ]
+    with pytest.raises(m.IdentityUnavailable, match="credential_missing"):
+        await service.cookies(request("reddit"))
+    assert not service._pending and service._requests == 0

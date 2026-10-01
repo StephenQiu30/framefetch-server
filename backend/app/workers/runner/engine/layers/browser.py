@@ -14,7 +14,14 @@ from app.services.provider_failures import FailureClass
 from app.services.provider_types import ProviderIdentity
 from app.workers.runner.browser_runtime import BrowserOperation, _finish
 from app.workers.runner.engine import identity
-from app.workers.runner.engine.browser import douyin, kuaishou, weibo, xiaohongshu
+from app.workers.runner.engine.browser import (
+    douyin,
+    kuaishou,
+    tiktok,
+    weibo,
+    xiaohongshu,
+    youtube,
+)
 from app.workers.runner.engine.browser.intercept import (
     MAX_RESPONSE_BYTES,
     PageResponses,
@@ -32,6 +39,7 @@ PARSERS = {
     "xiaohongshu": xiaohongshu,
     "kuaishou": kuaishou,
     "weibo": weibo,
+    "tiktok": tiktok,
 }
 
 
@@ -86,6 +94,8 @@ def _expected_id(url: str, platform: str) -> str | None:
     if platform == "douyin":
         value = parse_qs(parsed.query).get("modal_id", [segments[-1]])[0]
         return value if value.isdigit() else None
+    if platform == "tiktok":
+        return segments[-1] if segments[-1].isdigit() else None
     value = segments[-1]
     if platform == "kuaishou":
         return (
@@ -141,6 +151,8 @@ async def _cookie_jar(operation: BrowserOperation, directory: Path) -> Path:
 class BrowserLayer:
     async def resolve(self, source: ResolutionSource, ctx: RunContext) -> ResolvedMedia:
         profile = source.request.profile
+        if profile.key == "youtube":
+            return await youtube.resolve(source, ctx)
         parser = PARSERS.get(profile.key)
         runtime = source.pipeline.browser
         if parser is None or runtime is None:
