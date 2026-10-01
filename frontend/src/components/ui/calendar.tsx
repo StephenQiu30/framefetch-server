@@ -222,4 +222,4 @@ function CalendarDayButton({
   );
 }
 
-export { Calendar };
+export { Calendar, CalendarDayButton };
