@@ -838,13 +838,33 @@ def test_merged_g1_g3_samples_pass_strict_recorded_file_checks(
         matrix.verify_probe(actual, sample, {**confirmed, "fps_bucket": "fps_60"}, 3)
 
 
-@pytest.mark.parametrize("platform", ["reddit", "vimeo"])
+@pytest.mark.parametrize("platform", ["reddit"])
 def test_g3_unverified_public_or_duration_evidence_still_blocks(platform):
     samples = matrix.load_cases(SCRIPT.parent / "fixtures/coldstart_cases.json")
     positives = [c for c in samples if c.platform == platform and c.kind == "positive"]
     assert len(positives) == 2
     assert all(c.qualification_gaps() for c in positives)
     assert all(c.availability_source.status == "unverified" for c in positives)
+
+
+def test_vimeo_replacements_have_independent_dated_public_clear_evidence():
+    samples = matrix.load_cases(SCRIPT.parent / "fixtures/coldstart_cases.json")
+    positives = [c for c in samples if c.platform == "vimeo" and c.kind == "positive"]
+    assert {(c.expected_media_id, c.duration_seconds) for c in positives} == {
+        ("1214828906", 88),
+        ("22439234", 185),
+    }
+    for sample in positives:
+        assert sample.content_scope == "public" and not sample.needs_identity
+        assert sample.qualification_gaps() == []
+        assert sample.duration_source.url == (
+            f"https://vimeo.com/api/v2/video/{sample.expected_media_id}.json"
+        )
+        assert sample.availability_source.kind == "official_player_metadata"
+        assert sample.availability_source.checked_at
+    negative = next(c for c in samples if c.id == "vimeo-protected-1")
+    assert negative.expected_media_id == "68375962"
+    assert negative.availability_source.status == "verified"
 
 
 @pytest.mark.parametrize(

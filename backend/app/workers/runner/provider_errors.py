@@ -111,6 +111,15 @@ PROVIDER_FAILURE_RULES: tuple[FailureRule, ...] = (
         providers=frozenset({ProviderKey.VIMEO}),
     ),
     FailureRule(
+        "content_unavailable",
+        403,
+        any_stderr=(
+            b"because of its privacy settings, this video cannot be played here",
+            b"cannot download embed-only video without embedding url",
+        ),
+        providers=frozenset({ProviderKey.VIMEO}),
+    ),
+    FailureRule(
         "runtime_unavailable",
         503,
         all_stderr=(b"error reaching get ", b"/ping", b"server is reachable"),

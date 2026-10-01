@@ -126,27 +126,27 @@
   {
     "id": "vimeo-positive-1",
     "platform": "vimeo",
-    "url": "https://vimeo.com/76979871",
-    "expected_media_id": "76979871",
+    "url": "https://vimeo.com/1214828906",
+    "expected_media_id": "1214828906",
     "kind": "positive",
     "content_scope": "public",
     "needs_identity": false,
-    "duration_seconds": 62,
+    "duration_seconds": 88,
     "duration_source": {
-      "url": "https://vimeo.com/api/v2/video/76979871.json",
+      "url": "https://vimeo.com/api/v2/video/1214828906.json",
       "kind": "platform_page_or_api",
-      "field": "[0].duration",
-      "checked_at": "2026-10-01T05:39:19.485271+00:00",
+      "field": "[0].id / [0].duration / [0].embed_privacy",
+      "checked_at": "2026-10-01T11:12:20.524276+00:00",
       "status": "verified",
-      "note": "官方 v2 元数据 API 返回该公开视频 duration / width / height，embed_privacy=anywhere；尚需完整媒体证实无 DRM。"
+      "note": "独立匿名官方元数据 API 精确匹配作品 ID，完整时长 88 秒，embed_privacy=anywhere；匿名官方 oEmbed 同时确认 ID、标题与完整时长，非被测媒体流。"
     },
     "availability_source": {
-      "url": "https://player.vimeo.com/video/76979871/config",
-      "kind": "official_anonymous_player_config",
-      "field": "view=1; video.privacy=anybody; request.files.hls; clear child playlists",
-      "checked_at": "2026-10-01T09:32:57.619918+00:00",
-      "status": "unverified",
-      "note": "官方匿名 config 明确 anybody/view=1，完整时长仍为62秒；DASH 带 ContentProtection。HLS 主／子清单无 EXT-X-KEY 不能证明初始化段为 clear：当前上游 --check-formats 逐轨返回 This format is DRM protected。尚无可证明的完整 clear 媒体，不以公开页面认定非 DRM。"
+      "url": "https://player.vimeo.com/video/1214828906",
+      "kind": "official_player_metadata",
+      "field": "playerConfig.view / video.privacy / request.files.dash,hls; anonymous oEmbed; DASH ContentProtection and HLS EXT-X-KEY",
+      "checked_at": "2026-10-01T11:12:20.524276+00:00",
+      "status": "verified",
+      "note": "独立匿名官方 Player HTTP200、view=1、video.privacy=anybody，匿名 oEmbed HTTP200，无密码或购买入口；公开免费完整 DASH 无 ContentProtection，HLS 主清单及全部音视频子清单 HTTP200 且无 EXT-X-KEY。未读取身份、未取得内容密钥或转换保护流；完整 clear 文件仍须经正式矩阵解码核对。"
     },
     "minimum_spec": {
       "width": 320,
@@ -157,27 +157,27 @@
   {
     "id": "vimeo-positive-2",
     "platform": "vimeo",
-    "url": "https://vimeo.com/75629013",
-    "expected_media_id": "75629013",
+    "url": "https://vimeo.com/22439234",
+    "expected_media_id": "22439234",
     "kind": "positive",
     "content_scope": "public",
     "needs_identity": false,
-    "duration_seconds": 187,
+    "duration_seconds": 185,
     "duration_source": {
-      "url": "https://vimeo.com/api/v2/video/75629013.json",
+      "url": "https://vimeo.com/api/v2/video/22439234.json",
       "kind": "platform_page_or_api",
-      "field": "[0].duration",
-      "checked_at": "2026-10-01T05:39:19.485271+00:00",
+      "field": "[0].id / [0].duration / [0].embed_privacy",
+      "checked_at": "2026-10-01T11:12:20.524276+00:00",
       "status": "verified",
-      "note": "官方 v2 元数据 API 返回该公开视频 duration / width / height，embed_privacy=anywhere；尚需完整媒体证实无 DRM。"
+      "note": "独立匿名官方元数据 API 精确匹配作品 ID，完整时长 185 秒，embed_privacy=anywhere；匿名官方 oEmbed 同时确认 ID、标题与完整时长，非被测媒体流。"
     },
     "availability_source": {
-      "url": "https://vimeo.com/75629013",
-      "kind": "public_page",
-      "field": "public_free_clear_media",
-      "checked_at": null,
-      "status": "unverified",
-      "note": "公开、免费、非 DRM 的完整媒体尚未独立证实；候选不能记通过。"
+      "url": "https://player.vimeo.com/video/22439234",
+      "kind": "official_player_metadata",
+      "field": "playerConfig.view / video.privacy / request.files.dash,hls; anonymous oEmbed; DASH ContentProtection and HLS EXT-X-KEY",
+      "checked_at": "2026-10-01T11:12:20.524276+00:00",
+      "status": "verified",
+      "note": "独立匿名官方 Player HTTP200、view=1、video.privacy=anybody，匿名 oEmbed HTTP200，无密码或购买入口；公开免费完整 DASH 无 ContentProtection，HLS 主清单及全部音视频子清单 HTTP200 且无 EXT-X-KEY。未读取身份、未取得内容密钥或转换保护流；完整 clear 文件仍须经正式矩阵解码核对。"
     },
     "minimum_spec": {
       "width": 320,
