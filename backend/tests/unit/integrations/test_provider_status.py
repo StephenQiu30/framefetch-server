@@ -1,6 +1,11 @@
 from app.integrations.provider_status import configured_provider_statuses
 from app.schemas.providers import ProviderStatusResponse
-from app.services.provider_types import ProviderIdentity, ProviderSupportStatus
+from app.services.provider_types import (
+    ProviderCapability,
+    ProviderIdentity,
+    ProviderKey,
+    ProviderSupportStatus,
+)
 
 
 def test_registry_capabilities_are_not_download_acceptance_evidence():
@@ -19,14 +24,51 @@ def test_registry_capabilities_are_not_download_acceptance_evidence():
     assert bilibili.identity is ProviderIdentity.PREFER
 
 
-def test_required_identity_action_explains_login_requirement():
+def test_required_identity_action_explains_login_requirement_for_extractors():
     required = [
         item
         for item in configured_provider_statuses()
-        if item.identity is ProviderIdentity.REQUIRED
+        if item.identity is ProviderIdentity.REQUIRED and item.extractor_exists
     ]
     assert required
     for item in required:
         assert item.user_action is not None
         assert "需要登录" in item.user_action
         assert "无需登录" not in item.user_action
+
+
+def test_wechat_channels_exposes_parser_gap_without_removing_platform():
+    channels = next(
+        item
+        for item in configured_provider_statuses()
+        if item.key == ProviderKey.WECHAT_CHANNELS
+    )
+    public = ProviderStatusResponse.from_view(channels)
+    assert public.registered
+    assert not public.extractor_exists
+    assert not public.download_supported
+    assert public.status is ProviderSupportStatus.UNKNOWN
+    assert public.identity is ProviderIdentity.REQUIRED
+    assert set(public.capabilities) == {
+        ProviderCapability.SINGLE_VIDEO,
+        ProviderCapability.SHORT_VIDEO,
+    }
+    assert public.user_action is not None
+    assert "元宝链路尚未接通" in public.user_action
+    assert "暂不支持链接下载" in public.user_action
+    assert "非加密 MP4" in public.user_action
+
+
+def test_official_account_articles_remain_discovery_only():
+    article = next(
+        item
+        for item in configured_provider_statuses()
+        if item.key == ProviderKey.WECHAT_OFFICIAL_ACCOUNT_ARTICLE
+    )
+    public = ProviderStatusResponse.from_view(article)
+    assert public.registered
+    assert not public.extractor_exists
+    assert not public.download_supported
+    assert not public.capabilities
+    assert public.identity is ProviderIdentity.NONE
+    assert public.user_action == "支持公开文章视频发现与显式选择。"
