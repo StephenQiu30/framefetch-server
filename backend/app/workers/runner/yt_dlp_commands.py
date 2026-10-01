@@ -19,6 +19,7 @@ class BuiltYtDlpCommand:
     request: ProviderRequest
     egress_proxy: str
     authenticated: bool
+    egress_class: str = "unknown"
 
     @property
     def failure_context(self) -> ProviderFailureContext:
@@ -26,16 +27,23 @@ class BuiltYtDlpCommand:
             provider_key=self.request.profile.key,
             source_url=self.request.source_url,
             authenticated=self.authenticated,
+            egress_class=self.egress_class,
         )
 
 
 class YtDlpCommandBuilder:
     def __init__(
-        self, settings: RunnerSettings, plugin_root: Path, ctx: RunContext
+        self,
+        settings: RunnerSettings,
+        plugin_root: Path,
+        ctx: RunContext,
+        *,
+        client: str | None = None,
     ) -> None:
         self._settings = settings
         self._plugin_root = plugin_root
         self._ctx = ctx
+        self._client = client
 
     def inspect(
         self,
@@ -162,14 +170,35 @@ class YtDlpCommandBuilder:
             command += ("--referer", self._ctx.referer)
         if not include_playlist:
             command += ("--no-playlist",)
-        command += (*operation_args, *profile.command_args_for(self._settings))
+        provider_args = profile.command_args_for(self._settings)
+        if profile.key == "youtube" and self._client is not None:
+            if self._client not in {"youtube:mweb", "youtube:tv", "youtube:default"}:
+                raise RunnerFailure("context_changed", status=409)
+            # Replace only the registered player client; retain bgutil configuration.
+            filtered = []
+            index = 0
+            while index < len(provider_args):
+                if provider_args[index : index + 2] == (
+                    "--extractor-args",
+                    "youtube:player_client=mweb",
+                ):
+                    index += 2
+                    continue
+                filtered.append(provider_args[index])
+                index += 1
+            provider_args = tuple(filtered) + (
+                "--extractor-args",
+                f"youtube:player_client={self._client.split(':')[1]}",
+            )
+        command += (*operation_args, *provider_args)
         if include_source:
             command += ("--", request.request_url)
         return BuiltYtDlpCommand(
             argv=command,
             request=request,
             egress_proxy=egress_proxy,
-            authenticated=cookie_jar is not None,
+            authenticated=self._ctx.identity is not None,
+            egress_class=self._ctx.egress.egress_class,
         )
 
     @staticmethod

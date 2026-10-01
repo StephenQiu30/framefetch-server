@@ -75,10 +75,16 @@ class MediaCommands:
         self._supervisor = supervisor
         self._pot_provider_probe = pot_provider_probe or _pot_provider_ready
         self._ctx: RunContext | None = None
+        self._client: str | None = None
 
     def with_context(self, ctx: RunContext) -> MediaCommands:
         result = copy(self)
         result._ctx = ctx
+        return result
+
+    def with_client(self, client: str) -> MediaCommands:
+        result = copy(self)
+        result._client = client
         return result
 
     @property
@@ -90,7 +96,7 @@ class MediaCommands:
     @property
     def _ytdlp(self) -> YtDlpCommandBuilder:
         return YtDlpCommandBuilder(
-            self._settings, _YTDLP_PLUGIN_ROOT, self._run_context
+            self._settings, _YTDLP_PLUGIN_ROOT, self._run_context, client=self._client
         )
 
     async def inspect(
@@ -117,7 +123,7 @@ class MediaCommands:
             max_assets=self._settings.runner_max_gallery_assets,
         )
         if restriction is not None and (
-            restriction[0] in {"content_unavailable", "content_protected"}
+            restriction[0] == "content_unavailable"
             or not _inspection_payload_has_media(payload)
         ):
             raise RunnerFailure(
@@ -668,11 +674,16 @@ def _inspection_payload_has_media(payload: Mapping[str, Any]) -> bool:
         )
     ):
         return True
-    if isinstance(payload.get("url"), str) and bool(payload["url"].strip()):
+    if (
+        payload.get("has_drm") is not True
+        and isinstance(payload.get("url"), str)
+        and bool(payload["url"].strip())
+    ):
         return True
     formats = payload.get("formats")
     if isinstance(formats, list) and any(
         isinstance(item, dict)
+        and item.get("has_drm") is not True
         and isinstance(item.get("url"), str)
         and bool(item["url"].strip())
         for item in formats

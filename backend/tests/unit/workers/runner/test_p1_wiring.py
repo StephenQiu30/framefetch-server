@@ -7,7 +7,7 @@ from pathlib import Path
 import httpx
 import pytest
 from app.services.provider_failures import FailureClass
-from app.services.provider_types import Layer
+from app.services.provider_types import Layer, ProviderIdentity
 from app.workers.runner.commands import MediaCommands
 from app.workers.runner.contracts import ExecutionContextContract
 from app.workers.runner.engine import identity
@@ -95,7 +95,11 @@ async def test_terminal_failure_never_dispatches_next_layer(
 ):
     service = MediaRunnerService(settings(tmp_path))
     source = source_for(service, tmp_path)
-    profile = replace(source.request.profile, ladder=(Layer.L1, Layer.L2))
+    profile = replace(
+        source.request.profile,
+        ladder=(Layer.L1, Layer.L2),
+        identity=ProviderIdentity.NONE,
+    )
     source = replace(source, request=replace(source.request, profile=profile))
 
     class Failed:
@@ -222,7 +226,7 @@ def test_cookie_command_accepts_only_private_tmpfs(tmp_path, monkeypatch):
         "https://media.example.com/video", cookie_jar=cookie
     )
     assert command.argv[command.argv.index("--cookies") + 1] == str(cookie)
-    assert command.authenticated
+    assert not command.authenticated  # A guest Cookie file is not account identity.
     for path in [tmp_path / "outside", operation / "symlink", root / "cookies.txt"]:
         if path.name == "symlink":
             path.symlink_to(cookie)
@@ -392,7 +396,9 @@ async def test_inspection_cleans_workspace_even_if_browser_close_fails(
     assert list(tmp_path.iterdir()) == []
 
 
-async def test_identity_digest_mismatch_stops_before_layer_io(tmp_path, monkeypatch):
+async def test_download_identity_unavailable_stops_before_layer_io(
+    tmp_path, monkeypatch
+):
     service = MediaRunnerService(settings(tmp_path))
     source = source_for(service, tmp_path)
     expected = replace(
@@ -412,6 +418,6 @@ async def test_identity_digest_mismatch_stops_before_layer_io(tmp_path, monkeypa
             await run_ladder(
                 source, source.request.profile, source.run_context.deadline
             )
-        assert caught.value.failure.failure_class is FailureClass.CONTEXT_CHANGED
+        assert caught.value.failure.failure_class is FailureClass.IDENTITY_UNAVAILABLE
     finally:
         source.workspace.cleanup()

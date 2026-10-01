@@ -28,11 +28,11 @@ def test_pyproject_and_compose_pin_provider_runtime() -> None:
     ).read_text()
 
     image = (
-        "bgutil-ytdlp-pot-provider:1.3.2@"
-        "sha256:9a96e6385ce1928da87dea07b1cab0413d2cf8c07a3b8a8bd419f53df2c3843c"
+        "bgutil-ytdlp-pot-provider:2.0.0@"
+        "sha256:ed86b6fdd5e430ddd7c8ce1adb55e1ab54db7c7dbc1bcbf3a82454a85b971164"
     )
-    assert '"bgutil-ytdlp-pot-provider==1.3.2"' in pyproject
-    assert "3a08beaf031ab68f966401ead017ac81fe8486cf.tar.gz" in pyproject
+    assert '"bgutil-ytdlp-pot-provider==2.0.0"' in pyproject
+    assert "51bab8a0116f4d8004c315706d809782607d5847.tar.gz" in pyproject
     assert image in compose
     assert image in production_compose
     assert "youtube-pot-supervisor.mjs" in compose

@@ -396,7 +396,9 @@ async def test_wechat_missing_public_media_is_reported_as_restricted_content(
 
 
 @pytest.mark.asyncio
-async def test_inspection_classifies_unavailable_youtube_video(tmp_path: Path) -> None:
+async def test_ambiguous_youtube_unavailable_does_not_prove_deletion(
+    tmp_path: Path,
+) -> None:
     commands = MediaCommands(
         settings(tmp_path),
         FailingSupervisor(b"ERROR: [youtube] pqyXR30AoOs: Video unavailable"),
@@ -405,8 +407,8 @@ async def test_inspection_classifies_unavailable_youtube_video(tmp_path: Path) -
     with pytest.raises(RunnerFailure) as caught:
         await commands.inspect("https://youtu.be/pqyXR30AoOs", tmp_path)
 
-    assert caught.value.code == "content_unavailable"
-    assert caught.value.status == 422
+    assert caught.value.code == "extractor_broken"
+    assert caught.value.status == 502
 
 
 @pytest.mark.asyncio
@@ -439,8 +441,8 @@ async def test_youtube_rate_limit_precedes_unavailable_fallback(tmp_path: Path) 
         ),
         (
             b"ERROR: Account cookies are no longer valid",
-            "login_required",
-            422,
+            "rate_limited",
+            429,
         ),
         (b"ERROR: Fresh cookies are needed", "rate_limited", 429),
     ),
@@ -1405,3 +1407,33 @@ async def test_command_rate_limit_preserves_retry_after_and_structured_evidence(
         "stderr_truncated": False,
         "http_status": 429,
     }
+
+
+@pytest.mark.parametrize("clear", [False, True])
+async def test_drm_warning_does_not_hide_a_clear_format(tmp_path, clear):
+    import json
+
+    formats = [
+        {"format_id": "drm", "url": "https://media.example/drm", "has_drm": True}
+    ]
+    if clear:
+        formats.append(
+            {
+                "format_id": "clear",
+                "url": "https://media.example/clear",
+                "has_drm": False,
+            }
+        )
+    commands = MediaCommands(
+        settings(tmp_path),
+        SuccessfulWarningSupervisor(
+            json.dumps({"id": "sample", "formats": formats}).encode(),
+            b"WARNING: This format is DRM protected",
+        ),
+    )
+    if clear:
+        payload = await commands.inspect("https://youtu.be/jNQXAC9IVRw", tmp_path)
+        assert payload["formats"] == formats
+    else:
+        with pytest.raises(RunnerFailure, match="content protected"):
+            await commands.inspect("https://youtu.be/jNQXAC9IVRw", tmp_path)
