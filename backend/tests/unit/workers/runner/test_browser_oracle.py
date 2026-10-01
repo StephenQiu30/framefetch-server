@@ -334,7 +334,7 @@ async def test_browser_native_transfer_saves_before_completion(tmp_path):
     close.assert_not_awaited()
 
 
-async def test_optional_identity_only_after_login_evidence_and_only_once(
+async def test_browser_does_not_fetch_identity_after_login_evidence(
     tmp_path, monkeypatch
 ):
     service = MediaRunnerService(settings(tmp_path))
@@ -350,11 +350,12 @@ async def test_optional_identity_only_after_login_evidence_and_only_once(
     attempt = AsyncMock(
         side_effect=[RunnerFailure("login_required"), RunnerFailure("login_required")]
     )
-    monkeypatch.setattr(layer, "_resolve", attempt)
+    source.pipeline.browser = SimpleNamespace(acquire=attempt)
     with pytest.raises(RunnerFailure, match="login required"):
         await layer.resolve(source, source.run_context)
-    assert attempt.await_count == 2 and fetch.await_count == 1
-    assert attempt.call_args.args[1].identity is material
+    assert attempt.await_count == 1
+    fetch.assert_not_awaited()
+    assert attempt.call_args.kwargs["ctx"].identity is None
     fetch.reset_mock()
     attempt.side_effect = RunnerFailure("challenge")
     with pytest.raises(RunnerFailure):

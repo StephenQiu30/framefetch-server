@@ -6,6 +6,7 @@ import base64
 import hashlib
 import json
 import os
+import subprocess
 from pathlib import Path
 
 from app.core.config import CookieSourceSettings
@@ -16,7 +17,22 @@ EXTENSION_SOURCE = Path(__file__).resolve().parents[4] / "browser-extension"
 
 
 def extension_home() -> Path:
-    return Path.home() / "Library/Application Support/FrameFetch/extension"
+    # --git-common-dir points to the primary checkout even inside a worktree.
+    common = subprocess.run(
+        [
+            "git",
+            "-C",
+            str(EXTENSION_SOURCE.parent),
+            "rev-parse",
+            "--path-format=absolute",
+            "--git-common-dir",
+        ],
+        check=True,
+        capture_output=True,
+        text=True,
+        timeout=5,
+    ).stdout.strip()
+    return Path(common).parent / "browser-extension"
 
 
 def cookie_domains() -> list[str]:
@@ -24,7 +40,7 @@ def cookie_domains() -> list[str]:
         {
             domain.lstrip(".").lower()
             for profile in current_provider_registry().profiles
-            if profile.identity is not ProviderIdentity.NONE
+            if profile.identity in {ProviderIdentity.REQUIRED, ProviderIdentity.PREFER}
             for domain in profile.cookie_domain_allowlist
         }
     )
@@ -32,7 +48,7 @@ def cookie_domains() -> list[str]:
 
 def manifest(port: int) -> dict[str, object]:
     result: dict[str, object] = json.loads(
-        (EXTENSION_SOURCE / "manifest.json").read_text()
+        (EXTENSION_SOURCE / "manifest.template.json").read_text()
     )
     result["host_permissions"] = [
         *(f"*://*.{domain}/*" for domain in cookie_domains()),
@@ -42,7 +58,7 @@ def manifest(port: int) -> dict[str, object]:
 
 
 def extension_origin() -> str:
-    key = json.loads((EXTENSION_SOURCE / "manifest.json").read_text())["key"]
+    key = json.loads((EXTENSION_SOURCE / "manifest.template.json").read_text())["key"]
     digest = hashlib.sha256(base64.b64decode(key, validate=True)).hexdigest()[:32]
     extension_id = "".join(chr(ord("a") + int(char, 16)) for char in digest)
     return f"chrome-extension://{extension_id}"
@@ -67,24 +83,40 @@ def private_write(path: Path, content: str) -> None:
         stream.write(content)
 
 
+def require_untracked_outputs(destination: Path) -> None:
+    for name in ("config.local.json", "manifest.json"):
+        result = subprocess.run(
+            ["git", "-C", str(destination), "ls-files", "--error-unmatch", "--", name],
+            capture_output=True,
+            timeout=5,
+        )
+        if result.returncode != 1:
+            raise ValueError("identity_generated_file_tracked")
+        ignored = subprocess.run(
+            ["git", "-C", str(destination), "check-ignore", "--quiet", "--", name],
+            capture_output=True,
+            timeout=5,
+        )
+        if ignored.returncode != 0:
+            raise ValueError("identity_generated_file_not_ignored")
+
+
 def install_extension(settings: CookieSourceSettings) -> Path:
     destination = extension_home()
-    private_directory(destination.parent)
+    if destination.resolve() != EXTENSION_SOURCE.resolve():
+        raise ValueError("identity_install_requires_primary_workspace")
+    require_untracked_outputs(destination)
     private_directory(destination)
-    for name in ("background.js", "protocol.js"):
-        private_write(destination / name, (EXTENSION_SOURCE / name).read_text())
     private_write(
         destination / "manifest.json",
         json.dumps(manifest(settings.cookie_source_port), indent=2) + "\n",
     )
-    # Not web-accessible; install-time only, never part of the source/distribution.
+    # Not web-accessible; local pairing data is never shipped or tracked.
     config = {
         "port": settings.cookie_source_port,
         "pairingKey": settings.cookie_source_pairing_key.get_secret_value(),
         "domains": cookie_domains(),
     }
-    private_write(
-        destination / "config.js",
-        "globalThis.FRAMEFETCH_CONFIG = " + json.dumps(config) + ";\n",
-    )
+    private_write(destination / "config.local.json", json.dumps(config) + "\n")
+    require_untracked_outputs(destination)
     return destination

@@ -125,7 +125,7 @@ async def fetch_identity(
                 proxy=settings.runner_egress_proxy,
                 trust_env=False,
                 follow_redirects=False,
-                timeout=min(120, remaining),
+                timeout=min(5, remaining),
             ) as client:
                 async with client.stream(
                     "POST",
@@ -196,35 +196,6 @@ async def operation_identity(
         yield material
     finally:
         material.cleanup()
-
-
-class IdentityOperation:
-    """Declaration policy and one optional injection owned by a Runner operation."""
-
-    def __init__(self, site: str, task_id: str, deadline: datetime):
-        self.site = site
-        self.task_id = task_id
-        self.deadline = deadline
-        self.policy = provider_profile_for_key(site).identity
-        self.material: IdentityMaterial | None = None
-        self._attempted = False
-
-    async def __aenter__(self) -> IdentityOperation:
-        if self.policy is ProviderIdentity.REQUIRED:
-            self.material = await fetch_identity(self.site, self.task_id, self.deadline)
-        return self
-
-    async def after_login_required(self) -> bool:
-        """Call only for classified login_required evidence; true means retry once."""
-        if self.policy is not ProviderIdentity.OPTIONAL or self._attempted:
-            return False
-        self._attempted = True
-        self.material = await fetch_identity(self.site, self.task_id, self.deadline)
-        return True
-
-    async def __aexit__(self, *exception: object) -> None:
-        if self.material is not None:
-            self.material.cleanup()
 
 
 COOKIE_TMPFS_ROOT = Path("/tmp/framefetch-identity")

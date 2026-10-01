@@ -23,15 +23,77 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, StrictBool
 
-# Necessary account fields already verified against the pinned extractors. Other
-# platforms remain fail-closed until their platform rollout verifies these names.
-_ACCOUNT_COOKIES: dict[str, tuple[frozenset[str], frozenset[str]]] = {
+# Audited 2026-10-01. Each inner set is an AND group; groups are alternatives.
+# This is a necessary-material gate, not a claim that the account is still valid.
+# Fingerprints bind only account material, not volatile visitor/proof cookies.
+_ACCOUNT_COOKIES: dict[
+    str, tuple[tuple[frozenset[str], ...], frozenset[str]] | None
+] = {
+    # yt-dlp/extractor/youtube/_base.py: is_authenticated + _get_sid_cookies.
+    # https://github.com/yt-dlp/yt-dlp/blob/master/yt_dlp/extractor/youtube/_base.py
+    # LOGIN_INFO prevents stale SAPISID variants from being mistaken for login.
+    "youtube": (
+        tuple(
+            frozenset({"LOGIN_INFO", sid})
+            for sid in ("SAPISID", "__Secure-1PAPISID", "__Secure-3PAPISID")
+        ),
+        frozenset(
+            {
+                "LOGIN_INFO",
+                "SAPISID",
+                "__Secure-1PAPISID",
+                "__Secure-3PAPISID",
+                "__Secure-1PSID",
+                "__Secure-3PSID",
+                "SID",
+            }
+        ),
+    ),
+    # https://github.com/yt-dlp/yt-dlp/blob/master/yt_dlp/extractor/bilibili.py
+    # BilibiliBaseIE.is_logged_in checks SESSDATA at api.bilibili.com.
+    "bilibili": ((frozenset({"SESSDATA"}),), frozenset({"SESSDATA", "DedeUserID"})),
+    # https://github.com/jiji262/douyin-downloader/blob/main/core/api_client.py
+    # _has_login_session_cookie accepts sessionid/sessionid_ss (not msToken).
+    "douyin": (
+        (frozenset({"sessionid"}), frozenset({"sessionid_ss"})),
+        frozenset(
+            {"sessionid", "sessionid_ss", "sid_tt", "sid_guard", "uid_tt", "uid_tt_ss"}
+        ),
+    ),
+    # https://github.com/NanmiCoder/MediaCrawler/blob/main/media_platform/xhs/login.py
+    # check_login_state uses web_session; visitor a1/webId alone are insufficient.
+    "xiaohongshu": ((frozenset({"web_session"}),), frozenset({"web_session"})),
+    # https://github.com/NanmiCoder/MediaCrawler/blob/main/media_platform/kuaishou/login.py
+    # check_login_state requires passToken. Web session pair used by the PC client:
+    # https://github.com/sonderlau/KuaiShouVideoDownload/blob/main/README_EN.md
+    "kuaishou": (
+        (
+            frozenset({"passToken"}),
+            frozenset({"kuaishou.server.web_st", "kuaishou.server.web_ph"}),
+        ),
+        frozenset(
+            {"passToken", "userId", "kuaishou.server.web_st", "kuaishou.server.web_ph"}
+        ),
+    ),
+    # https://github.com/tamnd/weibo-cli/blob/main/README.md#getting-a-session-cookie
+    # SUB is the session credential; SUBP/WBPSESS bind related account state.
+    "weibo": ((frozenset({"SUB"}),), frozenset({"SUB", "SUBP", "WBPSESS"})),
+    # https://github.com/yt-dlp/yt-dlp/blob/master/yt_dlp/extractor/twitter.py
+    # is_logged_in checks auth_token, _set_base_headers reads ct0 for CSRF.
+    "x": ((frozenset({"auth_token", "ct0"}),), frozenset({"auth_token", "ct0"})),
+    # https://github.com/0xEnc0der/fbcli#accepted-cookie-formats-auto-detected
+    # Both authentication cookies are needed; datr/sb alone identify a browser.
+    "facebook": ((frozenset({"c_user", "xs"}),), frozenset({"c_user", "xs"})),
+    # https://github.com/yt-dlp/yt-dlp/blob/master/yt_dlp/extractor/instagram.py
+    # InstagramBaseIE._AUTH_COOKIE_NAME/is_logged_in.
     "instagram": (
-        frozenset({"sessionid"}),
+        (frozenset({"sessionid"}),),
         frozenset({"sessionid", "csrftoken", "ds_user_id"}),
     ),
+    # Current in-repo yt-dlp plugin personal_video.py, QQPersonalIE._real_extract:
+    # login_token maps vuserid/vusession directly to these two Cookie names.
     "qqvideo": (
-        frozenset({"v_vuserid", "v_vusession"}),
+        (frozenset({"v_vuserid", "v_vusession"}),),
         frozenset(
             {
                 "v_vuserid",
@@ -43,6 +105,19 @@ _ACCOUNT_COOKIES: dict[str, tuple[frozenset[str], frozenset[str]]] = {
             }
         ),
     ),
+    # Youku's official Cookie Policy identifies P_sck as login/account material:
+    # https://terms.alicdn.com/legal-agreement/terms/c_platform_service_agreement/20230407105056824/20230407105056824.html
+    # Current plugin personal_video.py passes the Cookie jar to the official UPS.
+    "youku": (
+        (frozenset({"P_sck"}),),
+        frozenset({"P_sck", "P_pck", "P_pck_rm", "P_gck"}),
+    ),
+    # Design 17 section 4: yuanbao page headers are not proven by Chrome Cookies.
+    "wechat_channels": None,
+    # Current hongguo_official_share.py is anonymous; no reliable account-Cookie
+    # rule for novelquickapp.com/hongguoduanju.com was found. Never infer login
+    # from unrelated Douyin/Fanqie cookies or broaden to their account domains.
+    "hongguo_web": None,
 }
 AUTH_TIMEOUT = 5.0
 REQUEST_TIMEOUT = 5.0
@@ -234,7 +309,8 @@ class CookieSource:
             raise IdentityUnavailable("identity_not_declared")
         if self.connection is None:
             raise IdentityUnavailable("extension_disconnected")
-        if request.site not in _ACCOUNT_COOKIES:
+        rule = _ACCOUNT_COOKIES.get(request.site)
+        if rule is None:
             raise IdentityUnavailable("identity_cookie_rules_unverified")
         if self._requests >= MAX_REQUESTS:
             raise IdentityUnavailable("extension_timeout")
@@ -273,8 +349,9 @@ class CookieSource:
                     + "\n"
                 ).encode()
                 lines = parse_cookie_payload(payload, profile.cookie_domain_allowlist)
-                required, necessary = _ACCOUNT_COOKIES[request.site]
-                if not required <= {line.name for line in lines}:
+                alternatives, necessary = rule
+                names = {line.name for line in lines}
+                if not any(required <= names for required in alternatives):
                     raise IdentityUnavailable("credential_missing")
                 canonical = b"\n".join(
                     sorted(

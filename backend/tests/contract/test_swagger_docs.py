@@ -145,6 +145,7 @@ def test_swagger_ui_and_openapi_contract_are_available(tmp_path: Path) -> None:
     assert all(len(operation["tags"]) == 1 for operation in operations.values())
 
     components = schema["components"]["schemas"]
+    assert components["ProviderIdentity"]["enum"] == ["none", "prefer", "required"]
     assert components["LivenessResponse"]["properties"]["status"]["$ref"] == (
         "#/components/schemas/LivenessStatus"
     )

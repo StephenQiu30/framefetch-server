@@ -56,7 +56,7 @@ SOCIAL_PROVIDER_PROFILES: tuple[ProviderProfile, ...] = (
             {ProviderCookieDomain.X, ProviderCookieDomain.TWITTER}
         ),
         probe_authenticated_media=True,
-        identity=ProviderIdentity.OPTIONAL,
+        identity=ProviderIdentity.PREFER,
     ),
     standard_provider(
         ProviderKey.INSTAGRAM,
@@ -90,7 +90,7 @@ SOCIAL_PROVIDER_PROFILES: tuple[ProviderProfile, ...] = (
         command_args=CHROME_IMPERSONATION,
         client_profile="chrome-136-macos-15",
         probe_authenticated_media=True,
-        identity=ProviderIdentity.OPTIONAL,
+        identity=ProviderIdentity.PREFER,
     ),
     standard_provider(
         ProviderKey.TWITCH,

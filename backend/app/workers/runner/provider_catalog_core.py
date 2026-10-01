@@ -70,14 +70,14 @@ CORE_PROVIDER_PROFILES: tuple[ProviderProfile, ...] = (
         support_status=ProviderSupportStatus.UNKNOWN,
         runtime_command_args=_youtube_runtime_args,
         yt_dlp_retry_count=0,
-        identity=ProviderIdentity.OPTIONAL,
+        identity=ProviderIdentity.PREFER,
     ),
     standard_provider(
         ProviderKey.BILIBILI,
         "哔哩哔哩",
         ("bilibili.com", "www.bilibili.com", "m.bilibili.com", "b23.tv"),
         status=ProviderSupportStatus.UNKNOWN,
-        identity=ProviderIdentity.OPTIONAL,
+        identity=ProviderIdentity.PREFER,
         cookie_domain_allowlist=frozenset({"bilibili.com"}),
     ),
     challenged_provider(
@@ -99,7 +99,7 @@ CORE_PROVIDER_PROFILES: tuple[ProviderProfile, ...] = (
         ),
         probe_authenticated_media=True,
         probe_media_duration=True,
-        identity=ProviderIdentity.OPTIONAL,
+        identity=ProviderIdentity.PREFER,
     ),
     standard_provider(
         ProviderKey.TIKTOK,
@@ -134,7 +134,7 @@ CORE_PROVIDER_PROFILES: tuple[ProviderProfile, ...] = (
         ),
         status=ProviderSupportStatus.UNKNOWN,
         cookie_domain_allowlist=frozenset({ProviderCookieDomain.XIAOHONGSHU}),
-        identity=ProviderIdentity.OPTIONAL,
+        identity=ProviderIdentity.PREFER,
     ),
     ProviderProfile(
         key=ProviderKey.KUAISHOU,
@@ -160,6 +160,7 @@ CORE_PROVIDER_PROFILES: tuple[ProviderProfile, ...] = (
         support_status=ProviderSupportStatus.UNKNOWN,
         command_args=ANDROID_IMPERSONATION,
         normalize_url=kuaishou_url,
-        identity=ProviderIdentity.OPTIONAL,
+        identity=ProviderIdentity.PREFER,
+        cookie_domain_allowlist=frozenset({"kuaishou.com", "kuaishou.cn"}),
     ),
 )

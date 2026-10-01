@@ -34,7 +34,7 @@ describe('provider status page', () => {
       .getByRole('heading', { name: 'YouTube' })
       .closest('tr');
     expect(youtube).toHaveTextContent('已接入');
-    expect(youtube).toHaveTextContent('可选登录');
+    expect(youtube).toHaveTextContent('优先登录');
     expect(youtube).toHaveTextContent('单视频 · 音视频分离');
     const qqvideo = within(table)
       .getByRole('heading', { name: '腾讯视频' })
@@ -195,7 +195,7 @@ function statuses(): API.ProviderListResponse {
         ...provider,
         key: 'youtube',
         display_name: 'YouTube',
-        identity: 'optional',
+        identity: 'prefer',
         capabilities: ['single_video', 'audio_video_split'],
       },
       { ...provider, key: 'tiktok', display_name: 'TikTok' },

@@ -6,7 +6,6 @@ import json
 from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 from types import SimpleNamespace
-from unittest.mock import AsyncMock
 
 import httpx
 import pytest
@@ -174,54 +173,12 @@ async def test_exception_and_cancellation_after_injection_cleanup(transport, err
     assert list(root.iterdir()) == []
 
 
-async def test_required_every_operation_optional_once_after_evidence_none_never(
-    transport, monkeypatch
-):
-    root, _, _, _ = transport
-    fetched = AsyncMock(wraps=identity.fetch_identity)
-    monkeypatch.setattr(identity, "fetch_identity", fetched)
-    for _ in range(2):
-        async with identity.IdentityOperation(
-            "instagram", "task", deadline()
-        ) as operation:
-            assert operation.material
-            assert not await operation.after_login_required()
-    assert fetched.await_count == 2
-
-    # Policy only: fake the material transport for a declared optional site.
-    async def optional(site, task, end):
-        return await fetched("instagram", task, end)
-
-    monkeypatch.setattr(identity, "fetch_identity", optional)
-    async with identity.IdentityOperation("bilibili", "task", deadline()) as operation:
-        assert operation.material is None
-        assert fetched.await_count == 2
-        assert await operation.after_login_required()
-        assert not await operation.after_login_required()
-    async with identity.IdentityOperation("tiktok", "task", deadline()) as operation:
-        assert operation.material is None
-        assert not await operation.after_login_required()
-    assert fetched.await_count == 3 and list(root.iterdir()) == []
-
-
 async def test_none_direct_fetch_and_expired_deadline_never_call_host(transport):
     _, _, _, requests = transport
     for site, end in [("tiktok", deadline()), ("instagram", datetime.now(UTC))]:
         with pytest.raises(LayerFailure):
             await identity.fetch_identity(site, "task", end)
     assert requests == []
-
-
-async def test_optional_identity_failure_is_terminal_and_not_retried(
-    transport, monkeypatch
-):
-    fetched = AsyncMock(side_effect=identity._unavailable("extension_disconnected"))
-    monkeypatch.setattr(identity, "fetch_identity", fetched)
-    async with identity.IdentityOperation("bilibili", "task", deadline()) as operation:
-        with pytest.raises(LayerFailure):
-            await operation.after_login_required()
-        assert not await operation.after_login_required()
-    assert fetched.await_count == 1
 
 
 async def test_runner_lifespan_clears_tmpfs_before_accepting_requests(transport):
@@ -316,9 +273,7 @@ async def test_ladder_uses_real_identity_transport_and_separate_media_binding(
     class LayerWithIdentity:
         async def resolve(self, item, ctx):
             calls.append(ctx.identity)
-            if ctx.identity is None:
-                # Optional policy calls the real R4 transport only after evidence.
-                raise LayerFailure(FailureClass.LOGIN_REQUIRED, "③", {})
+            assert ctx.identity is not None
             assert ctx.cookie_file == ctx.identity.cookie_file
             identity.validate_cookie_file(ctx.cookie_file)
             # Media IO still consumes P1's injected EgressBinding and Cookie path.
@@ -361,7 +316,7 @@ async def test_ladder_uses_real_identity_transport_and_separate_media_binding(
             "task_id": source.workspace.path.name.rsplit("-", 1)[0],
             "deadline": source.run_context.deadline.isoformat(),
         }
-        assert len(calls) == (1 if site == "instagram" else 2)
+        assert len(calls) == 1
         assert list(root.iterdir()) == []
     finally:
         if result is not None:

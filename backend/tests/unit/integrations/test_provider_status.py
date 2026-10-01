@@ -16,4 +16,4 @@ def test_registry_capabilities_are_not_download_acceptance_evidence():
         assert "last_verified_at" not in public
     bilibili = next(item for item in statuses if item.key == "bilibili")
     assert bilibili.download_supported
-    assert bilibili.identity is ProviderIdentity.OPTIONAL
+    assert bilibili.identity is ProviderIdentity.PREFER

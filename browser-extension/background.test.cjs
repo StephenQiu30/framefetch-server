@@ -17,9 +17,9 @@ function worker() {
   }
   const context = vm.createContext({
     TextEncoder, crypto: webcrypto, WebSocket, Date: { now: () => now },
-    FRAMEFETCH_CONFIG: { pairingKey: KEY, port: 19101, domains: ['instagram.com'] },
+    fetch: async url => { assert.equal(url, 'chrome-extension://test/config.local.json'); return { ok: true, json: async () => ({ pairingKey: KEY, port: 19101, domains: ['instagram.com'] }) }; },
     chrome: { alarms: { onAlarm: listener('alarm'), get: async name => alarms.get(name), create: async (name, spec) => { alarms.set(name, spec); } },
-      runtime: { onStartup: listener('startup'), onInstalled: listener('installed'), getManifest: () => ({ version: '1.0.0' }) },
+      runtime: { onStartup: listener('startup'), onInstalled: listener('installed'), getManifest: () => ({ version: '1.0.0' }), getURL: name => 'chrome-extension://test/' + name },
       cookies: { getAll: async () => [] } },
     setTimeout: (fn, ms) => { const timer = { fn, ms, active: true }; timers.push(timer); return timer; },
     clearTimeout: timer => { if (timer) timer.active = false; },
@@ -77,4 +77,15 @@ test('20-second heartbeat only after server authentication, stale connection clo
   w.advance(46000); w.intervals[0].fn();
   assert.equal(ws.readyState, 3);
   assert.equal(w.intervals[0].active, false);
+});
+test('pairing JSON is local only and never declared web accessible', () => {
+  const template = JSON.parse(fs.readFileSync(__dirname + '/manifest.template.json', 'utf8'));
+  assert.equal('web_accessible_resources' in template, false);
+  assert.equal('host_permissions' in template, false);
+  const { execFileSync, spawnSync } = require('node:child_process');
+  const tracked = execFileSync('git', ['ls-files', '--', 'browser-extension/config.local.json', 'browser-extension/manifest.json'], { cwd: __dirname + '/..', encoding: 'utf8' });
+  assert.equal(tracked, '');
+  for (const name of ['config.local.json', 'manifest.json']) {
+    assert.equal(spawnSync('git', ['check-ignore', '--quiet', '--', name], { cwd: __dirname }).status, 0);
+  }
 });

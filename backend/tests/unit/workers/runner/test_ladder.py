@@ -205,7 +205,7 @@ async def test_identity_injection_policy(
     monkeypatch.setattr(identity, "fetch_identity", fetch)
     script = (
         [None]
-        if policy is ProviderIdentity.REQUIRED
+        if policy is not ProviderIdentity.NONE
         else [FailureClass.LOGIN_REQUIRED, None]
     )
     calls = dispatch(monkeypatch, {"L1": script})
@@ -227,16 +227,15 @@ async def test_identity_injection_policy(
         assert result.execution_context.identity_used
         assert result.execution_context.identity_digest == "stable-digest"
         assert calls[-1][1] == identity_material
-        if policy is ProviderIdentity.OPTIONAL:
-            assert calls[0][1] is None and len(calls) == 2
+        assert calls[0][1] is identity_material and len(calls) == 1
         await close_material(result.run_context)
         assert not identity_material.cookie_file.exists()
 
 
-async def test_optional_identity_retry_cannot_repeat(
+async def test_prefer_login_failure_does_not_fetch_or_retry_again(
     source, monkeypatch, identity_material
 ):
-    source = layers(source, Layer.L1, Layer.L2, identity=ProviderIdentity.OPTIONAL)
+    source = layers(source, Layer.L1, Layer.L2, identity=ProviderIdentity.PREFER)
 
     async def fetch(*args):
         return identity_material
@@ -247,7 +246,7 @@ async def test_optional_identity_retry_cannot_repeat(
     )
     with pytest.raises(RunnerFailure, match="login required"):
         await run_ladder(source, source.request.profile, source.run_context.deadline)
-    assert len(calls) == 2 and not identity_material.cookie_file.exists()
+    assert len(calls) == 1 and not identity_material.cookie_file.exists()
 
 
 async def test_required_stub_fails_before_platform_io(source, monkeypatch):
@@ -407,3 +406,92 @@ async def test_expired_required_identity_does_not_call_source(source, monkeypatc
     monkeypatch.setattr(identity, "fetch_identity", unexpected)
     with pytest.raises(RunnerFailure, match="inspection timeout"):
         await run_ladder(source, source.request.profile, datetime.now(UTC))
+
+
+@pytest.mark.parametrize(
+    "cause",
+    [
+        "extension_disconnected",
+        "extension_timeout",
+        "credential_missing",
+        "identity_cookie_rules_unverified",
+    ],
+)
+@pytest.mark.parametrize("terminal", [False, True])
+async def test_prefer_unavailable_is_anonymous_with_failure_evidence(
+    source, monkeypatch, cause, terminal, caplog
+):
+    from unittest.mock import AsyncMock
+
+    source = layers(source, Layer.L1, identity=ProviderIdentity.PREFER)
+    fetch = AsyncMock(side_effect=identity._unavailable(cause))
+    monkeypatch.setattr(identity, "fetch_identity", fetch)
+    calls = dispatch(
+        monkeypatch, {"L1": [FailureClass.LOGIN_REQUIRED if terminal else None]}
+    )
+    if terminal:
+        with pytest.raises(RunnerFailure, match="login required") as caught:
+            await run_ladder(
+                source, source.request.profile, source.run_context.deadline
+            )
+        history = caught.value.failures
+    else:
+        result = await run_ladder(
+            source, source.request.profile, source.run_context.deadline
+        )
+        assert result.execution_context.identity_used is False
+        assert result.execution_context.identity_digest is None
+        history = result.failures
+    assert len(calls) == 1 and calls[0][1] is None
+    fetch.assert_awaited_once()
+    assert history[0].failure_class is FailureClass.IDENTITY_UNAVAILABLE
+    assert history[0].evidence["cause_code"] == cause
+    assert history[0].layer == "L1" and history[0].gate == "③"
+    assert any(
+        "class=identity_unavailable" in record.message
+        and f"'cause_code': '{cause}'" in record.message
+        for record in caplog.records
+    )
+
+
+@pytest.mark.parametrize("policy", [ProviderIdentity.PREFER, ProviderIdentity.REQUIRED])
+async def test_download_lost_identity_returns_context_changed_before_io(
+    source, monkeypatch, policy
+):
+    from unittest.mock import AsyncMock
+
+    source = layers(source, Layer.L1, identity=policy)
+    source = replace(
+        source,
+        expected_context=replace(
+            source.execution_context, identity_used=True, identity_digest="old"
+        ),
+    )
+    fetch = AsyncMock(side_effect=identity._unavailable("extension_disconnected"))
+    monkeypatch.setattr(identity, "fetch_identity", fetch)
+    calls = dispatch(monkeypatch, {"L1": [None]})
+    with pytest.raises(RunnerFailure, match="context changed") as caught:
+        await run_ladder(source, source.request.profile, source.run_context.deadline)
+    assert not calls and caught.value.status == 409
+    assert caught.value.failure.evidence["cause_code"] == "extension_disconnected"
+    assert caught.value.failure.stage == "download"
+    assert caught.value.failures[0].failure_class is FailureClass.IDENTITY_UNAVAILABLE
+    fetch.assert_awaited_once()
+
+
+async def test_anonymous_download_stays_anonymous_even_if_identity_appears(
+    source, monkeypatch
+):
+    from unittest.mock import AsyncMock
+
+    source = layers(source, Layer.L1, identity=ProviderIdentity.PREFER)
+    source = replace(source, expected_context=source.execution_context)
+    fetch = AsyncMock(side_effect=AssertionError("anonymous download fetched identity"))
+    monkeypatch.setattr(identity, "fetch_identity", fetch)
+    calls = dispatch(monkeypatch, {"L1": [None]})
+    result = await run_ladder(
+        source, source.request.profile, source.run_context.deadline
+    )
+    assert result.execution_context == source.expected_context
+    assert calls == [("L1", None)]
+    fetch.assert_not_awaited()

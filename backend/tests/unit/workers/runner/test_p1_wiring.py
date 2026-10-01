@@ -75,7 +75,8 @@ async def test_declared_order_advances_only_on_p1_failures(
         assert calls == ["L1", "L2", "L3"]
         assert result.execution_context.resolved_layer == "L3"
         assert result.execution_context.client == "stub:actual"
-        assert [error.layer for error in result.failures] == ["L1", "L2"]
+        assert [error.layer for error in result.failures] == ["L1", "L1", "L2"]
+        assert result.failures[0].failure_class is FailureClass.IDENTITY_UNAVAILABLE
     finally:
         source.workspace.cleanup()
 
@@ -396,7 +397,7 @@ async def test_inspection_cleans_workspace_even_if_browser_close_fails(
     assert list(tmp_path.iterdir()) == []
 
 
-async def test_download_identity_unavailable_stops_before_layer_io(
+async def test_download_missing_identity_changes_context_before_layer_io(
     tmp_path, monkeypatch
 ):
     service = MediaRunnerService(settings(tmp_path))
@@ -418,6 +419,6 @@ async def test_download_identity_unavailable_stops_before_layer_io(
             await run_ladder(
                 source, source.request.profile, source.run_context.deadline
             )
-        assert caught.value.failure.failure_class is FailureClass.IDENTITY_UNAVAILABLE
+        assert caught.value.failure.failure_class is FailureClass.CONTEXT_CHANGED
     finally:
         source.workspace.cleanup()

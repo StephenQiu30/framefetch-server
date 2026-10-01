@@ -33,21 +33,21 @@ def agent_path() -> Path:
 
 
 def default_env_file() -> Path:
-    return extension_home().parent / "identity.env"
+    return Path.home() / "Library/Application Support/FrameFetch/identity.env"
 
 
 def agent_spec(env_file: Path) -> dict[str, object]:
     return {
         "Label": LABEL,
         "ProgramArguments": [
-            sys.executable,
+            str(extension_home().parent / "backend/.venv/bin/python"),
             "-m",
             "app.workers.identity.cli",
             "run",
             "--env-file",
             str(env_file),
         ],
-        "WorkingDirectory": str(Path(__file__).resolve().parents[3]),
+        "WorkingDirectory": str(extension_home().parent / "backend"),
         "RunAtLoad": True,
         "KeepAlive": True,
         "StandardOutPath": "/dev/null",

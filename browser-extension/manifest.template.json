@@ -8,22 +8,6 @@
     "cookies",
     "alarms"
   ],
-  "host_permissions": [
-    "*://*.bilibili.com/*",
-    "*://*.douyin.com/*",
-    "*://*.facebook.com/*",
-    "*://*.iesdouyin.com/*",
-    "*://*.instagram.com/*",
-    "*://*.twitter.com/*",
-    "*://*.v.qq.com/*",
-    "*://*.x.com/*",
-    "*://*.xiaohongshu.com/*",
-    "*://*.youku.com/*",
-    "*://*.youtube-nocookie.com/*",
-    "*://*.youtube.com/*",
-    "*://*.yuanbao.tencent.com/*",
-    "ws://127.0.0.1:19101/"
-  ],
   "background": {
     "service_worker": "background.js"
   },

@@ -50,7 +50,8 @@ PUBLIC_PROVIDER_PROFILES: tuple[ProviderProfile, ...] = (
         normalize_url=weibo_url,
         capabilities=SINGLE_VIDEO,
         status=ProviderSupportStatus.UNKNOWN,
-        identity=ProviderIdentity.OPTIONAL,
+        identity=ProviderIdentity.PREFER,
+        cookie_domain_allowlist=frozenset({"weibo.com", "weibo.cn"}),
     ),
     standard_provider(
         ProviderKey.YOUKU,
@@ -142,6 +143,7 @@ PUBLIC_PROVIDER_PROFILES: tuple[ProviderProfile, ...] = (
         normalize_url=hongguo_url,
         capabilities=SINGLE_VIDEO,
         support_status=ProviderSupportStatus.UNKNOWN,
-        identity=ProviderIdentity.OPTIONAL,
+        identity=ProviderIdentity.PREFER,
+        cookie_domain_allowlist=frozenset({"novelquickapp.com", "hongguoduanju.com"}),
     ),
 )

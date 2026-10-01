@@ -133,7 +133,8 @@ async def test_bad_material_refused(source, cookie):
     "site,cause",
     [
         ("tiktok", "identity_not_declared"),
-        ("youtube", "identity_cookie_rules_unverified"),
+        ("hongguo_web", "identity_cookie_rules_unverified"),
+        ("wechat_channels", "identity_cookie_rules_unverified"),
     ],
 )
 async def test_undeclared_or_unverified_rules_never_read(source, site, cause):
@@ -367,3 +368,64 @@ def test_server_application_heartbeat(monkeypatch):
             authenticate(ws)
             assert ws.receive_json() == {"type": "ping"}
             ws.send_json({"type": "pong"})
+
+
+# Independent minimal and incomplete account material per platform (no live values).
+@pytest.mark.parametrize(
+    "site,domain,names",
+    [
+        ("youtube", "youtube.com", ["LOGIN_INFO", "SAPISID"]),
+        ("youtube", "youtube.com", ["LOGIN_INFO", "__Secure-3PAPISID"]),
+        ("youtube", "youtube.com", ["LOGIN_INFO", "__Secure-1PAPISID"]),
+        ("bilibili", "bilibili.com", ["SESSDATA"]),
+        ("douyin", "douyin.com", ["sessionid"]),
+        ("douyin", "douyin.com", ["sessionid_ss"]),
+        ("xiaohongshu", "xiaohongshu.com", ["web_session"]),
+        ("kuaishou", "kuaishou.com", ["passToken"]),
+        (
+            "kuaishou",
+            "kuaishou.com",
+            ["kuaishou.server.web_st", "kuaishou.server.web_ph"],
+        ),
+        ("weibo", "weibo.com", ["SUB"]),
+        ("x", "x.com", ["auth_token", "ct0"]),
+        ("x", "twitter.com", ["auth_token", "ct0"]),
+        ("facebook", "facebook.com", ["c_user", "xs"]),
+        ("instagram", "instagram.com", ["sessionid"]),
+        ("qqvideo", "v.qq.com", ["v_vuserid", "v_vusession"]),
+        ("youku", "youku.com", ["P_sck"]),
+    ],
+)
+async def test_platform_required_cookies_and_stable_digest(source, site, domain, names):
+    service, state = source
+    state["cookies"] = [
+        {**COOKIE, "domain": "." + domain, "name": name} for name in names
+    ]
+    first = await service.cookies(request(site))
+    state["cookies"].append(
+        {**COOKIE, "domain": "." + domain, "name": "visitor", "value": "rotating"}
+    )
+    assert (await service.cookies(request(site)))["digest"] == first["digest"]
+    state["cookies"][0]["value"] = "different-account"
+    assert (await service.cookies(request(site)))["digest"] != first["digest"]
+    state["cookies"] = state["cookies"][1:]
+    with pytest.raises(m.IdentityUnavailable, match="credential_missing"):
+        await service.cookies(request(site))
+
+
+@pytest.mark.parametrize(
+    "names",
+    [
+        ["SAPISID"],
+        ["LOGIN_INFO"],
+        ["LOGIN_INFO", "__Secure-3PSID"],
+        ["VISITOR_INFO1_LIVE"],
+    ],
+)
+async def test_youtube_stale_sid_and_visitor_material_are_not_login(source, names):
+    service, state = source
+    state["cookies"] = [
+        {**COOKIE, "domain": ".youtube.com", "name": name} for name in names
+    ]
+    with pytest.raises(m.IdentityUnavailable, match="credential_missing"):
+        await service.cookies(request("youtube"))

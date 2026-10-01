@@ -126,28 +126,6 @@ async def _cookie_jar(operation: BrowserOperation, directory: Path) -> Path:
 
 class BrowserLayer:
     async def resolve(self, source: ResolutionSource, ctx: RunContext) -> ResolvedMedia:
-        try:
-            return await self._resolve(source, ctx)
-        except RunnerFailure as error:
-            if (
-                error.failure.failure_class is FailureClass.LOGIN_REQUIRED
-                and source.request.profile.identity is ProviderIdentity.OPTIONAL
-                and ctx.identity is None
-            ):
-                material = await identity.fetch_identity(
-                    source.request.profile.key, source.workspace.path.name, ctx.deadline
-                )
-                authenticated = ctx.with_material(identity=material)
-                try:
-                    return await self._resolve(source, authenticated)
-                except BaseException:
-                    await _remove_identity(material.cookie_file)
-                    raise
-            raise
-
-    async def _resolve(
-        self, source: ResolutionSource, ctx: RunContext
-    ) -> ResolvedMedia:
         profile = source.request.profile
         parser = PARSERS.get(profile.key)
         runtime = source.pipeline.browser

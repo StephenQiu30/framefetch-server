@@ -126,7 +126,7 @@ class BrowserRules:
 
 class ProviderIdentity(StrEnum):
     NONE = "none"
-    OPTIONAL = "optional"
+    PREFER = "prefer"
     REQUIRED = "required"
 
 

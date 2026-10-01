@@ -17,7 +17,7 @@ const CAPABILITY_LABELS: Record<API.ProviderCapability, string> = {
 
 const IDENTITY_LABELS = {
   none: '无需登录',
-  optional: '可选登录',
+  prefer: '优先登录',
   required: '需要登录',
 };
 

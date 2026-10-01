@@ -60,7 +60,8 @@ async def test_clients_record_actual_success_and_attempts(
     )
     assert result.execution_context.client == expected
     assert calls == ["youtube:mweb", "youtube:tv", "youtube:default"][: len(calls)]
-    assert len(result.failures) == len(calls) - 1
+    assert result.failures[0].failure_class is FailureClass.IDENTITY_UNAVAILABLE
+    assert len(result.failures) == len(calls)
 
 
 @pytest.mark.parametrize(

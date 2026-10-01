@@ -41,6 +41,20 @@ _CONTEXT_BINDING = (
 )
 
 
+def log_failure(source: ResolutionSource, failure: ProviderFailure) -> None:
+    _LOG.warning(
+        "resolver failed task=%s provider=%s layer=%s "
+        "stage=%s class=%s gate=%s evidence=%s",
+        source.workspace.path.name.rsplit("-", 1)[0],
+        source.request.profile.key,
+        failure.layer,
+        failure.stage,
+        failure.failure_class,
+        failure.gate,
+        failure.evidence,
+    )
+
+
 async def close_material(ctx: RunContext) -> None:
     try:
         if ctx.browser is not None:
@@ -73,12 +87,10 @@ async def run_ladder(
     ctx = replace(source.run_context, deadline=deadline)
     failures: list[ProviderFailure] = []
     task_retries: set[FailureClass] = set()
-    identity_attempted = False
     transferred = False
 
     async def inject_identity() -> None:
-        nonlocal ctx, identity_attempted
-        identity_attempted = True
+        nonlocal ctx
         material = await identity.fetch_identity(
             profile.key, source.workspace.path.name.rsplit("-", 1)[0], deadline
         )
@@ -113,9 +125,34 @@ async def run_ladder(
                 if ctx.identity is not None or (expected and expected.identity_used):
                     raise RunnerFailure("context_changed", status=409)
             elif profile.identity is ProviderIdentity.REQUIRED or (
-                expected is not None and expected.identity_used
+                profile.identity is ProviderIdentity.PREFER
+                and (expected is None or expected.identity_used)
             ):
-                await inject_identity()
+                try:
+                    await inject_identity()
+                except RunnerFailure as error:
+                    if (
+                        error.failure.failure_class
+                        is not FailureClass.IDENTITY_UNAVAILABLE
+                    ):
+                        raise
+                    error.attributed_to(replace(context, resolved_layer=layers[0]))
+                    if expected is not None and expected.identity_used:
+                        failures.append(replace(error.failure, stage="download"))
+                        raise RunnerFailure(
+                            "context_changed",
+                            status=409,
+                            stage="download",
+                            evidence=error.failure.evidence,
+                            evidence_kind=error.failure.evidence_kind,
+                        ) from error
+                    if profile.identity is ProviderIdentity.REQUIRED:
+                        raise
+                    # Prefer falls back only at initial resolve, keeping the safe
+                    # cause in failure history even when anonymous IO succeeds.
+                    failures.append(error.failure)
+                    log_failure(source, error.failure)
+                    ctx = replace(ctx, identity=None, cookie_file=None)
             if expected is not None and (
                 expected.identity_used != (ctx.identity is not None)
                 or expected.identity_digest
@@ -165,29 +202,10 @@ async def run_ladder(
                         attempt_failures = error.failures or (error.failure,)
                         failures.extend(attempt_failures)
                         for failure in attempt_failures:
-                            _LOG.warning(
-                                "resolver failed task=%s provider=%s layer=%s "
-                                "stage=%s class=%s gate=%s evidence=%s",
-                                source.workspace.path.name.rsplit("-", 1)[0],
-                                profile.key,
-                                failure.layer,
-                                failure.stage,
-                                failure.failure_class,
-                                failure.gate,
-                                failure.evidence,
-                            )
+                            log_failure(source, failure)
                         kind = error.failure.failure_class
                         if kind in _NEXT_LAYER and layer_key != layers[-1]:
                             break
-                        if kind is FailureClass.LOGIN_REQUIRED:
-                            if (
-                                profile.identity is not ProviderIdentity.OPTIONAL
-                                or identity_attempted
-                                or expected is not None
-                            ):
-                                raise
-                            await inject_identity()
-                            continue
                         if kind is FailureClass.TRANSIENT:
                             # Cancellation/deadline outcomes are never recoverable.
                             if layer_retried or error.code in {

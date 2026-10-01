@@ -3,6 +3,8 @@
 import json
 import os
 import plistlib
+import shutil
+import subprocess
 from types import SimpleNamespace
 from unittest.mock import Mock
 
@@ -20,12 +22,26 @@ def installation(tmp_path, monkeypatch):
     environment, target, home = (
         tmp_path / "identity.env",
         tmp_path / "agent.plist",
-        tmp_path / "FrameFetch/extension",
+        tmp_path / "repo/browser-extension",
     )
+    home.mkdir(parents=True)
+    for name in ("background.js", "protocol.js", "manifest.template.json"):
+        shutil.copyfile(extension.EXTENSION_SOURCE / name, home / name)
+    (home.parent / ".gitignore").write_text(
+        "/browser-extension/config.local.json\n/browser-extension/manifest.json\n"
+    )
+    subprocess.run(["git", "init", "-q", str(home.parent)], check=True)
+    subprocess.run(["git", "-C", str(home.parent), "add", "."], check=True)
+    original_run = subprocess.run
+    monkeypatch.setattr(extension, "EXTENSION_SOURCE", home)
     monkeypatch.setattr(cli, "agent_path", lambda: target)
     monkeypatch.setattr(extension, "extension_home", lambda: home)
     run = Mock(return_value=SimpleNamespace(returncode=0))
-    monkeypatch.setattr(cli.subprocess, "run", run)
+
+    def dispatch(argv, **kwargs):
+        return original_run(argv, **kwargs) if argv[0] == "git" else run(argv, **kwargs)
+
+    monkeypatch.setattr(cli.subprocess, "run", dispatch)
     return environment, target, home, run
 
 
@@ -43,11 +59,16 @@ def test_install_private_config_separate_keys_and_no_secrets_in_plist(installati
     assert spec["ProgramArguments"][-1] == str(environment)
     assert spec["StandardErrorPath"] == "/dev/null"
     assert home.stat().st_mode & 0o777 == 0o700
-    for path in (*home.iterdir(), environment, target):
+    for path in (
+        home / "config.local.json",
+        home / "manifest.json",
+        environment,
+        target,
+    ):
         assert path.stat().st_mode & 0o777 == 0o600
     assert (
         settings.cookie_source_pairing_key.get_secret_value()
-        in (home / "config.js").read_text()
+        in (home / "config.local.json").read_text()
     )
     assert run.call_args_list[0].args[0][2] == f"gui/{os.getuid()}"
     cli.uninstall()
@@ -61,9 +82,8 @@ def test_upgrade_preserves_keys_and_reloads_only_own_agent(installation):
     (home / "background.js").write_text("old")
     cli.install(environment)
     assert environment.read_bytes() == before
-    assert (home / "background.js").read_text() == (
-        extension.EXTENSION_SOURCE / "background.js"
-    ).read_text()
+    assert (home / "background.js").read_text() == "old"  # install never copies source
+    extension.require_untracked_outputs(home)
     assert any(call.args[0][1] == "bootout" for call in run.call_args_list)
 
 
@@ -122,8 +142,11 @@ def test_install_never_edits_project_env(tmp_path):
 
 
 def test_manifest_registry_permissions_and_stable_id():
-    manifest = json.loads((extension.EXTENSION_SOURCE / "manifest.json").read_text())
-    assert manifest == extension.manifest(19101)
+    template = json.loads(
+        (extension.EXTENSION_SOURCE / "manifest.template.json").read_text()
+    )
+    manifest = extension.manifest(19101)
+    assert "host_permissions" not in template
     assert manifest["permissions"] == ["cookies", "alarms"]
     assert manifest["minimum_chrome_version"] == "120"
     assert set(manifest["host_permissions"]) == {
@@ -165,3 +188,44 @@ def test_anonymous_runner_disabled(token):
         ).cookie_source_token
         is None
     )
+
+
+@pytest.mark.parametrize("name", ["config.local.json", "manifest.json"])
+def test_install_refuses_tracked_pairing_or_manifest(installation, name):
+    environment, _, home, _ = installation
+    generated = home / name
+    generated.write_text("preserve")
+    subprocess.run(["git", "-C", str(home), "add", "-f", name], check=True)
+    with pytest.raises(ValueError, match="generated_file_tracked"):
+        cli.install(environment)
+    assert generated.read_text() == "preserve"
+
+
+def test_install_refuses_worktree_generation(installation, monkeypatch, tmp_path):
+    environment, _, home, _ = installation
+    monkeypatch.setattr(
+        extension, "EXTENSION_SOURCE", tmp_path / "worktree/browser-extension"
+    )
+    with pytest.raises(ValueError, match="requires_primary_workspace"):
+        cli.install(environment)
+    assert not (home / "config.local.json").exists()
+
+
+def test_main_workspace_lookup_uses_common_git_directory(monkeypatch, tmp_path):
+    common = tmp_path / "primary/.git"
+    run = Mock(return_value=SimpleNamespace(stdout=str(common) + "\n"))
+    monkeypatch.setattr(extension.subprocess, "run", run)
+    assert extension.extension_home() == tmp_path / "primary/browser-extension"
+    assert "--git-common-dir" in run.call_args.args[0]
+
+
+def test_registry_permissions_cover_every_identity_platform():
+    from app.services.provider_types import ProviderIdentity
+    from app.workers.runner.provider_registry import current_provider_registry
+
+    domains = set(extension.cookie_domains())
+    for profile in current_provider_registry().profiles:
+        if profile.identity is not ProviderIdentity.NONE:
+            assert profile.cookie_domain_allowlist
+            assert set(profile.cookie_domain_allowlist) <= domains
+    assert {"kuaishou.com", "weibo.com", "hongguoduanju.com"} <= domains

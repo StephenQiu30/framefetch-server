@@ -1894,7 +1894,7 @@ declare namespace API {
     items: ProviderCatalogEntryResponse[];
   };
 
-  type ProviderIdentity = "none" | "optional" | "required";
+  type ProviderIdentity = "none" | "prefer" | "required";
 
   type ProviderListResponse = {
     /** Items */

@@ -445,7 +445,7 @@ def test_identity_declarations_are_the_rebuild_design():
         p.key for p in registry.profiles if p.identity is ProviderIdentity.REQUIRED
     }
     assert required == {"wechat_channels", "qqvideo", "youku", "instagram"}
-    assert registry.profile_for_key("bilibili").identity is ProviderIdentity.OPTIONAL
+    assert registry.profile_for_key("bilibili").identity is ProviderIdentity.PREFER
     assert registry.profile_for_key("reddit").identity is ProviderIdentity.NONE
     assert registry.profile_for_key("tiktok").identity is ProviderIdentity.NONE
 

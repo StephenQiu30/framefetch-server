@@ -29,20 +29,20 @@ from helpers import download_request, settings
 
 # Independently transcribed from Design 17 section 4.
 _DECLARATIONS = {
-    "bilibili": ("L1", "cn", "optional", "public"),
-    "youtube": ("L2,L3", "global", "optional", "public"),
-    "douyin": ("L3,L1", "cn", "optional", "public"),
+    "bilibili": ("L1", "cn", "prefer", "public"),
+    "youtube": ("L2,L3", "global", "prefer", "public"),
+    "douyin": ("L3,L1", "cn", "prefer", "public"),
     "tiktok": ("L1,L3", "global", "none", "public"),
-    "xiaohongshu": ("L3,L1", "cn", "optional", "public"),
-    "kuaishou": ("L2,L3", "cn", "optional", "public"),
-    "weibo": ("L2,L3", "cn", "optional", "public"),
+    "xiaohongshu": ("L3,L1", "cn", "prefer", "public"),
+    "kuaishou": ("L2,L3", "cn", "prefer", "public"),
+    "weibo": ("L2,L3", "cn", "prefer", "public"),
     "wechat_channels": ("L3", "cn", "required", "public"),
     "qqvideo": ("L1,L3", "cn", "required", "personal_full"),
     "youku": ("L1,L3", "cn", "required", "personal_full"),
-    "hongguo_web": ("L1,L3", "cn", "optional", "public"),
-    "x": ("L1,L3", "global", "optional", "public"),
+    "hongguo_web": ("L1,L3", "cn", "prefer", "public"),
+    "x": ("L1,L3", "global", "prefer", "public"),
     "instagram": ("L1,L3", "global", "required", "public"),
-    "facebook": ("L1,L3", "global", "optional", "public"),
+    "facebook": ("L1,L3", "global", "prefer", "public"),
     "wechat_official_account_article": ("L1", "cn", "none", "public"),
 }
 
@@ -156,7 +156,10 @@ async def test_l1_preserves_retry_facts(tmp_path, monkeypatch):
     assert result.media.streams is media.streams
     assert result.media.handoff == "http" and result.media.client == "yt-dlp-default"
     assert result.execution_context == source.execution_context
-    assert [f.code for f in result.failures] == ["network_transient"]
+    assert [f.code for f in result.failures] == [
+        "identity_unavailable",
+        "network_transient",
+    ]
     with pytest.raises(FrozenInstanceError):
         source.run_context.deadline = datetime.now(UTC)
     source.workspace.cleanup()

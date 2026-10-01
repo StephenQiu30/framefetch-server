@@ -54,4 +54,5 @@ npm-debug.log*
 **/.wrangler/
 
 # Generated identity pairing config is install-only.
-/browser-extension/config.js
+/browser-extension/config.local.json
+/browser-extension/manifest.json

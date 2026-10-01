@@ -81,3 +81,13 @@ test('immediate reconnect, exponential failures capped at 30 seconds, reset afte
   backoff.reset();
   assert.equal(backoff.next(), 0);
 });
+test('prefer platform request cannot return another declared platform identity', async () => {
+  const sent = [];
+  const protocol = new Protocol({ pairingKey: KEY, domains: ['bilibili.com', 'youtube.com', 'weibo.com'] }, async () => [
+    cookie('.bilibili.com', { name: 'SESSDATA' }), cookie('api.bilibili.com', { name: 'SESSDATA' }),
+    cookie('.youtube.com', { name: 'SAPISID' }), cookie('evilbilibili.com'),
+  ], message => sent.push(message), '1.0.0');
+  await authenticate(protocol);
+  await protocol.receive({ type: 'cookies', request_id: ID, domains: ['bilibili.com'] });
+  assert.deepEqual(sent.at(-1).cookies.map(c => c.domain), ['.bilibili.com', 'api.bilibili.com']);
+});

@@ -1,5 +1,5 @@
 /* Listeners are registered synchronously before configuration/connection work. */
-importScripts('protocol.js', 'config.js');
+importScripts('protocol.js');
 const ALARM = 'framefetch-identity-connect';
 let socket = null;
 let retryTimer = null;
@@ -26,7 +26,9 @@ async function initialize() {
   if (starting || socket || Date.now() < retryAt) return;
   starting = true;
   try {
-    const config = globalThis.FRAMEFETCH_CONFIG;
+    const response = await fetch(chrome.runtime.getURL('config.local.json'));
+    if (!response.ok) throw new Error('configuration_unavailable');
+    const config = await response.json();
     const ws = new WebSocket(`ws://127.0.0.1:${config.port}/extension`);
     socket = ws;
     let closed = false;
