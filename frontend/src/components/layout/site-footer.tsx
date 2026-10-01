@@ -33,7 +33,7 @@ function isDesktopViewport() {
   return desktopViewport()?.matches ?? false;
 }
 
-export function SiteFooter({ className }: { className?: string }) {
+function SiteFooter({ className }: { className?: string }) {
   const showFooterActions = useSyncExternalStore(
     subscribeToDesktopViewport,
     isDesktopViewport,

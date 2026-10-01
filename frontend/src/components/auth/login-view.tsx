@@ -166,5 +166,3 @@ function validateLogin(email: string, password: string): FieldErrors {
     errors.password = '密码不能超过 128 个字符';
   return errors;
 }
-
-export default LoginView;

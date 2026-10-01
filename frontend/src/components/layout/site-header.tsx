@@ -16,7 +16,7 @@ import { Button } from '@/components/ui/button';
 import { displayError } from '@/lib/request-error';
 import { isPublicPage, siteConfig } from '@/lib/site';
 
-export function BrandLink({ className }: { className?: string }) {
+function BrandLink({ className }: { className?: string }) {
   return (
     <Link
       aria-label="帧取首页"
@@ -42,7 +42,7 @@ export function BrandLink({ className }: { className?: string }) {
   );
 }
 
-export function SiteHeader() {
+function SiteHeader() {
   const { user, loading, status, signOut } = useAuth();
   const [signingOut, setSigningOut] = useState(false);
   const pathname = usePathname() ?? '/';

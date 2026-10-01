@@ -1,4 +1,4 @@
-export type EditorMode = 'create' | 'edit';
+type EditorMode = 'create' | 'edit';
 
 export type CatalogEditorState = {
   mode: EditorMode | null;

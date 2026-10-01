@@ -1,6 +1,3 @@
-import { ChartLineUp } from '@phosphor-icons/react';
-
-import { PageEmptyNotice } from '@/components/layout/page-empty-notice';
 import { Skeleton } from '@/components/ui/skeleton';
 
 export function AnalyticsLoading() {
@@ -36,15 +33,5 @@ export function AnalyticsLoading() {
       </div>
       <Skeleton className="h-80" />
     </div>
-  );
-}
-
-export function AnalyticsEmpty() {
-  return (
-    <PageEmptyNotice
-      description="切换统计周期，或等待用户创建下载任务后再查看。"
-      icon={<ChartLineUp aria-hidden />}
-      title="当前周期还没有下载数据"
-    />
   );
 }
