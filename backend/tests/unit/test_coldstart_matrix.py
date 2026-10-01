@@ -4,7 +4,9 @@ import importlib.util
 import json
 import sys
 from argparse import Namespace
+from datetime import datetime
 from pathlib import Path
+from urllib.parse import urlsplit
 
 import httpx
 import pytest
@@ -419,6 +421,125 @@ def test_fixture_positive_candidates_have_distinct_identity_and_honest_gaps():
     assert any(c.qualification_gaps() for c in cases if c.platform == "wechat_channels")
 
 
+@pytest.mark.parametrize(
+    "sample_id,duration,source_url,source_kind,source_field",
+    [
+        (
+            "douyin-positive-1",
+            11,
+            "https://www.douyin.com/video/7674644830270473609",
+            "public_page",
+            "anonymous page player total MM:SS",
+        ),
+        (
+            "douyin-positive-2",
+            20,
+            "https://www.douyin.com/video/6961737553342991651",
+            "public_page",
+            "anonymous page player total MM:SS",
+        ),
+        (
+            "kuaishou-positive-1",
+            72.533,
+            "https://v.m.chenzhongtech.com/fw/photo/3x888mrikrur4g2",
+            "platform_page_or_api",
+            "photo.duration / 1000",
+        ),
+        (
+            "kuaishou-positive-2",
+            218.783,
+            "https://v.m.chenzhongtech.com/fw/photo/3x5jvmsmmiahx3m",
+            "platform_page_or_api",
+            "photo.duration / 1000",
+        ),
+        (
+            "weibo-positive-1",
+            918,
+            "https://weibo.com/ajax/statuses/show?id=N4xlMvjhI",
+            "platform_page_or_api",
+            "page_info.media_info.duration",
+        ),
+        (
+            "weibo-positive-2",
+            53,
+            "https://weibo.com/ajax/statuses/show?id=FBqgOmDxO",
+            "platform_page_or_api",
+            "page_info.media_info.duration",
+        ),
+        (
+            "xiaohongshu-positive-1",
+            69,
+            "https://www.xiaohongshu.com/explore/6a6ff0eb000000002701d892",
+            "platform_page_or_api",
+            "note.video.capa.duration",
+        ),
+    ],
+)
+def test_g2_fixture_retains_dated_independent_platform_evidence(
+    sample_id, duration, source_url, source_kind, source_field
+):
+    samples = matrix.load_cases(SCRIPT.parent / "fixtures/coldstart_cases.json")
+    sample = next(c for c in samples if c.id == sample_id)
+    assert sample.duration_seconds == duration
+    assert sample.duration_source.kind == source_kind
+    assert sample.duration_source.field == source_field
+    expected = urlsplit(source_url)
+    for source in (sample.duration_source, sample.availability_source):
+        actual = urlsplit(source.url)
+        assert (actual.scheme, actual.netloc, actual.path) == (
+            expected.scheme,
+            expected.netloc,
+            expected.path,
+        )
+        if expected.query:
+            assert actual.query == expected.query
+        assert source.status == "verified"
+        assert (
+            datetime.fromisoformat(source.checked_at).date().isoformat() == "2026-10-01"
+        )
+    assert sample.qualification_gaps() == []
+
+
+def test_g2_missing_xiaohongshu_evidence_blocks_complete_delivery(
+    monkeypatch, tmp_path
+):
+    samples = matrix.load_cases(SCRIPT.parent / "fixtures/coldstart_cases.json")
+    sample = next(c for c in samples if c.id == "xiaohongshu-positive-2")
+    assert sample.duration_seconds is None
+    for source in (sample.duration_source, sample.availability_source):
+        assert source.status == "unverified"
+        assert source.checked_at is None
+        assert "待补充" in source.note
+    assert sample.qualification_gaps() == [
+        "public/free/non-DRM availability not independently verified",
+        "independent full duration missing",
+    ]
+    fake_commands(monkeypatch)
+    api = FakeApi(context={"provider_key": sample.platform, "identity_used": True})
+    original = api.request
+
+    def request(method, path, **kwargs):
+        payload = original(method, path, **kwargs)
+        if path == "/api/inspections/inspection":
+            payload["provider_media_id"] = sample.expected_media_id
+        return payload
+
+    api.request = request
+    options = args()
+    options.cookie_source_label = "test-cookie-source"
+    row = matrix.run_case(api, sample, options, tmp_path)
+    assert row["full_decode_exit_code"] == 0
+    assert row["result"] == "blocked"
+    assert row["failure_class"] == "sample_evidence_missing"
+    assert row["qualification_gaps"] == sample.qualification_gaps()
+    matrix.write_report({"results": [row]}, tmp_path)
+    report = json.loads((tmp_path / "matrix.json").read_text())
+    assert report["results"][0]["sample"]["duration_source"]["status"] == "unverified"
+    markdown = (tmp_path / "matrix.md").read_text()
+    assert "| blocked |" in markdown
+    assert "independent full duration missing" in markdown
+
+
 def test_frame_rate_and_dynamic_range_are_checked_against_confirmed_plan():
     payload = probe()
     payload["streams"][0].update(avg_frame_rate="30000/1001", color_transfer="bt709")
@@ -552,16 +673,20 @@ def test_datacenter_does_not_disqualify_complete_youtube_delivery(
     [
         {"kind": "ffprobe"},
         {"kind": "yt_dlp"},
+        {"kind": "platform_player_ui"},
         {"url": "file:///tmp/probe"},
         {"checked_at": "yesterday"},
+        {"checked_at": None},
+        {"checked_at": "2026-10-01T09:21:54"},
         {"field": ""},
         {"note": ""},
     ],
 )
-def test_verified_evidence_requires_real_independent_source(change):
-    original = case().duration_source.model_dump()
+@pytest.mark.parametrize("source_field", ["duration_source", "availability_source"])
+def test_verified_evidence_requires_real_independent_source(change, source_field):
+    original = getattr(case(), source_field).model_dump()
     with pytest.raises(ValidationError):
-        case(duration_source={**original, **change})
+        case(**{source_field: {**original, **change}})
 
 
 def test_failed_intent_reports_actual_attempt_without_success_context(tmp_path):
