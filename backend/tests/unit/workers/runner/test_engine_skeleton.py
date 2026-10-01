@@ -39,7 +39,7 @@ _DECLARATIONS = {
     "wechat_channels": ("L3", "cn", "required", "public"),
     "qqvideo": ("L1,L3", "cn", "required", "personal_full"),
     "youku": ("L1,L3", "cn", "required", "personal_full"),
-    "hongguo_web": ("L1,L3", "cn", "prefer", "public"),
+    "hongguo_web": ("L1,L3", "cn", "none", "public"),
     "x": ("L1,L3", "global", "prefer", "public"),
     "instagram": ("L1,L3", "global", "required", "public"),
     "facebook": ("L1,L3", "global", "prefer", "public"),

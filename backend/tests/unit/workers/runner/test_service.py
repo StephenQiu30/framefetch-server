@@ -4,6 +4,7 @@ import asyncio
 import hashlib
 import json
 from collections.abc import Mapping, Sequence
+from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
@@ -483,6 +484,7 @@ async def test_download_reinspects_selects_semantics_and_verifies_artifact(
     )
     info_path = Path(downloads[0][downloads[0].index("--load-info-json") + 1])
     assert info_path.stat().st_mode & 0o777 == 0o600
+
     assert json.loads(info_path.read_text())["id"] == "controlled"
     assert all(
         command[command.index("--js-runtimes") + 1] == "node" for command in ytdlp
@@ -502,6 +504,36 @@ async def test_download_reinspects_selects_semantics_and_verifies_artifact(
     status = await service.status("job_123")
     assert status.stage.value == "ready"
     assert status.progress == 100
+
+
+async def test_youku_normalization_contract_uses_final_file_size_and_sha(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    service = MediaRunnerService(
+        settings(tmp_path), supervisor=FixtureSupervisor(split_media_info())
+    )
+    original_download = service._download_resolved
+
+    async def as_youku(request, source, workspace, resolution):
+        # Reuse the controlled clear-media resolution; identity acquisition is
+        # tested separately. This exercises the actual artifact delivery path.
+        source = replace(source, profile=replace(source.profile, key="youku"))
+        return await original_download(request, source, workspace, resolution)
+
+    async def normalize(artifact, probe, commands, **kwargs):
+        assert artifact.read_bytes() == b"final-media"
+        artifact.write_bytes(b"normalized")
+        return probe
+
+    monkeypatch.setattr(service, "_download_resolved", as_youku)
+    monkeypatch.setattr(
+        "app.workers.runner.service.normalize_terminal_metadata", normalize
+    )
+    response = await service.download(download_request())
+    artifact = Path(response.workspace_path) / response.artifact.relative_path
+    assert artifact.read_bytes() == b"normalized"
+    assert response.artifact.size_bytes == artifact.stat().st_size
+    assert response.artifact.sha256 == hashlib.sha256(artifact.read_bytes()).hexdigest()
 
 
 async def test_download_reports_byte_progress_while_stream_is_running(

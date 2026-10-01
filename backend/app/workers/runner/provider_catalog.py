@@ -81,6 +81,8 @@ _ARTICLE = ProviderProfile(
     display_name="微信公众号文章",
     hosts=frozenset({"mp.weixin.qq.com"}),
     normalize_url=_article_url,
+    # An article is a discovery source, not a selectable video rendition.
+    capabilities=frozenset(),
 )
 
 

@@ -948,11 +948,11 @@
     },
     "availability_source": {
       "url": "https://v.youku.com/v_show/id_XOTUxMzg4NDMy.html",
-      "kind": "public_page",
-      "field": "public_free_clear_media",
-      "checked_at": null,
-      "status": "unverified",
-      "note": "公开、免费、非 DRM 的完整媒体尚未独立证实；候选不能记通过。"
+      "kind": "official_player_metadata",
+      "field": "account_accessible_full_clear_media",
+      "checked_at": "2026-10-01T10:41:23.484257+00:00",
+      "status": "verified",
+      "note": "独立 HTTPX 客户端读取官方 UPS 提供的完整媒体清单：HTTP 200、ENDLIST、无 EXT-X-KEY/SESSION-KEY；总时长 702.08/542.133 秒与官方原始时长相符；首段 Range 206，独立 ffprobe 检出 H264/AAC 640x360。声明域身份材料存在 P_sck；personal_full 不要求公开免费。本 worktree artifacts/coldstart/r6-g4-round6/runner-diagnostic.json 保存无敏感值证据；完整文件由正式矩阵另验。 已保存的独立证据逐作品核对：playlist_duration=702.08、manifest_status=200、endlist=true、encryption_key_present=false、segment_status=206、probe_exit=0；类型归入官方播放器元数据，首段探测不替代独立页面完整时长。"
     },
     "minimum_spec": {
       "width": 320,
@@ -979,11 +979,11 @@
     },
     "availability_source": {
       "url": "https://v.youku.com/v_show/id_XNTA2NTA0MjA1Mg==.html",
-      "kind": "public_page",
-      "field": "public_free_clear_media",
-      "checked_at": null,
-      "status": "unverified",
-      "note": "公开、免费、非 DRM 的完整媒体尚未独立证实；候选不能记通过。"
+      "kind": "official_player_metadata",
+      "field": "account_accessible_full_clear_media",
+      "checked_at": "2026-10-01T10:41:23.484257+00:00",
+      "status": "verified",
+      "note": "独立 HTTPX 客户端读取官方 UPS 提供的完整媒体清单：HTTP 200、ENDLIST、无 EXT-X-KEY/SESSION-KEY；总时长 702.08/542.133 秒与官方原始时长相符；首段 Range 206，独立 ffprobe 检出 H264/AAC 640x360。声明域身份材料存在 P_sck；personal_full 不要求公开免费。本 worktree artifacts/coldstart/r6-g4-round6/runner-diagnostic.json 保存无敏感值证据；完整文件由正式矩阵另验。 已保存的独立证据逐作品核对：playlist_duration=542.133、manifest_status=200、endlist=true、encryption_key_present=false、segment_status=206、probe_exit=0；类型归入官方播放器元数据，首段探测不替代独立页面完整时长。"
     },
     "minimum_spec": {
       "width": 320,
@@ -999,22 +999,22 @@
     "kind": "positive",
     "content_scope": "personal_full",
     "needs_identity": true,
-    "duration_seconds": null,
+    "duration_seconds": 216,
     "duration_source": {
-      "url": "https://v.qq.com/x/page/q326831cny0.html",
-      "kind": "platform_page_or_api",
-      "field": "unavailable",
-      "checked_at": null,
-      "status": "unverified",
-      "note": "personal_full 需要身份；官方页面可达但作品完整时长未取得，不能用预览时长代替。"
+      "url": "https://vd6.l.qq.com/vinfo_proxy",
+      "kind": "platform_api",
+      "field": "data.videoInfo.duration",
+      "checked_at": "2026-10-01T09:24:24.592795+00:00",
+      "status": "verified",
+      "note": "独立匿名 HTTP 请求按官方页 vinfoConfig 调用第一方元数据 API；ret=0、videoInfo.vid 精确匹配，完整时长为 216 秒。不解读或解密 proxyhttp.enc=1 包装。 已保存的独立证据：r6-g4 worktree artifacts/coldstart/r6-g4-research/tencent-flags.json，ret=0、drm=0；仅映射来源类型，不以被测流时长替代。"
     },
     "availability_source": {
       "url": "https://v.qq.com/x/page/q326831cny0.html",
-      "kind": "public_page",
-      "field": "public_free_clear_media",
-      "checked_at": null,
-      "status": "unverified",
-      "note": "公开、免费、非 DRM 的完整媒体尚未独立证实；候选不能记通过。"
+      "kind": "official_player_metadata",
+      "field": "account_accessible_full_clear_media",
+      "checked_at": "2026-10-01T10:41:23.484257+00:00",
+      "status": "verified",
+      "note": "独立容器 Chromium 的官方页面原生 proxyhttp 响应中 vinfo 为明文 JSON，未解密任何包装；精确 vid 和完整时长匹配，当前 rendition fl.fi.drm=0。账号必要材料 v_vuserid/v_vusession 存在；personal_full 不要求公开免费。正式矩阵已另交付完整文件并全片解码成功。本 worktree artifacts/coldstart/r6-g4-round6/runner-diagnostic.json 保存原生响应非敏感字段。 已保存的独立证据逐作品核对：原生 /proxyhttp errCode=0、plain_vinfo 作品 ID 匹配、td=215.96、shd drm=0；类型归入官方播放器元数据，enc=1 包装未解密。"
     },
     "minimum_spec": {
       "width": 320,
@@ -1030,22 +1030,22 @@
     "kind": "positive",
     "content_scope": "personal_full",
     "needs_identity": true,
-    "duration_seconds": null,
+    "duration_seconds": 1290,
     "duration_source": {
-      "url": "https://v.qq.com/x/page/o3013za7cse.html",
-      "kind": "platform_page_or_api",
-      "field": "unavailable",
-      "checked_at": null,
-      "status": "unverified",
-      "note": "personal_full 需要身份；官方页面可达但作品完整时长未取得，不能用预览时长代替。"
+      "url": "https://vd6.l.qq.com/vinfo_proxy",
+      "kind": "platform_api",
+      "field": "data.videoInfo.duration",
+      "checked_at": "2026-10-01T09:24:24.595236+00:00",
+      "status": "verified",
+      "note": "独立匿名 HTTP 请求按官方页 vinfoConfig 调用第一方元数据 API；ret=0、videoInfo.vid 精确匹配，完整时长为 1290 秒。不解读或解密 proxyhttp.enc=1 包装。 已保存的独立证据：r6-g4 worktree artifacts/coldstart/r6-g4-research/tencent-flags.json，ret=0、drm=0；仅映射来源类型，不以被测流时长替代。"
     },
     "availability_source": {
       "url": "https://v.qq.com/x/page/o3013za7cse.html",
-      "kind": "public_page",
-      "field": "public_free_clear_media",
-      "checked_at": null,
-      "status": "unverified",
-      "note": "公开、免费、非 DRM 的完整媒体尚未独立证实；候选不能记通过。"
+      "kind": "official_player_metadata",
+      "field": "account_accessible_full_clear_media",
+      "checked_at": "2026-10-01T10:41:23.484257+00:00",
+      "status": "verified",
+      "note": "独立容器 Chromium 的官方页面原生 proxyhttp 响应中 vinfo 为明文 JSON，未解密任何包装；精确 vid 和完整时长匹配，当前 rendition fl.fi.drm=0。账号必要材料 v_vuserid/v_vusession 存在；personal_full 不要求公开免费。正式矩阵已另交付完整文件并全片解码成功。本 worktree artifacts/coldstart/r6-g4-round6/runner-diagnostic.json 保存原生响应非敏感字段。 已保存的独立证据逐作品核对：原生 /proxyhttp errCode=0、plain_vinfo 作品 ID 匹配、td=1290.64、shd drm=0；类型归入官方播放器元数据，enc=1 包装未解密。"
     },
     "minimum_spec": {
       "width": 320,
@@ -1445,10 +1445,10 @@
     "availability_source": {
       "url": "https://hongguoduanju.com/player/7662704510720019480/7662705589293681726",
       "kind": "public_page",
-      "field": "public_free_clear_media",
-      "checked_at": null,
-      "status": "unverified",
-      "note": "公开、免费、非 DRM 的完整媒体尚未独立证实；候选不能记通过。"
+      "field": "anonymous_free_page_and_clear_sample_entries",
+      "checked_at": "2026-10-01T09:11:14.753821+00:00",
+      "status": "verified",
+      "note": "独立于被测 Runner 的无登录 HTTP 客户端访问官方页返回 200，标题为全集在线免费观看；匿名 Range 请求返回 206 video/mp4，完整 moov 的采样项为 avc1/mp4a，无 pssh/encv/enca/sinf/tenc。只取得访客 ttwid，不视作登录。完整时长来自官方页面；最终完整性仍由正式矩阵交付校验。 已保存的独立证据：r6-g4 worktree artifacts/coldstart/r6-g4-research/hongguo-public-evidence.json，逐作品匿名官方页与 moov 核对；类型归入 public_page，前缀摘要不替代完整文件摘要。"
     },
     "minimum_spec": {
       "width": 320,
@@ -1476,10 +1476,10 @@
     "availability_source": {
       "url": "https://hongguoduanju.com/player/7690215859737873432/7690312773271555096",
       "kind": "public_page",
-      "field": "public_free_clear_media",
-      "checked_at": null,
-      "status": "unverified",
-      "note": "免费公开剧集页面可达；完整 clear 媒体仍待独立确认。"
+      "field": "anonymous_free_page_and_clear_sample_entries",
+      "checked_at": "2026-10-01T09:11:17.059955+00:00",
+      "status": "verified",
+      "note": "独立于被测 Runner 的无登录 HTTP 客户端访问官方页返回 200，标题为全集在线免费观看；匿名 Range 请求返回 206 video/mp4，完整 moov 的采样项为 avc1/mp4a，无 pssh/encv/enca/sinf/tenc。只取得访客 ttwid，不视作登录。完整时长来自官方页面；最终完整性仍由正式矩阵交付校验。 已保存的独立证据：r6-g4 worktree artifacts/coldstart/r6-g4-research/hongguo-public-evidence.json，逐作品匿名官方页与 moov 核对；类型归入 public_page，前缀摘要不替代完整文件摘要。"
     },
     "minimum_spec": {
       "width": 320,

@@ -243,6 +243,20 @@ def test_tiktok_rejects_urls_that_could_fall_through_to_generic_webpage(
     assert captured.value.code == "provider_unsupported"
 
 
+@pytest.mark.parametrize(
+    "url",
+    [
+        "https://v.youku.com/v_show/id_XOTUxMzg4NDMy.html",
+        "https://v.qq.com/x/page/q326831cny0.html",
+    ],
+)
+def test_personal_clear_streams_enable_authenticated_media_probe(url):
+    profile = provider_profile(url)
+    assert profile.identity == "required"
+    assert profile.content_scope == "personal_full"
+    assert profile.probe_authenticated_media is True
+
+
 def test_targets_douyin_request_impersonation_without_hidden_retries() -> None:
     url = "https://www.douyin.com/video/123"
 
@@ -476,3 +490,38 @@ def test_registry_rejects_invalid_content_scope():
                 )
             ]
         )
+
+
+def test_article_registry_has_no_direct_video_capability() -> None:
+    profile = provider_profile("https://mp.weixin.qq.com/s/article-share")
+    assert profile.key == ProviderKey.WECHAT_OFFICIAL_ACCOUNT_ARTICLE
+    assert profile.capabilities == frozenset()
+    ProviderRegistry((profile,))
+    with pytest.raises(ValueError, match="incomplete capabilities"):
+        ProviderRegistry(
+            (
+                ProviderProfile(
+                    "empty",
+                    "Empty",
+                    frozenset({"empty.example"}),
+                    capabilities=frozenset(),
+                ),
+            )
+        )
+
+
+def test_hongguo_public_web_share_does_not_request_account_cookies() -> None:
+    from app.services.provider_types import ProviderIdentity
+
+    profile = provider_profile(
+        "https://hongguoduanju.com/player/7662704510720019480/7662705589293681726"
+    )
+    assert profile.content_scope == "public"
+    assert profile.identity is ProviderIdentity.NONE
+    assert not profile.cookie_domain_allowlist
+
+
+def test_channels_identity_domains_match_first_party_preview_entry() -> None:
+    profile = provider_profile("https://weixin.qq.com/sph/A9znfitafp")
+    assert profile.cookie_domain_allowlist == frozenset({"channels.weixin.qq.com"})
+    assert profile.content_scope == "public"

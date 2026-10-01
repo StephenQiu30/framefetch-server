@@ -132,7 +132,7 @@ async def test_bad_material_refused(source, cookie):
     "site,cause",
     [
         ("tiktok", "identity_not_declared"),
-        ("hongguo_web", "identity_cookie_rules_unverified"),
+        ("hongguo_web", "identity_not_declared"),
         ("wechat_channels", "identity_cookie_rules_unverified"),
     ],
 )

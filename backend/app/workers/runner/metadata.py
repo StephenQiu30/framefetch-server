@@ -263,7 +263,9 @@ def enrich_format_metadata(
     if video is None:
         enriched["vcodec"] = "none"
     else:
-        fps = _frame_rate(video.get("avg_frame_rate") or video.get("r_frame_rate"))
+        fps = _frame_rate(video.get("avg_frame_rate")) or _frame_rate(
+            video.get("r_frame_rate")
+        )
         nominal = _frame_rate(video.get("r_frame_rate"))
         # Twitch clip edit lists can make the remote container average 30.016
         # or 60.017 while the actual cadence is 30/60. Keep materially different

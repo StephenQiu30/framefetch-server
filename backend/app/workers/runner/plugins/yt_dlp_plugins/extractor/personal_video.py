@@ -11,6 +11,7 @@ import json
 import math
 from typing import Any
 from urllib.parse import urljoin
+from uuid import uuid4
 
 from yt_dlp.extractor.tencent import VQQVideoIE  # type: ignore[import-untyped]
 from yt_dlp.extractor.youku import YoukuIE  # type: ignore[import-untyped]
@@ -31,6 +32,15 @@ def positive_duration(value: Any) -> float:
 def same_duration(actual: Any, expected: float) -> None:
     if abs(positive_duration(actual) - expected) > max(3, expected * 0.02):
         reject("content_preview_only")
+
+
+def encrypted_playlist(text: str) -> bool:
+    # AES-128 is also encrypted media even when yt-dlp does not call it DRM.
+    # Refuse the playlist before the downloader can request a content key.
+    return any(
+        line.strip().startswith(("#EXT-X-KEY:", "#EXT-X-SESSION-KEY:"))
+        for line in text.splitlines()
+    )
 
 
 def full_youku_streams(data: dict[str, Any]) -> list[dict[str, Any]]:
@@ -73,6 +83,44 @@ def full_youku_streams(data: dict[str, Any]) -> list[dict[str, Any]]:
 
 
 class _YoukuPersonalIE(YoukuIE, plugin_name="personal_video"):  # type: ignore[misc, call-arg]
+    _full_duration: float | None = None
+
+    def _parse_m3u8_formats_and_subtitles(
+        self, m3u8_doc: str, m3u8_url: str, *args: Any, **kwargs: Any
+    ) -> Any:
+        if encrypted_playlist(m3u8_doc):
+            reject("drm_protected")
+        lines = [line.strip() for line in m3u8_doc.splitlines() if line.strip()]
+        if (
+            len(m3u8_doc) > 2_000_000
+            or not lines
+            or lines[0] != "#EXTM3U"
+            or "#EXT-X-ENDLIST" not in lines
+            or any(
+                line.startswith(("#EXT-X-STREAM-INF", "#EXT-X-MAP", "#EXT-X-BYTERANGE"))
+                for line in lines
+            )
+        ):
+            reject("content_access_metadata_invalid")
+        durations = [
+            positive_duration(line.partition(":")[2].partition(",")[0])
+            for line in lines
+            if line.startswith("#EXTINF:")
+        ]
+        segments = [line for line in lines if not line.startswith("#")]
+        if not durations or len(durations) != len(segments):
+            reject("content_access_metadata_invalid")
+        same_duration(sum(durations), positive_duration(self._full_duration))
+        formats, subtitles = super()._parse_m3u8_formats_and_subtitles(
+            m3u8_doc, m3u8_url, *args, **kwargs
+        )
+        for item in formats:
+            # Avoid ffprobe reading the entire long playlist during inspection.
+            # Runner validates this URL before its bounded 8 KiB clear probe.
+            item["_framefetch_probe_url"] = urljoin(m3u8_url, segments[0])
+            item["hls_media_playlist_data"] = m3u8_doc
+        return formats, subtitles
+
     def _download_json(
         self, url_or_request: Any, video_id: str, *args: Any, **kwargs: Any
     ) -> Any:
@@ -90,8 +138,10 @@ class _YoukuPersonalIE(YoukuIE, plugin_name="personal_video"):  # type: ignore[m
         return result
 
     def _real_extract(self, url: str) -> Any:
+        self._full_duration = None
         result = super()._real_extract(url)
         duration = positive_duration(result.get("duration"))
+        self._full_duration = duration
         clear_formats = []
         saw_drm = False
         for original in result["formats"]:
@@ -118,6 +168,14 @@ class _VQQPersonalIE(VQQVideoIE, plugin_name="personal_video"):  # type: ignore[
     _saw_drm = False
     _source_url = "https://v.qq.com/"
     _inline_manifest: str | None = None
+
+    def _parse_m3u8_formats_and_subtitles(
+        self, m3u8_doc: str, *args: Any, **kwargs: Any
+    ) -> Any:
+        if encrypted_playlist(m3u8_doc):
+            self._saw_drm = True
+            return [], {}
+        return super()._parse_m3u8_formats_and_subtitles(m3u8_doc, *args, **kwargs)
 
     def _media_headers(self) -> dict[str, str]:
         return {"Referer": self._source_url, "Origin": "https://v.qq.com"}
@@ -153,10 +211,19 @@ class _VQQPersonalIE(VQQVideoIE, plugin_name="personal_video"):  # type: ignore[
         cid = matched.group("series_id") or ""
         params = {key: config[key] for key in keys}
         params["href"] = self._source_url
-        cookie = "; ".join(
-            f"{name}={item.value}"
-            for name, item in self._get_cookies("https://v.qq.com/").items()
-        )
+        # The first-party page initializes video_guid as visitor state. Without
+        # it vinfo_proxy returns ret=5001 (missing guid), not a media DRM signal.
+        # Preserve an existing browser value; a fresh opaque visitor id conveys
+        # no account entitlement and never replaces the required login pair.
+        cookies = self._get_cookies("https://v.qq.com/")
+        if not cookies.get("video_guid") or not cookies["video_guid"].value:
+            self._set_cookie("v.qq.com", "video_guid", uuid4().hex)
+        # This API supplies the original work metadata, not account playback.
+        # Sending stale/mixed account cookies can make even the official page
+        # return ret=4008. Keep it anonymous with only its visitor prerequisite;
+        # the playback API below still requires and receives the login pair.
+        visitor = self._get_cookies("https://v.qq.com/")["video_guid"].value
+        cookie = f"video_guid={visitor}"
         response = self._download_json(
             f"https://{host}/vinfo_proxy",
             video_id,
@@ -174,6 +241,7 @@ class _VQQPersonalIE(VQQVideoIE, plugin_name="personal_video"):  # type: ignore[
                 "Content-Type": "text/plain",
                 "Origin": "https://v.qq.com",
                 "Referer": self._source_url,
+                "Cookie": cookie,
             },
         )
         if not isinstance(response, dict) or response.get("ret") != 0:
