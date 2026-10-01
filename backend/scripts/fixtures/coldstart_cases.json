@@ -560,27 +560,27 @@
   {
     "id": "reddit-positive-1",
     "platform": "reddit",
-    "url": "https://www.reddit.com/r/videos/comments/6rrwyj/that_small_heart_attack/",
-    "expected_media_id": "zv89llsvexdz",
+    "url": "https://www.reddit.com/r/justgalsbeingchicks/comments/1of1k38/no_one_expected_this_talent/",
+    "expected_media_id": "w7c2qtnz03xf1",
     "kind": "positive",
     "content_scope": "public",
     "needs_identity": false,
-    "duration_seconds": 12,
+    "duration_seconds": 42,
     "duration_source": {
-      "url": "https://www.reddit.com/by_id/t3_6rrwyj.json?raw_json=1",
+      "url": "https://www.reddit.com/by_id/t3_1of1k38.json?raw_json=1",
       "kind": "platform_api",
       "field": "data.children[0].data.media.reddit_video.duration",
-      "checked_at": "2026-10-01T14:17:13Z",
+      "checked_at": "2026-10-01T15:29:03Z",
       "status": "verified",
-      "note": "独立匿名官方帖子元数据完整时长；未从被测媒体或清单反填。来源 public、quarantine=false、未删除、转码 completed；原始脱敏响应见 artifacts/coldstart/r6-final-research-20261001/reddit-official-metadata-sanitized.json。"
+      "note": "独立匿名官方帖子元数据完整时长；未从被测媒体或清单反填。来源 public、quarantine=false、未删除、转码 completed、has_audio=true，官方元数据 480×854；原始脱敏响应见 artifacts/coldstart/r6-final-research-20261001/reddit-modern-candidate-metadata-sanitized.json。"
     },
     "availability_source": {
-      "url": "https://v.redd.it/zv89llsvexdz/HLSPlaylist.m3u8",
+      "url": "https://v.redd.it/w7c2qtnz03xf1/DASHPlaylist.mpd",
       "kind": "platform_api",
       "field": "anonymous public post; official DASH/HLS and all child playlists; clear complete video with AAC",
-      "checked_at": "2026-10-01T14:17:53+00:00",
+      "checked_at": "2026-10-01T15:30:33.522836+00:00",
       "status": "verified",
-      "note": "官方帖子匿名可见且 subreddit_type=public；官方 DASH/HLS 及所有子清单匿名 HTTP 200，无 ContentProtection、pssh 或 EXT-X-KEY，子清单有 ENDLIST；HLS 352×640 与独立 AAC 音轨满足原最低规格。证据 artifacts/coldstart/r6-final-research-20261001/reddit-clear-manifests.json。"
+      "note": "官方帖子匿名可见且 subreddit_type=public；官方 DASH/HLS 及所有子清单匿名 HTTP 200，无 ContentProtection、pssh、EXT-X-KEY 或 SESSION-KEY，HLS 子清单有 ENDLIST；DASH 360×640 H264 与独立 AAC 音轨满足原最低规格。旧样本正式计划最高仅 264×480，首轮失败保留在 artifacts/coldstart/r6-final-20261001；替换独立作品且不降低门槛。证据 artifacts/coldstart/r6-final-research-20261001/reddit-replacement-1-clear-manifests.json；新样本正式交付待补验。"
     },
     "minimum_spec": {
       "width": 320,
