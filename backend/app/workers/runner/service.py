@@ -20,7 +20,7 @@ from app.services.downloads.rules.errors import FormatSelectionError
 from app.services.downloads.rules.formats import CandidateStream, ProviderHints
 from app.services.downloads.rules.selection import select_streams
 from app.services.provider_failures import FailurePhase
-from app.services.provider_types import ExecutionContext
+from app.services.provider_types import ExecutionContext, ProviderKey
 from app.workers.runner.active_tasks import ActiveTaskRegistry
 from app.workers.runner.browser_runtime import BrowserRuntime
 from app.workers.runner.collection import download_video_collection_zip
@@ -77,6 +77,7 @@ from app.workers.runner.workspace_monitor import (
     WorkspaceLimitExceeded,
     run_with_workspace_limit,
 )
+from app.workers.runner.youku_artifact import normalize_terminal_metadata
 
 
 class MediaRunnerService:
@@ -598,6 +599,13 @@ class MediaRunnerService:
             failure_context=failure_context,
             phase=FailurePhase.VALIDATE,
         )
+        if source.profile.key == ProviderKey.YOUKU:
+            probe_payload = await normalize_terminal_metadata(
+                artifact,
+                probe_payload,
+                self._commands,
+                failure_context=failure_context,
+            )
         verification_plan = plan
         if selection.video.width is not None and selection.video.height is not None:
             verification_plan = replace(

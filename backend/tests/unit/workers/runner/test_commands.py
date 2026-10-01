@@ -1435,3 +1435,61 @@ async def test_drm_warning_does_not_hide_a_clear_format(tmp_path, clear):
     else:
         with pytest.raises(RunnerFailure, match="content protected"):
             await commands.inspect("https://youtu.be/jNQXAC9IVRw", tmp_path)
+
+
+async def test_terminal_packet_remux_is_exact_copy_without_noise_or_reencoding(
+    tmp_path,
+):
+    supervisor = RecordingSupervisor()
+    commands = MediaCommands(settings(tmp_path), supervisor)
+    await commands.remux(
+        (tmp_path / "input.mp4",),
+        tmp_path / "artifact.mp4",
+        Container.MP4,
+        tmp_path,
+        drop_video_packet=(1234, 1841),
+    )
+    argv = supervisor.argv
+    assert argv[argv.index("-c") + 1] == "copy"
+    assert (
+        argv[argv.index("-bsf:v") + 1]
+        == "noise=amount=0:drop=eq(pos\\,1234)*eq(size\\,1841)"
+    )
+    assert "0:a:0" in argv
+    assert "-err_detect" not in argv
+
+
+@pytest.mark.parametrize("position,size", [(-1, 1), (1, 0), (True, 1), (1, False)])
+async def test_terminal_packet_filter_cannot_accept_arbitrary_expressions(
+    tmp_path, position, size
+):
+    supervisor = RecordingSupervisor()
+    commands = MediaCommands(settings(tmp_path), supervisor)
+    with pytest.raises(RunnerFailure) as caught:
+        await commands.remux(
+            (tmp_path / "input.mp4",),
+            tmp_path / "artifact.mp4",
+            Container.MP4,
+            tmp_path,
+            drop_video_packet=(position, size),
+        )
+    assert caught.value.code == "invalid_input"
+    assert supervisor.argv == ()
+
+
+async def test_terminal_packet_probe_is_local_and_limited_to_tail_video(tmp_path):
+    supervisor = RecordingSupervisor()
+    commands = MediaCommands(settings(tmp_path), supervisor)
+    await commands.probe_terminal_packets(
+        tmp_path / "input.mp4",
+        tmp_path,
+        start_seconds=28.123456,
+        failure_context=ProviderFailureContext(
+            "youku", "https://v.youku.com/v_show/id_fixture.html", True
+        ),
+    )
+    argv = supervisor.argv
+    assert argv[argv.index("-protocol_whitelist") + 1] == "file"
+    assert argv[argv.index("-select_streams") + 1] == "v:0"
+    assert argv[argv.index("-read_intervals") + 1] == "28.123456%"
+    assert "packet=pos,size,pts_time,flags" in argv
