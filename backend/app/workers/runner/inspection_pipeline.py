@@ -179,6 +179,7 @@ class RunnerInspectionPipeline:
                 probe_authenticated_media=source.profile.probe_authenticated_media,
                 failure_context=failure_context,
                 probe_failures=probe_failures,
+                prefer_nominal_fps=source.profile.key == "twitch",
             )
         inspection = self._usable_inspection(payload)
         if inspection is not None:
@@ -279,6 +280,7 @@ class RunnerInspectionPipeline:
         unknown_audio_only: bool = False,
         failure_context: ProviderFailureContext,
         probe_failures: list[RunnerFailure],
+        prefer_nominal_fps: bool = False,
     ) -> dict[str, object]:
         if cookie_jar is not None and not probe_authenticated_media:
             return payload
@@ -320,7 +322,13 @@ class RunnerInspectionPipeline:
                         referer=referer,
                         failure_context=failure_context,
                     )
-                return index, enrich_format_metadata(raw, probe), _probe_duration(probe)
+                return (
+                    index,
+                    enrich_format_metadata(
+                        raw, probe, prefer_nominal_fps=prefer_nominal_fps
+                    ),
+                    _probe_duration(probe),
+                )
             except RunnerFailure as exc:
                 exc.during(FailurePhase.PROBE_MEDIA)
                 if not _is_soft_probe_failure(exc):

@@ -255,3 +255,66 @@ async def test_twitch_declared_sixty_fps_is_replaced_by_actual_thirty(tmp_path):
         )
     finally:
         workspace.cleanup()
+
+
+@pytest.mark.parametrize(
+    "average,nominal,bucket",
+    [
+        ("4613120/153687", "30/1", "fps_30"),
+        ("9221120/153641", "60/1", "fps_60"),
+        ("30/1", "60/1", "fps_30"),
+    ],
+)
+async def test_twitch_remote_clip_edit_list_does_not_change_rate_bucket(
+    tmp_path, average, nominal, bucket
+):
+    from unittest.mock import AsyncMock
+
+    from app.workers.runner.metadata import build_download_options
+
+    payload = split_media_info()
+    payload["formats"] = [
+        {
+            **payload["formats"][0],
+            "fps": 0,
+            "acodec": "aac",
+            "url": "https://cdn.example.org/clip.mp4",
+        }
+    ]
+    commands = SimpleNamespace(
+        inspect=AsyncMock(return_value=payload),
+        probe_remote=AsyncMock(
+            return_value={
+                "format": {"duration": "60.033008"},
+                "streams": [
+                    {
+                        "codec_type": "video",
+                        "codec_name": "h264",
+                        "width": 1920,
+                        "height": 1080,
+                        "avg_frame_rate": average,
+                        "r_frame_rate": nominal,
+                    },
+                    {"codec_type": "audio", "codec_name": "aac"},
+                ],
+            }
+        ),
+    )
+    workspace = WorkspaceManager(tmp_path / "runner").create("twitch-clip-fps")
+    try:
+        inspection = await RunnerInspectionPipeline(
+            settings(tmp_path), commands
+        ).inspect(
+            provider_request("https://clips.twitch.tv/FaintLightGullWholeWheat"),
+            workspace,
+            context=SimpleNamespace(
+                provider_key="twitch", identity_used=False, resolved_layer="L1"
+            ),
+            cookie_jar=None,
+        )
+        assert all(
+            plan.fps_bucket == bucket
+            for plan in build_download_options(inspection.streams, max_options=10)
+        )
+    finally:
+        workspace.cleanup()
