@@ -875,22 +875,22 @@
     "kind": "positive",
     "content_scope": "public",
     "needs_identity": false,
-    "duration_seconds": null,
+    "duration_seconds": 918,
     "duration_source": {
-      "url": "https://weibo.com/7827771738/N4xlMvjhI",
+      "url": "https://weibo.com/ajax/statuses/show?id=N4xlMvjhI",
       "kind": "platform_page_or_api",
-      "field": "unavailable",
-      "checked_at": null,
-      "status": "unverified",
-      "note": "旧公开单视频候选；官方页面和 status API 当前访客挑战，独立时长未取得。"
+      "field": "page_info.media_info.duration",
+      "checked_at": "2026-10-01T09:21:54.548666+00:00",
+      "status": "verified",
+      "note": "独立匿名 HTTP 客户端先使用官方 passport 访客流程取得访客材料，状态 JSON 的作品元数据 duration=918 秒，非 playback_list 流时长。证据 artifacts/coldstart/r6-g2-research/weibo-N4xlMvjhI.json。"
     },
     "availability_source": {
-      "url": "https://weibo.com/7827771738/N4xlMvjhI",
-      "kind": "public_page",
-      "field": "public_free_clear_media",
-      "checked_at": null,
-      "status": "unverified",
-      "note": "公开、免费、非 DRM 的完整媒体尚未独立证实；候选不能记通过。"
+      "url": "https://weibo.com/ajax/statuses/show?id=N4xlMvjhI",
+      "kind": "platform_page_or_api",
+      "field": "visible.type=0; public playback_list",
+      "checked_at": "2026-10-01T09:21:54.548666+00:00",
+      "status": "verified",
+      "note": "官方访客身份（非账号 Cookie）可读取目标状态；visible.type=0，公开完整播放器列出 clear 媒体，无付费、私密或 DRM 要求。"
     },
     "minimum_spec": {
       "width": 320,
@@ -906,22 +906,22 @@
     "kind": "positive",
     "content_scope": "public",
     "needs_identity": false,
-    "duration_seconds": null,
+    "duration_seconds": 53,
     "duration_source": {
-      "url": "https://m.weibo.cn/status/4189191225395228",
+      "url": "https://weibo.com/ajax/statuses/show?id=FBqgOmDxO",
       "kind": "platform_page_or_api",
-      "field": "unavailable",
-      "checked_at": null,
-      "status": "unverified",
-      "note": "旧公开单视频候选；官方页面和 status API 当前访客挑战，独立时长未取得。"
+      "field": "page_info.media_info.duration",
+      "checked_at": "2026-10-01T09:21:54.548666+00:00",
+      "status": "verified",
+      "note": "独立匿名 HTTP 客户端先使用官方 passport 访客流程取得访客材料，状态 JSON 的作品元数据 duration=53 秒，非 playback_list 流时长。证据 artifacts/coldstart/r6-g2-research/weibo-FBqgOmDxO.json。"
     },
     "availability_source": {
-      "url": "https://m.weibo.cn/status/4189191225395228",
-      "kind": "public_page",
-      "field": "public_free_clear_media",
-      "checked_at": null,
-      "status": "unverified",
-      "note": "公开、免费、非 DRM 的完整媒体尚未独立证实；候选不能记通过。"
+      "url": "https://weibo.com/ajax/statuses/show?id=FBqgOmDxO",
+      "kind": "platform_page_or_api",
+      "field": "visible.type=0; public playback_list",
+      "checked_at": "2026-10-01T09:21:54.548666+00:00",
+      "status": "verified",
+      "note": "官方访客身份（非账号 Cookie）可读取目标状态；visible.type=0，公开完整播放器列出 clear 媒体，无付费、私密或 DRM 要求。"
     },
     "minimum_spec": {
       "width": 320,
@@ -1123,22 +1123,22 @@
     "kind": "positive",
     "content_scope": "public",
     "needs_identity": false,
-    "duration_seconds": null,
+    "duration_seconds": 11,
     "duration_source": {
       "url": "https://www.douyin.com/video/7674644830270473609",
-      "kind": "platform_page_or_api",
-      "field": "unavailable",
-      "checked_at": null,
-      "status": "unverified",
-      "note": "既有固定候选；匿名页为 argus 挑战，未取得目标元数据。"
+      "kind": "platform_player_ui",
+      "field": "anonymous page player total MM:SS",
+      "checked_at": "2026-10-01T09:21:54.548666+00:00",
+      "status": "verified",
+      "note": "独立匿名 Playwright context 打开官方作品页，播放器可见总时长 00:11；来自页面 UI，不取被测文件或被测提取器。证据 artifacts/coldstart/r6-g2-research/douyin-desktop-7674644830270473609.json。"
     },
     "availability_source": {
       "url": "https://www.douyin.com/video/7674644830270473609",
       "kind": "public_page",
-      "field": "public_free_clear_media",
-      "checked_at": null,
-      "status": "unverified",
-      "note": "公开、免费、非 DRM 的完整媒体尚未独立证实；候选不能记通过。"
+      "field": "anonymous_public_playback",
+      "checked_at": "2026-10-01T09:21:54.548666+00:00",
+      "status": "verified",
+      "note": "独立匿名 context 未注入账号，官方作品页可直接播放目标视频，无购买、会员或内容登录门槛；原生 video readyState=4、存在播放源且 mediaKeys=null（clear 播放），证据 artifacts/coldstart/r6-g2-research/douyin-playback-7674644830270473609.json。评论登录提示不代表内容需登录。"
     },
     "minimum_spec": {
       "width": 320,
@@ -1154,22 +1154,22 @@
     "kind": "positive",
     "content_scope": "public",
     "needs_identity": false,
-    "duration_seconds": null,
+    "duration_seconds": 20,
     "duration_source": {
       "url": "https://www.douyin.com/video/6961737553342991651",
-      "kind": "platform_page_or_api",
-      "field": "unavailable",
-      "checked_at": null,
-      "status": "unverified",
-      "note": "上游公开作品候选；匿名页为 argus 挑战，完整时长待 R3 浏览器核实。"
+      "kind": "platform_player_ui",
+      "field": "anonymous page player total MM:SS",
+      "checked_at": "2026-10-01T09:21:54.548666+00:00",
+      "status": "verified",
+      "note": "独立匿名 Playwright context 打开官方作品页，播放器可见总时长 00:20；来自页面 UI，不取被测文件或被测提取器。证据 artifacts/coldstart/r6-g2-research/douyin-desktop-6961737553342991651.json。"
     },
     "availability_source": {
       "url": "https://www.douyin.com/video/6961737553342991651",
       "kind": "public_page",
-      "field": "public_free_clear_media",
-      "checked_at": null,
-      "status": "unverified",
-      "note": "公开、免费、非 DRM 的完整媒体尚未独立证实；候选不能记通过。"
+      "field": "anonymous_public_playback",
+      "checked_at": "2026-10-01T09:21:54.548666+00:00",
+      "status": "verified",
+      "note": "独立匿名 context 未注入账号，官方作品页可直接播放目标视频，无购买、会员或内容登录门槛；原生 video readyState=4、存在播放源且 mediaKeys=null（clear 播放），证据 artifacts/coldstart/r6-g2-research/douyin-playback-6961737553342991651.json。评论登录提示不代表内容需登录。"
     },
     "minimum_spec": {
       "width": 320,
@@ -1190,17 +1190,17 @@
       "url": "https://v.m.chenzhongtech.com/fw/photo/3x888mrikrur4g2",
       "kind": "platform_page_or_api",
       "field": "photo.duration / 1000",
-      "checked_at": "2026-10-01T05:39:19.485271+00:00",
+      "checked_at": "2026-10-01T09:24:25.357499+00:00",
       "status": "verified",
-      "note": "匿名分享页目标 photo.duration=72533ms（作品元数据）；不使用 adaptationSet 或 representation 的媒体时长。"
+      "note": "独立匿名 curl_cffi chrome131_android 请求官方移动分享页，photo.duration=72533ms；不使用 representation 流时长。证据 artifacts/coldstart/r6-g2-research/kuaishou-http-3x888mrikrur4g2.json。"
     },
     "availability_source": {
       "url": "https://www.kuaishou.com/short-video/3x888mrikrur4g2",
       "kind": "public_page",
       "field": "public_free_clear_media",
-      "checked_at": "2026-10-01T05:39:19.485271+00:00",
+      "checked_at": "2026-10-01T09:24:25.357499+00:00",
       "status": "verified",
-      "note": "匿名移动分享页目标作品、公开 MP4 视频播放地址，无付费/DRM 标记。"
+      "note": "独立匿名官方移动分享页返回目标 VIDEO 作品及 clear MP4 媒体描述，无付费或私密门槛；未使用账号或第三方解析站。"
     },
     "minimum_spec": {
       "width": 320,
@@ -1221,17 +1221,17 @@
       "url": "https://v.m.chenzhongtech.com/fw/photo/3x5jvmsmmiahx3m",
       "kind": "platform_page_or_api",
       "field": "photo.duration / 1000",
-      "checked_at": "2026-10-01T05:39:19.485271+00:00",
+      "checked_at": "2026-10-01T09:24:25.357499+00:00",
       "status": "verified",
-      "note": "匿名分享页目标 photo.duration=218783ms（作品元数据）；不使用 adaptationSet 或 representation 的媒体时长。"
+      "note": "独立匿名 curl_cffi chrome131_android 请求官方移动分享页，photo.duration=218783ms；不使用 representation 流时长。证据 artifacts/coldstart/r6-g2-research/kuaishou-http-3x5jvmsmmiahx3m.json。"
     },
     "availability_source": {
       "url": "https://www.kuaishou.com/short-video/3x5jvmsmmiahx3m",
       "kind": "public_page",
       "field": "public_free_clear_media",
-      "checked_at": "2026-10-01T05:39:19.485271+00:00",
+      "checked_at": "2026-10-01T09:24:25.357499+00:00",
       "status": "verified",
-      "note": "匿名移动分享页目标 photo.duration=218910ms，目标播放规格 1080p；公开内容无付费或保护标记。"
+      "note": "独立匿名官方移动分享页返回目标 VIDEO 作品及 clear MP4 媒体描述，无付费或私密门槛；未使用账号或第三方解析站。"
     },
     "minimum_spec": {
       "width": 320,
@@ -1242,27 +1242,27 @@
   {
     "id": "xiaohongshu-positive-1",
     "platform": "xiaohongshu",
-    "url": "https://www.xiaohongshu.com/explore/6a82c08c0000000029032447",
-    "expected_media_id": "6a82c08c0000000029032447",
+    "url": "https://www.xiaohongshu.com/explore/6a6ff0eb000000002701d892?xsec_token=CBcCe_FvWc89xOncAjaF-w2EaQAA49YM_qCWAiffCPV10%3D&xsec_source=app_share",
+    "expected_media_id": "6a6ff0eb000000002701d892",
     "kind": "positive",
     "content_scope": "public",
-    "needs_identity": true,
-    "duration_seconds": null,
+    "needs_identity": false,
+    "duration_seconds": 69,
     "duration_source": {
-      "url": "https://www.xiaohongshu.com/explore/6a82c08c0000000029032447",
+      "url": "https://www.xiaohongshu.com/explore/6a6ff0eb000000002701d892?xsec_token=CBcCe_FvWc89xOncAjaF-w2EaQAA49YM_qCWAiffCPV10%3D&xsec_source=app_share",
       "kind": "platform_page_or_api",
-      "field": "unavailable",
-      "checked_at": null,
-      "status": "unverified",
-      "note": "当前返回 300031；需要有效的显式分享链接重新核实，不能把旧候选认作可用正例。"
+      "field": "note.video.capa.duration",
+      "checked_at": "2026-10-01T09:21:54.548666+00:00",
+      "status": "verified",
+      "note": "公开索引分享链接经独立匿名 context 实测有效；作品级 capa.duration=69 秒，不使用 media.stream.duration 或被测文件。证据 artifacts/coldstart/r6-g2-research/xiaohongshu-6a6ff0eb000000002701d892.json。"
     },
     "availability_source": {
-      "url": "https://www.xiaohongshu.com/explore/6a82c08c0000000029032447",
+      "url": "https://www.xiaohongshu.com/explore/6a6ff0eb000000002701d892?xsec_token=CBcCe_FvWc89xOncAjaF-w2EaQAA49YM_qCWAiffCPV10%3D&xsec_source=app_share",
       "kind": "public_page",
-      "field": "public_free_clear_media",
-      "checked_at": null,
-      "status": "unverified",
-      "note": "公开、免费、非 DRM 的完整媒体尚未独立证实；候选不能记通过。"
+      "field": "anonymous hydrated video note and clear media",
+      "checked_at": "2026-10-01T09:21:54.548666+00:00",
+      "status": "verified",
+      "note": "匿名打开官方分享链接可见目标完整视频笔记与播放入口；原生 video readyState=4、存在播放源且 mediaKeys=null（clear 播放），未注入账号，证据 artifacts/coldstart/r6-g2-research/xhs-playback.json。"
     },
     "minimum_spec": {
       "width": 320,
@@ -1285,7 +1285,7 @@
       "field": "unavailable",
       "checked_at": null,
       "status": "unverified",
-      "note": "当前返回 300031；需要有效的显式分享链接重新核实，不能把旧候选认作可用正例。"
+      "note": "需用户提供：检索公开索引、上游测试、学术引用及播客分享链接后，其他候选均返回 APP-only 或无有效视频元数据；未能找到第二条有效 xsec_token 视频分享链接与独立完整时长。保留候选为 unverified，不计通过。"
     },
     "availability_source": {
       "url": "https://www.xiaohongshu.com/explore/662a12ca000000001c00a9df",
@@ -1293,7 +1293,7 @@
       "field": "public_free_clear_media",
       "checked_at": null,
       "status": "unverified",
-      "note": "公开、免费、非 DRM 的完整媒体尚未独立证实；候选不能记通过。"
+      "note": "需用户提供带有效 xsec_token 的公开、免费、非 DRM 视频分享链接；本候选返回 note_unavailable，不计正例通过。"
     },
     "minimum_spec": {
       "width": 320,
