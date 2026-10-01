@@ -9,6 +9,7 @@ from typing import Any
 import pytest
 from app.workers.runner.plugins.yt_dlp_plugins.extractor.hongguo_official_share import (
     HongguoOfficialShareIE,
+    _enforce_public_clear,
     _is_h5_share_url,
     _is_official_media_url,
 )
@@ -215,10 +216,6 @@ def test_hongguo_cookie_cannot_expand_public_content_scope(monkeypatch, field):
 
 
 def test_clear_hongguo_player_accepts_false_protection_flags():
-    from app.workers.runner.plugins.yt_dlp_plugins.extractor.hongguo_official_share import (
-        _enforce_public_clear,
-    )
-
     _enforce_public_clear(
         {
             "video_player_info": {"drm": 0, "is_encrypt": False},
