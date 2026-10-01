@@ -11,9 +11,8 @@ import pytest
 from app.core.config import CookieSourceSettings
 from app.workers.identity import cookie_source as m
 from app.workers.identity.extension import extension_origin
-from app.workers.runner.errors import RunnerFailure
 from fastapi.testclient import TestClient
-from pydantic import SecretStr, ValidationError
+from pydantic import SecretStr
 from starlette.websockets import WebSocketDisconnect
 
 TOKEN = "synthetic-test-only-runner-token-32-bytes"
@@ -124,7 +123,7 @@ async def test_qq_requires_both_account_fields(source):
 async def test_bad_material_refused(source, cookie):
     service, state = source
     state["cookies"] = [cookie]
-    with pytest.raises((ValidationError, RunnerFailure)):
+    with pytest.raises(m.IdentityUnavailable):
         await service.cookies(request())
     assert not service._pending
 
@@ -429,3 +428,80 @@ async def test_youtube_stale_sid_and_visitor_material_are_not_login(source, name
     ]
     with pytest.raises(m.IdentityUnavailable, match="credential_missing"):
         await service.cookies(request("youtube"))
+
+
+@pytest.mark.parametrize("name", ["", "设备标识", "visitor name"])
+async def test_chrome_cookie_names_roundtrip_without_reencoding_values(source, name):
+    service, state = source
+    state["cookies"] = [
+        {**COOKIE, "domain": ".douyin.com", "name": "sessionid"},
+        {**COOKIE, "domain": ".douyin.com", "name": name, "value": "percent%2F=原样"},
+    ]
+    payload = base64.b64decode((await service.cookies(request("douyin")))["cookies"])
+    assert ("\t" + name + "\tpercent%2F=原样\n").encode() in payload
+
+
+@pytest.mark.parametrize(
+    "change,cause",
+    [
+        ({"name": "bad\tname"}, "identity_cookie_name_invalid"),
+        ({"value": "bad\nvalue"}, "identity_cookie_value_invalid"),
+        ({"expirationDate": -1}, "identity_cookie_expiry_invalid"),
+        ({"secure": "true"}, "identity_cookie_flags_invalid"),
+        ({"value": "\ud800"}, "identity_cookie_encoding_invalid"),
+        ({"domain": "outside.example"}, "identity_cookie_domain_invalid"),
+    ],
+)
+async def test_material_subcauses_are_fixed_and_never_include_values(
+    source, change, cause
+):
+    service, state = source
+    state["cookies"] = [{**COOKIE, **change}]
+    with pytest.raises(m.IdentityUnavailable) as caught:
+        await service.cookies(request())
+    assert str(caught.value) == cause
+    assert not service._pending and service._requests == 0
+
+
+@pytest.mark.parametrize(
+    "names",
+    [["userId"], ["did"], ["kuaishou.server.web_st"], ["kuaishou.server.web_ph"]],
+)
+async def test_kuaishou_identifier_or_partial_web_pair_is_not_identity(source, names):
+    service, state = source
+    state["cookies"] = [
+        {**COOKIE, "domain": ".kuaishou.com", "name": name} for name in names
+    ]
+    with pytest.raises(m.IdentityUnavailable, match="credential_missing"):
+        await service.cookies(request("kuaishou"))
+
+
+async def test_http_material_validation_never_serializes_cookie_input():
+    app = m.create_app(settings())
+    source = app.state.cookie_source
+    source.connection = AsyncMock()
+
+    async def send(ws, message):
+        source._pending[message["request_id"]].set_result(
+            [
+                {
+                    **COOKIE,
+                    "domain": ".douyin.com",
+                    "name": "sessionid",
+                    "value": "synthetic-secret\nvalue",
+                }
+            ]
+        )
+
+    source.send = AsyncMock(side_effect=send)
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=app),
+        base_url="http://host",
+        headers={"Authorization": f"Bearer {TOKEN}"},
+    ) as client:
+        response = await client.post(
+            "/cookies", json=request("douyin").model_dump(mode="json")
+        )
+    assert response.status_code == 503
+    assert response.json() == {"cause": "identity_cookie_value_invalid"}
+    assert "synthetic-secret" not in response.text

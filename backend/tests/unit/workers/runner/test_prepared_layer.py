@@ -191,7 +191,10 @@ async def test_first_party_sequence_and_guest_cookie_handoff(
             assert request.method == "POST" and b"gen_callback" in request.content
             return httpx.Response(
                 200,
-                content=b'gen_callback({"data":{"tid":"guest","confidence":80,"new_tid":true}});',
+                content=(
+                    b'window.gen_callback && gen_callback({"data":'
+                    b'{"tid":"guest","confidence":80,"new_tid":true}});'
+                ),
             )
         if request.url.path == "/visitor/visitor":
             assert (
@@ -209,9 +212,7 @@ async def test_first_party_sequence_and_guest_cookie_handoff(
     install(handler)
     ctx = await prepare_visitor(site, source.run_context)
     assert [request.url.path for request in requests] == (
-        ["/"]
-        if site == "kuaishou"
-        else ["/", "/visitor/genvisitor", "/visitor/visitor", "/"]
+        ["/"] if site == "kuaishou" else ["/visitor/genvisitor", "/visitor/visitor"]
     )
     assert all(request.headers["User-Agent"] == ctx.user_agent for request in requests)
     assert proxies == [source.run_context.egress.proxy_url]
@@ -329,3 +330,44 @@ def test_command_client_override_retains_only_one_client_and_bgutil(tmp_path, cl
         value for value in command.argv if value.startswith("youtube:player_client=")
     ] == [f"youtube:player_client={client.split(':')[1]}"]
     assert "youtubepot-bgutilhttp:base_url=http://pot:4416" in command.argv
+
+
+async def test_kuaishou_successful_home_without_cookies_still_extracts(
+    source, guest_runtime, monkeypatch
+):
+    root, _, install = guest_runtime
+    install(lambda request: httpx.Response(200, content=b"public homepage"))
+    source = replace(
+        source, request=provider_request("https://www.kuaishou.com/short-video/sample")
+    )
+    calls = []
+
+    async def resolve(self, item, ctx):
+        calls.append(ctx)
+        return resolved(ctx)
+
+    monkeypatch.setattr(HttpLayer, "resolve", resolve)
+    await PreparedLayer().resolve(source, source.run_context)
+    assert len(calls) == 1 and calls[0].cookie_file is None
+    assert list(root.iterdir()) == []
+
+
+async def test_weibo_sso_redirect_is_challenge_without_contacting_login(
+    source, guest_runtime
+):
+    root, _, install = guest_runtime
+    calls = []
+
+    def handler(request):
+        calls.append(request)
+        return httpx.Response(
+            302, headers={"location": "https://login.sina.com.cn/sso/login.php"}
+        )
+
+    install(handler)
+    with pytest.raises(LayerFailure) as caught:
+        await prepare_visitor("weibo", source.run_context)
+    assert caught.value.failure.failure_class is FailureClass.CHALLENGE
+    assert caught.value.failure.evidence["cause_code"] == "visitor_login_redirect"
+    assert len(calls) == 1 and calls[0].url.host == "passport.weibo.com"
+    assert list(root.iterdir()) == []

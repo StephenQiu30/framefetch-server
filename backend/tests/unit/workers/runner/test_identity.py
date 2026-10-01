@@ -200,7 +200,17 @@ async def test_runner_lifespan_clears_tmpfs_before_accepting_requests(transport)
 
 
 @pytest.mark.parametrize(
-    "cause", ["extension_disconnected", "extension_timeout", "credential_missing"]
+    "cause",
+    [
+        "extension_disconnected",
+        "extension_timeout",
+        "credential_missing",
+        "identity_material_invalid",
+        "identity_cookie_name_invalid",
+        "identity_cookie_encoding_invalid",
+        "identity_cookie_value_invalid",
+        "identity_cookie_payload_invalid",
+    ],
 )
 async def test_extension_subcause_survives_runner_failure(transport, cause):
     root, _, state, _ = transport
@@ -322,3 +332,26 @@ async def test_ladder_uses_real_identity_transport_and_separate_media_binding(
         if result is not None:
             await close_material(result.run_context)
         source.workspace.cleanup()
+
+
+@pytest.mark.parametrize(
+    "reply,cause",
+    [
+        (
+            {"cookies": "not base64!", "digest": "a" * 64},
+            "identity_cookie_encoding_invalid",
+        ),
+        ({"cookies": [], "digest": "a" * 64}, "identity_material_invalid"),
+        ({"cookies": "", "digest": "a" * 64}, "identity_cookie_payload_invalid"),
+        ({"cookies": "", "digest": 123}, "identity_material_invalid"),
+    ],
+)
+async def test_runner_material_field_and_encoding_errors_are_precise(
+    transport, reply, cause
+):
+    root, _, state, _ = transport
+    state.reply = reply
+    with pytest.raises(LayerFailure) as caught:
+        await identity.fetch_identity("instagram", "task", deadline())
+    assert caught.value.failure.evidence["cause_code"] == cause
+    assert list(root.iterdir()) == []

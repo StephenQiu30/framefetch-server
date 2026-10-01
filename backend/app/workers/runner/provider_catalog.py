@@ -53,7 +53,17 @@ def _engine_profile(profile: ProviderProfile) -> ProviderProfile:
         ladder=ladder,
         egress_route=EgressRoute.CN if profile.key in _CN else EgressRoute.GLOBAL,
         l2_prepare=_PREPARE.get(profile.key),
-        l3_rules=BrowserRules(profile.key) if Layer.L3 in ladder else None,
+        l3_rules=(
+            BrowserRules("kuaishou", ("/graphql", "/rest/v/photo/info"))
+            if profile.key == "kuaishou"
+            else BrowserRules(
+                "weibo", ("/ajax/statuses/show", "/ajax/statuses/longtext")
+            )
+            if profile.key == "weibo"
+            else BrowserRules(profile.key)
+            if Layer.L3 in ladder
+            else None
+        ),
     )
 
 

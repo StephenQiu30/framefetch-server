@@ -107,9 +107,12 @@ class PageResponses:
         ):
             self.media_urls.add(response.url)
         host = parsed.hostname or ""
-        if not (
-            host == f"{self.platform}.com" or host.endswith(f".{self.platform}.com")
-        ):
+        domains = (
+            ("kuaishou.com", "kuaishou.cn", "chenzhongtech.com", "gifshow.com")
+            if self.platform == "kuaishou"
+            else (f"{self.platform}.com",)
+        )
+        if not any(host == domain or host.endswith(f".{domain}") for domain in domains):
             return
         if not any(pattern in parsed.path for pattern in self.patterns):
             return

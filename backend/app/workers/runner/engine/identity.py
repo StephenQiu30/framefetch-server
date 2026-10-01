@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import base64
+import binascii
 import json
 import os
 import re
@@ -146,6 +147,16 @@ async def fetch_identity(
         if response.status_code != 200:
             cause = result.get("cause") if isinstance(result, dict) else None
             if cause not in {
+                "identity_material_invalid",
+                "identity_cookie_domain_invalid",
+                "identity_cookie_path_invalid",
+                "identity_cookie_name_invalid",
+                "identity_cookie_value_invalid",
+                "identity_cookie_expiry_invalid",
+                "identity_cookie_flags_invalid",
+                "identity_cookie_structure_invalid",
+                "identity_cookie_encoding_invalid",
+                "identity_cookie_payload_invalid",
                 "extension_disconnected",
                 "extension_timeout",
                 "credential_missing",
@@ -155,12 +166,22 @@ async def fetch_identity(
             }:
                 cause = "cookie_source_rejected"
             raise _unavailable(cause)
-        if set(result) != {"cookies", "digest"} or not re.fullmatch(
-            r"[a-f0-9]{64}", result["digest"]
+        if (
+            not isinstance(result, dict)
+            or set(result) != {"cookies", "digest"}
+            or not isinstance(result["digest"], str)
+            or not isinstance(result["cookies"], str)
+            or not re.fullmatch(r"[a-f0-9]{64}", result["digest"])
         ):
             raise _unavailable("identity_material_invalid")
-        cookies = base64.b64decode(result["cookies"], validate=True)
-        lines = parse_cookie_payload(cookies, profile.cookie_domain_allowlist)
+        try:
+            cookies = base64.b64decode(result["cookies"], validate=True)
+        except (binascii.Error, ValueError):
+            raise _unavailable("identity_cookie_encoding_invalid") from None
+        try:
+            lines = parse_cookie_payload(cookies, profile.cookie_domain_allowlist)
+        except Exception:
+            raise _unavailable("identity_cookie_payload_invalid") from None
         if any(
             (line.expires and line.expires <= time.time())
             or not line.line.split(b"\t")[6]
