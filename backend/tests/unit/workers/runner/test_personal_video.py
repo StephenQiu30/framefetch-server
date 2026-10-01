@@ -419,6 +419,44 @@ INLINE_MANIFEST = (
 )
 
 
+def test_youku_complete_clear_playlist_uses_bounded_segment_probe():
+    extractor = _YoukuPersonalIE(YoutubeDL({"quiet": True}))
+    extractor._full_duration = 30
+    formats, _ = extractor._parse_m3u8_formats_and_subtitles(
+        INLINE_MANIFEST,
+        "https://media.example/full.m3u8",
+        ext="mp4",
+        video_id="fixture",
+    )
+    assert formats[0]["_framefetch_probe_url"] == "https://media.example/part.ts"
+    assert formats[0]["hls_media_playlist_data"] == INLINE_MANIFEST
+
+
+@pytest.mark.parametrize(
+    "manifest",
+    [
+        INLINE_MANIFEST.replace("#EXTINF:30", "#EXTINF:5"),
+        INLINE_MANIFEST.replace("#EXT-X-ENDLIST", ""),
+        INLINE_MANIFEST.replace("part.ts", ""),
+        INLINE_MANIFEST.replace("#EXTINF:30,", ""),
+    ],
+)
+def test_youku_partial_manifest_cannot_become_full_probe_evidence(
+    monkeypatch, manifest
+):
+    extractor = _YoukuPersonalIE(YoutubeDL({"quiet": True}))
+    extractor._full_duration = 30
+    monkeypatch.setattr(
+        InfoExtractor,
+        "_parse_m3u8_formats_and_subtitles",
+        lambda *args, **kwargs: pytest.fail("Partial playlist reached parser"),
+    )
+    with pytest.raises(ExtractorError):
+        extractor._parse_m3u8_formats_and_subtitles(
+            manifest, "https://media.example/full.m3u8"
+        )
+
+
 @pytest.mark.parametrize(
     "tag", ["#EXT-X-KEY:METHOD=AES-128", "#EXT-X-SESSION-KEY:METHOD=SAMPLE-AES"]
 )
@@ -518,6 +556,7 @@ def test_tencent_metadata_initializes_missing_visitor_guid_without_granting_logi
 
     def fetch(url, vid, *args, **kwargs):
         sent.append(json.loads(kwargs["data"]))
+        assert kwargs["headers"]["Cookie"] == sent[-1]["vqqcookie"]
         return {
             "ret": 0,
             "data": {
@@ -531,8 +570,12 @@ def test_tencent_metadata_initializes_missing_visitor_guid_without_granting_logi
     cookies = extractor._get_cookies("https://v.qq.com/")
     assert len(cookies["video_guid"].value) == 32
     original = cookies["video_guid"].value
+    extractor._set_cookie("v.qq.com", "v_vusession", "synthetic-stale-session")
     extractor._get_webpage_metadata(page, "fixture")
     assert extractor._get_cookies("https://v.qq.com/")["video_guid"].value == original
     assert all("video_guid=" in request["vqqcookie"] for request in sent)
+    assert all(
+        "synthetic-stale-session" not in request["vqqcookie"] for request in sent
+    )
     with pytest.raises(ExtractorError, match="login_required"):
         extractor._download_webpage(extractor._API_URL, "fixture")
