@@ -580,7 +580,7 @@
       "field": "anonymous public post; official DASH/HLS and all child playlists; clear complete video with AAC",
       "checked_at": "2026-10-01T15:30:33.522836+00:00",
       "status": "verified",
-      "note": "官方帖子匿名可见且 subreddit_type=public；官方 DASH/HLS 及所有子清单匿名 HTTP 200，无 ContentProtection、pssh、EXT-X-KEY 或 SESSION-KEY，HLS 子清单有 ENDLIST；DASH 360×640 H264 与独立 AAC 音轨满足原最低规格。旧样本正式计划最高仅 264×480，首轮失败保留在 artifacts/coldstart/r6-final-20261001；替换独立作品且不降低门槛。证据 artifacts/coldstart/r6-final-research-20261001/reddit-replacement-1-clear-manifests.json；新样本正式交付待补验。"
+      "note": "官方帖子匿名可见且 subreddit_type=public；官方 DASH/HLS 及所有子清单匿名 HTTP 200，无 ContentProtection、pssh、EXT-X-KEY 或 SESSION-KEY，HLS 子清单有 ENDLIST；DASH 360×640 H264 与独立 AAC 音轨满足原最低规格。旧样本正式计划最高仅 264×480，首轮失败保留在 artifacts/coldstart/r6-final-20261001；替换独立作品且不降低门槛。证据 artifacts/coldstart/r6-final-research-20261001/reddit-replacement-1-clear-manifests.json；正式完整交付见 artifacts/coldstart/r6-final-supplement-20261001。"
     },
     "minimum_spec": {
       "width": 320,
@@ -1278,14 +1278,14 @@
     "kind": "positive",
     "content_scope": "public",
     "needs_identity": false,
-    "duration_seconds": 81,
+    "duration_seconds": null,
     "duration_source": {
       "url": "https://xhslink.com/o/9VGFOyWcRKL",
       "kind": "platform_page_or_api",
       "field": "note.video.capa.duration",
       "checked_at": "2026-10-01T14:24:59.035256+00:00",
-      "status": "verified",
-      "note": "独立匿名官方分享页面返回目标 video 笔记，作品级 capa.duration=81 秒；不使用 stream.duration 或被测文件时长。证据 artifacts/coldstart/r6-final-research-20261001/xiaohongshu-second-official-evidence.json。"
+      "status": "unverified",
+      "note": "原先采用的 capa.duration=81 与同一预先取得官方快照的 media.video.duration=25、mediaV2.video.duration=25 冲突，笔记还含多张 LivePhoto，完整单作品时长不能核实；正式文件 24.009433 秒导致 full_duration_mismatch，失败保留在 artifacts/coldstart/r6-final-supplement-20261001。不从 stream 或被测文件反填时长。原始独立证据 artifacts/coldstart/r6-final-research-20261001/xiaohongshu-second-official-evidence.json。"
     },
     "availability_source": {
       "url": "https://xhslink.com/o/9VGFOyWcRKL",
