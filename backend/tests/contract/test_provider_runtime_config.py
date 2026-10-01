@@ -88,15 +88,7 @@ def test_youtube_sidecar_and_runners_can_only_egress_through_a_gateway() -> None
         assert sidecar["tmpfs"] == ["/tmp:rw,noexec,nosuid,size=16m"]
         assert (
             sidecar["environment"]["RUNNER_EGRESS_PROXY"]
-            == (services["session-runner"]["environment"]["RUNNER_EGRESS_PROXY"])
-        )
-        assert (
-            sidecar["environment"]["RUNNER_PROVIDER_EGRESS_PROXIES"]
-            == (
-                services["session-runner"]["environment"][
-                    "RUNNER_PROVIDER_EGRESS_PROXIES"
-                ]
-            )
+            == (services["session-runner"]["environment"]["RUNNER_GLOBAL_EGRESS_PROXY"])
         )
 
 

@@ -12,7 +12,6 @@ from app.workers.runner.version import (
 from pydantic import Field, SecretStr, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-_PROVIDER_KEY = re.compile(r"[a-z][a-z0-9_-]{0,31}")
 _REFERENCE = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,63}")
 REPOSITORY_ROOT = Path(__file__).resolve().parents[4]
 
@@ -25,38 +24,56 @@ class ProviderEgressSettings(BaseSettings):
     )
 
     runner_egress_proxy: str
-    runner_provider_egress_proxies: dict[str, str] = Field(default_factory=dict)
+    runner_global_egress_proxy: str = "http://egress-proxy:3129"
+    egress_cn_upstream_host: str = ""
+    egress_cn_upstream_port: int = Field(default=7897, ge=1, le=65535)
+    egress_global_upstream_host: str = ""
+    egress_global_upstream_port: int = Field(default=7898, ge=1, le=65535)
+    egress_fallback_upstream_host: str = "host.docker.internal"
+    egress_fallback_upstream_port: int = Field(default=7897, ge=1, le=65535)
+    egress_node_revision: str = "1"
+    runner_cn_egress_ip_echo_url: str = "https://ip.3322.net"
+    runner_global_egress_ip_echo_url: str = "https://ipinfo.io/ip"
 
-    @field_validator("runner_egress_proxy")
+    @field_validator(
+        "egress_cn_upstream_host",
+        "egress_global_upstream_host",
+        "egress_fallback_upstream_host",
+        "egress_node_revision",
+    )
+    @classmethod
+    def validate_egress_reference(cls, value: str) -> str:
+        if value and re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]{0,252}", value) is None:
+            raise ValueError("egress configuration reference is invalid")
+        return value
+
+    @field_validator("runner_cn_egress_ip_echo_url", "runner_global_egress_ip_echo_url")
+    @classmethod
+    def validate_ip_echo(cls, value: str) -> str:
+        parsed = urlsplit(value)
+        if (
+            parsed.scheme != "https"
+            or not parsed.hostname
+            or parsed.username
+            or parsed.password
+            or parsed.query
+            or parsed.fragment
+        ):
+            raise ValueError("egress IP echo URL is invalid")
+        return value
+
+    @field_validator("runner_egress_proxy", "runner_global_egress_proxy")
     @classmethod
     def validate_proxy(cls, value: str) -> str:
         return _validate_proxy(value)
 
-    @field_validator("runner_provider_egress_proxies")
-    @classmethod
-    def validate_provider_proxies(cls, value: dict[str, str]) -> dict[str, str]:
-        validated: dict[str, str] = {}
-        for provider, proxy in value.items():
-            if _PROVIDER_KEY.fullmatch(provider) is None:
-                raise ValueError("provider proxy key is invalid")
-            validated[provider] = _validate_proxy(proxy)
-        return validated
-
-    def egress_proxy_for(self, provider: str) -> str:
-        return self.runner_provider_egress_proxies.get(
-            provider, self.runner_egress_proxy
-        )
-
-    def egress_route_for(self, provider: str) -> str:
-        return (
-            f"provider:{provider}"
-            if provider in self.runner_provider_egress_proxies
-            else "default"
-        )
-
 
 class RunnerSettings(ProviderEgressSettings):
+    model_config = SettingsConfigDict(hide_input_in_errors=True)
     runner_hmac_secret: SecretStr
+    cookie_source_token: SecretStr | None = None
+    cookie_source_port: int = Field(default=19101, ge=1024, le=65535)
+    runner_identity_tmpfs_root: Path = Path("/tmp/framefetch-identity")
     runner_workspace_root: Path = Path("/var/lib/video-runner")
     peertube_allowed_instances: frozenset[str] = frozenset()
 
@@ -122,6 +139,19 @@ class RunnerSettings(ProviderEgressSettings):
     def validate_hmac_secret(cls, value: SecretStr) -> SecretStr:
         if len(value.get_secret_value().encode()) < 32:
             raise ValueError("runner HMAC secret must contain at least 32 bytes")
+        return value
+
+    @field_validator("cookie_source_token", mode="before")
+    @classmethod
+    def validate_identity_token(cls, value: str | SecretStr | None) -> SecretStr | None:
+        if value == "":
+            return None
+        if isinstance(value, str):
+            value = SecretStr(value)
+        if value is not None:
+            from app.core.config import CookieSourceSettings
+
+            CookieSourceSettings.validate_token(value)
         return value
 
     @field_validator("peertube_allowed_instances")

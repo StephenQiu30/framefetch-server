@@ -59,3 +59,19 @@ def test_datacenter_login_required_is_network_evidence():
         classify_provider_failure(context, b"LOGIN_REQUIRED: This video is private")[0]
         == "content_unavailable"
     )
+
+
+@pytest.mark.parametrize(
+    "other,expected",
+    [
+        (b"", None),
+        (b"Members-only content", ("content_unavailable", 403)),
+        (b"This video has been deleted", ("content_unavailable", 422)),
+        (b"HTTP Error 429", ("rate_limited", 429)),
+        (b"This video requires login", ("login_required", 422)),
+    ],
+)
+def test_clear_candidate_only_overrides_the_drm_rule(other, expected):
+    context = ProviderFailureContext("youtube", "https://youtu.be/sample", False)
+    message = b"This format is DRM protected\n" + other
+    assert classify_provider_failure(context, message, has_clear_media=True) == expected

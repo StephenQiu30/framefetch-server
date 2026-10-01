@@ -179,9 +179,75 @@ createdb -O framefetch_temporal framefetch_temporal_visibility
 
 备份业务库时同步备份两个 Temporal 库，稳定环境密钥单独保管。该服务不设置公共访问，单节点停机期间任务暂停；端口健康不等于平台可以下载。Skill 分析同样由 Temporal 调度，宿主 AI Worker 连接 `TEMPORAL_ADDRESS`（默认 `127.0.0.1:17233`）而不再连接 RabbitMQ；报告发布、下载与导入长期使用 RabbitMQ，分工见[工作流设计](docs/design/15-工作流与平台下载目标.md)。
 
+### 固定出口与 Clash 住宅节点
+
+Runner、yt-dlp、媒体 HTTP/FFmpeg、浏览器与 IP 观测共用 EgressBinding 的代理地址。Squid 的 `3128` 监听固定为 `cn_residential`，`3129` 固定为 `global_residential`；宿主对应 `127.0.0.1:13128`、`127.0.0.1:13129`。平台选择由 Registry 决定，Generic 直链按 `.cn` 域名选择国内路由，其余走境外路由。
+
+部署者应自行取得静态 ISP/住宅节点，在宿主 Clash/Mihomo 中定义两个固定 HTTP 入站，分别绑定国内家宽出口与境外住宅节点。不要使用自动测速、负载均衡或会自动切换节点的组；解析与下载必须使用同一节点。先导入供应商提供的住宅节点订阅，或按供应商协议新增节点并命名为 `GLOBAL-ISP`。例如 SOCKS5 住宅节点的宿主配置如下；地址、端口和凭据由供应商提供，示例值只是占位符，不能写入本仓库或 FrameFetch 环境变量：
+
+```yaml
+proxies:
+  - name: GLOBAL-ISP
+    type: socks5
+    server: isp-global.example
+    port: 1080
+    username: 替换为供应商用户名
+    password: 替换为供应商密码
+```
+
+协议字段见 [Mihomo SOCKS 官方文档](https://wiki.metacubex.one/en/config/proxies/socks/)。国内节点可同样命名为 `CN-ISP`；本机本身就是国内家宽时，使用 `DIRECT`。两个入站绑定如下：
+
+```yaml
+listeners:
+  - name: framefetch-cn
+    type: http
+    listen: 0.0.0.0
+    port: 17897
+    proxy: CN-ISP
+  - name: framefetch-global
+    type: http
+    listen: 0.0.0.0
+    port: 17898
+    proxy: GLOBAL-ISP
+```
+
+`proxy` 将该入站全部请求固定交给指定节点，包含媒体 CDN 和 IP 回显服务，避免按目标域名分流导致观测 IP 与媒体出口不一致。也可以使用入站专用 `rule` 与最终 `MATCH` 规则。字段含义见 [Mihomo Listener 官方文档](https://wiki.metacubex.one/en/config/inbound/listeners/)。上游连接优先解析 IPv4，避免容器没有 IPv6 路由时被宿主 AAAA 地址阻断；仅有 IPv6 时保留主机名解析。监听须允许 Docker Desktop 访问，并由宿主防火墙限制为本机/Docker 来源。
+
+在部署环境文件中设置 `EGRESS_CN_UPSTREAM_HOST=host.docker.internal`、`EGRESS_CN_UPSTREAM_PORT=17897`、`EGRESS_GLOBAL_UPSTREAM_HOST=host.docker.internal`、`EGRESS_GLOBAL_UPSTREAM_PORT=17898`。如本机本身就是国内家宽，可将国内 Listener 的 `proxy` 设为 `DIRECT`；未设置国内上游时，Squid 保留现有直连，并标记 `egress_class=unknown`：宿主 TUN 可能按目标域名分流，不能把这一路径冒充固定住宅节点。`residential` 表示部署者对该固定节点的类别声明，并非 IP 回显服务认证。
+
+没有境外住宅节点时，`EGRESS_GLOBAL_UPSTREAM_HOST` 保持空值，境外路由使用 `EGRESS_FALLBACK_UPSTREAM_HOST/PORT`（默认宿主 Clash `7897`），诊断标记 `egress_class=datacenter`。此状态仅供降级运行，YouTube 的住宅出口验收仍为阻塞。现有境外上游必须把该路由的全部流量（包括 IP 回显服务）固定到同一境外节点。
+
+配置或 Clash 节点/规则改变后递增 `EGRESS_NODE_REVISION`，重建更新 `egress-proxy` 与 `session-runner`。Runner 计算有效路由配置的 SHA-256 修订摘要；下载前比较修订与观测 IP，变化时返回 `context_changed`，需要重新解析和确认。IP 回显按路由选择：国内默认 `https://ip.3322.net`，境外默认 `https://ipinfo.io/ip`，分别由 `RUNNER_CN_EGRESS_IP_ECHO_URL`、`RUNNER_GLOBAL_EGRESS_IP_ECHO_URL` 覆盖，服务须返回纯文本公网 IP。国内回显目标需保持在国内，避免宿主 Clash 按域名分流到境外节点而误报；回显仅代表该目标的观测，固定节点仍需上述 Listener 配置保证。缓存键包含路由、修订与回显地址；经同一路由请求，限时五秒、响应最多 128 字节、不跟随重定向，成功或失败均缓存十分钟。失败时 IP 为空，任务继续运行；不会用空值证明节点未改变。
+
 ### 平台身份与升级
 
-R0 只保留匿名 L1，不提供旧宿主来源安装命令或 broker。身份层的 cookie-source、Chrome 读取与任务注入在[设计 17 第 3.4 节](docs/design/17-解析引擎重建.md#34-身份层)规定，待 R4 实现后发布运行命令。匿名任务遇到登录要求时返回明确失败；不会启动身份服务。
+宿主身份服务位于 `backend/app/workers/identity/`，扩展源码位于 `browser-extension/`，遵循[设计 17 第 3.4 节](docs/design/17-解析引擎重建.md#34-身份层)。普通用户 LaunchAgent 只监听 `127.0.0.1:19101`；WebSocket `/extension` 校验固定扩展 Origin 与双向 HMAC，`POST /cookies` 只接受 Runner Bearer。扩展先认证服务端，再按服务端声明的 Registry 域读取当前普通 Profile 的非分区 Cookie；服务端每次请求实时取材料，5 秒超时，不保存 Cookie。无扩展连接、超时、无必要账号材料分别返回 `extension_disconnected`、`extension_timeout`、`credential_missing`，Runner 保留这些子因。
+
+从 `backend/` 执行一次安装：
+
+```bash
+uv run python -m app.workers.identity.cli install
+uv run python -m app.workers.identity.cli check
+```
+
+`install` 生成独立配对密钥和 Runner Bearer，宿主配置默认为 `~/Library/Application Support/FrameFetch/identity.env`；也可用 `--env-file /绝对路径/identity.env` 指定已有独立 `0600` 身份配置，保留其 Runner Bearer 并补建配对密钥。已有安装升级会保留两份密钥，只更新扩展文件并重启本服务。不得把项目 `.env` 当作宿主身份配置。安装注册 `gui/<uid>` 下的普通 LaunchAgent，不要求 Aqua 会话、钥匙串授权或完全磁盘访问；服务运行依赖此 checkout 的 backend 与 uv 虚拟环境，不要删除它们。`uninstall` 停止并移除本 LaunchAgent，保留配对文件以便重装。
+
+在 Chrome 120+ 打开 `chrome://extensions`，开启开发者模式，选择“加载已解压的扩展程序”，目录为 **`~/Library/Application Support/FrameFetch/extension/`**（install 输出绝对路径）。只加载到日常登录的一个普通 Profile；扩展只申请 cookies、alarms 及 Registry required/optional 平台 Cookie 域和本机 WebSocket 权限。加载后 `check` 报告实际连接状态与扩展版本；Chrome 停止或尚未加载时显示 `connected=false`、`version=null`。升级后在扩展页点一次“重新加载”，或重启 Chrome。
+
+扩展目录 `0700`、文件 `0600`，密钥和端口仅写入安装目录的 `config.js`，不在 web_accessible_resources 中、不进入源码或发行包。**信任边界**：这些权限隔离网页与其他用户，不能隔离同一 macOS 用户下可读写该目录的恶意进程。扩展和 cookie-source 共享配对密钥；Runner Bearer 是另一份独立凭据，不能复用。双向 HMAC 防止无配对密钥的本机假服务骗取 Cookie；不会赋予内容导出权利或扩大 content_scope。
+
+Compose 仅向 `session-runner` 注入宿主配置中相同的 `COOKIE_SOURCE_TOKEN`（通过调用 Compose 的进程环境传入，禁止输出令牌）；API、worker、egress-proxy 和 bgutil 不持有它。不要把整个宿主身份配置作为容器 env_file，配对密钥不进入任何容器。当前 Compose 与 squid 配套固定使用端口 `19101`，调整端口须同步精确代理 ACL。Runner 身份客户端显式使用受控代理，不使用环境代理、不跟随重定向；squid 只放行 `POST host.docker.internal:19101/cookies`，强制直连，不经过 Clash／住宅上游。其他宿主端口、私网和 IP 字面量仍被拒绝。身份传输是明文 HTTP，egress-proxy 属于敏感信任组件，配置关闭访问日志、缓存和响应体存储。安装只启动宿主服务，Runner 的配套令牌与重建按运行时锁协议在真实验收时确认。
+
+扩展使用 20 秒心跳、30 秒 alarm 和上限 30 秒的指数退避，并同步注册启动事件。保活机制依据 [Chrome WebSocket 文档](https://developer.chrome.com/docs/extensions/how-to/web-platform/websockets)；真实关闭 DevTools、睡眠唤醒与各类重启恢复仍须实测。
+
+R2 调用约定（不改动 `ladder.py` 或 3.8 的签名）：
+
+- `await fetch_identity(site, task_id, deadline)` 返回 `IdentityMaterial(cookie_file, digest)`；失败统一抛出 `LayerFailure(identity_unavailable)`，不自动重试。deadline 传本次操作的原截止时间。
+- required 在每次解析／下载操作开始时获取；optional 仅在分类后的 `login_required` 证据出现后，同任务获取一次并重试同层；none 永不调用。身份策略不扩张 content_scope。
+- 将材料及 `material.cookie_file` 放入不可变 `RunContext` 的副本（P1 的 `with_material`，未接入时可用 `dataclasses.replace`），执行层消费此副本。成功时写 `identity_used=true`、`identity_digest=material.digest`，并通过 `Resolution.run_context` 返回材料；下载前重新获取并核对摘要。
+- 失败／取消路径调用 `material.cleanup()`；成功路径由 service 持有到 HTTP／浏览器下载交接结束后再清理。不要在 `run_ladder` 返回之前销毁材料。`IdentityOperation` 仅适用于上下文范围覆盖完整操作及交接的调用者：进入时处理 required，`after_login_required()` 处理 optional 一次，退出统一清理；只包围阶梯函数会提前删除成功材料。直接使用 `fetch_identity` 时调用方承担相同的 finally 所有权。
+
+Cookie 文件位于 Linux tmpfs `/tmp/framefetch-identity/<operation>/cookies.txt`，目录 `0700`、文件 `0600`；Runner lifespan 接单前清空此目录。摘要仅使用必要账号 Cookie 的稳定 HMAC，忽略访客 Cookie 与过期时间续期。当前保留已核对的 Instagram 和腾讯视频必要字段；其他平台字段未核对时返回 `identity_cookie_rules_unverified`。材料存在不证明账号有效或完整文件可用。真实 Chrome 重连、网络隔离、异常退出与需要身份的正例留待扩展加载后专项验收；阶段状态与实际证据见设计 17 第 8 节。
 
 升级前暂停接单并排空媒体操作，备份业务库，幂等执行当前 schema.sql，再配套重建 API、worker、session-runner 与前端。移除旧 broker 由 Compose 的 `--remove-orphans` 完成，不删除用户业务记录或制品。生产入口：
 
@@ -337,3 +403,5 @@ docker-compose-prod.yml  生产业务差异
 FrameFetch 基于 [MIT License](LICENSE) 开源。MIT 许可证授予软件使用、修改和分发权，不代表授予任何第三方媒体内容的下载、复制或分析权。
 
 公开网站的索引配置、生成式搜索可发现性与上线核查见 [Web 体验与 SEO](docs/design/12-Web体验.md)。个人自托管实例默认不开放索引。
+
+冷启动矩阵的两种模式、运行时锁、样本证据与文件校验用法见 [Backend README](backend/README.md#冷启动矩阵设计-17)。

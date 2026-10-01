@@ -117,22 +117,31 @@ class MediaCommands:
             egress_proxy=command.egress_proxy,
             failure_context=command.failure_context,
         )
-        restriction = classify_provider_failure(command.failure_context, result.stderr)
-        payload = normalize_media_payload(
-            json_object(result.stdout, "invalid_inspection_response"),
-            max_assets=self._settings.runner_max_gallery_assets,
+        # Explicit content restrictions precede asset parsing/validation. Only
+        # the DRM warning rule may be superseded by a clear candidate below.
+        restriction = classify_provider_failure(
+            command.failure_context, result.stderr, has_clear_media=True
         )
-        if restriction is not None and (
-            restriction[0] == "content_unavailable"
-            or not _inspection_payload_has_media(payload)
-        ):
-            raise RunnerFailure(
-                restriction[0],
-                status=restriction[1],
-                phase=FailurePhase.FETCH_METADATA,
-                evidence_kind=FailureEvidenceKind.UPSTREAM_RESPONSE,
+        if restriction is None or restriction[0] not in {
+            "content_unavailable",
+            "content_protected",
+        }:
+            payload = normalize_media_payload(
+                json_object(result.stdout, "invalid_inspection_response"),
+                max_assets=self._settings.runner_max_gallery_assets,
             )
-        return payload
+            has_media = _inspection_payload_has_media(payload)
+            restriction = classify_provider_failure(
+                command.failure_context, result.stderr, has_clear_media=has_media
+            )
+            if restriction is None or has_media:
+                return payload
+        raise RunnerFailure(
+            restriction[0],
+            status=restriction[1],
+            phase=FailurePhase.FETCH_METADATA,
+            evidence_kind=FailureEvidenceKind.UPSTREAM_RESPONSE,
+        )
 
     async def probe_remote(
         self,

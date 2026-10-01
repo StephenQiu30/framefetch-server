@@ -6,7 +6,7 @@ FastAPI API、下载/分析领域逻辑、异步 Worker、当前态数据库 SQL
 
 ## 解析引擎
 
-R0 仅运行匿名 L1 yt-dlp 与可信插件，保留单个 session-runner、egress-proxy、现有 bgutil 与 browser_runtime。身份层与浏览器阶梯在[设计 17](../docs/design/17-解析引擎重建.md)的 R4、R3 中重建；旧 broker、密封、会话代和来源 CLI 已删除，当前不启用 cookie-source。
+正式运行基线仍为 P0 的匿名 L1 yt-dlp 与可信插件，保留单个 session-runner、egress-proxy、现有 bgutil 与 browser_runtime。R4 宿主 `workers/identity/` 提供普通 LaunchAgent、安装/check CLI 与双向认证 Chrome 扩展桥；扩展源码在根 `browser-extension/`，实时材料通过 Runner 独占 Bearer Cookie 服务传递，已删除旧 `workers/session/` 读取残留；Runner 身份传输与操作清理位于 `workers/runner/engine/identity.py`。运行命令、R2 调用所有权与专项验证边界见[根 README 的身份说明](../README.md#平台身份与升级)，架构与验收以[设计 17](../docs/design/17-解析引擎重建.md)为准。当前没有已验收的登录平台完整下载能力。
 
 Runner 安装锁定的 Playwright/Chromium，browser_profiles 卷只保存浏览器原生状态；保留组件不代表已启用 L3。ExecutionContext 按设计 17 第 3.7 节保存十二字段非敏感摘要；任务目录、进程组取消、媒体校验与出口边界继续保留。公开样本位于 scripts/fixtures/fixed_public_cases.json。
 
@@ -123,3 +123,34 @@ Web JSON 响应及全局异常统一遵循 [PROJECT.md §3.1](../PROJECT.md#31-�
 
 
 Temporal 回归默认通过 SDK 启动固定版本 CLI 隔离测试服务；本机安装 `temporal` 时复用该二进制，CI 自动下载 CLI v1.8.2。要在已有持久服务上测试，执行 `TEST_TEMPORAL_ADDRESS=127.0.0.1:17233 uv run pytest tests/integration/test_intent_messaging.py tests/integration/test_skill_workflow.py`，测试只使用 `framefetch-test` 命名空间和 PostgreSQL 隔离 schema，不消费业务命名空间。测试覆盖确认丢失、Worker 重启、取消、History replay 以及模型调用中断后不重发，不替代真实平台与模型验收。
+
+## 冷启动矩阵（设计 17）
+
+从仓库根目录运行；先完成 `uv sync --frozen --dev`，宿主机须安装 Docker Compose、ffprobe 和 ffmpeg。矩阵使用现有账号，凭据通过 `COLDSTART_EMAIL` / `COLDSTART_PASSWORD` 或 `COLDSTART_COOKIE` 环境变量传入，禁止写到命令参数、样本或日志中。账号登录属于本站鉴权，与平台 `needs_identity` 独立。
+
+```bash
+backend/.venv/bin/python backend/scripts/coldstart_matrix.py --platforms bilibili
+backend/.venv/bin/python backend/scripts/coldstart_matrix.py --all
+```
+
+两种模式都自动等待 `/tmp/framefetch-runtime.lock`，取得锁后从固定容器的 Compose project label 识别现有项目，避免 worktree 名引起新网络或容器冲突，再从当前 worktree 构建并重建 api、worker、session-runner。`--env-file` 默认为现有 `.env`，不修改该文件；不执行 schema.sql，也不启动或重置 PostgreSQL、RabbitMQ、Temporal、MinIO。Runner 和 Worker 换用本次专属工作卷，Runner 使用本次专属浏览器卷以及空的 tmpfs/HOME/XDG 缓存；日常卷不清理。运行结束（含错误、Ctrl-C 和 SIGTERM）恢复日常卷，删除本次临时卷并释放锁。SIGKILL 或宿主机断电无法执行清理，需核实 owner 和进程后人工恢复，不能删除其他阶段仍持有的锁。
+
+R4 身份层合入后，带 `--cookie-source-label <实际 LaunchAgent label>` 重启已安装的 cookie-source；本分支身份层仍为桩，不提供该参数时报告 `not_implemented_in_this_stage`，需要身份的样本不能据此关闭冷启动验收。
+
+脚本仅调用正式 HTTP API：创建下载意图、轮询 Temporal 解析结果、查询 InspectionResponse、选择达到最低规格的格式、创建 RabbitMQ 下载、取回发布的 Artifact。文件通过鉴权 `/api/downloads/{id}/file` 下载，核对 Content-Length 与 ETag/SHA-256，再进行 ffprobe 和 `ffmpeg -xerror` 全片解码。独立完整时长的容差与 Runner 相同：`max(3 秒, 2% × 完整时长)`；若部署修改了 Runner 容差，使用 `--duration-tolerance` 传入同一个值。规格核对包括尺寸、编解码器、容器、帧率档与动态范围；身份和出口读取正式响应中的 execution_context。
+
+`--platforms a,b` 只运行指定 registered 平台，要求每个平台至少两部不同作品；`--all` 要求样本平台集合与正式 `GET /api/providers` 的 registered 集合严格相等，缺少或多出平台都报错。当前该 API 暴露 24 个 Registry profiles；Generic fallback 和未配置的 PeerTube 不在该集合中。启用新的 registered 平台后必须补充样本，否则全量模式不能运行。脚本不导入 Runner，也不从静态平台状态推断通过。
+
+样本在 `scripts/fixtures/coldstart_cases.json`，每条包含作品 ID、范围、正例/受保护负例、needs_identity、独立时长来源、可访问/公开/免费/非 DRM 证据和最低规格。`verified` 证据须有核实日期；时长不得来自被测流或历史 yt-dlp 测试预期。当前 fixture 包含待核实候选：空时长与 `unverified` 会在 JSON/Markdown 明确保留，即使完整文件交付也只能记为阻塞。这些候选不满足第 7 节的有效正例要求，需要在平台可访问后替换或补齐证据。受保护负例只有独立保护证据成立且 API 返回 content_protected 才记为 `protected_negative`，不参与平台通过判定。平台通过要求全部正例完整通过，至少两部不同作品。
+
+结果、文件、ffprobe、完整解码日志及构建/恢复日志存到 `artifacts/coldstart/<UTC 时间>/`，可用 `--output artifacts/coldstart/<唯一名称>` 指定；目录必须不存在，避免覆盖旧证据。`matrix.json` 与 `matrix.md` 每条完成后更新，保存实际上下文、时长、大小、SHA-256、耗时和安全的失败证据。退出码：0 为选中平台全部通过，1 为完成矩阵但有失败/阻塞，2 为配置、启动或恢复错误。全量运行在 R1–R4 尚未合入时只是当前 worktree 的基线，不能作为 R5/R6 或全平台验收结论。
+
+矩阵脚本检查：
+
+```bash
+cd backend
+uv run ruff check app tests scripts/coldstart_matrix.py
+uv run ruff format --check app tests scripts/coldstart_matrix.py
+uv run mypy app scripts/coldstart_matrix.py
+uv run pytest
+```

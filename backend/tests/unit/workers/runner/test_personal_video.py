@@ -282,11 +282,7 @@ def test_personal_plugin_errors_keep_stable_public_classification(
     assert classify_provider_failure(
         context, f"ERROR: FrameFetch {reason}".encode()
     ) == (
-        "content_protected"
-        if reason == "drm_protected"
-        else "login_required"
-        if reason == "login_required"
-        else "content_unavailable",
+        "content_protected" if reason != "login_required" else "login_required",
         422,
     )
 

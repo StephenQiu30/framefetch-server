@@ -34,9 +34,9 @@ async def test_recognized_restriction_is_terminal_and_never_creates_inspection(
     )
     with pytest.raises(ApplicationError) as caught:
         await inspect("https://www.bilibili.com/video/BV1xx411c7mD", OWNER, "paid-1")
-    assert caught.value.code is ApplicationErrorCode.CONTENT_UNAVAILABLE
+    assert caught.value.code is ApplicationErrorCode.CONTENT_PROTECTED
     assert repository.inspection_commands == []
     assert (
         classify_runner_failure(RunnerFailure(reason.value, status=422))
-        is DownloadErrorCode.CONTENT_UNAVAILABLE
+        is DownloadErrorCode.CONTENT_PROTECTED
     )

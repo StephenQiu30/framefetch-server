@@ -104,7 +104,7 @@ def test_error_phase_change_also_updates_public_stage():
         ("download_timeout", "transient"),
         ("media_probe_failed", "extractor_broken"),
         ("drm_protected", "content_protected"),
-        ("content_preview_only", "content_unavailable"),
+        ("content_preview_only", "content_protected"),
         ("source_changed", "context_changed"),
         ("engine_unavailable", "runtime_unavailable"),
     ],

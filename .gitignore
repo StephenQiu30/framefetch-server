@@ -52,3 +52,6 @@ npm-debug.log*
 **/.claude/settings.local.json
 **/.worktrees/
 **/.wrangler/
+
+# Generated identity pairing config is install-only.
+/browser-extension/config.js

@@ -8,7 +8,6 @@ from pathlib import Path
 import pytest
 from app.services.provider_failures import FailureClass
 from app.services.provider_types import EgressRoute, Layer, ProviderKey
-from app.workers.identity.cookie_source import fetch_identity as host_identity
 from app.workers.runner.engine.egress import resolve_egress
 from app.workers.runner.engine.identity import fetch_identity
 from app.workers.runner.engine.ladder import run_ladder
@@ -94,12 +93,12 @@ def test_article_path_boundary():
 
 def test_egress_preserves_existing_proxy_override(tmp_path):
     config = settings(tmp_path)
-    config.runner_provider_egress_proxies = {"bilibili": "http://proxy.example:3128"}
+    config.runner_egress_proxy = "http://proxy.example:3128"
     binding = resolve_egress(
         current_provider_registry().profile_for_key("bilibili"), settings=config
     )
     assert binding.proxy_url == "http://proxy.example:3128"
-    assert binding.route == "provider:bilibili"
+    assert binding.route == "cn_residential"
     assert binding.egress_class == "unknown" and binding.observed_ip is None
     assert "proxy.example" not in repr(binding)
 
@@ -184,10 +183,9 @@ async def test_both_runner_operations_enter_run_ladder(
     assert list(tmp_path.iterdir()) == []
 
 
-@pytest.mark.parametrize("identity", [fetch_identity, host_identity])
-async def test_identity_stubs_fail_closed(identity):
+async def test_expired_identity_request_fails_closed():
     with pytest.raises(LayerFailure) as caught:
-        await identity("instagram", "task", datetime.now(UTC))
+        await fetch_identity("instagram", "task", datetime.now(UTC))
     assert caught.value.failure.failure_class is FailureClass.IDENTITY_UNAVAILABLE
 
 
@@ -215,7 +213,7 @@ def test_layer_failure_rejects_raw_evidence():
         )
 
 
-def test_matrix_placeholder_uses_no_runner_imports():
+def test_matrix_uses_no_runner_imports():
     import ast
     import json
 
@@ -225,9 +223,8 @@ def test_matrix_placeholder_uses_no_runner_imports():
         isinstance(node, ast.ImportFrom) and node.module and "app" in node.module
         for node in ast.walk(tree)
     )
-    assert (
-        json.loads((root / "scripts/fixtures/coldstart_cases.json").read_text()) == []
-    )
+    cases = json.loads((root / "scripts/fixtures/coldstart_cases.json").read_text())
+    assert cases and all("platform" in case for case in cases)
 
 
 async def test_expired_ladder_deadline_does_not_start_platform_io(
@@ -243,38 +240,3 @@ async def test_expired_ladder_deadline_does_not_start_platform_io(
     with pytest.raises(RunnerFailure, match="inspection timeout"):
         await run_ladder(source, source.request.profile, datetime.now(UTC))
     source.workspace.cleanup()
-
-
-def test_matrix_cli_cannot_certify_health_as_platform_success(monkeypatch, capsys):
-    import importlib.util
-    import json
-    import sys
-
-    root = Path(__file__).resolve().parents[4]
-    spec = importlib.util.spec_from_file_location(
-        "coldstart_matrix", root / "scripts/coldstart_matrix.py"
-    )
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-
-    class ReadyResponse:
-        status = 200
-
-        def __enter__(self):
-            return self
-
-        def __exit__(self, *args):
-            return None
-
-    calls = []
-
-    def get(url, *, timeout):
-        calls.append((url, timeout))
-        return ReadyResponse()
-
-    monkeypatch.setattr(module, "urlopen", get)
-    monkeypatch.setattr(sys, "argv", ["coldstart_matrix", "--platforms", "bilibili"])
-    assert module.main() == 2
-    result = json.loads(capsys.readouterr().out)
-    assert result["result"] == "blocked" and result["api_ready"] is True
-    assert calls == [("http://127.0.0.1:8111/health/ready", 5)]
