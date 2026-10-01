@@ -32,7 +32,8 @@ class ProviderEgressSettings(BaseSettings):
     egress_fallback_upstream_host: str = "host.docker.internal"
     egress_fallback_upstream_port: int = Field(default=7897, ge=1, le=65535)
     egress_node_revision: str = "1"
-    runner_egress_ip_echo_url: str = "https://api.ipify.org"
+    runner_cn_egress_ip_echo_url: str = "https://ip.3322.net"
+    runner_global_egress_ip_echo_url: str = "https://ipinfo.io/ip"
 
     @field_validator(
         "egress_cn_upstream_host",
@@ -46,7 +47,7 @@ class ProviderEgressSettings(BaseSettings):
             raise ValueError("egress configuration reference is invalid")
         return value
 
-    @field_validator("runner_egress_ip_echo_url")
+    @field_validator("runner_cn_egress_ip_echo_url", "runner_global_egress_ip_echo_url")
     @classmethod
     def validate_ip_echo(cls, value: str) -> str:
         parsed = urlsplit(value)

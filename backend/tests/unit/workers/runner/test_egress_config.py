@@ -226,6 +226,13 @@ def test_compose_runner_and_squid_share_upstream_configuration():
     for filename in ("docker-compose.yml", "docker-compose-prod.yml"):
         services = load_compose(filename)["services"]
         runner = services["session-runner"]["environment"]
+        assert runner["RUNNER_CN_EGRESS_IP_ECHO_URL"] == (
+            "${RUNNER_CN_EGRESS_IP_ECHO_URL:-https://ip.3322.net}"
+        )
+        assert runner["RUNNER_GLOBAL_EGRESS_IP_ECHO_URL"] == (
+            "${RUNNER_GLOBAL_EGRESS_IP_ECHO_URL:-https://ipinfo.io/ip}"
+        )
+        assert "RUNNER_EGRESS_IP_ECHO_URL" not in runner
         proxy = services["egress-proxy"]["environment"]
         for name, value in proxy.items():
             assert runner[name] == value

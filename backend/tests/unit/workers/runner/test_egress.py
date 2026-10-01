@@ -195,6 +195,89 @@ async def test_changed_revision_reobserves(config, clock_and_cache, monkeypatch)
     ]
 
 
+async def test_routes_use_separate_echo_services(config, clock_and_cache, monkeypatch):
+    real_client = httpx.AsyncClient
+    requests = []
+
+    def client(**kwargs):
+        proxy = kwargs.pop("proxy")
+
+        def handler(request):
+            requests.append((proxy, str(request.url)))
+            return httpx.Response(200, content=b"8.8.8.8\n")
+
+        return real_client(**kwargs, transport=httpx.MockTransport(handler))
+
+    monkeypatch.setattr(egress.httpx, "AsyncClient", client)
+    await egress.observe_egress(binding(config, "bilibili"), settings=config)
+    await egress.observe_egress(binding(config), settings=config)
+    assert requests == [
+        ("http://egress-proxy:3128", "https://ip.3322.net"),
+        ("http://egress-proxy:3129", "https://ipinfo.io/ip"),
+    ]
+
+
+async def test_cache_includes_route_even_with_shared_revision_and_echo(
+    config, clock_and_cache, monkeypatch
+):
+    real_client = httpx.AsyncClient
+    config.runner_cn_egress_ip_echo_url = "https://echo.example/ip"
+    config.runner_global_egress_ip_echo_url = "https://echo.example/ip"
+
+    def client(**kwargs):
+        proxy = kwargs.pop("proxy")
+        body = b"8.8.8.8" if proxy.endswith(":3128") else b"1.1.1.1"
+        return real_client(
+            **kwargs,
+            transport=httpx.MockTransport(
+                lambda request: httpx.Response(200, content=body)
+            ),
+        )
+
+    monkeypatch.setattr(egress.httpx, "AsyncClient", client)
+    cn = binding(config, "bilibili")
+    global_ = replace(binding(config), revision=cn.revision)
+    assert (await egress.observe_egress(cn, settings=config)).observed_ip == "8.8.8.8"
+    assert (
+        await egress.observe_egress(global_, settings=config)
+    ).observed_ip == "1.1.1.1"
+    assert binding(config, "bilibili").observed_ip == "8.8.8.8"
+
+
+@pytest.mark.parametrize("platform", ["bilibili", "youtube"])
+async def test_echo_override_reobserves_without_changing_route_revision(
+    config, clock_and_cache, monkeypatch, platform
+):
+    real_client = httpx.AsyncClient
+    urls = []
+
+    def handler(request):
+        urls.append(str(request.url))
+        return httpx.Response(200, content=b"8.8.8.8" if len(urls) == 1 else b"invalid")
+
+    monkeypatch.setattr(
+        egress.httpx,
+        "AsyncClient",
+        lambda **kwargs: real_client(transport=httpx.MockTransport(handler)),
+    )
+    before = binding(config, platform)
+    assert (
+        await egress.observe_egress(before, settings=config)
+    ).observed_ip == "8.8.8.8"
+    field = (
+        "runner_cn_egress_ip_echo_url"
+        if platform == "bilibili"
+        else "runner_global_egress_ip_echo_url"
+    )
+    setattr(config, field, "https://echo.example/ip")
+    after = binding(config, platform)
+    assert after.revision == before.revision
+    assert after.observed_ip is None
+    assert (await egress.observe_egress(after, settings=config)).observed_ip is None
+    assert urls[-1] == "https://echo.example/ip"
+    assert len(urls) == 2
+
+
 async def test_cancelled_observation_propagates(config, monkeypatch):
     import asyncio
 

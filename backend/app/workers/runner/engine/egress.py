@@ -13,7 +13,7 @@ from app.workers.runner.provider_registry import ProviderProfile
 from app.workers.runner.settings import ProviderEgressSettings
 
 _CACHE_SECONDS = 600
-_observations: dict[tuple[str, str], tuple[float, str | None]] = {}
+_observations: dict[tuple[str, str, str], tuple[float, str | None]] = {}
 
 
 @dataclass(frozen=True, slots=True)
@@ -23,6 +23,16 @@ class EgressBinding:
     revision: str
     egress_class: str
     observed_ip: str | None
+
+
+def _echo_url(route: str, settings: ProviderEgressSettings) -> str:
+    # A foreign echo destination can be routed abroad by the host's Clash rules
+    # even when domestic media uses the CN path. Observe a matching destination.
+    return (
+        settings.runner_cn_egress_ip_echo_url
+        if route == EgressRoute.CN
+        else settings.runner_global_egress_ip_echo_url
+    )
 
 
 def resolve_egress(
@@ -71,7 +81,7 @@ def resolve_egress(
             separators=(",", ":"),
         ).encode()
     ).hexdigest()
-    cached = _observations.get((revision, settings.runner_egress_ip_echo_url))
+    cached = _observations.get((str(route), revision, _echo_url(str(route), settings)))
     observed_ip = cached[1] if cached and cached[0] > time.monotonic() else None
     return EgressBinding(str(route), proxy, revision, egress_class, observed_ip)
 
@@ -80,7 +90,8 @@ async def observe_egress(
     binding: EgressBinding, *, settings: ProviderEgressSettings
 ) -> EgressBinding:
     """Cache success and failure for ten minutes; never follow echo redirects."""
-    key = (binding.revision, settings.runner_egress_ip_echo_url)
+    echo_url = _echo_url(binding.route, settings)
+    key = (binding.route, binding.revision, echo_url)
     cached = _observations.get(key)
     if cached and cached[0] > time.monotonic():
         return replace(binding, observed_ip=cached[1])
@@ -93,9 +104,7 @@ async def observe_egress(
                 follow_redirects=False,
                 timeout=4,
             ) as client:
-                async with client.stream(
-                    "GET", settings.runner_egress_ip_echo_url
-                ) as response:
+                async with client.stream("GET", echo_url) as response:
                     response.raise_for_status()
                     body = bytearray()
                     async for chunk in response.aiter_bytes(chunk_size=129):
