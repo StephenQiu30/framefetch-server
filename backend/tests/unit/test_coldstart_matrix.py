@@ -419,6 +419,21 @@ def test_fixture_positive_candidates_have_distinct_identity_and_honest_gaps():
     assert any(c.qualification_gaps() for c in cases if c.platform == "wechat_channels")
 
 
+def test_youtube_fixture_pair_has_complete_independent_qualification():
+    cases = matrix.load_cases(SCRIPT.parent / "fixtures/coldstart_cases.json")
+    positives = [c for c in cases if c.platform == "youtube" and c.kind == "positive"]
+    assert len(positives) == 2
+    assert len({c.expected_media_id for c in positives}) == 2
+    assert {c.duration_seconds for c in positives} == {19, 635}
+    assert all(c.needs_identity and c.content_scope == "public" for c in positives)
+    assert all(not c.qualification_gaps() for c in positives)
+    assert all(
+        c.availability_source.kind == "official_player_metadata"
+        and c.availability_source.checked_at
+        for c in positives
+    )
+
+
 def test_frame_rate_and_dynamic_range_are_checked_against_confirmed_plan():
     payload = probe()
     payload["streams"][0].update(avg_frame_rate="30000/1001", color_transfer="bt709")
