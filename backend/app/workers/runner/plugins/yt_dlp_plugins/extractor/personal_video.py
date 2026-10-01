@@ -34,6 +34,15 @@ def same_duration(actual: Any, expected: float) -> None:
         reject("content_preview_only")
 
 
+def encrypted_playlist(text: str) -> bool:
+    # AES-128 is also encrypted media even when yt-dlp does not call it DRM.
+    # Refuse the playlist before the downloader can request a content key.
+    return any(
+        line.strip().startswith(("#EXT-X-KEY:", "#EXT-X-SESSION-KEY:"))
+        for line in text.splitlines()
+    )
+
+
 def full_youku_streams(data: dict[str, Any]) -> list[dict[str, Any]]:
     video = data.get("video")
     if not isinstance(video, dict):
@@ -74,6 +83,13 @@ def full_youku_streams(data: dict[str, Any]) -> list[dict[str, Any]]:
 
 
 class _YoukuPersonalIE(YoukuIE, plugin_name="personal_video"):  # type: ignore[misc, call-arg]
+    def _parse_m3u8_formats_and_subtitles(
+        self, m3u8_doc: str, *args: Any, **kwargs: Any
+    ) -> Any:
+        if encrypted_playlist(m3u8_doc):
+            reject("drm_protected")
+        return super()._parse_m3u8_formats_and_subtitles(m3u8_doc, *args, **kwargs)
+
     def _download_json(
         self, url_or_request: Any, video_id: str, *args: Any, **kwargs: Any
     ) -> Any:
@@ -119,6 +135,14 @@ class _VQQPersonalIE(VQQVideoIE, plugin_name="personal_video"):  # type: ignore[
     _saw_drm = False
     _source_url = "https://v.qq.com/"
     _inline_manifest: str | None = None
+
+    def _parse_m3u8_formats_and_subtitles(
+        self, m3u8_doc: str, *args: Any, **kwargs: Any
+    ) -> Any:
+        if encrypted_playlist(m3u8_doc):
+            self._saw_drm = True
+            return [], {}
+        return super()._parse_m3u8_formats_and_subtitles(m3u8_doc, *args, **kwargs)
 
     def _media_headers(self) -> dict[str, str]:
         return {"Referer": self._source_url, "Origin": "https://v.qq.com"}

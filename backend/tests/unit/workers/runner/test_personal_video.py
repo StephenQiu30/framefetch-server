@@ -419,6 +419,29 @@ INLINE_MANIFEST = (
 )
 
 
+@pytest.mark.parametrize(
+    "tag", ["#EXT-X-KEY:METHOD=AES-128", "#EXT-X-SESSION-KEY:METHOD=SAMPLE-AES"]
+)
+def test_personal_extractors_never_request_or_decode_encrypted_media(monkeypatch, tag):
+    def unexpected(*args, **kwargs):
+        pytest.fail("Protected playlist must not be parsed or request a key")
+
+    monkeypatch.setattr(InfoExtractor, "_parse_m3u8_formats_and_subtitles", unexpected)
+    manifest = INLINE_MANIFEST.replace(
+        "#EXTINF:", tag + ',URI="https://media.example/key"\n#EXTINF:'
+    )
+    youku = _YoukuPersonalIE(YoutubeDL({"quiet": True}))
+    with pytest.raises(ExtractorError, match="drm_protected"):
+        youku._parse_m3u8_formats_and_subtitles(
+            manifest, "https://media.example/full.m3u8"
+        )
+    tencent = _VQQPersonalIE(YoutubeDL({"quiet": True}))
+    assert tencent._parse_m3u8_formats_and_subtitles(
+        manifest, "https://media.example/full.m3u8"
+    ) == ([], {})
+    assert tencent._saw_drm is True
+
+
 def test_tencent_reuses_complete_inline_playlist_without_cdn_request(
     monkeypatch,
 ) -> None:
