@@ -34,7 +34,7 @@ def test_loads_minimal_runner_environment(
     assert settings.hmac_secret_bytes == SECRET.encode()
     assert settings.runner_egress_proxy == "http://egress-proxy:3128"
     assert settings.runner_provider_egress_proxies == {}
-    assert settings.runner_youtube_pot_provider_version == "bgutil-http-1.3.2"
+    assert settings.runner_youtube_pot_provider_version == "bgutil-http-2.0.0"
     assert settings.runner_workspace_root == tmp_path.resolve()
     assert settings.runner_inspect_timeout_seconds == 120
     assert settings.runner_download_timeout_seconds == 7_200

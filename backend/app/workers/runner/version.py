@@ -6,8 +6,8 @@ if TYPE_CHECKING:
     from app.workers.runner.settings import RunnerSettings
 
 YTDLP_ENGINE_VERSION = "2026.8.19"
-YTDLP_ENGINE_COMMIT = "3a08beaf031ab68f966401ead017ac81fe8486cf"
-YOUTUBE_POT_PROVIDER_VERSION = "1.3.2"
+YTDLP_ENGINE_COMMIT = "51bab8a0116f4d8004c315706d809782607d5847"
+YOUTUBE_POT_PROVIDER_VERSION = "2.0.0"
 YOUTUBE_POT_PROVIDER_ATTESTATION = f"bgutil-http-{YOUTUBE_POT_PROVIDER_VERSION}"
 
 
@@ -46,7 +46,9 @@ def engine_revision(settings: RunnerSettings | None = None) -> str:
     facts["chromium"] = CHROMIUM_VERSION
     digest = hashlib.sha256(json.dumps(facts, sort_keys=True).encode())
     root = Path(__file__).resolve().parent
-    for path in sorted((root / "plugins").rglob("*.py")):
+    # Local layer/proof code changes also invalidate previously confirmed plans.
+    paths = [*(root / "plugins").rglob("*.py"), *(root / "engine").rglob("*.py")]
+    for path in sorted(paths):
         digest.update(path.relative_to(root).as_posix().encode())
         digest.update(path.read_bytes())
     return digest.hexdigest()

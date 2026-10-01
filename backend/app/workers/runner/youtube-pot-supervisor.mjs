@@ -44,7 +44,7 @@ let stopping = false;
 function startChild() {
   if (stopping) return;
 
-  const child = spawn(process.execPath, ["/app/build/main.js"], {
+  const child = spawn(process.execPath, ["/app/build/main.js", "--host", "0.0.0.0"], {
     cwd: "/app",
     env: childEnvironment,
     // The upstream process logs minted tokens and their bindings. Its output
