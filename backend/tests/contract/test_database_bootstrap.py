@@ -548,6 +548,18 @@ def test_anonymous_and_guest_execution_services_are_removed():
 
 def test_collaboration_contract_uses_the_final_execution_design() -> None:
     agents = (ROOT.parent / "AGENTS.md").read_text()
+    assert (
+        "公开线路（content_scope=public）只处理能够正向证明为公开、免费、非 DRM 的 "
+        "HTTP(S) 内容；"
+        "带着 Cookie 也不扩张到 private、follow-only、会员/购买或地域受限内容。"
+    ) in agents
+    assert (
+        "personal_full 只适用于腾讯视频、优酷：处理账号可访问的完整非 DRM 单视频，"
+        "必须保留原始完整时长，并通过最终文件校验。"
+    ) in agents
+    assert (
+        "identity 与 content_scope 是两个独立维度，读取账号材料不等于放宽内容范围。"
+    ) in agents
     assert "设计 17 第 3.7 节的十二字段非敏感摘要" in agents
     assert "第 3.6 节的十三类" in agents
     assert "layer、stage、gate、结构化 evidence" in agents
