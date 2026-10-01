@@ -42,6 +42,18 @@ async def ready(engine):
     return sessions, intents, downloads, saved, create
 
 
+async def cancel_requests(sessions, intent_id):
+    async with sessions() as session:
+        return await session.scalar(
+            select(func.count())
+            .select_from(OutboxEventRow)
+            .where(
+                OutboxEventRow.aggregate_id == intent_id,
+                OutboxEventRow.event_type == "download.intent.cancelled",
+            )
+        )
+
+
 async def test_fifty_confirmations_keep_one_job_and_one_event(postgres_engine):
     sessions, intents, downloads, intent, create = await ready(postgres_engine)
     results = await asyncio.gather(
@@ -84,7 +96,14 @@ async def test_cancel_and_confirm_race_cannot_leave_an_active_job(postgres_engin
         return_exceptions=True,
     )
     assert not isinstance(outcomes[1], Exception)
-    assert (await intents.get(intent.id, OWNER)).status == "cancelled"
+    state = await intents.get(intent.id, OWNER)
+    if state.status == "cancelling":
+        # Cancel won the intent lock: confirmation found no ready intent, and
+        # only the Runner cleanup ACK relayed by the cancel event may finish it.
+        assert isinstance(outcomes[0], RepositoryConflict)
+        assert await cancel_requests(sessions, intent.id) == 1
+        state = await intents.confirm_cancel(intent.id, state.generation, now=NOW)
+    assert state.status == "cancelled"
     async with sessions() as session:
         jobs = list(await session.scalars(select(DownloadJobRow)))
         assert all(
@@ -92,6 +111,38 @@ async def test_cancel_and_confirm_race_cannot_leave_an_active_job(postgres_engin
         )
     with pytest.raises(RepositoryConflict):
         await downloads.create_job(replace(create, id=uuid4()), now=NOW)
+
+
+async def test_cancel_before_confirmation_waits_for_runner_ack_without_job(
+    postgres_engine,
+):
+    sessions, intents, downloads, intent, create = await ready(postgres_engine)
+    cancelling = await intents.cancel(intent.id, OWNER, now=NOW)
+    assert cancelling.status == "cancelling"
+    with pytest.raises(RepositoryConflict):
+        await downloads.create_job(create, now=NOW)
+    assert (await intents.get(intent.id, OWNER)).status == "cancelling"
+    assert await cancel_requests(sessions, intent.id) == 1
+    async with sessions() as session:
+        assert (
+            await session.scalar(select(func.count()).select_from(DownloadJobRow)) == 0
+        )
+    confirmed = await intents.confirm_cancel(intent.id, cancelling.generation, now=NOW)
+    assert confirmed.status == "cancelled"
+    with pytest.raises(RepositoryConflict):
+        await downloads.create_job(replace(create, id=uuid4()), now=NOW)
+
+
+async def test_confirmation_before_cancel_cancels_job_without_runner_ack(
+    postgres_engine,
+):
+    sessions, intents, downloads, intent, create = await ready(postgres_engine)
+    job = (await downloads.create_job(create, now=NOW)).job
+    assert (await intents.cancel(intent.id, OWNER, now=NOW)).status == "cancelled"
+    assert await cancel_requests(sessions, intent.id) == 0
+    async with sessions() as session:
+        saved = await session.get(DownloadJobRow, job.id)
+        assert saved.status == "cancelled" and saved.lease_owner is None
 
 
 async def test_outbox_failure_rolls_back_job_and_handoff(postgres_engine):
