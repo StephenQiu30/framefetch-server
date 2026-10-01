@@ -1407,3 +1407,33 @@ async def test_command_rate_limit_preserves_retry_after_and_structured_evidence(
         "stderr_truncated": False,
         "http_status": 429,
     }
+
+
+@pytest.mark.parametrize("clear", [False, True])
+async def test_drm_warning_does_not_hide_a_clear_format(tmp_path, clear):
+    import json
+
+    formats = [
+        {"format_id": "drm", "url": "https://media.example/drm", "has_drm": True}
+    ]
+    if clear:
+        formats.append(
+            {
+                "format_id": "clear",
+                "url": "https://media.example/clear",
+                "has_drm": False,
+            }
+        )
+    commands = MediaCommands(
+        settings(tmp_path),
+        SuccessfulWarningSupervisor(
+            json.dumps({"id": "sample", "formats": formats}).encode(),
+            b"WARNING: This format is DRM protected",
+        ),
+    )
+    if clear:
+        payload = await commands.inspect("https://youtu.be/jNQXAC9IVRw", tmp_path)
+        assert payload["formats"] == formats
+    else:
+        with pytest.raises(RunnerFailure, match="content protected"):
+            await commands.inspect("https://youtu.be/jNQXAC9IVRw", tmp_path)

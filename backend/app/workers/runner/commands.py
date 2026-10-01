@@ -123,7 +123,7 @@ class MediaCommands:
             max_assets=self._settings.runner_max_gallery_assets,
         )
         if restriction is not None and (
-            restriction[0] in {"content_unavailable", "content_protected"}
+            restriction[0] == "content_unavailable"
             or not _inspection_payload_has_media(payload)
         ):
             raise RunnerFailure(
@@ -674,11 +674,16 @@ def _inspection_payload_has_media(payload: Mapping[str, Any]) -> bool:
         )
     ):
         return True
-    if isinstance(payload.get("url"), str) and bool(payload["url"].strip()):
+    if (
+        payload.get("has_drm") is not True
+        and isinstance(payload.get("url"), str)
+        and bool(payload["url"].strip())
+    ):
         return True
     formats = payload.get("formats")
     if isinstance(formats, list) and any(
         isinstance(item, dict)
+        and item.get("has_drm") is not True
         and isinstance(item.get("url"), str)
         and bool(item["url"].strip())
         for item in formats
