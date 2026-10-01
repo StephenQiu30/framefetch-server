@@ -1126,7 +1126,7 @@
     "duration_seconds": 11,
     "duration_source": {
       "url": "https://www.douyin.com/video/7674644830270473609",
-      "kind": "platform_player_ui",
+      "kind": "public_page",
       "field": "anonymous page player total MM:SS",
       "checked_at": "2026-10-01T09:21:54.548666+00:00",
       "status": "verified",
@@ -1157,7 +1157,7 @@
     "duration_seconds": 20,
     "duration_source": {
       "url": "https://www.douyin.com/video/6961737553342991651",
-      "kind": "platform_player_ui",
+      "kind": "public_page",
       "field": "anonymous page player total MM:SS",
       "checked_at": "2026-10-01T09:21:54.548666+00:00",
       "status": "verified",
@@ -1195,12 +1195,12 @@
       "note": "独立匿名 curl_cffi chrome131_android 请求官方移动分享页，photo.duration=72533ms；不使用 representation 流时长。证据 artifacts/coldstart/r6-g2-research/kuaishou-http-3x888mrikrur4g2.json。"
     },
     "availability_source": {
-      "url": "https://www.kuaishou.com/short-video/3x888mrikrur4g2",
+      "url": "https://v.m.chenzhongtech.com/fw/photo/3x888mrikrur4g2",
       "kind": "public_page",
       "field": "public_free_clear_media",
       "checked_at": "2026-10-01T09:24:25.357499+00:00",
       "status": "verified",
-      "note": "独立匿名官方移动分享页返回目标 VIDEO 作品及 clear MP4 媒体描述，无付费或私密门槛；未使用账号或第三方解析站。"
+      "note": "独立匿名官方移动分享页返回目标 VIDEO 作品及 clear MP4 媒体描述，无付费或私密门槛；未使用账号或第三方解析站。证据 artifacts/coldstart/r6-g2-research/kuaishou-http-3x888mrikrur4g2.json。"
     },
     "minimum_spec": {
       "width": 320,
@@ -1226,12 +1226,12 @@
       "note": "独立匿名 curl_cffi chrome131_android 请求官方移动分享页，photo.duration=218783ms；不使用 representation 流时长。证据 artifacts/coldstart/r6-g2-research/kuaishou-http-3x5jvmsmmiahx3m.json。"
     },
     "availability_source": {
-      "url": "https://www.kuaishou.com/short-video/3x5jvmsmmiahx3m",
+      "url": "https://v.m.chenzhongtech.com/fw/photo/3x5jvmsmmiahx3m",
       "kind": "public_page",
       "field": "public_free_clear_media",
       "checked_at": "2026-10-01T09:24:25.357499+00:00",
       "status": "verified",
-      "note": "独立匿名官方移动分享页返回目标 VIDEO 作品及 clear MP4 媒体描述，无付费或私密门槛；未使用账号或第三方解析站。"
+      "note": "独立匿名官方移动分享页返回目标 VIDEO 作品及 clear MP4 媒体描述，无付费或私密门槛；未使用账号或第三方解析站。证据 artifacts/coldstart/r6-g2-research/kuaishou-http-3x5jvmsmmiahx3m.json。"
     },
     "minimum_spec": {
       "width": 320,
@@ -1285,7 +1285,7 @@
       "field": "unavailable",
       "checked_at": null,
       "status": "unverified",
-      "note": "需用户提供：检索公开索引、上游测试、学术引用及播客分享链接后，其他候选均返回 APP-only 或无有效视频元数据；未能找到第二条有效 xsec_token 视频分享链接与独立完整时长。保留候选为 unverified，不计通过。"
+      "note": "待补充：需用户提供有效分享链接与独立完整时长；G2 检索公开索引、上游测试、学术引用及播客分享链接后，其他候选均返回 APP-only 或无有效视频元数据，未能找到第二条有效 xsec_token 视频分享链接。保留候选为 unverified，不计通过。"
     },
     "availability_source": {
       "url": "https://www.xiaohongshu.com/explore/662a12ca000000001c00a9df",
@@ -1293,7 +1293,7 @@
       "field": "public_free_clear_media",
       "checked_at": null,
       "status": "unverified",
-      "note": "需用户提供带有效 xsec_token 的公开、免费、非 DRM 视频分享链接；本候选返回 note_unavailable，不计正例通过。"
+      "note": "待补充：需用户提供带有效 xsec_token 的公开、免费、非 DRM 视频分享链接；G2 核查本候选返回 note_unavailable，尚无独立可访问证据，不计正例通过。"
     },
     "minimum_spec": {
       "width": 320,
