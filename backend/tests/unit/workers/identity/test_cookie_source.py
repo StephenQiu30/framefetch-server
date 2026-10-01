@@ -474,3 +474,34 @@ async def test_kuaishou_identifier_or_partial_web_pair_is_not_identity(source, n
     ]
     with pytest.raises(m.IdentityUnavailable, match="credential_missing"):
         await service.cookies(request("kuaishou"))
+
+
+async def test_http_material_validation_never_serializes_cookie_input():
+    app = m.create_app(settings())
+    source = app.state.cookie_source
+    source.connection = AsyncMock()
+
+    async def send(ws, message):
+        source._pending[message["request_id"]].set_result(
+            [
+                {
+                    **COOKIE,
+                    "domain": ".douyin.com",
+                    "name": "sessionid",
+                    "value": "synthetic-secret\nvalue",
+                }
+            ]
+        )
+
+    source.send = AsyncMock(side_effect=send)
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=app),
+        base_url="http://host",
+        headers={"Authorization": f"Bearer {TOKEN}"},
+    ) as client:
+        response = await client.post(
+            "/cookies", json=request("douyin").model_dump(mode="json")
+        )
+    assert response.status_code == 503
+    assert response.json() == {"cause": "identity_cookie_value_invalid"}
+    assert "synthetic-secret" not in response.text
