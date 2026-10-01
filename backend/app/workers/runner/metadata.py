@@ -265,9 +265,8 @@ def enrich_format_metadata(
                 "vcodec": video.get("codec_name") or enriched.get("vcodec"),
                 "width": video.get("width") or enriched.get("width"),
                 "height": video.get("height") or enriched.get("height"),
-                "fps": _frame_rate(
-                    video.get("avg_frame_rate") or video.get("r_frame_rate")
-                )
+                "fps": _frame_rate(video.get("avg_frame_rate"))
+                or _frame_rate(video.get("r_frame_rate"))
                 or enriched.get("fps"),
                 "dynamic_range": _probe_dynamic_range(video),
             }

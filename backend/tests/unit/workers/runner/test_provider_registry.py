@@ -243,6 +243,20 @@ def test_tiktok_rejects_urls_that_could_fall_through_to_generic_webpage(
     assert captured.value.code == "provider_unsupported"
 
 
+@pytest.mark.parametrize(
+    "url",
+    [
+        "https://v.youku.com/v_show/id_XOTUxMzg4NDMy.html",
+        "https://v.qq.com/x/page/q326831cny0.html",
+    ],
+)
+def test_personal_clear_streams_enable_authenticated_media_probe(url):
+    profile = provider_profile(url)
+    assert profile.identity == "required"
+    assert profile.content_scope == "personal_full"
+    assert profile.probe_authenticated_media is True
+
+
 def test_targets_douyin_request_impersonation_without_hidden_retries() -> None:
     url = "https://www.douyin.com/video/123"
 

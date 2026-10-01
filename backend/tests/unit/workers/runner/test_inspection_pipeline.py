@@ -96,6 +96,69 @@ async def test_authenticated_x_resolves_missing_audio_without_forwarding_cookies
         workspace.cleanup()
 
 
+async def test_youku_required_identity_probes_clear_prefix_and_keeps_full_duration(
+    tmp_path,
+):
+    probes = []
+    jar = tmp_path / "approved-cookie-jar"
+
+    class Commands:
+        async def inspect(self, *_args, **kwargs):
+            assert kwargs["cookie_jar"] == jar
+            payload = split_media_info()
+            payload.update(
+                id="XOTUxMzg4NDMy", duration=702.08, _framefetch_full_stream=True
+            )
+            payload["formats"] = [
+                {
+                    "format_id": "full",
+                    "url": "https://media.example.com/full.m3u8",
+                    "_framefetch_probe_url": "https://media.example.com/part.ts",
+                    "protocol": "m3u8_native",
+                    "ext": "mp4",
+                    "width": 640,
+                    "height": 360,
+                    "vcodec": None,
+                    "acodec": None,
+                }
+            ]
+            return payload
+
+        async def probe_remote_prefix(self, url, path, *, referer, failure_context):
+            probes.append(url)
+            return {
+                "format": {"duration": "10"},
+                "streams": [
+                    {
+                        "codec_type": "video",
+                        "codec_name": "h264",
+                        "width": 640,
+                        "height": 360,
+                        "avg_frame_rate": "0/0",
+                        "r_frame_rate": "25/1",
+                    },
+                    {"codec_type": "audio", "codec_name": "aac"},
+                ],
+            }
+
+    workspace = WorkspaceManager(tmp_path / "runner").create("youku-full-prefix")
+    try:
+        result = await RunnerInspectionPipeline(settings(tmp_path), Commands()).inspect(
+            provider_request("https://v.youku.com/v_show/id_XOTUxMzg4NDMy.html"),
+            workspace,
+            context=SimpleNamespace(
+                provider_key="youku", identity_used=True, resolved_layer="L1"
+            ),
+            cookie_jar=jar,
+        )
+        assert probes == ["https://media.example.com/part.ts"]
+        assert result.duration_seconds == 702.08
+        assert result.streams[0].video_codec_family == "h264"
+        assert result.streams[0].audio_codec_family == "aac"
+    finally:
+        workspace.cleanup()
+
+
 async def test_bilibili_advertised_rate_is_probed_before_confirming_plan(tmp_path):
     from app.workers.runner.metadata import build_download_options
 

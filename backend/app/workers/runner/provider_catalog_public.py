@@ -62,6 +62,7 @@ PUBLIC_PROVIDER_PROFILES: tuple[ProviderProfile, ...] = (
         capabilities=SINGLE_VIDEO,
         status=ProviderSupportStatus.UNKNOWN,
         cookie_domain_allowlist=frozenset({ProviderCookieDomain.YOUKU}),
+        probe_authenticated_media=True,
         identity=ProviderIdentity.REQUIRED,
     ),
     standard_provider(
