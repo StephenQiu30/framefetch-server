@@ -93,6 +93,178 @@ def test_all_requires_exact_registry_and_two_distinct_works():
         matrix.select_cases([one], {"bilibili"}, "unknown")
 
 
+def test_all_rejects_warm_identity_service_before_runtime_changes(monkeypatch, capsys):
+    monkeypatch.setattr(sys, "argv", [str(SCRIPT), "--all", "--reuse-cookie-source"])
+
+    def unexpected(*args, **kwargs):
+        pytest.fail("invalid final acceptance must not change the runtime or artifacts")
+
+    monkeypatch.setattr(matrix, "load_cases", unexpected)
+    monkeypatch.setattr(matrix, "runtime", unexpected)
+    monkeypatch.setattr(matrix, "Api", unexpected)
+    monkeypatch.setattr(Path, "mkdir", unexpected)
+    with pytest.raises(SystemExit) as exc:
+        matrix.main()
+    assert exc.value.code == 2
+    assert (
+        "--reuse-cookie-source is only allowed with --platforms"
+        in capsys.readouterr().err
+    )
+
+
+def test_identity_restart_waits_for_authenticated_extension_reconnect(monkeypatch):
+    monkeypatch.setenv("COOKIE_SOURCE_TOKEN", "synthetic-identity-token")
+    client = httpx.Client
+    elapsed = [0.0]
+    monkeypatch.setattr(matrix.time, "monotonic", lambda: elapsed[0])
+    monkeypatch.setattr(
+        matrix.time,
+        "sleep",
+        lambda seconds: elapsed.__setitem__(0, elapsed[0] + seconds),
+    )
+
+    def status(request):
+        assert request.url == "http://127.0.0.1:19101/status"
+        assert request.headers["Authorization"] == "Bearer synthetic-identity-token"
+        if elapsed[0] < 2:
+            raise httpx.ConnectError("service restarting", request=request)
+        return httpx.Response(
+            200, json={"connected": elapsed[0] >= 4, "version": "1.0.0"}
+        )
+
+    monkeypatch.setattr(
+        matrix.httpx,
+        "Client",
+        lambda **kwargs: client(**kwargs, transport=httpx.MockTransport(status)),
+    )
+    assert matrix.wait_cookie_source(timeout=10) == 4
+
+
+def test_identity_reconnect_wait_is_bounded(monkeypatch):
+    monkeypatch.setenv("COOKIE_SOURCE_TOKEN", "synthetic-identity-token")
+    client = httpx.Client
+    elapsed = [0.0]
+    monkeypatch.setattr(matrix.time, "monotonic", lambda: elapsed[0])
+    monkeypatch.setattr(
+        matrix.time,
+        "sleep",
+        lambda seconds: elapsed.__setitem__(0, elapsed[0] + seconds),
+    )
+    monkeypatch.setattr(
+        matrix.httpx,
+        "Client",
+        lambda **kwargs: client(
+            **kwargs,
+            transport=httpx.MockTransport(
+                lambda request: httpx.Response(
+                    200, json={"connected": False, "version": None}
+                )
+            ),
+        ),
+    )
+    with pytest.raises(matrix.MatrixFailure, match="cookie_source_reconnect_timeout"):
+        matrix.wait_cookie_source(timeout=3)
+    assert elapsed[0] == 3
+
+
+def test_identity_status_rejects_wrong_bearer_without_retry(monkeypatch):
+    monkeypatch.setenv("COOKIE_SOURCE_TOKEN", "synthetic-wrong-token")
+    client = httpx.Client
+    monkeypatch.setattr(
+        matrix.httpx,
+        "Client",
+        lambda **kwargs: client(
+            **kwargs, transport=httpx.MockTransport(lambda request: httpx.Response(401))
+        ),
+    )
+    with pytest.raises(
+        matrix.MatrixFailure, match="cookie_source_auth_failed"
+    ) as failure:
+        matrix.wait_cookie_source()
+    assert "synthetic-wrong-token" not in str(failure.value.evidence)
+
+
+def test_identity_response_after_deadline_cannot_pass(monkeypatch):
+    monkeypatch.setenv("COOKIE_SOURCE_TOKEN", "synthetic-identity-token")
+    client = httpx.Client
+    elapsed = [0.0]
+    monkeypatch.setattr(matrix.time, "monotonic", lambda: elapsed[0])
+
+    def slow_status(request):
+        elapsed[0] = 4
+        return httpx.Response(200, json={"connected": True, "version": "1.0.0"})
+
+    monkeypatch.setattr(
+        matrix.httpx,
+        "Client",
+        lambda **kwargs: client(**kwargs, transport=httpx.MockTransport(slow_status)),
+    )
+    with pytest.raises(matrix.MatrixFailure, match="cookie_source_reconnect_timeout"):
+        matrix.wait_cookie_source(timeout=3)
+
+
+@pytest.mark.parametrize("reconnect_failure", [False, True])
+def test_runtime_waits_after_identity_restart_and_restores_on_failure(
+    monkeypatch, tmp_path, reconnect_failure
+):
+    monkeypatch.setattr(matrix, "LOCK", tmp_path / "lock")
+    monkeypatch.setattr(matrix, "compose_project", lambda output: "video-server")
+    facts, events = {}, []
+
+    def run(argv, **kwargs):
+        if "kickstart" in argv:
+            events.append("restart")
+        elif "inspect" in argv:
+            events.append("inspect")
+            return (
+                f"/var/lib/video-browser={facts['browser_volume']} "
+                f"/work={facts['work_volume']}"
+            )
+        elif kwargs["log"].name == "restore.log":
+            events.append("restore")
+        elif "volume" in argv and "rm" in argv:
+            events.append("remove_test_volumes")
+        return ""
+
+    def wait():
+        events.append("reconnect")
+        if reconnect_failure:
+            raise matrix.MatrixFailure("cookie_source_reconnect_timeout")
+        return 4.0
+
+    monkeypatch.setattr(matrix, "run_command", run)
+    monkeypatch.setattr(matrix, "wait_cookie_source", wait)
+
+    def execute():
+        with matrix.runtime(
+            Namespace(env_file=Path(".env"), cookie_source_label="test-cookie-source"),
+            tmp_path,
+            facts,
+        ):
+            events.append("samples")
+            assert facts["cookie_source"] == "restarted"
+            assert facts["cookie_source_reconnect_seconds"] == 4
+
+    if reconnect_failure:
+        with pytest.raises(
+            matrix.MatrixFailure, match="cookie_source_reconnect_timeout"
+        ):
+            execute()
+        assert events == ["restart", "reconnect", "restore", "remove_test_volumes"]
+    else:
+        execute()
+        assert events == [
+            "restart",
+            "reconnect",
+            "inspect",
+            "samples",
+            "restore",
+            "remove_test_volumes",
+        ]
+    assert facts["daily_volumes_restored"] is True
+    assert not matrix.LOCK.exists()
+
+
 def test_stage_ignores_other_platforms_but_never_unknown_platform():
     cases = [
         case(),
@@ -505,6 +677,13 @@ def test_g2_missing_xiaohongshu_evidence_blocks_complete_delivery(
 ):
     samples = matrix.load_cases(SCRIPT.parent / "fixtures/coldstart_cases.json")
     sample = next(c for c in samples if c.id == "xiaohongshu-positive-2")
+    unverified = sample.model_dump()
+    unverified["duration_seconds"] = None
+    for name in ("duration_source", "availability_source"):
+        unverified[name].update(
+            status="unverified", checked_at=None, note="待补充独立证据"
+        )
+    sample = matrix.Case.model_validate(unverified)
     assert sample.duration_seconds is None
     for source in (sample.duration_source, sample.availability_source):
         assert source.status == "unverified"
@@ -842,13 +1021,16 @@ def test_merged_g1_g3_samples_pass_strict_recorded_file_checks(
         matrix.verify_probe(actual, sample, {**confirmed, "fps_bucket": "fps_60"}, 3)
 
 
-@pytest.mark.parametrize("platform", ["reddit"])
-def test_g3_unverified_public_or_duration_evidence_still_blocks(platform):
+@pytest.mark.parametrize("source", ["duration_source", "availability_source"])
+def test_unverified_public_or_duration_evidence_still_blocks(source):
     samples = matrix.load_cases(SCRIPT.parent / "fixtures/coldstart_cases.json")
-    positives = [c for c in samples if c.platform == platform and c.kind == "positive"]
+    positives = [c for c in samples if c.platform == "reddit" and c.kind == "positive"]
     assert len(positives) == 2
-    assert all(c.qualification_gaps() for c in positives)
-    assert all(c.availability_source.status == "unverified" for c in positives)
+    for sample in positives:
+        unverified = sample.model_dump()
+        unverified[source]["status"] = "unverified"
+        unverified[source]["checked_at"] = None
+        assert matrix.Case.model_validate(unverified).qualification_gaps()
 
 
 def test_vimeo_replacements_have_independent_dated_public_clear_evidence():

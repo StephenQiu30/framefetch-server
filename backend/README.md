@@ -130,6 +130,7 @@ backend/.venv/bin/python backend/scripts/coldstart_matrix.py --all
 两种模式都自动等待 `/tmp/framefetch-runtime.lock`，取得锁后从固定容器的 Compose project label 识别现有项目，避免 worktree 名引起新网络或容器冲突，再从当前 worktree 构建并重建 api、worker、session-runner。`--env-file` 默认为现有 `.env`，不修改该文件；不执行 schema.sql，也不启动或重置 PostgreSQL、RabbitMQ、Temporal、MinIO。Runner 和 Worker 换用本次专属工作卷，Runner 使用本次专属浏览器卷以及空的 tmpfs/HOME/XDG 缓存；日常卷不清理。运行结束（含错误、Ctrl-C 和 SIGTERM）恢复日常卷，删除本次临时卷并释放锁。SIGKILL 或宿主机断电无法执行清理，需核实 owner 和进程后人工恢复，不能删除其他阶段仍持有的锁。
 
 身份冷启动验收带 `--cookie-source-label <实际 LaunchAgent label>` 重启已安装的 cookie-source；省略该参数时没有验证身份服务冷启动，需要身份的样本保持阻塞。
+重启后最多等待 45 秒，通过携带 Runner Bearer 的宿主 `/status` 确认扩展已重新认证连接，再开始样本；等待过程中不读取 Cookie。错误令牌或重连超时会使本轮退出 2，并执行日常卷恢复与临时卷清理。
 
 脚本仅调用正式 HTTP API：创建下载意图、轮询 Temporal 解析结果、查询 InspectionResponse、选择达到最低规格的格式、创建 RabbitMQ 下载、取回发布的 Artifact。文件通过鉴权 `/api/downloads/{id}/file` 下载，核对 Content-Length 与 ETag/SHA-256，再进行 ffprobe 和 `ffmpeg -xerror` 全片解码。独立完整时长的容差与 Runner 相同：`max(3 秒, 2% × 完整时长)`；若部署修改了 Runner 容差，使用 `--duration-tolerance` 传入同一个值。规格核对包括尺寸、编解码器、容器、帧率档与动态范围；身份和出口读取正式响应中的 execution_context。
 
@@ -158,5 +159,6 @@ WPC 不复用 Playwright context，也不操作宿主 Chrome。
 复用已经连接的宿主身份服务；该模式只冷启动 API、Worker、Runner，报告如实记录
 宿主服务未重启。Runner 仍须通过环境变量 `COOKIE_SOURCE_TOKEN` 配置该服务的
 独立 Bearer；复用标志不会安装服务、读取配对密钥或绕过身份校验。
+`--reuse-cookie-source` 只允许与 `--platforms` 一起使用，`--all` 会在构建、重启或创建结果目录前拒绝此组合，避免把宿主热服务当作最终冷启动证据。
 机房出口必须实际注入登录身份，仍须两条独立公开、免费、非 DRM
 正例通过完整文件校验；当前可用性与实测结果见设计 17 第 8 节。

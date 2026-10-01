@@ -216,6 +216,37 @@ def compose_project(output: Path) -> str:
     return projects[0].strip()
 
 
+def wait_cookie_source(*, timeout: float = 45) -> float:
+    """Wait for authenticated status after restart without fetching Cookies."""
+    token = os.environ.get("COOKIE_SOURCE_TOKEN")
+    if not token:
+        raise MatrixFailure("cookie_source_token_missing")
+    started = time.monotonic()
+    deadline = started + timeout
+    with httpx.Client(trust_env=False, follow_redirects=False, timeout=2) as client:
+        while time.monotonic() < deadline:
+            try:
+                response = client.get(
+                    "http://127.0.0.1:19101/status",
+                    headers={"Authorization": f"Bearer {token}"},
+                    timeout=min(2, deadline - time.monotonic()),
+                )
+                if time.monotonic() >= deadline:
+                    break
+                if response.status_code == 401:
+                    raise MatrixFailure("cookie_source_auth_failed")
+                if response.status_code == 200:
+                    state = response.json()
+                    if isinstance(state, dict) and state.get("connected") is True:
+                        return round(time.monotonic() - started, 3)
+            except (httpx.HTTPError, ValueError):
+                pass
+            remaining = deadline - time.monotonic()
+            if remaining > 0:
+                time.sleep(min(1, remaining))
+    raise MatrixFailure("cookie_source_reconnect_timeout")
+
+
 @contextmanager
 def runtime(args: argparse.Namespace, output: Path, facts: Json) -> Iterator[None]:
     acquired = False
@@ -307,6 +338,7 @@ def runtime(args: argparse.Namespace, output: Path, facts: Json) -> Iterator[Non
                 timeout=15,
                 log=output / "cookie-source.log",
             )
+            facts["cookie_source_reconnect_seconds"] = wait_cookie_source()
         facts["cookie_source"] = (
             "restarted"
             if args.cookie_source_label
@@ -905,6 +937,8 @@ def main() -> int:
         help="Runner tolerance seconds (default 3); also allows 2%% relative error",
     )
     args = parser.parse_args()
+    if args.all and args.reuse_cookie_source:
+        parser.error("--reuse-cookie-source is only allowed with --platforms")
     args.env_file = args.env_file.resolve()
     args.output = args.output.resolve()
     if not args.output.is_relative_to(ROOT / "artifacts/coldstart"):
