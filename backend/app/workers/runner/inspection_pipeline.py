@@ -45,6 +45,11 @@ class RunnerInspectionPipeline:
         result._commands = self._commands.with_context(ctx)
         return result
 
+    def with_client(self, client: str) -> RunnerInspectionPipeline:
+        result = copy(self)
+        result._commands = self._commands.with_client(client)
+        return result
+
     async def inspect(
         self,
         source: ProviderRequest,

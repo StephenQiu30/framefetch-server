@@ -396,7 +396,9 @@ async def test_wechat_missing_public_media_is_reported_as_restricted_content(
 
 
 @pytest.mark.asyncio
-async def test_inspection_classifies_unavailable_youtube_video(tmp_path: Path) -> None:
+async def test_ambiguous_youtube_unavailable_does_not_prove_deletion(
+    tmp_path: Path,
+) -> None:
     commands = MediaCommands(
         settings(tmp_path),
         FailingSupervisor(b"ERROR: [youtube] pqyXR30AoOs: Video unavailable"),
@@ -405,8 +407,8 @@ async def test_inspection_classifies_unavailable_youtube_video(tmp_path: Path) -
     with pytest.raises(RunnerFailure) as caught:
         await commands.inspect("https://youtu.be/pqyXR30AoOs", tmp_path)
 
-    assert caught.value.code == "content_unavailable"
-    assert caught.value.status == 422
+    assert caught.value.code == "extractor_broken"
+    assert caught.value.status == 502
 
 
 @pytest.mark.asyncio
@@ -439,8 +441,8 @@ async def test_youtube_rate_limit_precedes_unavailable_fallback(tmp_path: Path) 
         ),
         (
             b"ERROR: Account cookies are no longer valid",
-            "login_required",
-            422,
+            "rate_limited",
+            429,
         ),
         (b"ERROR: Fresh cookies are needed", "rate_limited", 429),
     ),

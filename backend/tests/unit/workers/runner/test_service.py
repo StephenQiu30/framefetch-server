@@ -611,7 +611,7 @@ async def test_download_rejects_source_identity_drift_before_download(
     with pytest.raises(RunnerFailure) as caught:
         await service.download(download_request())
 
-    assert caught.value.code == "source_changed"
+    assert caught.value.code == "context_changed"
     assert len(supervisor.calls) == 1
     assert list(tmp_path.iterdir()) == []
 
@@ -1133,14 +1133,12 @@ async def test_inspect_retries_a_transient_thumbnail_response_once(
         "https://v.youku.com/v_show/id_fixture.html",
     ],
 )
-async def test_identity_required_provider_is_explicitly_unavailable_in_r0(
-    tmp_path, url
-):
+async def test_identity_required_provider_uses_fail_closed_identity_stub(tmp_path, url):
     supervisor = FixtureSupervisor(split_media_info())
     service = MediaRunnerService(settings(tmp_path), supervisor=supervisor)
     with pytest.raises(RunnerFailure) as caught:
         await service.inspect(url)
-    assert caught.value.code == "login_required"
+    assert caught.value.code == "identity_unavailable"
     assert (
         caught.value.failure.layer
         == service._context(provider_request(url)).resolved_layer

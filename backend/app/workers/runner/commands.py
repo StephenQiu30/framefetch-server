@@ -75,10 +75,16 @@ class MediaCommands:
         self._supervisor = supervisor
         self._pot_provider_probe = pot_provider_probe or _pot_provider_ready
         self._ctx: RunContext | None = None
+        self._client: str | None = None
 
     def with_context(self, ctx: RunContext) -> MediaCommands:
         result = copy(self)
         result._ctx = ctx
+        return result
+
+    def with_client(self, client: str) -> MediaCommands:
+        result = copy(self)
+        result._client = client
         return result
 
     @property
@@ -90,7 +96,7 @@ class MediaCommands:
     @property
     def _ytdlp(self) -> YtDlpCommandBuilder:
         return YtDlpCommandBuilder(
-            self._settings, _YTDLP_PLUGIN_ROOT, self._run_context
+            self._settings, _YTDLP_PLUGIN_ROOT, self._run_context, client=self._client
         )
 
     async def inspect(

@@ -14,6 +14,7 @@ class ProviderFailureContext:
     provider_key: str
     source_url: str
     authenticated: bool
+    egress_class: str = "unknown"
 
 
 @dataclass(frozen=True, slots=True)
@@ -343,6 +344,8 @@ PROVIDER_FAILURE_RULES: tuple[FailureRule, ...] = (
             b"vimeo extractor only works when logged-in",
             b"account authentication is required",
             b"login required. use --cookies",
+            b"sign in to confirm your age",
+            b"this video requires login",
         ),
     ),
     FailureRule(
@@ -357,8 +360,8 @@ PROVIDER_FAILURE_RULES: tuple[FailureRule, ...] = (
         providers=frozenset({ProviderKey.TIKTOK}),
     ),
     FailureRule(
-        "content_unavailable",
-        422,
+        "extractor_broken",
+        502,
         any_stderr=(
             b"video unavailable",
             b"this video is unavailable",
@@ -447,22 +450,19 @@ PROVIDER_FAILURE_RULES: tuple[FailureRule, ...] = (
 
 
 def _rule_priority(rule: FailureRule) -> int:
-    if rule.code == "challenge" and b"fresh cookies" in rule.all_stderr:
-        return 5
-    if rule.code == "rate_limited" and rule.status == 429:
-        return 3
-    category = failure_definition(rule.code)[0].value
     return {
         "content_protected": 0,
         "content_unavailable": 0,
+        "invalid_input": 0,
         "rate_limited": 1,
-        "login_required": 2,
-        "challenge": 3,
-        "network_blocked": 4,
-        "runtime_unavailable": 1,
-        "transient": 4,
-        "extractor_broken": 5,
-    }.get(category, 5)
+        "login_required": 3,
+        "challenge": 4,
+        "network_blocked": 5,
+        "runtime_unavailable": 2,
+        "transient": 5,
+        "extractor_broken": 6,
+        "format_unavailable": 7,
+    }.get(rule.code, 5)
 
 
 def classify_provider_failure(
@@ -470,39 +470,17 @@ def classify_provider_failure(
     stderr: bytes,
 ) -> tuple[str, int] | None:
     normalized = stderr.lower()
-    errors = b"\n".join(
-        line
-        for line in normalized.splitlines()
-        if b"error:" in line and b"warning:" not in line
-    )
-
-    def priority(rule: FailureRule) -> int:
-        # Fatal 429 beats an ambiguous login hint. An earlier warning cannot
-        # replace a clear terminal content or authentication diagnosis.
-        if (
-            rule.code == "rate_limited"
-            and rule.status == 429
-            and errors
-            and rule.matches(context, errors)
-        ):
-            return 1
-        if (
-            rule.code == "content_unavailable"
-            and context.provider_key == ProviderKey.YOUTUBE
-            and b"video unavailable" in rule.any_stderr
-            and any(
-                limit.code == "rate_limited"
-                and limit.status == 429
-                and limit.matches(context, normalized)
-                for limit in PROVIDER_FAILURE_RULES
-            )
-        ):
-            # YouTube's generic unavailable fallback does not establish that
-            # the item was removed when the same execution observed a 429.
-            return 4
-        return _rule_priority(rule)
-
-    for rule in sorted(PROVIDER_FAILURE_RULES, key=priority):
-        if rule.matches(context, normalized):
-            return failure_definition(rule.code)[0].value, rule.status
-    return None
+    matched = [
+        rule for rule in PROVIDER_FAILURE_RULES if rule.matches(context, normalized)
+    ]
+    if (
+        context.provider_key == ProviderKey.YOUTUBE
+        and context.egress_class == "datacenter"
+        and b"login_required" in normalized
+    ):
+        matched.append(FailureRule("network_blocked", 422))
+    candidates = matched
+    if not candidates:
+        return None
+    rule = min(candidates, key=_rule_priority)
+    return failure_definition(rule.code)[0].value, rule.status

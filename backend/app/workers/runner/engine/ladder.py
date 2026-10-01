@@ -1,11 +1,13 @@
-"""Declared layer dispatch; complete transition policy belongs to R2."""
+"""Bounded layer execution and task-scoped recovery from Design 17 §3.5."""
 
 import asyncio
+import logging
 from dataclasses import replace
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
 from app.services.provider_failures import FailureClass, ProviderFailure
 from app.services.provider_types import Layer, ProviderIdentity
+from app.workers.runner.engine import identity
 from app.workers.runner.engine.layers.base import Layer as ResolverLayer
 from app.workers.runner.engine.layers.browser import BrowserLayer
 from app.workers.runner.engine.layers.http import HttpLayer
@@ -14,6 +16,8 @@ from app.workers.runner.engine.resolved import Resolution
 from app.workers.runner.engine.run_context import ResolutionSource, RunContext
 from app.workers.runner.errors import RunnerFailure
 from app.workers.runner.provider_registry import ProviderProfile
+
+_LOG = logging.getLogger(__name__)
 
 LAYER_TABLE: dict[Layer, type[ResolverLayer]] = {
     Layer.L1: HttpLayer,
@@ -26,16 +30,35 @@ _NEXT_LAYER = {
     FailureClass.EXTRACTOR_BROKEN,
     FailureClass.FORMAT_UNAVAILABLE,
 }
+_CONTEXT_BINDING = (
+    "provider_key",
+    "registry_revision",
+    "engine_revision",
+    "egress_route",
+    "egress_revision",
+    "egress_class",
+    "egress_observed_ip",
+)
 
 
 async def close_material(ctx: RunContext) -> None:
-    if ctx.browser is not None:
-        cleanup = asyncio.create_task(ctx.browser.close())
-        try:
-            await asyncio.shield(cleanup)
-        except asyncio.CancelledError:
-            await cleanup
-            raise
+    try:
+        if ctx.browser is not None:
+            cleanup = asyncio.create_task(ctx.browser.close())
+            try:
+                await asyncio.shield(cleanup)
+            except asyncio.CancelledError:
+                await cleanup
+                raise
+    finally:
+        # Only files validated on the operation-private tmpfs can be removed.
+        if ctx.cookie_file is not None and ctx.cookie_file.exists():
+            identity.validate_cookie_file(ctx.cookie_file)
+            ctx.cookie_file.unlink()
+            try:
+                ctx.cookie_file.parent.rmdir()
+            except OSError:
+                pass  # Other files are owned by the identity implementation.
 
 
 async def run_ladder(
@@ -43,92 +66,185 @@ async def run_ladder(
 ) -> Resolution:
     context = source.execution_context
     expected = source.expected_context
+    # Never extend an already assigned budget. Downloads use their own deadline.
+    deadline = min(deadline, source.run_context.deadline)
+    if expected is None:
+        deadline = min(deadline, datetime.now(UTC) + timedelta(seconds=120))
     ctx = replace(source.run_context, deadline=deadline)
     failures: list[ProviderFailure] = []
+    task_retries: set[FailureClass] = set()
+    identity_attempted = False
+    transferred = False
+
+    async def inject_identity() -> None:
+        nonlocal ctx, identity_attempted
+        identity_attempted = True
+        material = await identity.fetch_identity(
+            profile.key, source.workspace.path.name.rsplit("-", 1)[0], deadline
+        )
+        ctx = ctx.with_material(identity=material)
+
     try:
-        if profile != source.request.profile:
-            raise RunnerFailure("context_changed", status=409).attributed_to(context)
-        layers = profile.ladder
-        if expected is not None:
-            if expected.resolved_layer not in layers:
-                raise RunnerFailure("context_changed", status=409).attributed_to(
-                    expected
+        remaining = (deadline - datetime.now(UTC)).total_seconds()
+        if remaining <= 0:
+            raise RunnerFailure(
+                "download_timeout" if expected is not None else "inspection_timeout",
+                status=504,
+            )
+        async with asyncio.timeout(remaining):
+            if profile != source.request.profile:
+                raise RunnerFailure("context_changed", status=409)
+            layers = profile.ladder
+            if expected is not None:
+                binding = replace(
+                    context,
+                    egress_route=ctx.egress.route,
+                    egress_revision=ctx.egress.revision,
+                    egress_class=ctx.egress.egress_class,
+                    egress_observed_ip=ctx.egress.observed_ip,
                 )
-            layers = (Layer(expected.resolved_layer),)
-        if profile.identity is ProviderIdentity.REQUIRED and ctx.identity is None:
-            raise RunnerFailure("login_required", status=422).attributed_to(context)
-        if expected is not None and (
-            expected.identity_used != (ctx.identity is not None)
-            or expected.identity_digest
-            != (ctx.identity.digest if ctx.identity else None)
-        ):
-            raise RunnerFailure("context_changed", status=409).attributed_to(expected)
-        for layer_key in layers:
-            layer = LAYER_TABLE[layer_key]()
-            retried: set[FailureClass] = set()
-            while True:
-                remaining = (deadline - datetime.now(UTC)).total_seconds()
-                if remaining <= 0:
-                    raise RunnerFailure("inspection_timeout", status=504).attributed_to(
-                        context
+                if expected.resolved_layer not in layers or any(
+                    getattr(expected, name) != getattr(binding, name)
+                    for name in _CONTEXT_BINDING
+                ):
+                    raise RunnerFailure("context_changed", status=409)
+                layers = (Layer(expected.resolved_layer),)
+            if profile.identity is ProviderIdentity.NONE:
+                if ctx.identity is not None or (expected and expected.identity_used):
+                    raise RunnerFailure("context_changed", status=409)
+            elif profile.identity is ProviderIdentity.REQUIRED or (
+                expected is not None and expected.identity_used
+            ):
+                await inject_identity()
+            if expected is not None and (
+                expected.identity_used != (ctx.identity is not None)
+                or expected.identity_digest
+                != (ctx.identity.digest if ctx.identity else None)
+            ):
+                raise RunnerFailure("context_changed", status=409)
+            for layer_key in layers:
+                layer = LAYER_TABLE[layer_key]()
+                layer_retried = False
+                while True:
+                    context = replace(
+                        context,
+                        resolved_layer=layer_key,
+                        identity_used=ctx.identity is not None,
+                        identity_digest=ctx.identity.digest if ctx.identity else None,
                     )
-                context = replace(context, resolved_layer=layer_key)
-                try:
-                    async with asyncio.timeout(remaining):
+                    try:
                         media = await layer.resolve(
                             replace(source, execution_context=context), ctx
                         )
-                    actual_ctx = media.run_context or ctx
-                    ctx = actual_ctx
-                    context = replace(
-                        context,
-                        client=media.client,
-                        egress_route=actual_ctx.egress.route,
-                        egress_revision=actual_ctx.egress.revision,
-                        egress_class=actual_ctx.egress.egress_class,
-                        egress_observed_ip=actual_ctx.egress.observed_ip,
-                        identity_used=actual_ctx.identity is not None,
-                        identity_digest=actual_ctx.identity.digest
-                        if actual_ctx.identity
-                        else None,
-                        browser_context_kind=(
-                            "authenticated" if actual_ctx.identity else "anonymous"
+                        # Prepared clients retain safe attempt facts within the layer.
+                        failures.extend(getattr(layer, "failures", ()))
+                        ctx = media.run_context or ctx
+                        context = replace(
+                            context,
+                            client=media.client,
+                            egress_route=ctx.egress.route,
+                            egress_revision=ctx.egress.revision,
+                            egress_class=ctx.egress.egress_class,
+                            egress_observed_ip=ctx.egress.observed_ip,
+                            identity_used=ctx.identity is not None,
+                            identity_digest=ctx.identity.digest
+                            if ctx.identity
+                            else None,
+                            browser_context_kind=(
+                                "authenticated" if ctx.identity else "anonymous"
+                            )
+                            if ctx.browser
+                            else "none",
                         )
-                        if actual_ctx.browser
-                        else "none",
-                    )
-                    if expected is not None and expected != context:
-                        raise RunnerFailure(
-                            "context_changed", status=409
-                        ).attributed_to(context)
-                    return Resolution(media, context, tuple(failures), ctx)
-                except RunnerFailure as error:
-                    error.attributed_to(context)
-                    failures.append(error.failure)
-                    kind = error.failure.failure_class
-                    if kind in _NEXT_LAYER and layer_key != layers[-1]:
-                        break
-                    if kind in retried or kind not in {
-                        FailureClass.TRANSIENT,
-                        FailureClass.RUNTIME_UNAVAILABLE,
-                        FailureClass.RATE_LIMITED,
-                    }:
-                        raise
-                    delay = 0.0
-                    if kind is FailureClass.RATE_LIMITED:
-                        if error.failure.retry_after is None:
+                        if expected is not None and expected != context:
+                            raise RunnerFailure("context_changed", status=409)
+                        transferred = True
+                        return Resolution(media, context, tuple(failures), ctx)
+                    except RunnerFailure as error:
+                        error.attributed_to(context)
+                        attempt_failures = error.failures or (error.failure,)
+                        failures.extend(attempt_failures)
+                        for failure in attempt_failures:
+                            _LOG.info(
+                                "resolver failed task=%s provider=%s layer=%s "
+                                "stage=%s class=%s gate=%s evidence=%s",
+                                source.workspace.path.name.rsplit("-", 1)[0],
+                                profile.key,
+                                failure.layer,
+                                failure.stage,
+                                failure.failure_class,
+                                failure.gate,
+                                failure.evidence,
+                            )
+                        kind = error.failure.failure_class
+                        if kind in _NEXT_LAYER and layer_key != layers[-1]:
+                            break
+                        if kind is FailureClass.LOGIN_REQUIRED:
+                            if (
+                                profile.identity is not ProviderIdentity.OPTIONAL
+                                or identity_attempted
+                                or expected is not None
+                            ):
+                                raise
+                            await inject_identity()
+                            continue
+                        if kind is FailureClass.TRANSIENT:
+                            # Cancellation/deadline outcomes are never recoverable.
+                            if layer_retried or error.code in {
+                                "cancelled",
+                                "inspection_timeout",
+                                "download_timeout",
+                            }:
+                                raise
+                            layer_retried = True
+                            await asyncio.sleep(0)
+                            continue
+                        if (
+                            kind
+                            not in {
+                                FailureClass.RATE_LIMITED,
+                                FailureClass.RUNTIME_UNAVAILABLE,
+                            }
+                            or kind in task_retries
+                        ):
                             raise
-                        delay = max(
-                            0.0,
-                            (
-                                error.failure.retry_after - datetime.now(UTC)
-                            ).total_seconds(),
-                        )
-                    if delay >= (deadline - datetime.now(UTC)).total_seconds():
-                        raise
-                    retried.add(kind)
-                    await asyncio.sleep(delay)
-        raise RunnerFailure("format_unavailable", status=409).attributed_to(context)
-    except BaseException:
-        await close_material(ctx)
+                        delay = 0.0
+                        if kind is FailureClass.RATE_LIMITED:
+                            if error.failure.retry_after is None:
+                                raise
+                            delay = max(
+                                0.0,
+                                (
+                                    error.failure.retry_after - datetime.now(UTC)
+                                ).total_seconds(),
+                            )
+                        if delay >= (deadline - datetime.now(UTC)).total_seconds():
+                            raise
+                        task_retries.add(kind)
+                        await asyncio.sleep(delay)
+            raise RunnerFailure("format_unavailable", status=409)
+    except TimeoutError as exc:
+        timeout_error = RunnerFailure(
+            "download_timeout" if expected is not None else "inspection_timeout",
+            status=504,
+        ).attributed_to(context)
+        timeout_error.failures = (*failures, timeout_error.failure)
+        raise timeout_error from exc
+    except RunnerFailure as error:
+        error.attributed_to(context)
+        if not failures or failures[-1] != error.failure:
+            failures.append(error.failure)
+        error.failure = replace(
+            error.failure,
+            summary=(
+                f"Stopped at {context.resolved_layer}: "
+                f"{error.failure.failure_class.value}; "
+                f"{error.failure.evidence.get('cause_code') or error.code}"
+            ),
+        )
+        error.failures = tuple(failures)
         raise
+    finally:
+        # A successful result transfers material ownership to the caller.
+        if not transferred:
+            await close_material(ctx)

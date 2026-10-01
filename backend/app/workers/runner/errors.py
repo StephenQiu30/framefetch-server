@@ -33,6 +33,7 @@ class RunnerFailure(RuntimeError):
         evidence: dict[str, str | int | bool | None] | None = None,
         stage: Literal["resolve", "download", "validate", "publish"] | None = None,
     ) -> None:
+        self.failures: tuple[ProviderFailure, ...] = ()
         self.code = code
         self.status = status
         self.message = message or code.replace("_", " ")
@@ -40,7 +41,14 @@ class RunnerFailure(RuntimeError):
             kind, _, default_phase = failure_definition(code)
             location = phase or default_phase
             gate = (
-                "③"
+                "①"
+                if kind in {FailureClass.NETWORK_BLOCKED, FailureClass.RATE_LIMITED}
+                else "②"
+                if kind is FailureClass.CHALLENGE
+                else "③"
+                if kind
+                in {FailureClass.LOGIN_REQUIRED, FailureClass.IDENTITY_UNAVAILABLE}
+                else "③"
                 if kind is FailureClass.CONTEXT_CHANGED
                 or location is FailurePhase.VALIDATE
                 else "②"

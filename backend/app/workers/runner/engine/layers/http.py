@@ -1,6 +1,6 @@
 """L1: preserve R0's yt-dlp, entitlement and bounded probing pipeline."""
 
-from dataclasses import fields
+from dataclasses import fields, replace
 
 from app.workers.runner.engine.layers.base import LayerFailure
 from app.workers.runner.engine.resolved import ResolvedMedia
@@ -10,12 +10,24 @@ from app.workers.runner.errors import RunnerFailure
 
 class HttpLayer:
     async def resolve(self, source: ResolutionSource, ctx: RunContext) -> ResolvedMedia:
+        client = (
+            source.request.profile.client_profile
+            if source.execution_context.resolved_layer == "L1"
+            else source.execution_context.client
+        )
+        source = replace(
+            source, execution_context=replace(source.execution_context, client=client)
+        )
         try:
-            media = await source.pipeline.with_context(ctx).inspect(
-                source.request,
-                source.workspace,
-                context=source.execution_context,
-                cookie_jar=ctx.cookie_file,
+            media = (
+                await source.pipeline.with_context(ctx)
+                .with_client(source.execution_context.client)
+                .inspect(
+                    source.request,
+                    source.workspace,
+                    context=source.execution_context,
+                    cookie_jar=ctx.cookie_file,
+                )
             )
         except RunnerFailure as error:
             raise LayerFailure.from_runner_failure(error) from error

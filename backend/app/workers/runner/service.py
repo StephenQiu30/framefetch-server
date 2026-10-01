@@ -206,7 +206,8 @@ class MediaRunnerService:
         except TimeoutError as exc:
             raise RunnerFailure("transient", status=504).attributed_to(context) from exc
         except RunnerFailure as error:
-            error.attributed_to(context)
+            if not error.failures:
+                error.attributed_to(context)
             raise
         finally:
             try:
@@ -287,7 +288,7 @@ class MediaRunnerService:
                 stage=current_stage(),
             ).attributed_to(context) from exc
         except RunnerFailure as error:
-            if context is not None:
+            if context is not None and not error.failures:
                 error.attributed_to(context)
             if error.failure.stage != "validate":
                 error.failure = replace(error.failure, stage="download")
@@ -380,17 +381,20 @@ class MediaRunnerService:
         assert resolution.run_context is not None
         ctx = resolution.run_context
         cookie_jar = ctx.cookie_file
-        commands = self._commands.with_context(ctx)
+        commands = self._commands.with_context(ctx).with_client(context.client)
         failure_context = ProviderFailureContext(
             provider_key=source.profile.key,
             source_url=source.source_url,
             authenticated=context.identity_used,
         )
-        require_source_identity(
-            inspection,
-            provider_media_id=request.expected_provider_media_id,
-            extractor_key=request.expected_extractor_key,
-        )
+        try:
+            require_source_identity(
+                inspection,
+                provider_media_id=request.expected_provider_media_id,
+                extractor_key=request.expected_extractor_key,
+            )
+        except RunnerFailure as exc:
+            raise RunnerFailure("context_changed", status=409) from exc
         if inspection.media_kind in {
             MediaKind.IMAGE_GALLERY,
             MediaKind.VIDEO_COLLECTION,

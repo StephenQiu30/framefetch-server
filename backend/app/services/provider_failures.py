@@ -73,7 +73,32 @@ def _define(
 
 
 for _kind in FailureClass:
-    _define((_kind.value,), _kind, FailureScope.CONTENT)
+    _scope = (
+        FailureScope.ROUTE
+        if _kind
+        in {
+            FailureClass.NETWORK_BLOCKED,
+            FailureClass.CHALLENGE,
+            FailureClass.RATE_LIMITED,
+            FailureClass.TRANSIENT,
+        }
+        else FailureScope.RUNTIME
+        if _kind
+        in {FailureClass.IDENTITY_UNAVAILABLE, FailureClass.RUNTIME_UNAVAILABLE}
+        else FailureScope.DEPENDENCY
+        if _kind is FailureClass.EXTRACTOR_BROKEN
+        else FailureScope.CONTENT
+    )
+    _phase = (
+        FailurePhase.PREPARE_CONTEXT
+        if _scope is FailureScope.RUNTIME
+        else FailurePhase.RECOGNIZE
+        if _kind is FailureClass.INVALID_INPUT
+        else FailurePhase.SELECT_FORMAT
+        if _kind in {FailureClass.FORMAT_UNAVAILABLE, FailureClass.CONTEXT_CHANGED}
+        else FailurePhase.FETCH_METADATA
+    )
+    _define((_kind.value,), _kind, _scope, _phase)
 
 _define(
     ("egress_denied", "provider_geo_restricted"),

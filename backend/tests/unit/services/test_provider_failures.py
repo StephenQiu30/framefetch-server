@@ -90,3 +90,18 @@ def test_publish_failures_keep_stage_and_bounded_evidence():
         )
     with pytest.raises(ValueError, match="gate"):
         ProviderFailure.for_code("transient", gate="invalid")
+
+
+@pytest.mark.parametrize(
+    "code,scope,phase",
+    [
+        ("network_blocked", "route", "fetch_metadata"),
+        ("identity_unavailable", "runtime", "prepare_context"),
+        ("runtime_unavailable", "runtime", "prepare_context"),
+        ("extractor_broken", "dependency", "fetch_metadata"),
+        ("context_changed", "content", "select_format"),
+    ],
+)
+def test_canonical_codes_keep_their_recovery_boundary(code, scope, phase):
+    failure = ProviderFailure.for_code(code)
+    assert failure.scope == scope and failure.phase == phase
