@@ -14,7 +14,7 @@ from app.services.provider_failures import FailureClass
 from app.services.provider_types import ProviderIdentity
 from app.workers.runner.browser_runtime import BrowserOperation, _finish
 from app.workers.runner.engine import identity
-from app.workers.runner.engine.browser import douyin, xiaohongshu
+from app.workers.runner.engine.browser import douyin, kuaishou, weibo, xiaohongshu
 from app.workers.runner.engine.browser.intercept import (
     MAX_RESPONSE_BYTES,
     PageResponses,
@@ -27,7 +27,12 @@ from app.workers.runner.metadata import enrich_format_metadata
 from app.workers.runner.utilities import normalize_for_settings
 from playwright.async_api import Error
 
-PARSERS = {"douyin": douyin, "xiaohongshu": xiaohongshu}
+PARSERS = {
+    "douyin": douyin,
+    "xiaohongshu": xiaohongshu,
+    "kuaishou": kuaishou,
+    "weibo": weibo,
+}
 
 
 class _Handoff:
@@ -82,6 +87,15 @@ def _expected_id(url: str, platform: str) -> str | None:
         value = parse_qs(parsed.query).get("modal_id", [segments[-1]])[0]
         return value if value.isdigit() else None
     value = segments[-1]
+    if platform == "kuaishou":
+        return (
+            value
+            if any(part in segments for part in ("short-video", "photo"))
+            and value.isalnum()
+            else None
+        )
+    if platform == "weibo":
+        return value if len(segments) >= 2 and value.isalnum() else None
     return (
         value
         if len(value) == 24 and all(c in "0123456789abcdef" for c in value)
