@@ -127,17 +127,29 @@ def test_parser_helpers_fail_closed() -> None:
     assert not has_protection_material({"data": {"decodeKey": ""}})
 
 
-def test_plugin_registers_with_ytdlp() -> None:
+def test_plugin_registers_with_ytdlp_offline() -> None:
     backend_root = Path(__file__).resolve().parents[4]
+    # The CLI lists extractors before its normal plugin loading. Use yt-dlp's
+    # loader first, then exercise the offline listing without a source URL.
+    loader = (
+        "import sys\n"
+        "import yt_dlp\n"
+        "from yt_dlp.globals import plugin_dirs\n"
+        "from yt_dlp.plugins import load_all_plugins\n"
+        "_, opts, _, _ = yt_dlp.parse_options(sys.argv[1:])\n"
+        "plugin_dirs.value = opts.plugin_dirs\n"
+        "load_all_plugins()\n"
+        "yt_dlp.main(sys.argv[1:])\n"
+    )
     result = subprocess.run(
         [
-            str(Path(sys.executable).with_name("yt-dlp")),
+            sys.executable,
+            "-c",
+            loader,
             "--ignore-config",
-            "--verbose",
             "--plugin-dirs",
             str(backend_root / "app/workers/runner"),
-            "--simulate",
-            SHARE_URL,
+            "--list-extractors",
         ],
         capture_output=True,
         text=True,
@@ -145,8 +157,8 @@ def test_plugin_registers_with_ytdlp() -> None:
         check=False,
     )
 
-    assert "WechatChannelsPublic" in result.stderr
-    assert "Unsupported URL" not in result.stderr
+    assert result.returncode == 0
+    assert WechatChannelsPublicIE.IE_NAME in result.stdout.splitlines()
 
 
 def test_missing_declared_session_is_an_explicit_auth_failure():
