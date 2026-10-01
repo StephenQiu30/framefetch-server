@@ -2,8 +2,8 @@
 
 from dataclasses import FrozenInstanceError, replace
 from datetime import UTC, datetime, timedelta
-from importlib import import_module
 from pathlib import Path
+from unittest.mock import AsyncMock
 
 import pytest
 from app.services.provider_failures import FailureClass
@@ -12,7 +12,7 @@ from app.workers.runner.engine.egress import resolve_egress
 from app.workers.runner.engine.identity import fetch_identity
 from app.workers.runner.engine.ladder import run_ladder
 from app.workers.runner.engine.layers.base import LayerFailure
-from app.workers.runner.engine.layers.browser import BrowserLayer
+from app.workers.runner.engine.layers.browser import PARSERS, BrowserLayer
 from app.workers.runner.engine.layers.prepared import PreparedLayer
 from app.workers.runner.engine.run_context import ResolutionSource, RunContext
 from app.workers.runner.errors import RunnerFailure
@@ -203,13 +203,45 @@ async def test_layer_stubs_fail_closed(layer, tmp_path):
 
 
 @pytest.mark.parametrize(
-    "key", [k for k, v in _DECLARATIONS.items() if "L3" in v[0] and k != "youtube"]
+    "key", ["douyin", "tiktok", "xiaohongshu", "kuaishou", "weibo", "youku"]
 )
-def test_platform_parser_seams_fail_closed(key):
-    module = import_module(f"app.workers.runner.engine.browser.{key}")
+def test_implemented_browser_parsers_reject_empty_payload(key):
+    module = PARSERS[key]
     assert module.RULES.platform == key
     with pytest.raises(LayerFailure):
         module.parse_response({})
+
+
+@pytest.mark.parametrize(
+    "key", ["facebook", "instagram", "x", "qqvideo", "hongguo_web", "wechat_channels"]
+)
+async def test_missing_browser_parser_fails_before_identity_or_browser_io(
+    key, tmp_path, monkeypatch
+):
+    service = MediaRunnerService(settings(tmp_path))
+    source = source_for(service, tmp_path)
+    profile = current_provider_registry().profile_for_key(key)
+    request = replace(source.request, profile=profile)
+    source = replace(
+        source, request=request, execution_context=service._context(request)
+    )
+    assert Layer.L3 in profile.ladder and profile.l3_rules is not None
+    assert key not in PARSERS
+    fetch = AsyncMock(side_effect=AssertionError("missing parser fetched identity"))
+    acquire = AsyncMock(side_effect=AssertionError("missing parser acquired browser"))
+    monkeypatch.setattr("app.workers.runner.engine.identity.fetch_identity", fetch)
+    monkeypatch.setattr(source.pipeline.browser, "acquire", acquire)
+    try:
+        with pytest.raises(LayerFailure) as caught:
+            await BrowserLayer().resolve(source, source.run_context)
+        failure = caught.value.failure
+        assert failure.failure_class is FailureClass.RUNTIME_UNAVAILABLE
+        assert failure.gate == "none"
+        assert failure.evidence["cause_code"] == "browser_not_implemented"
+        fetch.assert_not_awaited()
+        acquire.assert_not_awaited()
+    finally:
+        source.workspace.cleanup()
 
 
 def test_layer_failure_rejects_raw_evidence():

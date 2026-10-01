@@ -184,9 +184,7 @@ class BrowserLayer:
                     await _remove_identity(previous.cookie_file)
             ctx = ctx.with_material(identity=fetched)
         try:
-            operation = await runtime.acquire(
-                profile, ctx=ctx, task_id=source.workspace.path.name
-            )
+            operation = await runtime.acquire(profile, ctx=ctx)
         except BaseException:
             if ctx.identity is not None:
                 await _remove_identity(ctx.identity.cookie_file)

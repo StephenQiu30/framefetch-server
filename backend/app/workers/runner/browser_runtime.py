@@ -13,8 +13,7 @@ import os
 import shutil
 import stat
 import tempfile
-from collections.abc import AsyncIterator, Awaitable, Callable
-from contextlib import asynccontextmanager
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from hashlib import sha256
@@ -27,7 +26,6 @@ from app.services.provider_failures import (
     FailureScope,
     parse_retry_after,
 )
-from app.services.provider_types import ExecutionContext
 from app.workers.runner._secure_file import no_follow_flag
 from app.workers.runner.engine.egress import EgressBinding
 from app.workers.runner.engine.run_context import RunContext
@@ -213,8 +211,6 @@ class _Resident:
     directory: Path
     descriptor: int | None
     idle: asyncio.Task[None] | None = None
-    task_id: str | None = None
-    identity_digest: str | None = None
 
 
 class BrowserRuntime:
@@ -234,7 +230,7 @@ class BrowserRuntime:
         self._closed = False
 
     async def acquire(
-        self, profile: ProviderProfile, *, ctx: RunContext, task_id: str
+        self, profile: ProviderProfile, *, ctx: RunContext
     ) -> BrowserOperation:
         if self._closed or not self._settings.runner_browser_enabled:
             raise _failure()
@@ -314,7 +310,7 @@ class BrowserRuntime:
                         self._residents.pop(profile.key, None)
                         resident = None
             if resident is None:
-                resident = await self._launch(profile, ctx, task_id, authenticated)
+                resident = await self._launch(profile, ctx, authenticated)
                 if not authenticated:
                     self._residents[profile.key] = resident
             page = await resident.context.new_page()
@@ -327,32 +323,10 @@ class BrowserRuntime:
             await _finish(release(destroy=True))
             raise
 
-    @asynccontextmanager
-    async def operation(
-        self,
-        profile: ProviderProfile,
-        execution_context: ExecutionContext,
-        *,
-        ctx: RunContext,
-        cookie_jar: Path | None = None,
-    ) -> AsyncIterator[BrowserOperation]:
-        if profile.key != execution_context.provider_key or cookie_jar is not None:
-            # Account material must be supplied by fetch_identity, as IdentityMaterial.
-            raise _failure("invalid_input", status=422)
-        operation = await self.acquire(profile, ctx=ctx, task_id="operation")
-        try:
-            yield operation
-        except BaseException:
-            await _finish(operation.abort())
-            raise
-        finally:
-            await _finish(operation.close())
-
     async def _launch(
         self,
         profile: ProviderProfile,
         ctx: RunContext,
-        task_id: str,
         authenticated: bool,
     ) -> _Resident:
         descriptor = None
@@ -417,8 +391,6 @@ class BrowserRuntime:
                 browser_revision(ctx.egress),
                 directory,
                 descriptor,
-                task_id=task_id if authenticated else None,
-                identity_digest=ctx.identity.digest if ctx.identity else None,
             )
         except BaseException as error:
             if context is not None:
@@ -431,10 +403,7 @@ class BrowserRuntime:
                 raise _failure() from None
             raise
 
-    async def _destroy(self, resident: _Resident | BrowserContext) -> None:
-        if not isinstance(resident, _Resident):
-            await resident.close()
-            return
+    async def _destroy(self, resident: _Resident) -> None:
         try:
             await _finish(resident.context.close())
         finally:

@@ -8,6 +8,7 @@ from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
+from app.services.provider_failures import FailureClass
 from app.workers.runner import browser_runtime
 from app.workers.runner.browser_runtime import (
     BrowserRuntime,
@@ -15,9 +16,17 @@ from app.workers.runner.browser_runtime import (
     leased_browser_cookies,
 )
 from app.workers.runner.engine import identity
+from app.workers.runner.engine.layers.base import LayerFailure
+from app.workers.runner.engine.layers.browser import BrowserLayer
+from app.workers.runner.engine.run_context import ResolutionSource
 from app.workers.runner.errors import RunnerFailure
-from app.workers.runner.provider_registry import current_provider_registry
+from app.workers.runner.provider_registry import (
+    current_provider_registry,
+    provider_request,
+)
+from app.workers.runner.service import MediaRunnerService
 from app.workers.runner.settings import RunnerSettings
+from app.workers.runner.workspace import WorkspaceLimits, WorkspaceManager
 from helpers import run_context
 
 
@@ -40,6 +49,9 @@ class FakePage:
     async def close(self):
         if self in self.context.pages:
             self.context.pages.remove(self)
+
+    def remove_listener(self, event, callback):
+        pass
 
 
 class FakeContext:
@@ -105,7 +117,7 @@ async def test_disabled_runtime_never_touches_profile(tmp_path, chromium):
     settings = configured(tmp_path).model_copy(update={"runner_browser_enabled": False})
     runtime = BrowserRuntime(settings)
     with pytest.raises(RunnerFailure):
-        await runtime.acquire(profile(), ctx=run_context(settings), task_id="task")
+        await runtime.acquire(profile(), ctx=run_context(settings))
     assert not chromium.calls
     assert not settings.runner_browser_profile_root.exists()
 
@@ -116,7 +128,7 @@ async def test_anonymous_reuses_platform_context_and_never_injects_cookie(
     settings = configured(tmp_path)
     runtime = BrowserRuntime(settings)
     ctx = run_context(settings)
-    first = await runtime.acquire(profile(), ctx=ctx, task_id="first")
+    first = await runtime.acquire(profile(), ctx=ctx)
     assert await first.cookies() == []
     assert not chromium.contexts[0].injected
     directory, options = chromium.calls[0]
@@ -128,8 +140,8 @@ async def test_anonymous_reuses_platform_context_and_never_injects_cookie(
     assert "--autoplay-policy=user-gesture-required" in options["args"]
     await first.close()
     assert not first.context.closed and not first.context.pages
-    second = await runtime.acquire(profile(), ctx=ctx, task_id="second")
-    other = await runtime.acquire(profile("xiaohongshu"), ctx=ctx, task_id="other")
+    second = await runtime.acquire(profile(), ctx=ctx)
+    other = await runtime.acquire(profile("xiaohongshu"), ctx=ctx)
     assert second.context is first.context and other.context is not first.context
     await second.close()
     await other.close()
@@ -140,8 +152,8 @@ async def test_anonymous_reuses_platform_context_and_never_injects_cookie(
 async def test_platform_queue_counts_against_deadline(tmp_path, chromium):
     runtime = BrowserRuntime(configured(tmp_path))
     ctx = run_context(configured(tmp_path))
-    first = await runtime.acquire(profile(), ctx=ctx, task_id="first")
-    pending = asyncio.create_task(runtime.acquire(profile(), ctx=ctx, task_id="second"))
+    first = await runtime.acquire(profile(), ctx=ctx)
+    pending = asyncio.create_task(runtime.acquire(profile(), ctx=ctx))
     await asyncio.sleep(0.01)
     assert not pending.done() and len(chromium.calls) == 1
     await first.close()
@@ -150,7 +162,6 @@ async def test_platform_queue_counts_against_deadline(tmp_path, chromium):
         await runtime.acquire(
             profile(),
             ctx=replace(ctx, deadline=datetime.now(UTC) + timedelta(seconds=0.01)),
-            task_id="expired",
         )
     await second.close()
     await runtime.close()
@@ -162,16 +173,16 @@ async def test_idle_ten_minutes_releases_native_context_and_os_lock(
     settings = configured(tmp_path)
     first, second = BrowserRuntime(settings), BrowserRuntime(settings)
     ctx = run_context(settings)
-    operation = await first.acquire(profile(), ctx=ctx, task_id="first")
+    operation = await first.acquire(profile(), ctx=ctx)
     assert first.IDLE_SECONDS == 600
     monkeypatch.setattr(first, "IDLE_SECONDS", 0.05)
     await operation.close()
     with pytest.raises(RunnerFailure, match="browser capacity exhausted"):
-        await second.acquire(profile(), ctx=ctx, task_id="second")
+        await second.acquire(profile(), ctx=ctx)
     await asyncio.wait_for(chromium.cleanup_started.wait(), 1)
     await asyncio.sleep(0.01)
     assert operation.context.closed
-    fresh = await second.acquire(profile(), ctx=ctx, task_id="fresh")
+    fresh = await second.acquire(profile(), ctx=ctx)
     assert fresh.context is not operation.context
     await fresh.close()
     await first.close()
@@ -197,7 +208,7 @@ async def test_login_context_task_isolation_and_terminal_destruction(
 
     async def execute():
         nonlocal operation
-        operation = await runtime.acquire(profile(), ctx=ctx, task_id="owned-task")
+        operation = await runtime.acquire(profile(), ctx=ctx)
         try:
             started.set()
             if terminal == "cancel":
@@ -226,9 +237,7 @@ async def test_login_context_task_isolation_and_terminal_destruction(
     assert operation.context.closed
     assert not Path(chromium.calls[0][0]).exists()
     assert chromium.contexts[0].injected[0]["name"] == "sessionid"
-    anonymous = await runtime.acquire(
-        profile(), ctx=run_context(configured(tmp_path)), task_id="anonymous"
-    )
+    anonymous = await runtime.acquire(profile(), ctx=run_context(configured(tmp_path)))
     assert await anonymous.cookies() == []
     await anonymous.close()
     await runtime.close()
@@ -240,7 +249,7 @@ async def test_cancel_anonymous_destroys_before_next_owner(tmp_path, chromium):
     ready = asyncio.Event()
 
     async def execute():
-        operation = await runtime.acquire(profile(), ctx=ctx, task_id="cancel")
+        operation = await runtime.acquire(profile(), ctx=ctx)
         try:
             ready.set()
             await asyncio.Event().wait()
@@ -252,7 +261,7 @@ async def test_cancel_anonymous_destroys_before_next_owner(tmp_path, chromium):
     chromium.cleanup_allowed.clear()
     owner.cancel()
     await chromium.cleanup_started.wait()
-    pending = asyncio.create_task(runtime.acquire(profile(), ctx=ctx, task_id="next"))
+    pending = asyncio.create_task(runtime.acquire(profile(), ctx=ctx))
     await asyncio.sleep(0.01)
     assert not owner.done() and not pending.done()
     chromium.cleanup_allowed.set()
@@ -281,7 +290,7 @@ async def test_page_release_failure_still_destroys_and_releases_holder(
 ):
     runtime = BrowserRuntime(configured(tmp_path))
     ctx = run_context(configured(tmp_path))
-    operation = await runtime.acquire(profile(), ctx=ctx, task_id="first")
+    operation = await runtime.acquire(profile(), ctx=ctx)
 
     async def fail():
         raise browser_runtime.Error("connection closed")
@@ -290,7 +299,7 @@ async def test_page_release_failure_still_destroys_and_releases_holder(
     with pytest.raises(browser_runtime.Error):
         await operation.close()
     assert operation.context.closed and not runtime._residents
-    next_operation = await runtime.acquire(profile(), ctx=ctx, task_id="next")
+    next_operation = await runtime.acquire(profile(), ctx=ctx)
     await next_operation.close()
     await runtime.close()
 
@@ -302,7 +311,7 @@ async def test_anonymous_acquisition_rejects_bare_cookie_file(
     runtime = BrowserRuntime(configured(tmp_path))
     ctx = replace(run_context(configured(tmp_path)), cookie_file=tmp_path / "account")
     with pytest.raises(RunnerFailure):
-        await runtime.acquire(profile(), ctx=ctx, task_id="anonymous")
+        await runtime.acquire(profile(), ctx=ctx)
     assert chromium.calls == []
 
 
@@ -337,35 +346,43 @@ def test_browser_revision_changes_only_with_execution_configuration(tmp_path):
     )
 
 
-async def test_page_adapter_error_is_not_rewritten_as_browser_startup_failure(
-    tmp_path, chromium
+async def test_page_navigation_failure_destroys_resident_before_next_acquisition(
+    tmp_path, chromium, monkeypatch
 ):
-    from app.services.provider_types import ExecutionContext
-
     settings = configured(tmp_path)
-    runtime = BrowserRuntime(settings)
-    ctx = run_context(settings, "youtube")
-    execution_context = ExecutionContext(
-        provider_key="youtube",
-        registry_revision="test",
-        resolved_layer="L3",
-        client="test",
-        engine_revision="test",
-        egress_route=ctx.egress.route,
-        egress_revision=ctx.egress.revision,
-        egress_class=ctx.egress.egress_class,
-        egress_observed_ip=ctx.egress.observed_ip,
-        identity_used=False,
-        identity_digest=None,
-        browser_context_kind="anonymous",
+    service = MediaRunnerService(settings)
+    runtime = service._browser
+    ctx = run_context(settings, "douyin")
+    request = provider_request("https://www.douyin.com/video/1234567890")
+    workspace = WorkspaceManager(
+        settings.runner_workspace_root, WorkspaceLimits()
+    ).create("page_failure")
+    source = ResolutionSource(
+        request,
+        workspace,
+        service._inspection,
+        service._context(request),
+        ctx,
     )
-    failure = browser_runtime.Error("page structure changed")
-    with pytest.raises(browser_runtime.Error) as caught:
-        async with runtime.operation(profile("youtube"), execution_context, ctx=ctx):
-            raise failure
-    assert caught.value is failure
-    assert chromium.contexts[0].closed
-    await runtime.close()
+
+    async def navigate(operation, url):
+        raise browser_runtime.Error("page structure changed")
+
+    monkeypatch.setattr(browser_runtime.BrowserOperation, "navigate", navigate)
+    try:
+        with pytest.raises(LayerFailure) as caught:
+            await BrowserLayer().resolve(source, ctx)
+        failure = caught.value.failure
+        assert failure.failure_class is FailureClass.CHALLENGE
+        assert failure.evidence["cause_code"] == "page_navigation_failed"
+        assert chromium.contexts[0].closed
+        assert not runtime._residents
+        next_operation = await runtime.acquire(profile(), ctx=ctx)
+        assert next_operation.context is not chromium.contexts[0]
+        await next_operation.close()
+    finally:
+        await service.close()
+        workspace.cleanup()
 
 
 async def test_browser_launch_uses_injected_egress_only(tmp_path, chromium):
@@ -389,7 +406,7 @@ async def test_browser_launch_uses_injected_egress_only(tmp_path, chromium):
         settings.runner_egress_proxy,
         settings.runner_global_egress_proxy,
     )
-    operation = await runtime.acquire(profile("youtube"), ctx=ctx, task_id="injected")
+    operation = await runtime.acquire(profile("youtube"), ctx=ctx)
     assert operation.revision == browser_revision(ctx.egress)
     assert chromium.calls[-1][1]["proxy"] == {"server": ctx.egress.proxy_url}
     assert "--proxy-bypass-list=<-loopback>" in chromium.calls[-1][1]["args"]
@@ -403,7 +420,7 @@ async def test_route_upstream_revision_replaces_resident_browser(tmp_path, chrom
     settings = configured(tmp_path, egress_global_upstream_host="residential-first")
     runtime = BrowserRuntime(settings)
     ctx = run_context(settings, "youtube")
-    first = await runtime.acquire(profile("youtube"), ctx=ctx, task_id="first")
+    first = await runtime.acquire(profile("youtube"), ctx=ctx)
     assert chromium.calls[-1][1]["proxy"] == {
         "server": settings.runner_global_egress_proxy
     }
@@ -412,7 +429,7 @@ async def test_route_upstream_revision_replaces_resident_browser(tmp_path, chrom
     # R1 upstream changes must invalidate R3's persistent context even when
     # Squid's listener URL stays the same; observational IP alone does not.
     observed_ctx = replace(ctx, egress=replace(ctx.egress, observed_ip="8.8.8.8"))
-    same = await runtime.acquire(profile("youtube"), ctx=observed_ctx, task_id="same")
+    same = await runtime.acquire(profile("youtube"), ctx=observed_ctx)
     assert same.context is first.context
     await same.close()
     changed = settings.model_copy(
@@ -421,9 +438,7 @@ async def test_route_upstream_revision_replaces_resident_browser(tmp_path, chrom
     new_ctx = run_context(changed, "youtube")
     assert new_ctx.egress.proxy_url == ctx.egress.proxy_url
     assert new_ctx.egress.revision != ctx.egress.revision
-    next_operation = await runtime.acquire(
-        profile("youtube"), ctx=new_ctx, task_id="next"
-    )
+    next_operation = await runtime.acquire(profile("youtube"), ctx=new_ctx)
     assert first.context.closed
     assert next_operation.context is not first.context
     assert next_operation.revision != first.revision

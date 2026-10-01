@@ -88,7 +88,6 @@ class RunnerSettings(ProviderEgressSettings):
     runner_browser_enabled: bool = False
     runner_browser_profile_root: Path = Path("/var/lib/video-browser")
     runner_browser_temp_root: Path = Path("/tmp/video-browser")
-    runner_browser_lock_wait_seconds: float = Field(default=5, gt=0, le=30)
     runner_browser_launch_timeout_seconds: float = Field(default=30, gt=0, le=60)
     runner_browser_page_timeout_seconds: float = Field(default=45, gt=0, le=120)
     runner_browser_max_profile_bytes: int = Field(
