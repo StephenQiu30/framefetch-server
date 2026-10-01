@@ -228,4 +228,7 @@ def test_registry_permissions_cover_every_identity_platform():
         if profile.identity is not ProviderIdentity.NONE:
             assert profile.cookie_domain_allowlist
             assert set(profile.cookie_domain_allowlist) <= domains
-    assert {"kuaishou.com", "weibo.com", "hongguoduanju.com"} <= domains
+    assert {"kuaishou.com", "weibo.com", "channels.weixin.qq.com"} <= domains
+    assert (
+        not {"hongguoduanju.com", "novelquickapp.com", "yuanbao.tencent.com"} & domains
+    )
