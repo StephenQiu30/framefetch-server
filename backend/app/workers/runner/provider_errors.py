@@ -76,7 +76,7 @@ PROVIDER_FAILURE_RULES: tuple[FailureRule, ...] = (
     ),
     *(
         FailureRule(
-            "content_unavailable",
+            "content_protected",
             422,
             any_stderr=(f"framefetch {reason.value}".encode(),),
             providers=frozenset(
@@ -91,13 +91,13 @@ PROVIDER_FAILURE_RULES: tuple[FailureRule, ...] = (
         for reason in ContentRestriction
     ),
     FailureRule(
-        "content_unavailable",
+        "content_protected",
         422,
         any_stderr=(b"only the preview will be extracted",),
         providers=frozenset({ProviderKey.BILIBILI}),
     ),
     FailureRule(
-        "content_unavailable",
+        "content_protected",
         422,
         any_stderr=(b"this is a supporter-only video",),
         providers=frozenset({ProviderKey.BILIBILI}),

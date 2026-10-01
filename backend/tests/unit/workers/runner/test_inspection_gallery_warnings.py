@@ -77,7 +77,7 @@ async def test_gallery_assets_do_not_override_paid_content_restrictions(
     warning = f"FrameFetch {reason.value}".encode() + b"\n" + WARNING
     with pytest.raises(RunnerFailure) as caught:
         await commands(tmp_path, gallery(), warning).inspect(URL, tmp_path)
-    assert caught.value.code == "content_unavailable"
+    assert caught.value.code == "content_protected"
 
 
 @pytest.mark.parametrize(
