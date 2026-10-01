@@ -423,12 +423,18 @@ class MediaCommands:
             egress_proxy=command.egress_proxy,
             failure_context=command.failure_context,
         )
-        if (
-            not output.is_file()
-            or output.is_symlink()
-            or output.stat().st_size > self._settings.runner_max_probe_sample_bytes
-        ):
-            raise RunnerFailure("inspection_failed", status=502)
+        if output.is_symlink():
+            raise RunnerFailure(
+                "inspection_failed", status=502, cause_code="probe_sample_symlink"
+            )
+        if not output.is_file():
+            raise RunnerFailure(
+                "inspection_failed", status=502, cause_code="probe_sample_missing"
+            )
+        if output.stat().st_size > self._settings.runner_max_probe_sample_bytes:
+            raise RunnerFailure(
+                "inspection_failed", status=502, cause_code="probe_sample_too_large"
+            )
 
     async def remux(
         self,

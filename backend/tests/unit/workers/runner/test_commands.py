@@ -2,10 +2,12 @@ from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
 from pathlib import Path
+from unittest.mock import AsyncMock
 
 import httpx
 import pytest
 from app.services.downloads.rules.enums import Container
+from app.services.provider_failures import FailurePhase
 from app.workers.runner import commands as commands_module
 from app.workers.runner.errors import RunnerFailure
 from app.workers.runner.process import ProcessResult
@@ -65,6 +67,83 @@ class SuccessfulWarningSupervisor:
     ) -> ProcessResult:
         del cwd, timeout_seconds, env
         return ProcessResult(0, self.stdout, self.stderr, False, False)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("sample_state", "cause_code"),
+    [
+        ("missing", "probe_sample_missing"),
+        ("symlink", "probe_sample_symlink"),
+        ("broken_symlink", "probe_sample_symlink"),
+        ("too_large", "probe_sample_too_large"),
+    ],
+)
+async def test_probe_sample_invalid_output_has_safe_specific_evidence(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    sample_state: str,
+    cause_code: str,
+) -> None:
+    configured = settings(tmp_path)
+    output = tmp_path / "probe-sample.mp4"
+    if sample_state in {"symlink", "broken_symlink"}:
+        target = tmp_path / "target.mp4"
+        if sample_state == "symlink":
+            target.write_bytes(b"sample")
+        output.symlink_to(target)
+    elif sample_state == "too_large":
+        with output.open("wb") as stream:
+            stream.truncate(configured.runner_max_probe_sample_bytes + 1)
+    commands = MediaCommands(configured, RecordingSupervisor())
+    successful_download = AsyncMock(
+        return_value=ProcessResult(0, b"", b"", False, False)
+    )
+    monkeypatch.setattr(commands, "_run", successful_download)
+
+    with pytest.raises(RunnerFailure) as caught:
+        await commands.download_probe_sample(
+            "https://t.me/europa_press/18586", "0", output, tmp_path
+        )
+
+    error = caught.value.during(FailurePhase.PROBE_MEDIA)
+    assert (error.code, error.status, error.failure.gate, error.failure.stage) == (
+        "inspection_failed",
+        502,
+        "②",
+        "validate",
+    )
+    assert error.failure.evidence == {
+        "kind": "local_validation",
+        "cause_code": cause_code,
+    }
+    argv = successful_download.call_args.args[0]
+    assert argv[argv.index("--max-filesize") + 1] == str(
+        configured.runner_max_probe_sample_bytes
+    )
+    assert successful_download.call_args.kwargs["workspace_limit_bytes"] == (
+        configured.runner_max_probe_sample_bytes
+    )
+
+
+@pytest.mark.asyncio
+async def test_probe_sample_at_size_limit_is_accepted(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    configured = settings(tmp_path)
+    output = tmp_path / "probe-sample.mp4"
+    with output.open("wb") as stream:
+        stream.truncate(configured.runner_max_probe_sample_bytes)
+    commands = MediaCommands(configured, RecordingSupervisor())
+    monkeypatch.setattr(
+        commands,
+        "_run",
+        AsyncMock(return_value=ProcessResult(0, b"", b"", False, False)),
+    )
+
+    await commands.download_probe_sample(
+        "https://t.me/europa_press/18586", "0", output, tmp_path
+    )
 
 
 @pytest.mark.asyncio
