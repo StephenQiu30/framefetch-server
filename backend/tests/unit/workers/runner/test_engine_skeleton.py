@@ -8,7 +8,6 @@ from pathlib import Path
 import pytest
 from app.services.provider_failures import FailureClass
 from app.services.provider_types import EgressRoute, Layer, ProviderKey
-from app.workers.identity.cookie_source import fetch_identity as host_identity
 from app.workers.runner.engine.egress import resolve_egress
 from app.workers.runner.engine.identity import fetch_identity
 from app.workers.runner.engine.ladder import run_ladder
@@ -186,10 +185,9 @@ async def test_both_runner_operations_enter_run_ladder(
     assert list(tmp_path.iterdir()) == []
 
 
-@pytest.mark.parametrize("identity", [fetch_identity, host_identity])
-async def test_identity_stubs_fail_closed(identity):
+async def test_expired_identity_request_fails_closed():
     with pytest.raises(LayerFailure) as caught:
-        await identity("instagram", "task", datetime.now(UTC))
+        await fetch_identity("instagram", "task", datetime.now(UTC))
     assert caught.value.failure.failure_class is FailureClass.IDENTITY_UNAVAILABLE
 
 

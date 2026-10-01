@@ -181,7 +181,21 @@ createdb -O framefetch_temporal framefetch_temporal_visibility
 
 ### 平台身份与升级
 
-R0 只保留匿名 L1，不提供旧宿主来源安装命令或 broker。身份层的 cookie-source、Chrome 读取与任务注入在[设计 17 第 3.4 节](docs/design/17-解析引擎重建.md#34-身份层)规定，待 R4 实现后发布运行命令。匿名任务遇到登录要求时返回明确失败；不会启动身份服务。
+宿主身份服务位于 `backend/app/workers/identity/`，遵循[设计 17 第 3.4 节](docs/design/17-解析引擎重建.md#34-身份层)。它仅监听 `127.0.0.1:19101` 的 `POST /cookies`，要求 Bearer 令牌；业务 API/worker 不得持有该令牌。每次请求查询登录钥匙串锁状态，密钥仅在内存缓存；读取任务放在 launchd `user/<uid>` 域的 Background 会话中，实际子进程检查 `SessionGetInfo` 无图形访问位后才执行固定的 `/usr/bin/security` 命令（5 秒超时）。拒绝或超时不会解锁、修改 ACL 或回退图形会话。
+
+从 `backend/` 使用独立的宿主 `0600` 配置文件，包含随机 `COOKIE_SOURCE_TOKEN`（至少 32 个无空白 ASCII 字节）、可选的 `COOKIE_SOURCE_PORT` 与固定 `COOKIE_SOURCE_CHROME_PROFILE`；默认 Profile 为当前用户的 Chrome `Default`。不要修改现有部署环境文件，不要把身份配置文件提交或给业务容器加载。
+
+```bash
+uv run python -m app.workers.identity.cli doctor --env-file /绝对路径/identity.env
+uv run python -m app.workers.identity.cli install --env-file /绝对路径/identity.env
+uv run python -m app.workers.identity.cli uninstall
+```
+
+`install` 注册当前用户的 LaunchAgent（Background、独立安全会话），不会覆盖已有安装；`uninstall` 停止并移除它。前台调试使用 `run --env-file ...`，服务不输出访问日志、Cookie 或密钥。`doctor` 只输出锁状态、子进程会话属性与站点材料可用性；材料可用不代表账号仍有效或平台已通过完整文件验收。
+
+Runner 的 `fetch_identity(site, task_id, deadline)` 保持设计 17 接口，返回操作私有的 `IdentityMaterial(cookie_file, digest)`。文件只能写入实际 Linux tmpfs 下的 `video-identity` 私有目录（目录 `0700`、文件 `0600`）；`IdentityOperation` 按 required 每次、optional 在登录证据后一次、none 永不注入管理材料，退出时删除。Runner 启动时必须在接单前调用 `initialize_identity_tmpfs()` 清除异常退出残留。材料摘要只计算必要账号 Cookie 的稳定 HMAC，忽略访客 Cookie 与过期时间续期；目前核对了 Instagram 的 `sessionid` 等和腾讯提取器的 `v_vuserid`/`v_vusession` 等输入，其他平台必要账号字段尚未核对，明确返回 `identity_cookie_rules_unverified`。Cookie 仍只返回 Registry 已声明域，身份不放宽内容范围。
+
+**R4 当前未验收、未接入正式链路。** 本机登录钥匙串状态为已解锁，但已确认无图形访问位的读取子进程仍返回 `keychain_read_denied`，按任务约束停止，不采用图形回退；Chrome 登录状态未能确认。当前 Runner 的内部网络访问宿主端口返回 `Network is unreachable`。共享 Compose 需要由集成方保留出口边界并修通此端口，且只向 session-runner 注入令牌；R2 阶梯与 Runner lifespan 尚需调用上述注入和清理钩子。本文命令只能用于专项验证，不代表 Instagram／腾讯视频已经可以下载。
 
 升级前暂停接单并排空媒体操作，备份业务库，幂等执行当前 schema.sql，再配套重建 API、worker、session-runner 与前端。移除旧 broker 由 Compose 的 `--remove-orphans` 完成，不删除用户业务记录或制品。生产入口：
 

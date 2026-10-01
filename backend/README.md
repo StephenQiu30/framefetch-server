@@ -6,7 +6,7 @@ FastAPI API、下载/分析领域逻辑、异步 Worker、当前态数据库 SQL
 
 ## 解析引擎
 
-R0 仅运行匿名 L1 yt-dlp 与可信插件，保留单个 session-runner、egress-proxy、现有 bgutil 与 browser_runtime。身份层与浏览器阶梯在[设计 17](../docs/design/17-解析引擎重建.md)的 R4、R3 中重建；旧 broker、密封、会话代和来源 CLI 已删除，当前不启用 cookie-source。
+正式运行基线仍为 P0 的匿名 L1 yt-dlp 与可信插件，保留单个 session-runner、egress-proxy、现有 bgutil 与 browser_runtime。R4 宿主 `workers/identity/` 提供独立 CLI、LaunchAgent 和 Bearer Cookie 服务，已删除旧 `workers/session/` 读取残留；Runner 身份传输与操作清理位于 `workers/runner/engine/identity.py`。运行命令、真实阻塞和未接入的共享启动／网络钩子见[根 README 的身份说明](../README.md#平台身份与升级)，架构与验收以[设计 17](../docs/design/17-解析引擎重建.md)为准。当前没有已验收的登录平台完整下载能力。
 
 Runner 安装锁定的 Playwright/Chromium，browser_profiles 卷只保存浏览器原生状态；保留组件不代表已启用 L3。ExecutionContext 按设计 17 第 3.7 节保存十二字段非敏感摘要；任务目录、进程组取消、媒体校验与出口边界继续保留。公开样本位于 scripts/fixtures/fixed_public_cases.json。
 

@@ -1,4 +1,4 @@
-"""One isolated, bounded Chrome read. stdout is a private, site-scoped pipe."""
+"""yt-dlp owns Chrome extraction; its UI-capable key lookup is never called."""
 
 from __future__ import annotations
 
@@ -12,46 +12,45 @@ from app.workers.runner.netscape_cookie import (
     is_allowed_domain,
     serialize_cookies,
 )
-from app.workers.runner.provider_registry import (
-    current_provider_registry,
-    provider_profile_for_key,
-)
-from app.workers.session.macos_keychain import (
-    KeychainUnavailable,
-    chrome_storage_password,
-)
+from app.workers.runner.provider_registry import provider_profile_for_key
 
 
 class _QuietLogger:
     def __init__(self) -> None:
         self.failed = False
-        self.warned = False
+        self.decryption_failed = False
 
     def debug(self, *args: object, **kwargs: object) -> None:
         pass
 
     info = debug
 
-    def warning(self, *args: object, **kwargs: object) -> None:
-        self.warned = True
+    def warning(self, message: str, *args: object, **kwargs: object) -> None:
+        if "decrypt" in message.casefold():
+            self.decryption_failed = True
 
     def error(self, *args: object, **kwargs: object) -> None:
         self.failed = True
 
 
-def read_cookies(profile: Path, site: str) -> bytes:
-    # yt-dlp owns extraction and decryption. Replace only its UI-capable key
-    # lookup in this isolated child with an OS read that refuses interaction.
+def read_cookies(profile: Path, site: str, password: bytes) -> bytes:
     import yt_dlp.cookies as cookies  # type: ignore[import-untyped]
 
-    password = chrome_storage_password()
+    if not profile.is_dir() or not (profile / "Cookies").is_file():
+        raise FileNotFoundError("chrome_profile_missing")
+    original = cookies._get_mac_keyring_password
     cookies._get_mac_keyring_password = lambda *args: password
     logger = _QuietLogger()
-    jar = cookies.extract_cookies_from_browser(
-        "chrome", profile=str(profile), logger=logger
-    )
+    try:
+        jar = cookies.extract_cookies_from_browser(
+            "chrome", profile=str(profile), logger=logger
+        )
+    finally:
+        cookies._get_mac_keyring_password = original
     if logger.failed:
         raise ValueError("source_read_failed")
+    if logger.decryption_failed:
+        raise ValueError("cookie_decryption_failed")
     target = provider_profile_for_key(site)
     selected = [
         item
@@ -61,30 +60,28 @@ def read_cookies(profile: Path, site: str) -> bytes:
         and (item.expires is None or item.expires > time.time())
         and has_safe_cookie_fields(item)
     ]
+    if not selected:
+        raise LookupError("site_not_logged_in")
     return serialize_cookies(selected)
 
 
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--profile", type=Path, required=True)
-    parser.add_argument(
-        "--site",
-        choices=[
-            p.key
-            for p in current_provider_registry().profiles
-            if p.cookie_domain_allowlist
-        ],
-        required=True,
-    )
+    parser.add_argument("--site", required=True)
     args = parser.parse_args()
+    # A private stdin pipe carries the cached storage password. Never argv/env/disk.
+    password = sys.stdin.buffer.read(16385)
+    if not 0 < len(password) <= 16384:
+        return 65
     try:
-        payload = read_cookies(args.profile, args.site)
-    except KeychainUnavailable as exc:
-        return 77 if exc.access_denied else 65
+        payload = read_cookies(args.profile, args.site, password)
     except FileNotFoundError:
         return 66
     except LookupError:
         return 67
+    except ValueError as error:
+        return 68 if str(error) == "cookie_decryption_failed" else 65
     except Exception:
         return 65
     sys.stdout.buffer.write(payload)
