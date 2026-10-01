@@ -5,7 +5,6 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 
-from app.services.provider_types import ProviderAccessMode
 from app.workers.runner.errors import RunnerFailure
 from app.workers.runner.provider_errors import ProviderFailureContext
 from app.workers.runner.provider_registry import ProviderRequest, provider_request
@@ -124,12 +123,8 @@ class YtDlpCommandBuilder:
         include_playlist: bool = False,
     ) -> BuiltYtDlpCommand:
         profile = request.profile
-        # The access context already admitted the jar from the session broker.
-        if (
-            cookie_jar is not None
-            and self._settings.runner_access_mode is ProviderAccessMode.ANONYMOUS
-        ):
-            raise RunnerFailure("provider_session_not_allowed", status=422)
+        if cookie_jar is not None:
+            raise RunnerFailure("invalid_input", status=422)
         egress_proxy = self._settings.egress_proxy_for(profile.key)
         command: tuple[str, ...] = (
             self._settings.runner_ytdlp_bin,
@@ -154,8 +149,6 @@ class YtDlpCommandBuilder:
         )
         if not include_playlist:
             command += ("--no-playlist",)
-        if cookie_jar is not None:
-            command += ("--cookies", str(cookie_jar))
         command += (*operation_args, *profile.command_args_for(self._settings))
         if include_source:
             command += ("--", request.request_url)
@@ -163,7 +156,7 @@ class YtDlpCommandBuilder:
             argv=command,
             request=request,
             egress_proxy=egress_proxy,
-            authenticated=cookie_jar is not None,
+            authenticated=False,
         )
 
     @staticmethod

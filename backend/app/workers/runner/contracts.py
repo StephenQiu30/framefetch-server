@@ -1,9 +1,9 @@
 from __future__ import annotations
 
-import re
 from dataclasses import asdict
+from datetime import UTC, datetime
 from enum import StrEnum
-from typing import Self
+from typing import Literal, Self
 
 from app.services.downloads.rules.enums import (
     AudioCodecFamily,
@@ -28,15 +28,13 @@ from app.services.provider_failures import (
     FailureScope,
     ProviderFailure,
 )
-from app.services.provider_types import ProviderAccessContextRef, ProviderAccessMode
+from app.services.provider_types import ExecutionContext
 from pydantic import (
     AwareDatetime,
     BaseModel,
     ConfigDict,
     Field,
-    SerializerFunctionWrapHandler,
     field_validator,
-    model_serializer,
     model_validator,
 )
 
@@ -56,11 +54,16 @@ class ProviderFailureContract(ContractModel):
     failure_class: FailureClass
     evidence_kind: FailureEvidenceKind
     observed_at: AwareDatetime
-    strategy_id: str | None = Field(default=None, max_length=128)
-    context_key: str | None = Field(default=None, pattern=r"^[0-9a-f]{64}$")
     retry_after: AwareDatetime | None = None
     diagnostic_ref: str | None = Field(default=None, max_length=128)
     cause_code: str | None = Field(default=None, pattern=r"^[a-z][a-z0-9_]{0,63}$")
+    layer: str = Field(default="L1", pattern=r"^L[123]$")
+    stage: str = Field(
+        default="resolve", pattern=r"^(resolve|download|validate|publish)$"
+    )
+    summary: str = Field(default="", max_length=256)
+    gate: Literal["①", "②", "③", "none"] = "none"
+    evidence: dict[str, str | int | bool | None] = Field(default_factory=dict)
 
     def to_domain(self) -> ProviderFailure:
         return ProviderFailure(**self.model_dump())
@@ -88,85 +91,31 @@ class ProviderHintsContract(ContractModel):
     audio_id: str | None = Field(default=None, max_length=128)
 
 
-class ProviderAccessContextContract(ContractModel):
+class ExecutionContextContract(ContractModel):
     provider_key: str = Field(pattern=r"^[a-z][a-z0-9_-]{0,31}$")
-    profile_version: str = Field(min_length=1, max_length=128)
-    access_mode: ProviderAccessMode
-    credential_version_id: str | None = Field(default=None, max_length=128)
-    egress_affinity_id: str = Field(min_length=1, max_length=128)
-    client_profile_id: str = Field(min_length=1, max_length=128)
-    attestation_provider_version: str | None = Field(default=None, max_length=128)
-    engine_commit: str = Field(min_length=1, max_length=128)
-    runtime_revision: str | None = Field(default=None, pattern=r"^[0-9a-f]{64}$")
-    strategy_id: str | None = Field(default=None, max_length=128)
-    adapter_revision: str | None = Field(default=None, max_length=128)
-    session_source_id: str | None = Field(default=None, max_length=128)
-    browser_context_revision: str | None = Field(default=None, max_length=128)
-    protocol_capabilities: tuple[str, ...] = Field(default=(), max_length=32)
-    egress_observation_ref: str | None = Field(default=None, max_length=128)
+    resolved_layer: str = Field(pattern=r"^L[123]$")
+    egress_route: str = Field(min_length=1, max_length=128)
+    client: str = Field(min_length=1, max_length=128)
+    registry_revision: str = Field(min_length=1, max_length=128)
+    egress_revision: str = Field(min_length=1, max_length=128)
+    egress_class: Literal["unknown", "residential", "datacenter"]
+    egress_observed_ip: str | None
+    identity_digest: str | None
+    browser_context_kind: Literal["none", "anonymous", "authenticated"]
+    identity_used: bool
+    engine_revision: str = Field(min_length=1, max_length=128)
 
     @model_validator(mode="after")
     def _valid_context(self) -> Self:
         self.to_domain()
         return self
 
-    @model_serializer(mode="wrap")
-    def _serialize(self, handler: SerializerFunctionWrapHandler) -> dict[str, object]:
-        document: dict[str, object] = handler(self)
-        if self.runtime_revision is None:
-            document.pop("runtime_revision", None)
-        if self.strategy_id is None:
-            for name in (
-                "strategy_id",
-                "adapter_revision",
-                "session_source_id",
-                "browser_context_revision",
-                "protocol_capabilities",
-                "egress_observation_ref",
-            ):
-                document.pop(name, None)
-        return document
-
-    def to_domain(self) -> ProviderAccessContextRef:
-        return ProviderAccessContextRef(
-            provider_key=self.provider_key,
-            profile_version=self.profile_version,
-            access_mode=self.access_mode,
-            credential_version_id=self.credential_version_id,
-            egress_affinity_id=self.egress_affinity_id,
-            client_profile_id=self.client_profile_id,
-            attestation_provider_version=self.attestation_provider_version,
-            engine_commit=self.engine_commit,
-            runtime_revision=self.runtime_revision or "legacy",
-            strategy_id=self.strategy_id,
-            adapter_revision=self.adapter_revision,
-            session_source_id=self.session_source_id,
-            browser_context_revision=self.browser_context_revision,
-            protocol_capabilities=self.protocol_capabilities,
-            egress_observation_ref=self.egress_observation_ref,
-        )
+    def to_domain(self) -> ExecutionContext:
+        return ExecutionContext.from_document(self.model_dump())
 
     @classmethod
-    def from_domain(cls, value: ProviderAccessContextRef) -> Self:
-        return cls(
-            provider_key=value.provider_key,
-            profile_version=value.profile_version,
-            access_mode=value.access_mode,
-            credential_version_id=value.credential_version_id,
-            egress_affinity_id=value.egress_affinity_id,
-            client_profile_id=value.client_profile_id,
-            attestation_provider_version=value.attestation_provider_version,
-            engine_commit=value.engine_commit,
-            runtime_revision=(
-                None if value.runtime_revision == "legacy" else value.runtime_revision
-            ),
-            strategy_id=value.strategy_id,
-            adapter_revision=value.adapter_revision,
-            session_source_id=value.session_source_id,
-            browser_context_revision=value.browser_context_revision,
-            protocol_capabilities=value.protocol_capabilities,
-            egress_observation_ref=value.egress_observation_ref,
-        )
+    def from_domain(cls, value: ExecutionContext) -> Self:
+        return cls.model_validate(value.to_document())
 
 
 class DownloadPlanContract(ContractModel):
@@ -252,80 +201,25 @@ class DownloadOption(ContractModel):
 
 
 class InspectRequest(ContractModel):
-    strategy_id: str = Field(min_length=1, max_length=128)
-    plan_revision: str = Field(pattern=r"^[0-9a-f]{64}$")
-    operation_id: str | None = Field(default=None, pattern=r"^[0-9a-f]{64}$")
+    deadline: AwareDatetime
+    issued_at: AwareDatetime = Field(default_factory=lambda: datetime.now(UTC))
+    cleanup_token: str | None = Field(default=None, pattern=r"^[0-9a-f]{32}$")
+    task_id: str = Field(pattern=r"^[A-Za-z0-9_-]{1,64}$")
     url: str = Field(min_length=1, max_length=4096)
-    access_context: ProviderAccessContextContract
-    deadline_at: AwareDatetime | None = None
-
-    @model_validator(mode="after")
-    def _selected_strategy(self) -> Self:
-        if self.access_context.strategy_id != self.strategy_id:
-            raise ValueError("inspection strategy differs from context")
-        if self.operation_id is not None and self.deadline_at is None:
-            raise ValueError("durable inspection requires a deadline")
-        return self
-
-
-class InspectionOperationResponse(ContractModel):
-    status: str = Field(
-        pattern=r"^(active|succeeded|failed|cancelled|outcome_unknown)$"
-    )
-    result: InspectResponse | None = None
-    failure: ProviderFailureContract | None = None
-
-    @model_validator(mode="after")
-    def _receipt(self) -> Self:
-        if (self.status == "succeeded") != (self.result is not None):
-            raise ValueError("inspection receipt result mismatch")
-        if self.status in {"failed", "cancelled"} and self.failure is None:
-            raise ValueError("inspection failure receipt missing")
-        return self
-
-
-class ProviderContextRequest(ContractModel):
-    access_mode: ProviderAccessMode | None = None
-    strategy_id: str | None = Field(
-        default=None, pattern=r"^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$"
-    )
-    plan_revision: str | None = Field(default=None, pattern=r"^[0-9a-f]{64}$")
-    # The URL, not the provider key: a site session is keyed by the URL's site.
-    url: str = Field(min_length=1, max_length=4096)
-
-    @model_validator(mode="after")
-    def _selected_route(self) -> Self:
-        if (self.strategy_id is None) != (self.plan_revision is None):
-            raise ValueError("selected context requires its plan revision")
-        return self
-
-
-class ProviderContextsRequest(ContractModel):
-    access_mode: ProviderAccessMode | None = None
-    provider_keys: list[str] = Field(min_length=1, max_length=64)
-
-    @field_validator("provider_keys")
-    @classmethod
-    def validate_provider_keys(cls, value: list[str]) -> list[str]:
-        if len(set(value)) != len(value) or any(
-            re.fullmatch(r"[a-z][a-z0-9_-]{0,31}", key) is None for key in value
-        ):
-            raise ValueError("provider keys are invalid")
-        return value
-
-
-class ProviderContextsResponse(ContractModel):
-    contexts: list[ProviderAccessContextContract]
+    execution_context: ExecutionContextContract | None = None
 
 
 class InspectResponse(ContractModel):
     media: MediaSummary
     streams: list[CandidateStreamContract]
     options: list[DownloadOption]
-    access_context: ProviderAccessContextContract
+    execution_context: ExecutionContextContract
 
 
 class DownloadRequest(ContractModel):
+    deadline: AwareDatetime | None = None
+    issued_at: AwareDatetime = Field(default_factory=lambda: datetime.now(UTC))
+    cleanup_token: str | None = Field(default=None, pattern=r"^[0-9a-f]{32}$")
     task_id: str = Field(pattern=r"^[A-Za-z0-9_-]{1,64}$")
     url: str = Field(min_length=1, max_length=4096)
     expected_provider_media_id: str = Field(min_length=1, max_length=256)
@@ -333,7 +227,7 @@ class DownloadRequest(ContractModel):
     plan: DownloadPlanContract | None = None
     media_kind: MediaKind = MediaKind.VIDEO
     asset_count: int = Field(default=0, ge=0, le=1000)
-    access_context: ProviderAccessContextContract
+    execution_context: ExecutionContextContract
 
     @model_validator(mode="after")
     def validate_media_plan(self) -> DownloadRequest:
@@ -392,6 +286,7 @@ class CancelCommand(ContractModel):
 
 
 class CancelResponse(ContractModel):
+    cleanup_token: str | None = Field(default=None, pattern=r"^[0-9a-f]{32}$")
     task_id: str
     status: str = "stopped"
 

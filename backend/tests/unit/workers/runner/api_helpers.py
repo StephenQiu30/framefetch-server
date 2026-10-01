@@ -2,23 +2,24 @@ from __future__ import annotations
 
 import sys
 import time
-from datetime import datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
-from app.services.provider_types import ProviderAccessContextRef, ProviderAccessMode
+from app.services.provider_types import ExecutionContext
 from app.workers.runner.contracts import (
     CancelResponse,
     DownloadRequest,
     DownloadResponse,
+    ExecutionContextContract,
     InspectResponse,
     MediaSummary,
-    ProviderAccessContextContract,
     RunnerTaskStage,
     TaskStatusResponse,
 )
-from app.workers.runner.settings import RunnerSettings, egress_affinity_id
+from app.workers.runner.provider_registry import provider_request
+from app.workers.runner.service import MediaRunnerService
+from app.workers.runner.settings import RunnerSettings
 from app.workers.runner.signing import HmacRequestAuthenticator, InMemoryNonceGuard
-from app.workers.runner.version import YTDLP_ENGINE_COMMIT
 
 SECRET = "runner-shared-secret-material-at-least-32-bytes"
 
@@ -26,50 +27,21 @@ SECRET = "runner-shared-secret-material-at-least-32-bytes"
 class FakeService:
     def __init__(self) -> None:
         self.inspected_url: str | None = None
-        self.inspected_context: ProviderAccessContextRef | None = None
-        self.inspect_deadline: datetime | None = None
-        self.context_requests: list[str] = []
-        self.prepared_route: (
-            tuple[ProviderAccessMode | None, str | None, str | None] | None
-        ) = None
+        self.inspected_context: ExecutionContext | None = None
         self.download_request: DownloadRequest | None = None
         self.cancelled: list[str] = []
         self.status_requests: list[str] = []
-
-    async def context(
-        self,
-        url: str,
-        *,
-        access_mode=None,
-        strategy_id: str | None = None,
-        plan_revision: str | None = None,
-    ) -> ProviderAccessContextRef:
-        self.context_requests.append(url)
-        self.prepared_route = access_mode, strategy_id, plan_revision
-        return ProviderAccessContextRef.from_document(anonymous_access_context())
-
-    async def contexts_for_providers(
-        self, provider_keys: tuple[str, ...], *, access_mode=None
-    ) -> tuple[ProviderAccessContextRef, ...]:
-        self.context_requests.extend(provider_keys)
-        return tuple(
-            ProviderAccessContextRef.from_document(anonymous_access_context())
-            for _ in provider_keys
-        )
 
     async def inspect(
         self,
         url: str,
         *,
-        access_context: ProviderAccessContextRef | None = None,
-        deadline_at: datetime | None = None,
-        strategy_id: str | None = None,
-        plan_revision: str | None = None,
-        operation_id: str | None = None,
+        execution_context: ExecutionContext | None = None,
+        task_id: str | None = None,
+        deadline: datetime | None = None,
     ) -> InspectResponse:
         self.inspected_url = url
-        self.inspected_context = access_context
-        self.inspect_deadline = deadline_at
+        self.inspected_context = execution_context
         return InspectResponse(
             media=MediaSummary(
                 provider_media_id="fixture-id",
@@ -79,7 +51,7 @@ class FakeService:
             ),
             streams=[],
             options=[],
-            access_context=ProviderAccessContextContract.model_validate(
+            execution_context=ExecutionContextContract.model_validate(
                 anonymous_access_context()
             ),
         )
@@ -125,31 +97,21 @@ def settings(tmp_path: Path) -> RunnerSettings:
 
 
 def anonymous_access_context() -> dict[str, object]:
-    return {
-        "provider_key": "generic",
-        "profile_version": "default",
-        "access_mode": "anonymous",
-        "credential_version_id": None,
-        "egress_affinity_id": egress_affinity_id("default", "http://egress-proxy:3128"),
-        "client_profile_id": "yt-dlp-default",
-        "attestation_provider_version": None,
-        "engine_commit": YTDLP_ENGINE_COMMIT,
-        "runtime_revision": "a" * 64,
-        "strategy_id": "yt-dlp-anonymous",
-        "adapter_revision": "default",
-        "session_source_id": None,
-        "browser_context_revision": None,
-        "protocol_capabilities": ["http-media"],
-        "egress_observation_ref": None,
-    }
+    configured = settings(Path("/tmp/runner-fixture"))
+    return (
+        MediaRunnerService(configured)
+        ._context(provider_request("https://media.example.com/video"))
+        .to_document()
+    )
 
 
 def inspect_document(url: str, **facts) -> dict[str, object]:
     return {
+        "task_id": "parse_fixture",
+        "deadline": (datetime.now(UTC) + timedelta(seconds=120)).isoformat(),
+        "issued_at": datetime.now(UTC).isoformat(),
         "url": url,
-        "strategy_id": "yt-dlp-anonymous",
-        "plan_revision": "a" * 64,
-        "access_context": anonymous_access_context(),
+        "execution_context": anonymous_access_context(),
         **facts,
     }
 
@@ -172,7 +134,7 @@ def signed_headers(
     instance = (
         instance_id
         if path in {"/internal/inspect", "/internal/download"}
-        or path.startswith("/internal/inspection-operations/")
+        or path.endswith("/cancel")
         else None
     )
     signature = signer.sign(

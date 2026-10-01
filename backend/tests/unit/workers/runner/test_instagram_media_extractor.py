@@ -57,7 +57,6 @@ async def test_photo_pipeline_skips_video_probes_and_downloads_zip(tmp_path) -> 
     from unittest.mock import AsyncMock
     from zipfile import ZipFile
 
-    from app.services.provider_types import ProviderAccessMode
     from app.workers.runner.gallery import download_gallery_zip
     from app.workers.runner.inspection_pipeline import RunnerInspectionPipeline
     from app.workers.runner.provider_registry import provider_request
@@ -93,8 +92,7 @@ async def test_photo_pipeline_skips_video_probes_and_downloads_zip(tmp_path) -> 
             workspace,
             context=SimpleNamespace(
                 provider_key="instagram",
-                access_mode=ProviderAccessMode.ANONYMOUS,
-                strategy_id=None,
+                identity_used=False,
             ),
             cookie_jar=None,
         )

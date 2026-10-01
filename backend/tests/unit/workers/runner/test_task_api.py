@@ -20,14 +20,12 @@ def test_cancel_is_authenticated_and_idempotent(tmp_path: Path) -> None:
         )
 
     assert [response.status_code for response in responses] == [200, 200]
-    assert (
-        responses[0].json()
-        == responses[1].json()
-        == {
-            "task_id": "job_123",
-            "status": "stopped",
-        }
-    )
+    for response in responses:
+        facts = response.json()
+        assert facts["task_id"] == "job_123"
+        assert facts["status"] == "stopped"
+        assert len(facts["cleanup_token"]) == 32
+    assert responses[0].json()["cleanup_token"] != responses[1].json()["cleanup_token"]
     assert service.cancelled == ["job_123", "job_123"]
 
 

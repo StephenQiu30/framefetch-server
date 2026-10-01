@@ -3,7 +3,6 @@ from __future__ import annotations
 import subprocess
 import sys
 from pathlib import Path
-from types import SimpleNamespace
 from typing import Any
 
 import pytest
@@ -86,52 +85,12 @@ def test_public_share_without_direct_media_requires_the_declared_session(
     extractor, requests = configured_extractor(monkeypatch, [feed_payload()])
     monkeypatch.setattr(extractor, "_get_cookies", lambda _url: {})
 
-    with pytest.raises(ExtractorError, match="credential_required"):
+    with pytest.raises(ExtractorError, match="login_required"):
         extractor._real_extract(SHARE_URL)
 
     assert requests == [
         "https://channels.weixin.qq.com/finder-preview/api/feed/get_feed_info"
     ]
-
-
-def test_declared_yuanbao_session_resolves_public_share_media(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    extractor, requests = configured_extractor(
-        monkeypatch,
-        [
-            feed_payload(),
-            {
-                "code": 0,
-                "data": {
-                    "playable_url": (
-                        "https://channels.weixin.qq.com/finder-preview/pages/feed"
-                        "?token=public-token&eid=export-id"
-                    )
-                },
-            },
-            feed_payload(video_url=MEDIA_URL),
-        ],
-    )
-
-    def cookies(url: str) -> dict[str, SimpleNamespace]:
-        if url == "https://yuanbao.tencent.com/":
-            return {
-                "hy_user": SimpleNamespace(value="account-id"),
-                "hy_token": SimpleNamespace(value="auth-token"),
-            }
-        return {}
-
-    monkeypatch.setattr(extractor, "_get_cookies", cookies)
-
-    info = extractor._real_extract(SHARE_URL)
-
-    assert requests == [
-        "https://channels.weixin.qq.com/finder-preview/api/feed/get_feed_info",
-        "https://yuanbao.tencent.com/api/weixin/get_parse_result",
-        "https://channels.weixin.qq.com/finder-preview/api/feed/get_feed_info",
-    ]
-    assert info["formats"][0]["url"] == MEDIA_URL
 
 
 def test_unavailable_public_share_never_uses_operator_session(
@@ -199,8 +158,8 @@ def test_missing_declared_session_is_an_explicit_auth_failure():
     error = classify_provider_failure(
         ProviderFailureContext("wechat_channels", SHARE_URL, False),
         (
-            b"FrameFetch credential_required: this public WeChat Channels video "
-            b"needs the declared Yuanbao session"
+            b"FrameFetch login_required: this WeChat Channels video "
+            b"needs account identity"
         ),
     )
-    assert error == ("credential_required", 422)
+    assert error == ("login_required", 422)

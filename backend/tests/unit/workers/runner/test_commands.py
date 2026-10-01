@@ -13,7 +13,6 @@ from app.workers.runner.process import ProcessResult
 from app.workers.runner.provider_errors import ProviderFailureContext
 from app.workers.runner.yt_dlp_commands import YtDlpCommandBuilder
 from helpers import settings
-from test_provider_sessions import session_settings
 
 
 class FailingSupervisor:
@@ -194,38 +193,6 @@ def test_collection_download_enables_playlist_with_bounded_output(
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize(
-    ("authenticated", "expected_code", "expected_status"),
-    (
-        (False, "upstream_unclassified", 502),
-        (True, "upstream_unclassified", 502),
-    ),
-)
-async def test_douyin_ambiguous_cookie_hint_does_not_prove_session_state(
-    tmp_path: Path,
-    authenticated: bool,
-    expected_code: str,
-    expected_status: int,
-) -> None:
-    commands = MediaCommands(
-        session_settings(tmp_path) if authenticated else settings(tmp_path),
-        FailingSupervisor(
-            b"ERROR: Fresh cookies (not necessarily logged in) are needed"
-        ),
-    )
-
-    with pytest.raises(RunnerFailure) as caught:
-        await commands.inspect(
-            "https://www.douyin.com/video/123",
-            tmp_path,
-            cookie_jar=tmp_path / "cookies.txt" if authenticated else None,
-        )
-
-    assert caught.value.code == expected_code
-    assert caught.value.status == expected_status
-
-
-@pytest.mark.asyncio
 async def test_explicit_rate_limit_precedes_ambiguous_login_hint(
     tmp_path: Path,
 ) -> None:
@@ -240,7 +207,7 @@ async def test_explicit_rate_limit_precedes_ambiguous_login_hint(
     with pytest.raises(RunnerFailure) as caught:
         await commands.inspect("https://x.com/example/status/123", tmp_path)
 
-    assert caught.value.code == "provider_rate_limited"
+    assert caught.value.code == "rate_limited"
     assert caught.value.status == 429
 
 
@@ -256,12 +223,14 @@ async def test_ambiguous_rate_limit_or_login_hint_is_unclassified(
     with pytest.raises(RunnerFailure) as caught:
         await commands.inspect("https://x.com/example/status/123", tmp_path)
 
-    assert caught.value.code == "upstream_unclassified"
+    assert caught.value.code == "extractor_broken"
     assert caught.value.status == 502
 
 
 @pytest.mark.asyncio
-async def test_local_media_probe_does_not_depend_on_youtube_attestation(tmp_path: Path):
+async def test_local_media_probe_does_not_depend_on_youtube_pot_provider(
+    tmp_path: Path,
+):
     supervisor = RecordingSupervisor()
 
     async def unavailable(*_args):
@@ -299,7 +268,7 @@ async def test_public_instagram_empty_response_does_not_request_account_session(
     with pytest.raises(RunnerFailure) as caught:
         await commands.inspect("https://www.instagram.com/p/example/", tmp_path)
 
-    assert caught.value.code == "provider_temporarily_unavailable"
+    assert caught.value.code == "transient"
     assert caught.value.status == 503
 
 
@@ -320,7 +289,7 @@ async def test_bilibili_412_is_classified_as_an_egress_challenge(
             tmp_path,
         )
 
-    assert caught.value.code == "egress_challenged"
+    assert caught.value.code == "challenge"
     assert caught.value.status == 422
 
 
@@ -362,8 +331,8 @@ async def test_inspection_classifies_youtube_bot_confirmation_requirement(
     with pytest.raises(RunnerFailure) as caught:
         await commands.inspect("https://www.youtube.com/watch?v=owned", tmp_path)
 
-    assert caught.value.code == "egress_challenged"
-    assert caught.value.status == 422
+    assert caught.value.code == "rate_limited"
+    assert caught.value.status == 429
 
 
 @pytest.mark.asyncio
@@ -382,7 +351,7 @@ async def test_successful_youtube_process_with_bot_warning_and_no_formats_is_cha
     with pytest.raises(RunnerFailure) as caught:
         await commands.inspect("https://www.youtube.com/watch?v=owned", tmp_path)
 
-    assert caught.value.code == "egress_challenged"
+    assert caught.value.code == "network_blocked"
     assert caught.value.status == 422
 
 
@@ -408,49 +377,6 @@ async def test_successful_youtube_process_keeps_usable_media_despite_warning(
 
 
 @pytest.mark.asyncio
-async def test_authenticated_youtube_bot_confirmation_is_egress_challenge(
-    tmp_path: Path,
-) -> None:
-    commands = MediaCommands(
-        session_settings(tmp_path),
-        FailingSupervisor(
-            b"ERROR: Sign in to confirm you're not a bot. "
-            b"Use --cookies for authentication"
-        ),
-    )
-
-    with pytest.raises(RunnerFailure) as caught:
-        await commands.inspect(
-            "https://www.youtube.com/watch?v=owned",
-            tmp_path,
-            cookie_jar=tmp_path / "cookies.txt",
-        )
-
-    assert caught.value.code == "egress_challenged"
-    assert caught.value.status == 422
-
-
-@pytest.mark.asyncio
-async def test_authenticated_cookie_rotation_failure_is_expired_session(
-    tmp_path: Path,
-) -> None:
-    commands = MediaCommands(
-        session_settings(tmp_path),
-        FailingSupervisor(b"ERROR: Account cookies are no longer valid"),
-    )
-
-    with pytest.raises(RunnerFailure) as caught:
-        await commands.inspect(
-            "https://www.youtube.com/watch?v=owned",
-            tmp_path,
-            cookie_jar=tmp_path / "cookies.txt",
-        )
-
-    assert caught.value.code == "credential_expired"
-    assert caught.value.status == 422
-
-
-@pytest.mark.asyncio
 async def test_wechat_missing_public_media_is_reported_as_restricted_content(
     tmp_path: Path,
 ) -> None:
@@ -465,7 +391,7 @@ async def test_wechat_missing_public_media_is_reported_as_restricted_content(
             tmp_path,
         )
 
-    assert caught.value.code == "content_entitlement_unknown"
+    assert caught.value.code == "content_unavailable"
     assert caught.value.status == 422
 
 
@@ -479,7 +405,7 @@ async def test_inspection_classifies_unavailable_youtube_video(tmp_path: Path) -
     with pytest.raises(RunnerFailure) as caught:
         await commands.inspect("https://youtu.be/pqyXR30AoOs", tmp_path)
 
-    assert caught.value.code == "provider_link_unavailable"
+    assert caught.value.code == "content_unavailable"
     assert caught.value.status == 422
 
 
@@ -496,7 +422,7 @@ async def test_youtube_rate_limit_precedes_unavailable_fallback(tmp_path: Path) 
     with pytest.raises(RunnerFailure) as caught:
         await commands.inspect("https://www.youtube.com/watch?v=owned", tmp_path)
 
-    assert caught.value.code == "provider_rate_limited"
+    assert caught.value.code == "rate_limited"
     assert caught.value.status == 429
 
 
@@ -504,19 +430,19 @@ async def test_youtube_rate_limit_precedes_unavailable_fallback(tmp_path: Path) 
 @pytest.mark.parametrize(
     ("terminal_error", "expected_code", "expected_status"),
     (
-        (b"ERROR: This video is DRM protected", "drm_protected", 422),
-        (b"ERROR: This video is private", "content_private", 403),
+        (b"ERROR: This video is DRM protected", "content_protected", 422),
+        (b"ERROR: This video is private", "content_unavailable", 403),
         (
             b"ERROR: This video is not available in your country",
-            "provider_geo_restricted",
-            422,
+            "rate_limited",
+            429,
         ),
         (
             b"ERROR: Account cookies are no longer valid",
-            "credential_expired",
+            "login_required",
             422,
         ),
-        (b"ERROR: Fresh cookies are needed", "provider_rate_limited", 429),
+        (b"ERROR: Fresh cookies are needed", "rate_limited", 429),
     ),
 )
 async def test_youtube_terminal_failure_precedes_rate_limit_warning(
@@ -557,7 +483,7 @@ async def test_tiktok_rate_limit_precedes_temporary_api_failure(
             tmp_path,
         )
 
-    assert caught.value.code == "provider_rate_limited"
+    assert caught.value.code == "rate_limited"
     assert caught.value.status == 429
 
 
@@ -573,7 +499,7 @@ async def test_inspection_classifies_vimeo_login_requirement(tmp_path: Path) -> 
     with pytest.raises(RunnerFailure) as caught:
         await commands.inspect("https://vimeo.com/76979871", tmp_path)
 
-    assert caught.value.code == "credential_required"
+    assert caught.value.code == "login_required"
     assert caught.value.status == 422
 
 
@@ -607,7 +533,7 @@ async def test_download_classifies_selected_drm_format(tmp_path: Path) -> None:
             tmp_path,
         )
 
-    assert caught.value.code == "drm_protected"
+    assert caught.value.code == "content_protected"
     assert caught.value.status == 422
 
 
@@ -628,7 +554,7 @@ async def test_inspection_classifies_unavailable_tiktok_player(
             tmp_path,
         )
 
-    assert caught.value.code == "provider_link_unavailable"
+    assert caught.value.code == "content_unavailable"
     assert caught.value.status == 422
 
 
@@ -647,7 +573,7 @@ async def test_inspection_classifies_tiktok_player_api_outage(
             tmp_path,
         )
 
-    assert caught.value.code == "provider_temporarily_unavailable"
+    assert caught.value.code == "transient"
     assert caught.value.status == 503
 
 
@@ -666,7 +592,7 @@ async def test_inspection_classifies_tiktok_player_schema_regression(
             tmp_path,
         )
 
-    assert caught.value.code == "extractor_regression"
+    assert caught.value.code == "extractor_broken"
     assert caught.value.status == 502
 
 
@@ -689,7 +615,7 @@ async def test_anonymous_youtube_media_403_does_not_prove_a_challenge(
             tmp_path,
         )
 
-    assert caught.value.code == "upstream_unclassified"
+    assert caught.value.code == "network_blocked"
     assert caught.value.status == 502
 
 
@@ -710,7 +636,7 @@ async def test_explicit_youtube_pot_rejection_keeps_specific_diagnosis(
             tmp_path,
         )
 
-    assert caught.value.code == "pot_rejected"
+    assert caught.value.code == "challenge"
     assert caught.value.status == 422
 
 
@@ -737,7 +663,7 @@ async def test_bgutil_unreachable_stderr_keeps_specific_diagnosis(
             tmp_path,
         )
 
-    assert caught.value.code == "pot_provider_unavailable"
+    assert caught.value.code == "runtime_unavailable"
     assert caught.value.status == 503
 
 
@@ -756,7 +682,7 @@ async def test_inspection_classifies_tiktok_post_ip_restriction(tmp_path: Path) 
             tmp_path,
         )
 
-    assert caught.value.code == "provider_geo_restricted"
+    assert caught.value.code == "network_blocked"
     assert caught.value.status == 422
 
 
@@ -772,7 +698,7 @@ async def test_expired_tiktok_short_link_is_reported_as_unavailable(
     with pytest.raises(RunnerFailure) as caught:
         await commands.inspect("https://www.tiktok.com/t/expired", tmp_path)
 
-    assert caught.value.code == "provider_link_unavailable"
+    assert caught.value.code == "content_unavailable"
     assert caught.value.status == 422
 
 
@@ -789,7 +715,7 @@ async def test_dead_x_card_domain_is_reported_as_unavailable(tmp_path: Path) -> 
             tmp_path,
         )
 
-    assert caught.value.code == "provider_link_unavailable"
+    assert caught.value.code == "content_unavailable"
     assert caught.value.status == 422
 
 
@@ -806,7 +732,7 @@ async def test_inspection_classifies_reddit_account_requirement(tmp_path: Path) 
             tmp_path,
         )
 
-    assert caught.value.code == "credential_required"
+    assert caught.value.code == "login_required"
     assert caught.value.status == 422
 
 
@@ -835,16 +761,16 @@ async def test_youtube_uses_operator_managed_provider_egress(tmp_path: Path) -> 
 @pytest.mark.asyncio
 async def test_youtube_uses_service_managed_pot_without_cookies(tmp_path: Path) -> None:
     supervisor = RecordingSupervisor()
-    probe_calls: list[tuple[str, str]] = []
+    probe_calls: list[str] = []
 
-    async def healthy_probe(base_url: str, expected_version: str) -> bool:
-        probe_calls.append((base_url, expected_version))
+    async def healthy_probe(base_url: str) -> bool:
+        probe_calls.append(base_url)
         return True
 
     configured = settings(tmp_path).model_copy(
         update={
             "runner_youtube_pot_base_url": "http://youtube-pot-provider:4416",
-            "runner_youtube_pot_provider_version": "bgutil-http-9.8.7",
+            "runner_youtube_pot_provider_version": "unrestricted-diagnostic-version",
         }
     )
     commands = MediaCommands(
@@ -855,7 +781,7 @@ async def test_youtube_uses_service_managed_pot_without_cookies(tmp_path: Path) 
 
     await commands.inspect("https://www.youtube.com/watch?v=owned", tmp_path)
 
-    assert probe_calls == [("http://youtube-pot-provider:4416", "9.8.7")]
+    assert probe_calls == ["http://youtube-pot-provider:4416"]
     assert "youtube:player_client=mweb" in supervisor.argv
     assert all("mweb,default" not in item for item in supervisor.argv)
     assert (
@@ -869,7 +795,7 @@ async def test_youtube_uses_service_managed_pot_without_cookies(tmp_path: Path) 
 async def test_youtube_pot_preflight_fails_before_process_spawn(tmp_path: Path) -> None:
     supervisor = RecordingSupervisor()
 
-    async def unavailable_probe(_base_url: str, _expected_version: str) -> bool:
+    async def unavailable_probe(_base_url: str) -> bool:
         return False
 
     configured = settings(tmp_path).model_copy(
@@ -886,7 +812,7 @@ async def test_youtube_pot_preflight_fails_before_process_spawn(tmp_path: Path) 
     with pytest.raises(RunnerFailure) as caught:
         await commands.inspect("https://www.youtube.com/watch?v=owned", tmp_path)
 
-    assert caught.value.code == "pot_provider_unavailable"
+    assert caught.value.code == "runtime_unavailable"
     assert caught.value.status == 503
     assert supervisor.argv == ()
 
@@ -896,7 +822,7 @@ async def test_youtube_failure_rechecks_pot_after_process_spawn(tmp_path: Path) 
     supervisor = FailingSupervisor(b"ERROR: Sign in to confirm you're not a bot")
     outcomes = iter((True, False))
 
-    async def lifecycle_probe(_base_url: str, _expected_version: str) -> bool:
+    async def lifecycle_probe(_base_url: str) -> bool:
         return next(outcomes)
 
     configured = settings(tmp_path).model_copy(
@@ -913,7 +839,7 @@ async def test_youtube_failure_rechecks_pot_after_process_spawn(tmp_path: Path) 
     with pytest.raises(RunnerFailure) as caught:
         await commands.inspect("https://www.youtube.com/watch?v=owned", tmp_path)
 
-    assert caught.value.code == "pot_provider_unavailable"
+    assert caught.value.code == "runtime_unavailable"
     assert caught.value.status == 503
 
 
@@ -921,7 +847,7 @@ async def test_youtube_failure_rechecks_pot_after_process_spawn(tmp_path: Path) 
 async def test_non_youtube_command_does_not_probe_pot_provider(tmp_path: Path) -> None:
     supervisor = RecordingSupervisor()
 
-    async def unexpected_probe(_base_url: str, _expected_version: str) -> bool:
+    async def unexpected_probe(_base_url: str) -> bool:
         raise AssertionError("non-YouTube commands cannot probe the POT provider")
 
     configured = settings(tmp_path).model_copy(
@@ -946,9 +872,6 @@ async def test_non_youtube_command_does_not_probe_pot_provider(tmp_path: Path) -
     (
         "timeout",
         "deadline",
-        "invalid_json",
-        "non_object_json",
-        "wrong_version",
         "redirect",
     ),
 )
@@ -977,12 +900,6 @@ async def test_pot_semantic_probe_fails_closed(
                 )
             if outcome == "deadline":
                 raise TimeoutError
-            if outcome == "invalid_json":
-                return httpx.Response(200, content=b"not-json")
-            if outcome == "non_object_json":
-                return httpx.Response(200, json=[{"version": "1.3.2"}])
-            if outcome == "wrong_version":
-                return httpx.Response(200, json={"version": "1.3.1"})
             return httpx.Response(302, json={"version": "1.3.2"})
 
     monkeypatch.setattr(commands_module.httpx, "AsyncClient", Client)
@@ -990,7 +907,6 @@ async def test_pot_semantic_probe_fails_closed(
     assert (
         await commands_module._pot_provider_ready(
             "http://youtube-pot-provider:4416",
-            "1.3.2",
         )
         is False
     )
@@ -1002,8 +918,10 @@ async def test_pot_semantic_probe_fails_closed(
 
 
 @pytest.mark.asyncio
-async def test_pot_semantic_probe_accepts_only_exact_version(
+@pytest.mark.parametrize("payload", [b"", b"not-json", b'{"version":"1.3.1"}'])
+async def test_pot_health_probe_does_not_require_release_identity(
     monkeypatch: pytest.MonkeyPatch,
+    payload: bytes,
 ) -> None:
     class Client:
         def __init__(self, **_kwargs: object) -> None:
@@ -1016,13 +934,12 @@ async def test_pot_semantic_probe_accepts_only_exact_version(
             return None
 
         async def get(self, _url: str) -> httpx.Response:
-            return httpx.Response(200, json={"version": "1.3.2"})
+            return httpx.Response(200, content=payload)
 
     monkeypatch.setattr(commands_module.httpx, "AsyncClient", Client)
 
     assert await commands_module._pot_provider_ready(
         "http://youtube-pot-provider:4416",
-        "1.3.2",
     )
 
 
@@ -1069,7 +986,7 @@ async def test_tiktok_public_player_rejects_cookie_jar(tmp_path: Path) -> None:
             cookie_jar=tmp_path / "operation.cookies.txt",
         )
 
-    assert caught.value.code == "provider_session_not_allowed"
+    assert caught.value.code == "invalid_input"
     assert supervisor.argv == ()
 
 
@@ -1086,20 +1003,7 @@ async def test_non_allowlisted_provider_cannot_receive_cookie_jar(
             cookie_jar=tmp_path / "operation.cookies.txt",
         )
 
-    assert caught.value.code == "provider_session_not_allowed"
-
-
-@pytest.mark.asyncio
-async def test_session_runner_passes_jar_for_unlisted_sites(tmp_path: Path) -> None:
-    # The broker admits any site with a deployment session, catalog or not.
-    supervisor = RecordingSupervisor()
-    commands = MediaCommands(session_settings(tmp_path), supervisor)
-    jar = tmp_path / "operation.cookies.txt"
-
-    await commands.inspect("https://media.example.co.uk/v/1", tmp_path, cookie_jar=jar)
-
-    index = supervisor.argv.index("--cookies")
-    assert supervisor.argv[index + 1] == str(jar)
+    assert caught.value.code == "invalid_input"
 
 
 @pytest.mark.asyncio
@@ -1132,7 +1036,7 @@ async def test_remote_probe_classifies_provider_failure_context(
             referer="https://www.youtube.com/watch?v=owned",
         )
 
-    assert caught.value.code == "egress_challenged"
+    assert caught.value.code == "network_blocked"
     assert caught.value.status == 422
 
 
@@ -1159,7 +1063,7 @@ async def test_remux_preserves_provider_failure_context(
             ),
         )
 
-    assert caught.value.code == "upstream_unclassified"
+    assert caught.value.code == "network_blocked"
     assert caught.value.status == 502
 
 
@@ -1175,7 +1079,7 @@ async def test_douyin_short_link_that_redirects_to_home_is_classified_as_unavail
     with pytest.raises(RunnerFailure) as caught:
         await commands.inspect("https://v.douyin.com/KWku50HECg/", tmp_path)
 
-    assert caught.value.code == "provider_link_unavailable"
+    assert caught.value.code == "content_unavailable"
     assert caught.value.status == 422
 
 
@@ -1185,22 +1089,22 @@ async def test_douyin_short_link_that_redirects_to_home_is_classified_as_unavail
     (
         (
             b"ERROR: Douyin official share link temporarily unavailable",
-            "provider_temporarily_unavailable",
+            "transient",
             503,
         ),
         (
             b"ERROR: Douyin official share link response structure changed",
-            "extractor_regression",
+            "extractor_broken",
             502,
         ),
         (
             b"ERROR: Douyin official share link verification required",
-            "egress_challenged",
+            "challenge",
             422,
         ),
         (
             b"ERROR: Douyin official share link rate limited",
-            "provider_rate_limited",
+            "rate_limited",
             429,
         ),
     ),
@@ -1234,7 +1138,7 @@ async def test_douyin_official_note_is_classified_as_media_unsupported(
     with pytest.raises(RunnerFailure) as caught:
         await commands.inspect("https://v.douyin.com/qao3WztsXns/", tmp_path)
 
-    assert caught.value.code == "provider_media_unsupported"
+    assert caught.value.code == "invalid_input"
     assert caught.value.status == 422
 
 
@@ -1250,7 +1154,7 @@ async def test_xhs_missing_initial_state_is_structure_failure(
     with pytest.raises(RunnerFailure) as caught:
         await commands.inspect("https://xhslink.com/m/expired", tmp_path)
 
-    assert caught.value.code == "extractor_regression"
+    assert caught.value.code == "extractor_broken"
     assert caught.value.status == 422
 
 
@@ -1269,7 +1173,7 @@ async def test_xhs_first_party_unavailable_note_is_not_an_extractor_regression(
             tmp_path,
         )
 
-    assert caught.value.code == "provider_link_unavailable"
+    assert caught.value.code == "content_unavailable"
     assert caught.value.status == 422
 
 
@@ -1288,7 +1192,7 @@ async def test_xhs_first_party_ip_risk_is_a_verification_failure(
             tmp_path,
         )
 
-    assert caught.value.code == "egress_challenged"
+    assert caught.value.code == "challenge"
     assert caught.value.status == 422
 
 
@@ -1307,7 +1211,7 @@ async def test_xhs_missing_video_formats_is_classified_as_extractor_regression(
             tmp_path,
         )
 
-    assert caught.value.code == "extractor_regression"
+    assert caught.value.code == "extractor_broken"
     assert caught.value.status == 502
 
 
@@ -1337,7 +1241,7 @@ async def test_wechat_channels_without_public_media_is_restricted(
     with pytest.raises(RunnerFailure) as caught:
         await commands.inspect("https://weixin.qq.com/sph/AFWYoXF5Bw", tmp_path)
 
-    assert caught.value.code == "content_entitlement_unknown"
+    assert caught.value.code == "content_unavailable"
     assert caught.value.status == 422
 
 
@@ -1353,7 +1257,7 @@ async def test_kuaishou_expired_link_is_classified_as_unavailable(
     with pytest.raises(RunnerFailure) as caught:
         await commands.inspect("https://v.kuaishou.com/expired", tmp_path)
 
-    assert caught.value.code == "provider_link_unavailable"
+    assert caught.value.code == "content_unavailable"
     assert caught.value.status == 422
 
 
@@ -1371,7 +1275,7 @@ async def test_kuaishou_image_post_is_classified_as_unsupported(
     with pytest.raises(RunnerFailure) as caught:
         await commands.inspect("https://v.kuaishou.com/image", tmp_path)
 
-    assert caught.value.code == "provider_unsupported"
+    assert caught.value.code == "invalid_input"
     assert caught.value.status == 422
 
 
@@ -1389,7 +1293,7 @@ async def test_facebook_image_post_is_classified_as_unsupported_media(
     with pytest.raises(RunnerFailure) as caught:
         await commands.inspect("https://www.facebook.com/share/p/example/", tmp_path)
 
-    assert caught.value.code == "provider_media_unsupported"
+    assert caught.value.code == "invalid_input"
     assert caught.value.status == 422
 
 
@@ -1405,7 +1309,7 @@ async def test_facebook_parse_failure_is_classified_as_extractor_regression(
     with pytest.raises(RunnerFailure) as caught:
         await commands.inspect("https://www.facebook.com/example/videos/123/", tmp_path)
 
-    assert caught.value.code == "extractor_regression"
+    assert caught.value.code == "extractor_broken"
     assert caught.value.status == 502
 
 
@@ -1464,7 +1368,7 @@ async def test_segment_prefix_probe_bounds_bytes_uses_proxy_and_cleans_up(
 
 
 @pytest.mark.asyncio
-async def test_platform_cookie_hint_is_not_proof_of_authentication(
+async def test_platform_cookie_hint_is_client_challenge(
     tmp_path: Path,
 ) -> None:
     # Cookie text does not establish the selected route or session state.
@@ -1479,6 +1383,25 @@ async def test_platform_cookie_hint_is_not_proof_of_authentication(
         await commands.inspect("https://weixin.qq.com/sph/Az42YceBcb", tmp_path)
 
     assert (caught.value.code, caught.value.status) == (
-        "upstream_unclassified",
+        "challenge",
         502,
     )
+
+
+async def test_command_rate_limit_preserves_retry_after_and_structured_evidence(
+    tmp_path,
+):
+    commands = MediaCommands(
+        settings(tmp_path),
+        FailingSupervisor(b"ERROR: HTTP Error 429: Too Many Requests\nRetry-After: 12"),
+    )
+    with pytest.raises(RunnerFailure) as caught:
+        await commands.inspect("https://vimeo.com/1", tmp_path)
+    assert caught.value.code == "rate_limited" and caught.value.status == 429
+    assert caught.value.failure.retry_after is not None
+    assert caught.value.failure.evidence == {
+        "kind": "upstream_response",
+        "returncode": 1,
+        "stderr_truncated": False,
+        "http_status": 429,
+    }

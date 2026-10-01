@@ -11,11 +11,6 @@ from pathlib import Path
 from urllib.parse import urlsplit
 
 from app.workers.runner.settings import RunnerSettings
-from app.workers.runner.version import (
-    YOUTUBE_POT_PROVIDER_VERSION,
-    YTDLP_ENGINE_VERSION,
-)
-from packaging.version import InvalidVersion, Version
 
 
 class RunnerReadiness:
@@ -73,22 +68,8 @@ def _runtime_packages_ready(settings: RunnerSettings) -> bool:
         return False
     yt_dlp = _package_record("yt-dlp")
     pot_plugin = _package_record("bgutil-ytdlp-pot-provider")
-    pot_release = _pot_release(settings.runner_youtube_pot_provider_version)
-    expected_source = (
-        "https://github.com/yt-dlp/yt-dlp/archive/"
-        f"{settings.runner_ytdlp_commit}.tar.gz"
-    )
-    if yt_dlp is None or yt_dlp[1] != expected_source:
-        return False
-    try:
-        engine_version_matches = Version(yt_dlp[0]) == Version(YTDLP_ENGINE_VERSION)
-    except InvalidVersion:
-        return False
-    return bool(
-        engine_version_matches
-        and pot_release == YOUTUBE_POT_PROVIDER_VERSION
-        and pot_plugin is not None
-        and pot_plugin[0] == YOUTUBE_POT_PROVIDER_VERSION
+    return yt_dlp is not None and (
+        settings.runner_youtube_pot_base_url is None or pot_plugin is not None
     )
 
 
@@ -105,11 +86,3 @@ def _package_record(name: str) -> tuple[str, str | None] | None:
     except (json.JSONDecodeError, AttributeError):
         return package.version, None
     return package.version, direct_url if isinstance(direct_url, str) else None
-
-
-def _pot_release(attestation_version: str) -> str | None:
-    prefix = "bgutil-http-"
-    if not attestation_version.startswith(prefix):
-        return None
-    release = attestation_version.removeprefix(prefix)
-    return release or None

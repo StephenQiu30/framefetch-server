@@ -2,17 +2,13 @@
 
 from __future__ import annotations
 
-from app.services.provider_access import ProviderAccessPolicy
 from app.services.provider_types import (
-    ProviderAccessMode,
     ProviderCapability,
     ProviderCookieDomain,
+    ProviderIdentity,
     ProviderKey,
     ProviderProfileVersion,
     ProviderSupportStatus,
-)
-from app.services.site_sessions import (
-    SiteSessionPolicy,
 )
 from app.workers.runner.provider_factories import (
     ANDROID_IMPERSONATION,
@@ -43,23 +39,6 @@ def _youtube_runtime_args(settings: ProviderRuntimeSettings) -> tuple[str, ...]:
 CORE_PROVIDER_PROFILES: tuple[ProviderProfile, ...] = (
     ProviderProfile(
         key=ProviderKey.YOUTUBE,
-        access_policy=ProviderAccessPolicy.OPERATOR_PUBLIC,
-        session_policy=SiteSessionPolicy(
-            "youtube.com",
-            ProviderKey.YOUTUBE,
-            "https://www.youtube.com/feed/you",
-            required_cookie_names=frozenset(
-                {
-                    "SID",
-                    "HSID",
-                    "SSID",
-                    "APISID",
-                    "SAPISID",
-                    "__Secure-1PSID",
-                    "__Secure-3PSID",
-                }
-            ),
-        ),
         display_name="YouTube",
         hosts=frozenset(
             {
@@ -81,30 +60,25 @@ CORE_PROVIDER_PROFILES: tuple[ProviderProfile, ...] = (
                 ProviderCapability.SUBTITLES,
             }
         ),
-        access_modes=(
-            ProviderAccessMode.ANONYMOUS,
-            ProviderAccessMode.OPERATOR_MANAGED,
-        ),
         cookie_domain_allowlist=frozenset(
             {
                 ProviderCookieDomain.YOUTUBE,
                 ProviderCookieDomain.YOUTUBE_NOCOOKIE,
             }
         ),
-        client_profile_id="youtube-mweb",
-        attestation_policy="bgutil-mweb-player-gvs",
-        egress_pool="youtube-sticky",
-        credential_concurrency=1,
-        support_status=ProviderSupportStatus.ACCESS_REQUIRED,
-        canary_suite="youtube-anonymous-operator-pot",
+        client_profile="youtube:mweb",
+        support_status=ProviderSupportStatus.UNKNOWN,
         runtime_command_args=_youtube_runtime_args,
         yt_dlp_retry_count=0,
+        identity=ProviderIdentity.OPTIONAL,
     ),
     standard_provider(
         ProviderKey.BILIBILI,
         "哔哩哔哩",
         ("bilibili.com", "www.bilibili.com", "m.bilibili.com", "b23.tv"),
-        status=ProviderSupportStatus.VERIFIED,
+        status=ProviderSupportStatus.UNKNOWN,
+        identity=ProviderIdentity.OPTIONAL,
+        cookie_domain_allowlist=frozenset({"bilibili.com"}),
     ),
     challenged_provider(
         ProviderKey.DOUYIN,
@@ -117,23 +91,15 @@ CORE_PROVIDER_PROFILES: tuple[ProviderProfile, ...] = (
             "iesdouyin.com",
             "www.iesdouyin.com",
         ),
-        access_policy=ProviderAccessPolicy.OPERATOR_PUBLIC,
-        session_policy=SiteSessionPolicy(
-            "douyin.com",
-            ProviderKey.DOUYIN,
-            "https://www.douyin.com/",
-            # ``ttwid`` is issued to every visitor, so it proves nothing.
-            required_cookie_names=frozenset({"sessionid", "sessionid_ss", "sid_tt"}),
-        ),
         version=ProviderProfileVersion.DOUYIN,
         normalize_url=douyin_url,
-        status=ProviderSupportStatus.ACCESS_REQUIRED,
-        operator_cookie_domains=frozenset(
+        status=ProviderSupportStatus.UNKNOWN,
+        cookie_domain_allowlist=frozenset(
             {ProviderCookieDomain.DOUYIN, ProviderCookieDomain.DOUYIN_MEDIA}
         ),
-        canary_suite="douyin-anonymous-operator-video",
         probe_authenticated_media=True,
         probe_media_duration=True,
+        identity=ProviderIdentity.OPTIONAL,
     ),
     standard_provider(
         ProviderKey.TIKTOK,
@@ -154,9 +120,8 @@ CORE_PROVIDER_PROFILES: tuple[ProviderProfile, ...] = (
                 ProviderCapability.AUDIO_VIDEO_SPLIT,
             }
         ),
-        status=ProviderSupportStatus.VERIFIED,
-        client_profile_id="yt-dlp-default",
-        canary_suite="tiktok-public-player-video",
+        status=ProviderSupportStatus.UNKNOWN,
+        client_profile="yt-dlp-default",
     ),
     challenged_provider(
         ProviderKey.XIAOHONGSHU,
@@ -167,16 +132,9 @@ CORE_PROVIDER_PROFILES: tuple[ProviderProfile, ...] = (
             "xhslink.com",
             "www.xhslink.com",
         ),
-        access_policy=ProviderAccessPolicy.OPERATOR_PUBLIC,
-        session_policy=SiteSessionPolicy(
-            "xiaohongshu.com",
-            ProviderKey.XIAOHONGSHU,
-            "https://www.xiaohongshu.com/explore",
-            required_cookie_names=frozenset({"web_session"}),
-        ),
-        status=ProviderSupportStatus.DEGRADED,
-        operator_cookie_domains=frozenset({ProviderCookieDomain.XIAOHONGSHU}),
-        canary_suite="xiaohongshu-anonymous-operator-video",
+        status=ProviderSupportStatus.UNKNOWN,
+        cookie_domain_allowlist=frozenset({ProviderCookieDomain.XIAOHONGSHU}),
+        identity=ProviderIdentity.OPTIONAL,
     ),
     ProviderProfile(
         key=ProviderKey.KUAISHOU,
@@ -198,10 +156,10 @@ CORE_PROVIDER_PROFILES: tuple[ProviderProfile, ...] = (
         capabilities=frozenset(
             {ProviderCapability.SINGLE_VIDEO, ProviderCapability.SHORT_VIDEO}
         ),
-        client_profile_id="chrome-131-android-14",
-        support_status=ProviderSupportStatus.VERIFIED,
-        canary_suite="kuaishou-public-share-page",
+        client_profile="chrome-131-android-14",
+        support_status=ProviderSupportStatus.UNKNOWN,
         command_args=ANDROID_IMPERSONATION,
         normalize_url=kuaishou_url,
+        identity=ProviderIdentity.OPTIONAL,
     ),
 )

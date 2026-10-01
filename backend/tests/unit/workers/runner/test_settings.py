@@ -6,7 +6,6 @@ import pytest
 from app.workers.runner import settings as runner_settings
 from app.workers.runner.settings import (
     RunnerSettings,
-    egress_affinity_id,
     get_runner_settings,
 )
 from pydantic import ValidationError
@@ -79,21 +78,8 @@ def test_loads_credential_free_provider_proxy_overrides(
 
     assert settings.egress_proxy_for("youtube") == "http://youtube-egress:3128"
     assert settings.egress_proxy_for("bilibili") == "http://egress-proxy:3128"
-    assert settings.egress_affinity_for("youtube") == egress_affinity_id(
-        "provider:youtube", "http://youtube-egress:3128"
-    )
-    assert settings.egress_affinity_for("bilibili") == egress_affinity_id(
-        "default", "http://egress-proxy:3128"
-    )
-
-
-def test_egress_affinity_changes_with_the_route_without_exposing_it() -> None:
-    first = egress_affinity_id("provider:youtube", "http://egress-a:3128")
-    second = egress_affinity_id("provider:youtube", "http://egress-b:3128")
-
-    assert first != second
-    assert first.startswith("provider:youtube:")
-    assert "egress-a" not in first
+    assert settings.egress_route_for("youtube") == "provider:youtube"
+    assert settings.egress_route_for("bilibili") == "default"
 
 
 def test_anonymous_runner_can_use_service_managed_youtube_pot(

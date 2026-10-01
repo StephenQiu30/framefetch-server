@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from app.services.downloads.rules.content_restrictions import ContentRestriction
-from app.services.provider_failures import FailureClass, failure_definition
+from app.services.provider_failures import failure_definition
 from app.services.provider_types import ProviderKey
 
 
@@ -45,13 +45,17 @@ class FailureRule:
 
 PROVIDER_FAILURE_RULES: tuple[FailureRule, ...] = (
     FailureRule(
-        "content_deleted",
+        "content_unavailable",
         422,
         any_stderr=(b"this video has been removed", b"this video has been deleted"),
     ),
     *(
         FailureRule(
-            code,
+            {
+                "provider_link_unavailable": "content_unavailable",
+                "provider_rate_limited": "rate_limited",
+                "provider_temporarily_unavailable": "transient",
+            }[code],
             status,
             any_stderr=(f"framefetch {code}".encode(),),
             providers=frozenset({ProviderKey.WEIBO}),
@@ -63,14 +67,16 @@ PROVIDER_FAILURE_RULES: tuple[FailureRule, ...] = (
         )
     ),
     FailureRule(
-        "credential_required",
+        "login_required",
         422,
-        any_stderr=(b"framefetch credential_required",),
-        providers=frozenset({ProviderKey.QQVIDEO, ProviderKey.WECHAT_CHANNELS}),
+        any_stderr=(b"framefetch login_required",),
+        providers=frozenset(
+            {ProviderKey.QQVIDEO, ProviderKey.YOUKU, ProviderKey.WECHAT_CHANNELS}
+        ),
     ),
     *(
         FailureRule(
-            reason.value,
+            "content_unavailable",
             422,
             any_stderr=(f"framefetch {reason.value}".encode(),),
             providers=frozenset(
@@ -85,55 +91,55 @@ PROVIDER_FAILURE_RULES: tuple[FailureRule, ...] = (
         for reason in ContentRestriction
     ),
     FailureRule(
-        "content_preview_only",
+        "content_unavailable",
         422,
         any_stderr=(b"only the preview will be extracted",),
         providers=frozenset({ProviderKey.BILIBILI}),
     ),
     FailureRule(
-        "content_supporter_only",
+        "content_unavailable",
         422,
         any_stderr=(b"this is a supporter-only video",),
         providers=frozenset({ProviderKey.BILIBILI}),
     ),
     FailureRule(
-        "pot_provider_unavailable",
+        "runtime_unavailable",
         503,
         all_stderr=(b"error reaching get ", b"/ping", b"server is reachable"),
         providers=frozenset({ProviderKey.YOUTUBE}),
     ),
     FailureRule(
-        "egress_challenged",
+        "challenge",
         422,
         any_stderr=(b"http error 412", b"precondition failed"),
         providers=frozenset({ProviderKey.BILIBILI}),
     ),
     FailureRule(
-        "pot_provider_unavailable",
+        "runtime_unavailable",
         503,
         all_stderr=(b"po token provider", b"server is not available"),
         providers=frozenset({ProviderKey.YOUTUBE}),
     ),
     FailureRule(
-        "provider_unsupported",
+        "invalid_input",
         422,
         any_stderr=(b"unsupported url:",),
         any_url=("channels.weixin.qq.com",),
     ),
     FailureRule(
-        "provider_unsupported",
+        "invalid_input",
         422,
         any_stderr=(b"kuaishou image posts are not supported by the video runner",),
         providers=frozenset({ProviderKey.KUAISHOU}),
     ),
     FailureRule(
-        "provider_media_unsupported",
+        "invalid_input",
         422,
         any_stderr=(b"facebook post does not contain a downloadable video",),
         providers=frozenset({ProviderKey.FACEBOOK}),
     ),
     FailureRule(
-        "provider_link_unavailable",
+        "content_unavailable",
         422,
         any_stderr=(
             b"unsupported url:",
@@ -145,49 +151,49 @@ PROVIDER_FAILURE_RULES: tuple[FailureRule, ...] = (
         ),
     ),
     FailureRule(
-        "provider_media_unsupported",
+        "invalid_input",
         422,
         any_stderr=(b"douyin official note is not a supported single video",),
         providers=frozenset({ProviderKey.DOUYIN}),
     ),
     FailureRule(
-        "provider_link_unavailable",
+        "content_unavailable",
         422,
         any_stderr=(b"douyin official share link unavailable",),
         providers=frozenset({ProviderKey.DOUYIN}),
     ),
     FailureRule(
-        "provider_temporarily_unavailable",
+        "transient",
         503,
         any_stderr=(b"douyin official share link temporarily unavailable",),
         providers=frozenset({ProviderKey.DOUYIN}),
     ),
     FailureRule(
-        "extractor_regression",
+        "extractor_broken",
         502,
         any_stderr=(b"douyin official share link response structure changed",),
         providers=frozenset({ProviderKey.DOUYIN}),
     ),
     FailureRule(
-        "egress_challenged",
+        "challenge",
         422,
         any_stderr=(b"douyin official share link verification required",),
         providers=frozenset({ProviderKey.DOUYIN}),
     ),
     FailureRule(
-        "provider_rate_limited",
+        "rate_limited",
         429,
         any_stderr=(b"douyin official share link rate limited",),
         providers=frozenset({ProviderKey.DOUYIN}),
     ),
     FailureRule(
-        "extractor_regression",
+        "extractor_broken",
         422,
         any_stderr=(b"unable to extract initial state",),
         providers=frozenset({ProviderKey.XIAOHONGSHU, ProviderKey.KUAISHOU}),
     ),
     FailureRule(
-        "provider_link_unavailable",
+        "content_unavailable",
         422,
         any_stderr=(
             b"unsupported url:",
@@ -196,31 +202,31 @@ PROVIDER_FAILURE_RULES: tuple[FailureRule, ...] = (
         providers=frozenset({ProviderKey.TIKTOK}),
     ),
     FailureRule(
-        "extractor_regression",
+        "extractor_broken",
         502,
         any_stderr=(b"tiktok official player response structure changed",),
         providers=frozenset({ProviderKey.TIKTOK}),
     ),
     FailureRule(
-        "provider_link_unavailable",
+        "content_unavailable",
         422,
         any_stderr=(b"domain not found",),
         providers=frozenset({ProviderKey.X}),
     ),
     FailureRule(
-        "provider_link_unavailable",
+        "content_unavailable",
         422,
         any_stderr=(b"wechat channels public link unavailable",),
         providers=frozenset({ProviderKey.WECHAT_CHANNELS}),
     ),
     FailureRule(
-        "content_entitlement_unknown",
+        "content_unavailable",
         422,
         any_stderr=(b"wechat channels public media is not downloadable",),
         providers=frozenset({ProviderKey.WECHAT_CHANNELS}),
     ),
     FailureRule(
-        "drm_protected",
+        "content_protected",
         422,
         any_stderr=(
             b"framefetch drm_protected",
@@ -230,12 +236,12 @@ PROVIDER_FAILURE_RULES: tuple[FailureRule, ...] = (
         ),
     ),
     FailureRule(
-        "content_private",
+        "content_unavailable",
         403,
         any_stderr=(b"private video", b"this video is private"),
     ),
     FailureRule(
-        "content_not_entitled",
+        "content_unavailable",
         403,
         any_stderr=(
             b"members-only content",
@@ -246,7 +252,7 @@ PROVIDER_FAILURE_RULES: tuple[FailureRule, ...] = (
         ),
     ),
     FailureRule(
-        "credential_expired",
+        "login_required",
         422,
         any_stderr=(
             b"account cookies are no longer valid",
@@ -255,12 +261,12 @@ PROVIDER_FAILURE_RULES: tuple[FailureRule, ...] = (
         ),
     ),
     FailureRule(
-        "egress_challenged",
+        "network_blocked",
         422,
         all_stderr=(b"sign in to confirm", b"not a bot"),
     ),
     FailureRule(
-        "provider_geo_restricted",
+        "network_blocked",
         422,
         any_stderr=(
             b"not available in your country",
@@ -269,37 +275,37 @@ PROVIDER_FAILURE_RULES: tuple[FailureRule, ...] = (
         ),
     ),
     FailureRule(
-        "provider_geo_restricted",
+        "network_blocked",
         422,
         any_stderr=(b"your ip address is blocked from accessing this post",),
         providers=frozenset({ProviderKey.TIKTOK}),
     ),
     FailureRule(
-        "egress_challenged",
+        "challenge",
         422,
         any_stderr=(b"xiaohongshu request verification required",),
         providers=frozenset({ProviderKey.XIAOHONGSHU}),
     ),
     FailureRule(
-        "pot_provider_unavailable",
+        "runtime_unavailable",
         503,
         any_stderr=(b"provider unavailable", b"provider failed", b"timed out"),
         all_stderr=(b"po token",),
     ),
     FailureRule(
-        "pot_rejected",
+        "challenge",
         422,
         any_stderr=(b"invalid", b"rejected", b"http error 403"),
         all_stderr=(b"po token",),
     ),
     FailureRule(
-        "pot_required",
+        "challenge",
         422,
         any_stderr=(b"required", b"was not provided", b"missing"),
         all_stderr=(b"po token",),
     ),
     FailureRule(
-        "provider_temporarily_unavailable",
+        "transient",
         503,
         any_stderr=(
             b"instagram api is not granting access",
@@ -309,18 +315,18 @@ PROVIDER_FAILURE_RULES: tuple[FailureRule, ...] = (
         authenticated=False,
     ),
     FailureRule(
-        "upstream_unclassified",
+        "challenge",
         502,
         all_stderr=(b"fresh cookies", b"needed"),
     ),
     FailureRule(
-        "provider_rate_limited",
+        "rate_limited",
         429,
         any_stderr=(b"http error 429", b"too many requests"),
         all_stderr=(b"rate-limit reached or login required",),
     ),
     FailureRule(
-        "upstream_unclassified",
+        "extractor_broken",
         502,
         any_stderr=(b"rate-limit reached or login required",),
     ),
@@ -331,7 +337,7 @@ PROVIDER_FAILURE_RULES: tuple[FailureRule, ...] = (
         providers=frozenset({ProviderKey.INSTAGRAM}),
     ),
     FailureRule(
-        "credential_required",
+        "login_required",
         422,
         any_stderr=(
             b"vimeo extractor only works when logged-in",
@@ -340,18 +346,18 @@ PROVIDER_FAILURE_RULES: tuple[FailureRule, ...] = (
         ),
     ),
     FailureRule(
-        "provider_rate_limited",
+        "rate_limited",
         429,
         any_stderr=(b"http error 429", b"too many requests", b"rate limit exceeded"),
     ),
     FailureRule(
-        "provider_temporarily_unavailable",
+        "transient",
         503,
         any_stderr=(b"tiktok official player api temporarily unavailable",),
         providers=frozenset({ProviderKey.TIKTOK}),
     ),
     FailureRule(
-        "provider_link_unavailable",
+        "content_unavailable",
         422,
         any_stderr=(
             b"video unavailable",
@@ -361,7 +367,7 @@ PROVIDER_FAILURE_RULES: tuple[FailureRule, ...] = (
         providers=frozenset({ProviderKey.YOUTUBE}),
     ),
     FailureRule(
-        "extractor_regression",
+        "extractor_broken",
         502,
         any_stderr=(
             b"cannot parse data",
@@ -370,7 +376,7 @@ PROVIDER_FAILURE_RULES: tuple[FailureRule, ...] = (
         providers=frozenset({ProviderKey.FACEBOOK}),
     ),
     FailureRule(
-        "extractor_regression",
+        "extractor_broken",
         502,
         any_stderr=(
             b"no video formats found",
@@ -379,7 +385,7 @@ PROVIDER_FAILURE_RULES: tuple[FailureRule, ...] = (
         providers=frozenset({ProviderKey.XIAOHONGSHU}),
     ),
     FailureRule(
-        "extractor_regression",
+        "extractor_broken",
         502,
         any_stderr=(
             b"unable to extract",
@@ -389,7 +395,7 @@ PROVIDER_FAILURE_RULES: tuple[FailureRule, ...] = (
         ),
     ),
     FailureRule(
-        "egress_denied",
+        "network_blocked",
         502,
         any_stderr=(
             b"http error 407",
@@ -399,7 +405,7 @@ PROVIDER_FAILURE_RULES: tuple[FailureRule, ...] = (
         ),
     ),
     FailureRule(
-        "network_transient",
+        "transient",
         503,
         any_stderr=(
             b"connection timed out",
@@ -418,51 +424,45 @@ PROVIDER_FAILURE_RULES: tuple[FailureRule, ...] = (
         ),
     ),
     FailureRule(
-        "engine_unavailable",
+        "runtime_unavailable",
         503,
         any_stderr=(b"no supported javascript runtime could be found",),
     ),
     FailureRule(
-        "protocol_unavailable",
+        "format_unavailable",
         422,
         any_stderr=(b"unsupported protocol", b"sabr is not supported", b"sabr-only"),
     ),
     FailureRule(
-        "upstream_unclassified",
+        "extractor_broken",
         502,
         any_stderr=(
-            b"http error 403",
             b"failed to parse json",
             b"empty response",
             b"no json object could be decoded",
         ),
     ),
+    FailureRule("network_blocked", 502, any_stderr=(b"http error 403",)),
 )
 
 
 def _rule_priority(rule: FailureRule) -> int:
-    kind, _, _ = failure_definition(rule.code)
-    if kind in {FailureClass.CONTENT_UNAVAILABLE, FailureClass.CONTENT_RESTRICTED}:
-        return 0
-    if kind in {FailureClass.TOKEN_UNAVAILABLE, FailureClass.TOKEN_REJECTED}:
-        return 1
-    if kind in {
-        FailureClass.AUTH_REQUIRED,
-        FailureClass.SESSION_EXPIRED,
-        FailureClass.CHALLENGE_REQUIRED,
-    }:
-        return 2
-    if kind is FailureClass.RATE_LIMITED:
+    if rule.code == "challenge" and b"fresh cookies" in rule.all_stderr:
+        return 5
+    if rule.code == "rate_limited" and rule.status == 429:
         return 3
-    if kind in {
-        FailureClass.EGRESS_DENIED,
-        FailureClass.NETWORK_TRANSIENT,
-        FailureClass.RUNTIME_UNAVAILABLE,
-    }:
-        return 4
-    if kind is FailureClass.UPSTREAM_UNCLASSIFIED:
-        return 6
-    return 5
+    category = failure_definition(rule.code)[0].value
+    return {
+        "content_protected": 0,
+        "content_unavailable": 0,
+        "rate_limited": 1,
+        "login_required": 2,
+        "challenge": 3,
+        "network_blocked": 4,
+        "runtime_unavailable": 1,
+        "transient": 4,
+        "extractor_broken": 5,
+    }.get(category, 5)
 
 
 def classify_provider_failure(
@@ -480,17 +480,19 @@ def classify_provider_failure(
         # Fatal 429 beats an ambiguous login hint. An earlier warning cannot
         # replace a clear terminal content or authentication diagnosis.
         if (
-            rule.code == "provider_rate_limited"
+            rule.code == "rate_limited"
+            and rule.status == 429
             and errors
             and rule.matches(context, errors)
         ):
             return 1
         if (
-            rule.code == "provider_link_unavailable"
+            rule.code == "content_unavailable"
             and context.provider_key == ProviderKey.YOUTUBE
             and b"video unavailable" in rule.any_stderr
             and any(
-                limit.code == "provider_rate_limited"
+                limit.code == "rate_limited"
+                and limit.status == 429
                 and limit.matches(context, normalized)
                 for limit in PROVIDER_FAILURE_RULES
             )
@@ -502,5 +504,5 @@ def classify_provider_failure(
 
     for rule in sorted(PROVIDER_FAILURE_RULES, key=priority):
         if rule.matches(context, normalized):
-            return rule.code, rule.status
+            return failure_definition(rule.code)[0].value, rule.status
     return None

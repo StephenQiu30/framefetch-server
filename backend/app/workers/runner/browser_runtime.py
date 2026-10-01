@@ -18,7 +18,6 @@ from datetime import UTC, datetime
 from hashlib import sha256
 from importlib.metadata import version
 from pathlib import Path
-from tempfile import TemporaryDirectory
 
 from app.services.provider_failures import (
     FailureEvidenceKind,
@@ -26,11 +25,7 @@ from app.services.provider_failures import (
     FailureScope,
     parse_retry_after,
 )
-from app.services.provider_types import (
-    ProviderAccessContextRef,
-    ProviderAccessMode,
-    ProviderSessionSource,
-)
+from app.services.provider_types import ExecutionContext
 from app.workers.runner._secure_file import no_follow_flag
 from app.workers.runner.errors import RunnerFailure
 from app.workers.runner.netscape_cookie import parse_cookie_payload
@@ -69,7 +64,7 @@ def browser_revision(settings: RunnerSettings, provider_key: str) -> str:
                 "user_agent": BROWSER_USER_AGENT,
                 "args": _LAUNCH_ARGS,
                 "service_workers": "block",
-                "egress": settings.egress_affinity_for(provider_key),
+                "egress": settings.egress_proxy_for(provider_key),
             },
             sort_keys=True,
             separators=(",", ":"),
@@ -137,7 +132,7 @@ class BrowserOperation:
         status = response.status
         if status >= 400:
             code = {
-                401: "credential_required",
+                401: "login_required",
                 404: "provider_link_unavailable",
                 410: "provider_link_unavailable",
                 429: "provider_rate_limited",
@@ -167,50 +162,19 @@ class BrowserRuntime:
     async def operation(
         self,
         profile: ProviderProfile,
-        access_context: ProviderAccessContextRef,
+        execution_context: ExecutionContext,
         *,
         cookie_jar: Path | None = None,
     ) -> AsyncIterator[BrowserOperation]:
         if self._closed or not self._settings.runner_browser_enabled:
             raise _failure()
         if version("playwright") != PLAYWRIGHT_VERSION:
-            raise _failure("browser_release_changed", status=409)
-        if profile.key != access_context.provider_key:
-            raise _failure("context_changed", status=409)
-        if access_context.access_mode not in profile.access_modes:
-            raise _failure("context_changed", status=409)
-        anonymous = access_context.access_mode is ProviderAccessMode.ANONYMOUS
-        source_id = access_context.session_source_id or ""
-        managed = source_id.startswith("managed_browser:")
-        expected_source = (
-            ProviderSessionSource.NONE
-            if anonymous
-            else (
-                ProviderSessionSource.MANAGED_BROWSER
-                if managed
-                else ProviderSessionSource.CHROME_SOURCE
-            )
-        )
-        if not any(
-            item.enabled
-            and item.access_mode is access_context.access_mode
-            and item.session_source is expected_source
-            for item in profile.resolution_strategies
-        ):
-            raise _failure("context_changed", status=409)
-        if anonymous and (cookie_jar is not None or source_id or managed):
-            raise _failure("context_changed", status=409)
-        if not anonymous and (
-            not access_context.credential_version_id
-            or (
-                not managed
-                and (not source_id.startswith("chrome_source:") or cookie_jar is None)
-            )
-        ):
-            raise _failure("credential_required", status=422)
+            raise _failure("runtime_unavailable", status=409)
+        if profile.key != execution_context.provider_key:
+            raise _failure("runtime_unavailable", status=409)
+        if execution_context.identity_used != (cookie_jar is not None):
+            raise _failure("invalid_input", status=422)
         revision = browser_revision(self._settings, profile.key)
-        if access_context.browser_context_revision not in {None, revision}:
-            raise _failure("context_changed", status=409)
         try:
             await asyncio.wait_for(
                 self._slot.acquire(), self._settings.runner_browser_lock_wait_seconds
@@ -224,9 +188,7 @@ class BrowserRuntime:
         try:
             if self._closed:
                 raise _failure()
-            async with self._directory(
-                profile, source_id, managed=managed
-            ) as directory:
+            async with self._directory(profile) as directory:
                 async with async_playwright() as driver:
                     context: BrowserContext | None = None
                     try:
@@ -248,7 +210,7 @@ class BrowserRuntime:
                         )
                         browser = context.browser
                         if browser is None or browser.version != CHROMIUM_VERSION:
-                            raise _failure("browser_release_changed", status=409)
+                            raise _failure("runtime_unavailable", status=409)
                         if cookie_jar is not None:
                             await context.add_cookies(
                                 leased_browser_cookies(cookie_jar, profile)
@@ -288,18 +250,10 @@ class BrowserRuntime:
             self._slot.release()
 
     @asynccontextmanager
-    async def _directory(
-        self, profile: ProviderProfile, source_id: str, *, managed: bool
-    ) -> AsyncIterator[Path]:
-        if not managed:
-            root = self._settings.runner_browser_temp_root
-            _private_root(root)
-            with TemporaryDirectory(prefix=f"{profile.key}-", dir=root) as temporary:
-                yield Path(temporary)
-            return
+    async def _directory(self, profile: ProviderProfile) -> AsyncIterator[Path]:
         root = self._settings.runner_browser_profile_root
         _private_root(root)
-        identity = sha256(f"{profile.key}:{source_id}".encode()).hexdigest()
+        identity = profile.key
         # The OS lock is a running-resource guard, not persisted task ownership.
         descriptor = os.open(
             root / f"{identity}.lock", os.O_CREAT | os.O_RDWR | no_follow_flag(), 0o600

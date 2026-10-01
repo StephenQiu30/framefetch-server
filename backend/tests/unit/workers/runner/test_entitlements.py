@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import pytest
-from app.services.provider_types import ProviderAccessMode
 from app.workers.runner.entitlements import enforce_media_rights
 from app.workers.runner.errors import RunnerFailure
 
@@ -19,31 +18,27 @@ from app.workers.runner.errors import RunnerFailure
         "wechat_channels",
     ),
 )
-def test_operator_allows_unrestricted_public_web_metadata(provider: str) -> None:
+def test_anonymous_allows_unrestricted_public_web_metadata(provider: str) -> None:
     enforce_media_rights(
         {"id": "123", "formats": [{"has_drm": None}]},
         provider_key=provider,
-        access_mode=ProviderAccessMode.OPERATOR_MANAGED,
     )
 
 
 @pytest.mark.parametrize("provider", ("tiktok", "vimeo", "generic"))
-def test_any_imported_site_session_may_process_clear_public_media(
+def test_anonymous_processing_checks_content_restrictions(
     provider: str,
 ) -> None:
-    # The broker admits a site; entitlement rules still apply per media item.
     enforce_media_rights(
         {"availability": "public"},
         provider_key=provider,
-        access_mode=ProviderAccessMode.OPERATOR_MANAGED,
     )
     with pytest.raises(RunnerFailure) as caught:
         enforce_media_rights(
             {"availability": "private"},
             provider_key=provider,
-            access_mode=ProviderAccessMode.OPERATOR_MANAGED,
         )
-    assert caught.value.code == "content_private"
+    assert caught.value.code == "content_unavailable"
 
 
 @pytest.mark.parametrize(
@@ -56,17 +51,16 @@ def test_any_imported_site_session_may_process_clear_public_media(
         {"is_member_only": True},
     ),
 )
-def test_operator_entitlement_drift_disables_personal_account(
+def test_anonymous_rejects_personal_entitlement_markers(
     payload: dict[str, object],
 ) -> None:
     with pytest.raises(RunnerFailure) as caught:
         enforce_media_rights(
             payload,
             provider_key="qqvideo",
-            access_mode=ProviderAccessMode.OPERATOR_MANAGED,
         )
 
-    assert caught.value.code == "credential_entitlement_drift"
+    assert caught.value.code == "content_unavailable"
 
 
 @pytest.mark.parametrize(
@@ -88,17 +82,16 @@ def test_anonymous_access_rejects_restricted_metadata(
         enforce_media_rights(
             payload,
             provider_key="qqvideo",
-            access_mode=ProviderAccessMode.ANONYMOUS,
         )
 
-    assert caught.value.code in {"content_private", "content_not_entitled"}
+    assert caught.value.code == "content_unavailable"
 
 
 @pytest.mark.parametrize(
     "restriction,code",
     [
-        ({"is_private": True}, "content_private"),
-        ({"has_drm": True}, "drm_protected"),
+        ({"is_private": True}, "content_unavailable"),
+        ({"has_drm": True}, "content_protected"),
     ],
 )
 def test_collection_checks_each_member(restriction: dict, code: str) -> None:
@@ -106,6 +99,12 @@ def test_collection_checks_each_member(restriction: dict, code: str) -> None:
         enforce_media_rights(
             {"availability": "public", "entries": [{"id": "first"}, restriction]},
             provider_key="instagram",
-            access_mode=ProviderAccessMode.ANONYMOUS,
         )
     assert caught.value.code == code
+
+
+def test_missing_login_is_classified_as_login_required():
+    with pytest.raises(RunnerFailure) as caught:
+        enforce_media_rights({"availability": "needs_auth"}, provider_key="youtube")
+    assert caught.value.code == "login_required"
+    assert caught.value.failure.failure_class.value == "login_required"

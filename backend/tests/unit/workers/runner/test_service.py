@@ -4,73 +4,16 @@ import asyncio
 import hashlib
 import json
 from collections.abc import Mapping, Sequence
-from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import pytest
-from app.services.provider_types import ProviderAccessMode
 from app.workers.runner.errors import RunnerFailure
 from app.workers.runner.process import ProcessResult
-from app.workers.runner.provider_sessions import ProviderSessionStore
 from app.workers.runner.service import MediaRunnerService
-from app.workers.runner.settings import RunnerSettings
 from helpers import download_request, result, settings, split_media_info
-from tests.unit.workers.runner.test_provider_sessions import (
-    FakeCredentialLease,
-    FakeSiteSessions,
-    session_settings,
-)
 from yt_dlp import YoutubeDL
 from yt_dlp.extractor import get_info_extractor
-
-
-async def test_youtube_companion_mismatch_blocks_context_and_inspection(
-    tmp_path, monkeypatch
-) -> None:
-    configured = settings(tmp_path).model_copy(
-        update={"runner_youtube_pot_base_url": "http://youtube-pot-provider:4416"}
-    )
-    supervisor = FixtureSupervisor(split_media_info())
-    service = MediaRunnerService(configured, supervisor=supervisor)
-    called: list[str] = []
-
-    async def reject(base_url: str) -> None:
-        called.append(base_url)
-        raise RunnerFailure("pot_provider_release_mismatch", status=503)
-
-    monkeypatch.setattr(
-        "app.workers.runner.service.require_youtube_sidecar_identity", reject
-    )
-    with pytest.raises(RunnerFailure) as context_error:
-        await service.context("https://www.youtube.com/watch?v=owned")
-    with pytest.raises(RunnerFailure) as inspect_error:
-        await service.inspect("https://www.youtube.com/watch?v=owned")
-    assert context_error.value.code == "pot_provider_release_mismatch"
-    assert inspect_error.value.code == "pot_provider_release_mismatch"
-    assert called == ["http://youtube-pot-provider:4416"] * 2
-    assert supervisor.calls == []
-
-
-async def test_inspect_rejects_frozen_context_drift_before_platform_io(tmp_path):
-    supervisor = FixtureSupervisor(split_media_info())
-    service = MediaRunnerService(settings(tmp_path), supervisor=supervisor)
-    url = "https://media.example.com/video"
-    frozen = replace(await service.context(url), engine_commit="obsolete")
-    with pytest.raises(RunnerFailure) as error:
-        await service.inspect(url, access_context=frozen)
-    assert error.value.code == "client_context_mismatch"
-    assert supervisor.calls == []
-
-
-async def test_generic_context_key_matches_url_before_extractor_io(tmp_path):
-    supervisor = FixtureSupervisor(split_media_info())
-    service = MediaRunnerService(settings(tmp_path), supervisor=supervisor)
-    url_context = await service.context("https://media.example.com/video")
-
-    assert url_context.provider_key == "generic"
-    assert await service.contexts_for_providers(("generic",)) == (url_context,)
-    assert supervisor.calls == []
 
 
 @pytest.mark.parametrize(
@@ -238,42 +181,6 @@ async def test_generic_clip_cannot_mask_youtube_in_transparent_merge(tmp_path):
 
     assert error.value.code == "provider_unsupported"
     assert len(supervisor.calls) == 1
-
-
-async def test_expired_probe_deadline_never_accesses_platform(tmp_path):
-    supervisor = FixtureSupervisor(split_media_info())
-    service = MediaRunnerService(settings(tmp_path), supervisor=supervisor)
-    with pytest.raises(RunnerFailure) as error:
-        await service.inspect(
-            "https://media.example.com/video",
-            deadline_at=datetime.now(UTC) - timedelta(seconds=1),
-        )
-    assert error.value.code == "inspection_timeout"
-    assert supervisor.calls == []
-
-
-async def test_probe_deadline_cancels_runner_work_and_cleans_workspace(tmp_path):
-    cancelled = asyncio.Event()
-
-    class BlockingSupervisor:
-        async def run(self, *args, **kwargs):
-            try:
-                await asyncio.Event().wait()
-            finally:
-                cancelled.set()
-
-    service = MediaRunnerService(settings(tmp_path), supervisor=BlockingSupervisor())
-    with pytest.raises(RunnerFailure) as error:
-        await asyncio.wait_for(
-            service.inspect(
-                "https://media.example.com/video",
-                deadline_at=datetime.now(UTC) + timedelta(seconds=0.05),
-            ),
-            timeout=1,
-        )
-    assert error.value.code == "inspection_timeout"
-    assert cancelled.is_set()
-    assert list(tmp_path.iterdir()) == []
 
 
 class ThumbnailStream:
@@ -552,54 +459,6 @@ class TransientFailureSupervisor(FixtureSupervisor):
         return ProcessResult(1, b"", b"transient", False, False)
 
 
-class OperatorCookieSupervisor(FixtureSupervisor):
-    def __init__(self, info: dict[str, object]) -> None:
-        super().__init__(info)
-        self.cookie_paths: list[Path] = []
-
-    async def run(
-        self,
-        argv: Sequence[str],
-        *,
-        cwd: Path,
-        timeout_seconds: float,
-        env: Mapping[str, str] | None = None,
-    ) -> ProcessResult:
-        command = tuple(argv)
-        if command[0] == "yt-dlp":
-            if "--cookies" not in command:
-                return ProcessResult(
-                    1, b"", b"account authentication is required", False, False
-                )
-            cookie_path = Path(command[command.index("--cookies") + 1])
-            self.cookie_paths.append(cookie_path)
-            content = cookie_path.read_bytes()
-            if "--dump-single-json" in command:
-                assert b"# operation-update" not in content
-                cookie_path.write_bytes(content + b"# operation-update\n")
-            else:
-                assert b"# operation-update" in content
-        return await super().run(
-            argv,
-            cwd=cwd,
-            timeout_seconds=timeout_seconds,
-            env=env,
-        )
-
-
-def operator_settings(tmp_path: Path) -> RunnerSettings:
-    return session_settings(tmp_path, runner_egress_proxy="http://youtube-egress:3128")
-
-
-def operator_session_store(settings: RunnerSettings) -> ProviderSessionStore:
-    return ProviderSessionStore(
-        settings,
-        credential_locks=FakeCredentialLease(),
-        site_sessions=FakeSiteSessions(),
-        enforce_memory_backing=False,
-    )
-
-
 async def test_download_reinspects_selects_semantics_and_verifies_artifact(
     tmp_path: Path,
 ) -> None:
@@ -727,67 +586,6 @@ async def test_download_reselects_current_streams_instead_of_stale_hints(
     ]
 
 
-async def test_operator_session_is_rebuilt_then_reused_for_download_operation(
-    tmp_path: Path,
-) -> None:
-    configured = operator_settings(tmp_path)
-    info = split_media_info()
-    info["availability"] = "public"
-    supervisor = OperatorCookieSupervisor(info)
-    service = MediaRunnerService(
-        configured,
-        supervisor=supervisor,
-        session_store=operator_session_store(configured),
-    )
-    url = "https://www.youtube.com/watch?v=owned"
-
-    context = await service.context(
-        url, access_mode=ProviderAccessMode.OPERATOR_MANAGED
-    )
-    inspected = await service.inspect(url, access_context=context)
-    request = download_request().model_copy(
-        update={
-            "url": url,
-            "access_context": inspected.access_context,
-        }
-    )
-    response = await service.download(request)
-
-    assert response.artifact.size_bytes > 0
-    assert len(supervisor.cookie_paths) == 4
-    assert supervisor.cookie_paths[0] != supervisor.cookie_paths[1]
-    assert len(set(supervisor.cookie_paths[1:])) == 1
-    assert not (tmp_path / "secrets").exists()
-    assert list(configured.runner_provider_session_temp_root.iterdir()) == []
-    assert all(not path.exists() for path in supervisor.cookie_paths)
-
-
-async def test_operator_session_rejects_private_before_media_download(
-    tmp_path: Path,
-) -> None:
-    configured = operator_settings(tmp_path)
-    info = split_media_info()
-    info["availability"] = "private"
-    supervisor = OperatorCookieSupervisor(info)
-    service = MediaRunnerService(
-        configured,
-        supervisor=supervisor,
-        session_store=operator_session_store(configured),
-    )
-
-    with pytest.raises(RunnerFailure) as caught:
-        url = "https://www.youtube.com/watch?v=private"
-        context = await service.context(
-            url, access_mode=ProviderAccessMode.OPERATOR_MANAGED
-        )
-        await service.inspect(url, access_context=context)
-
-    assert caught.value.code == "content_private"
-    assert len(supervisor.calls) == 1
-    assert "--dump-single-json" in supervisor.calls[0][0]
-    assert list(configured.runner_provider_session_temp_root.iterdir()) == []
-
-
 async def test_download_never_downgrades_and_cleans_failed_workspace(
     tmp_path: Path,
 ) -> None:
@@ -840,7 +638,7 @@ async def test_inspect_requires_at_least_one_semantic_option(tmp_path: Path) -> 
     assert caught.value.code == "format_unavailable"
 
 
-async def test_inspect_reports_the_first_failure_without_hidden_retry(
+async def test_inspect_does_not_retry_unclassified_provider_text(
     tmp_path: Path,
 ) -> None:
     configured = settings(tmp_path).model_copy(
@@ -853,6 +651,7 @@ async def test_inspect_reports_the_first_failure_without_hidden_retry(
         await service.inspect("https://www.douyin.com/video/7662711608636889201")
 
     assert caught.value.code == "inspection_failed"
+    assert caught.value.failure.failure_class.value == "extractor_broken"
     assert len(supervisor.calls) == 1
     assert list(tmp_path.iterdir()) == []
 
@@ -941,35 +740,6 @@ async def test_inspect_recovers_missing_duration_from_sparse_probe(
 
     assert response.media.duration_seconds == 30
     assert response.streams[0].video_codec_family.value == "h264"
-
-
-async def test_wechat_anonymous_media_recovers_duration_without_cookie_probe(
-    tmp_path: Path,
-) -> None:
-    info = split_media_info()
-    info["duration"] = None
-    info["formats"] = [
-        {
-            "format_id": "h264",
-            "ext": "mp4",
-            "url": "https://finder.video.qq.com/251/fixture/stodownload",
-            "vcodec": "h264",
-            "acodec": "aac",
-        }
-    ]
-    supervisor = FixtureSupervisor(info)
-    service = MediaRunnerService(settings(tmp_path), supervisor=supervisor)
-
-    response = await service.inspect("https://weixin.qq.com/sph/AFWYoXF5Bw")
-
-    assert response.media.duration_seconds == 30
-    probe = next(
-        command
-        for command, _ in supervisor.calls
-        if command[0] == "ffprobe" and command[-1].startswith("https://")
-    )
-    assert probe[-1] == "https://finder.video.qq.com/251/fixture/stodownload"
-    assert "--cookies" not in probe
 
 
 async def test_inspect_prefers_downloadable_stream_duration_from_probe(
@@ -1153,7 +923,7 @@ async def test_inspect_does_not_immediately_retry_tumblr_rate_limit(
             "626907179849564160/mona-talking-in-english"
         )
 
-    assert caught.value.code == "provider_rate_limited"
+    assert caught.value.code == "rate_limited"
     assert supervisor.inspection_attempts == 1
     assert delays == []
 
@@ -1181,12 +951,12 @@ async def test_inspect_does_not_retry_xiaohongshu_egress_challenge(
             "https://www.xiaohongshu.com/explore/64a6b35f000000001f01465c",
         )
 
-    assert caught.value.code == "egress_challenged"
+    assert caught.value.code == "challenge"
     assert supervisor.inspection_attempts == 1
     assert delays == []
 
 
-async def test_inspect_leaves_tiktok_temporary_api_retry_to_durable_policy(
+async def test_inspect_retries_tiktok_transient_in_same_layer_once(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -1204,14 +974,12 @@ async def test_inspect_leaves_tiktok_temporary_api_retry_to_durable_policy(
     )
     service = MediaRunnerService(settings(tmp_path), supervisor=supervisor)
 
-    with pytest.raises(RunnerFailure) as caught:
-        await service.inspect(
-            "https://www.tiktok.com/@creator/video/6742501081818877190",
-        )
-
-    assert caught.value.code == "provider_temporarily_unavailable"
-    assert supervisor.inspection_attempts == 1
-    assert delays == []
+    response = await service.inspect(
+        "https://www.tiktok.com/@creator/video/6742501081818877190",
+    )
+    assert response.media.title
+    assert supervisor.inspection_attempts == 2
+    assert delays == [0.0]
 
 
 async def test_inspect_does_not_retry_tiktok_rate_limited_temporary_failure(
@@ -1238,12 +1006,14 @@ async def test_inspect_does_not_retry_tiktok_rate_limited_temporary_failure(
             "https://www.tiktok.com/@creator/video/6742501081818877190",
         )
 
-    assert caught.value.code == "provider_rate_limited"
+    assert caught.value.code == "rate_limited"
     assert supervisor.inspection_attempts == 1
     assert delays == []
 
 
-async def test_youtube_inspection_failure_uses_one_attempt(tmp_path: Path) -> None:
+async def test_youtube_unclassified_failure_uses_one_attempt(
+    tmp_path: Path,
+) -> None:
     supervisor = TransientFailureSupervisor(split_media_info())
     service = MediaRunnerService(settings(tmp_path), supervisor=supervisor)
 
@@ -1253,6 +1023,7 @@ async def test_youtube_inspection_failure_uses_one_attempt(tmp_path: Path) -> No
         )
 
     assert caught.value.code == "inspection_failed"
+    assert caught.value.failure.failure_class.value == "extractor_broken"
     ytdlp = [command for command, _ in supervisor.calls if command[0] == "yt-dlp"]
     assert len(ytdlp) == 1
 
@@ -1346,190 +1117,191 @@ async def test_inspect_retries_a_transient_thumbnail_response_once(
     assert delays == [0.25]
 
 
-@pytest.mark.parametrize("use_local_sample", [False, True])
-async def test_personal_full_duration_is_not_replaced_by_probe_preview(
-    tmp_path: Path, use_local_sample: bool
-) -> None:
-    info = split_media_info()
-    info["duration"] = 1800
-    info["_framefetch_full_stream"] = True
-    info["formats"] = [
-        {
-            "format_id": "sparse",
-            "ext": "mp4",
-            "url": "https://cdn.example.com/video.mp4",
-        }
-    ]
-    supervisor = (
-        RemoteProbeFailureSupervisor(info)
-        if use_local_sample
-        else FixtureSupervisor(info)
-    )
-    configured = operator_settings(tmp_path)
-    sessions = operator_session_store(configured)
-    sessions._site_sessions.revisions.update({"youku.com": 1, "v.qq.com": 1})
-    service = MediaRunnerService(
-        configured, supervisor=supervisor, session_store=sessions
-    )
-    response = await service.inspect("https://v.youku.com/v_show/id_fixture.html")
-    assert response.media.duration_seconds == 1800
-    assert response.streams[0].height == 1080
-
-
-async def test_full_playlist_probes_clear_segment_and_preserves_duration(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    info = split_media_info()
-    info["duration"] = 1800
-    info["_framefetch_full_stream"] = True
-    info["formats"] = [
-        {
-            "format_id": "sparse",
-            "ext": "mp4",
-            "url": "https://cdn.example.com/full.m3u8",
-            "_framefetch_probe_url": "https://cdn.example.com/first.ts",
-        }
-    ]
-    client = ThumbnailClient()
-    monkeypatch.setattr(
-        "app.workers.runner.commands.httpx.AsyncClient", lambda **_: client
-    )
-    supervisor = FixtureSupervisor(info)
-    configured = operator_settings(tmp_path)
-    sessions = operator_session_store(configured)
-    sessions._site_sessions.revisions.update({"youku.com": 1, "v.qq.com": 1})
-    service = MediaRunnerService(
-        configured, supervisor=supervisor, session_store=sessions
-    )
-    response = await service.inspect("https://v.qq.com/x/page/q326831cny0.html")
-    assert response.media.duration_seconds == 1800
-    probes = [command for command, _ in supervisor.calls if command[0] == "ffprobe"]
-    assert len(probes) == 1
-    assert probes[0][-1].endswith("prefix.input")
-    assert client.requests == [("GET", "https://cdn.example.com/first.ts")]
-
-
 @pytest.mark.parametrize(
-    "code,status",
+    "url",
     [
-        ("provider_rate_limited", 429),
-        ("content_private", 422),
-        ("provider_temporarily_unavailable", 503),
+        "https://www.instagram.com/p/fixture/",
+        "https://weixin.qq.com/sph/Az42YceBcb",
+        "https://v.qq.com/x/page/fixture.html",
+        "https://v.youku.com/v_show/id_fixture.html",
     ],
 )
-async def test_anonymous_failures_never_read_chrome_session(
-    tmp_path, monkeypatch, code, status
+async def test_identity_required_provider_is_explicitly_unavailable_in_r0(
+    tmp_path, url
 ):
-    configured = operator_settings(tmp_path)
-    sessions = operator_session_store(configured)
-    service = MediaRunnerService(
-        configured,
-        supervisor=FixtureSupervisor(split_media_info()),
-        session_store=sessions,
-    )
-    from unittest.mock import AsyncMock
-
-    service._inspection.inspect = AsyncMock(
-        side_effect=RunnerFailure(code, status=status)
-    )
-    sessions._site_sessions.ready_revision = AsyncMock(
-        side_effect=AssertionError("must not request Chrome")
-    )
-    with pytest.raises(RunnerFailure) as caught:
-        await service.inspect("https://www.youtube.com/watch?v=owned")
-    assert caught.value.code == code
-    sessions._site_sessions.ready_revision.assert_not_awaited()
-
-
-async def test_explicit_anonymous_canary_does_not_upgrade_on_auth_required(tmp_path):
-    from unittest.mock import AsyncMock
-
-    configured = operator_settings(tmp_path)
-    sessions = operator_session_store(configured)
-    service = MediaRunnerService(
-        configured,
-        supervisor=FixtureSupervisor(split_media_info()),
-        session_store=sessions,
-    )
-    service._inspection.inspect = AsyncMock(
-        side_effect=RunnerFailure("credential_required", status=422)
-    )
-    sessions._site_sessions.ready_revision = AsyncMock(
-        side_effect=AssertionError("must not request Chrome")
-    )
-    with pytest.raises(RunnerFailure) as caught:
-        await service.inspect("https://www.youtube.com/watch?v=owned")
-    assert caught.value.code == "credential_required"
-    sessions._site_sessions.ready_revision.assert_not_awaited()
-
-
-async def test_explicit_account_strategy_reads_chrome_once_and_freezes_context(
-    tmp_path,
-):
-    from unittest.mock import AsyncMock
-
-    configured = operator_settings(tmp_path)
-    sessions = operator_session_store(configured)
-    service = MediaRunnerService(
-        configured,
-        supervisor=FixtureSupervisor({**split_media_info(), "availability": "public"}),
-        session_store=sessions,
-    )
-    original = service._inspection.inspect
-    calls = []
-
-    async def inspect(source, workspace, *, context, cookie_jar):
-        calls.append((context.access_mode, cookie_jar is not None))
-        if len(calls) == 1:
-            raise RunnerFailure("credential_required", status=422)
-        return await original(source, workspace, context=context, cookie_jar=cookie_jar)
-
-    service._inspection.inspect = AsyncMock(side_effect=inspect)
-    url = "https://www.youtube.com/watch?v=owned"
+    supervisor = FixtureSupervisor(split_media_info())
+    service = MediaRunnerService(settings(tmp_path), supervisor=supervisor)
     with pytest.raises(RunnerFailure) as caught:
         await service.inspect(url)
-    assert caught.value.code == "credential_required"
-    assert calls == [(ProviderAccessMode.ANONYMOUS, False)]
-    assert sessions._site_sessions.leases == []
-    context = await service.context(
-        url, access_mode=ProviderAccessMode.OPERATOR_MANAGED
+    assert caught.value.code == "login_required"
+    assert caught.value.failure.layer == "L1"
+    assert caught.value.failure.stage == "resolve"
+    assert supervisor.calls == []
+    assert list(tmp_path.iterdir()) == []
+
+
+async def test_inspection_timeout_cancels_execution_and_removes_workspace(tmp_path):
+    cancelled = asyncio.Event()
+
+    class BlockingSupervisor:
+        async def run(self, *_args, **_kwargs):
+            try:
+                await asyncio.Event().wait()
+            finally:
+                cancelled.set()
+
+    configured = settings(tmp_path).model_copy(
+        update={"runner_inspect_timeout_seconds": 0.02}
     )
-    response = await service.inspect(url, access_context=context)
-    assert calls == [
-        (ProviderAccessMode.ANONYMOUS, False),
-        (ProviderAccessMode.OPERATOR_MANAGED, True),
-    ]
-    assert response.access_context.access_mode is ProviderAccessMode.OPERATOR_MANAGED
-    assert sessions._site_sessions.leases == [("youtube.com", 3)]
-    assert not any(
-        path.is_file()
-        for path in configured.runner_provider_session_temp_root.rglob("*")
+    service = MediaRunnerService(configured, supervisor=BlockingSupervisor())
+    with pytest.raises(RunnerFailure) as caught:
+        await service.inspect("https://media.example.com/video")
+    assert caught.value.failure.failure_class.value == "transient"
+    assert cancelled.is_set()
+    assert list(tmp_path.iterdir()) == []
+
+
+async def test_download_context_mismatch_stops_before_platform_io(tmp_path):
+    from dataclasses import replace
+
+    from app.workers.runner.contracts import ExecutionContextContract
+
+    supervisor = FixtureSupervisor(split_media_info())
+    service = MediaRunnerService(settings(tmp_path), supervisor=supervisor)
+    request = download_request()
+    request.execution_context = ExecutionContextContract.from_domain(
+        replace(request.execution_context.to_domain(), resolved_layer="L3")
     )
+    with pytest.raises(RunnerFailure) as caught:
+        await service.download(request)
+    assert caught.value.failure.failure_class.value == "context_changed"
+    assert supervisor.calls == []
+    assert list(tmp_path.iterdir()) == []
+
+
+async def test_inspect_resource_cancel_waits_for_cleanup_and_allows_restart(tmp_path):
+    started, cleaning, finish = asyncio.Event(), asyncio.Event(), asyncio.Event()
+
+    class BlockingSupervisor:
+        async def run(self, *_args, **_kwargs):
+            started.set()
+            try:
+                await asyncio.Event().wait()
+            finally:
+                cleaning.set()
+                await finish.wait()
+
+    service = MediaRunnerService(settings(tmp_path), supervisor=BlockingSupervisor())
+    task = asyncio.create_task(
+        service.inspect("https://media.example.com/video", task_id="parse_intent_0")
+    )
+    await started.wait()
+    assert service._active.status("parse_intent_0") is not None
+    with pytest.raises(RunnerFailure, match="task already active"):
+        await service.inspect(
+            "https://media.example.com/video", task_id="parse_intent_0"
+        )
+    cancel = asyncio.create_task(service.cancel("parse_intent_0"))
+    await cleaning.wait()
+    assert not cancel.done()
+    finish.set()
+    ack = await asyncio.wait_for(cancel, 1)
+    assert ack.status == "stopped"
+    assert task.cancelled()
+    assert service._active.status("parse_intent_0") is None
+    assert list(tmp_path.iterdir()) == []
+    assert (await service.cancel("parse_intent_0")).status == "stopped"
+    service._commands._supervisor = FixtureSupervisor(split_media_info())
+    result = await service.inspect(
+        "https://media.example.com/video", task_id="parse_intent_0"
+    )
+    assert result.media.title
+    assert list(tmp_path.iterdir()) == []
 
 
 @pytest.mark.parametrize(
-    "code",
-    ["credential_required", "egress_challenged"],
+    ("phase", "stage"),
+    [("fetch_metadata", "download"), ("probe_media", "validate")],
 )
-async def test_anonymous_session_walls_do_not_read_chrome_or_choose_another_strategy(
-    tmp_path, code
+async def test_download_reinspection_failure_has_download_business_stage(
+    tmp_path, phase, stage
 ):
-    from unittest.mock import AsyncMock
+    from app.services.provider_failures import FailurePhase
 
-    configured = operator_settings(tmp_path)
-    sessions = operator_session_store(configured)
-    service = MediaRunnerService(
-        configured,
-        supervisor=FixtureSupervisor(split_media_info()),
-        session_store=sessions,
-    )
-    service._inspection.inspect = AsyncMock(side_effect=RunnerFailure(code, status=422))
-    sessions._site_sessions.ready_revision = AsyncMock(
-        side_effect=RunnerFailure("provider_session_not_ready", status=503)
-    )
+    service = MediaRunnerService(settings(tmp_path), supervisor=FixtureSupervisor({}))
+
+    async def fail(*_args, **_kwargs):
+        raise RunnerFailure("network_blocked", phase=FailurePhase(phase))
+
+    service._inspection.inspect = fail
     with pytest.raises(RunnerFailure) as caught:
-        await service.inspect("https://www.youtube.com/watch?v=owned")
-    sessions._site_sessions.ready_revision.assert_not_awaited()
-    service._inspection.inspect.assert_awaited_once()
-    assert caught.value.code == code
+        await service.download(download_request())
+    assert caught.value.failure.phase == phase
+    assert caught.value.failure.stage == stage
+    assert list(tmp_path.iterdir()) == []
+
+
+@pytest.mark.parametrize("category", ["transient", "runtime_unavailable"])
+async def test_same_layer_retry_is_bounded_and_cleans_up(tmp_path, category):
+    service = MediaRunnerService(settings(tmp_path), supervisor=FixtureSupervisor({}))
+    attempts = 0
+
+    async def fail(*args, **kwargs):
+        nonlocal attempts
+        attempts += 1
+        raise RunnerFailure(category)
+
+    service._inspection.inspect = fail
+    with pytest.raises(RunnerFailure) as caught:
+        await service.inspect("https://media.example.com/video")
+    assert caught.value.code == category
+    assert attempts == 2 and list(tmp_path.iterdir()) == []
+
+
+@pytest.mark.parametrize("wait_seconds,expected_attempts", [(0, 2), (0.1, 2), (200, 1)])
+async def test_rate_limit_retry_obeys_retry_after_and_original_deadline(
+    tmp_path, wait_seconds, expected_attempts
+):
+    service = MediaRunnerService(settings(tmp_path), supervisor=FixtureSupervisor({}))
+    attempts = 0
+
+    async def fail(*args, **kwargs):
+        nonlocal attempts
+        attempts += 1
+        raise RunnerFailure(
+            "rate_limited",
+            status=429,
+            retry_after=datetime.now(UTC) + timedelta(seconds=wait_seconds),
+        )
+
+    service._inspection.inspect = fail
+    with pytest.raises(RunnerFailure) as caught:
+        await service.inspect(
+            "https://media.example.com/video",
+            deadline=datetime.now(UTC) + timedelta(seconds=120),
+        )
+    assert (
+        caught.value.code == "rate_limited"
+        and caught.value.failure.retry_after is not None
+    )
+    assert attempts == expected_attempts and list(tmp_path.iterdir()) == []
+
+
+async def test_zero_deadline_and_cancelling_task_do_not_start_runner_resources(
+    tmp_path,
+):
+    supervisor = FixtureSupervisor(split_media_info())
+    service = MediaRunnerService(settings(tmp_path), supervisor=supervisor)
+    with pytest.raises(RunnerFailure, match="inspection timeout"):
+        await service.inspect(
+            "https://media.example.com/video", deadline=datetime.now(UTC)
+        )
+
+    async def cancelled_entry():
+        asyncio.current_task().cancel()
+        await service.inspect("https://media.example.com/video")
+
+    task = asyncio.create_task(cancelled_entry())
+    with pytest.raises(asyncio.CancelledError):
+        await task
+    assert supervisor.calls == [] and list(tmp_path.iterdir()) == []

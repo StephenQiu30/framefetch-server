@@ -55,6 +55,5 @@ def peertube_profile(hosts: frozenset[str]) -> ProviderProfile:
             }
         ),
         support_status=ProviderSupportStatus.UNKNOWN,
-        canary_suite="peertube-approved-instance-single-video",
         normalize_url=_peertube_url,
     )

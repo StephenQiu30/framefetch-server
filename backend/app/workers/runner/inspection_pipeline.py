@@ -8,11 +8,7 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 
 from app.services.provider_failures import FailurePhase
-from app.services.provider_types import (
-    ProviderAccessContextRef,
-    ProviderAccessMode,
-    ResolutionExecutionKind,
-)
+from app.services.provider_types import ExecutionContext
 from app.workers.runner.commands import MediaCommands
 from app.workers.runner.entitlements import enforce_media_rights
 from app.workers.runner.errors import RunnerFailure
@@ -47,7 +43,7 @@ class RunnerInspectionPipeline:
         source: ProviderRequest,
         workspace: TaskWorkspace,
         *,
-        context: ProviderAccessContextRef,
+        context: ExecutionContext,
         cookie_jar: Path | None,
     ) -> MediaInspection:
         probe_failures: list[RunnerFailure] = []
@@ -75,27 +71,10 @@ class RunnerInspectionPipeline:
         source: ProviderRequest,
         workspace: TaskWorkspace,
         *,
-        context: ProviderAccessContextRef,
+        context: ExecutionContext,
         cookie_jar: Path | None,
         probe_failures: list[RunnerFailure],
     ) -> MediaInspection:
-        selected = next(
-            (
-                item
-                for item in source.profile.resolution_strategies
-                if item.strategy_id == context.strategy_id
-            ),
-            None,
-        )
-        if (
-            selected is not None
-            and selected.execution_kind is ResolutionExecutionKind.BROWSER
-        ):
-            # Resource availability is not a platform adapter. A browser route
-            # remains unavailable until its fixed page/media handler is shipped.
-            raise RunnerFailure("provider_unsupported", status=422).attributed_to(
-                context
-            )
         payload = await self._commands.inspect(
             source, workspace.path, cookie_jar=cookie_jar
         )
@@ -107,7 +86,6 @@ class RunnerInspectionPipeline:
         enforce_media_rights(
             payload,
             provider_key=context.provider_key,
-            access_mode=context.access_mode,
         )
         payload = normalize_selected_format_metadata(payload)
         if payload.get("media_kind") in {"image_gallery", "video_collection"} or (
@@ -470,12 +448,12 @@ def _unknown_audio(raw: object) -> bool:
 
 def _failure_context(
     source: ProviderRequest,
-    context: ProviderAccessContextRef,
+    context: ExecutionContext,
 ) -> ProviderFailureContext:
     return ProviderFailureContext(
         provider_key=source.profile.key,
         source_url=source.source_url,
-        authenticated=context.access_mode is ProviderAccessMode.OPERATOR_MANAGED,
+        authenticated=context.identity_used,
     )
 
 

@@ -7,11 +7,14 @@ import sys
 import time
 from pathlib import Path
 
-from app.integrations.site_session_catalog import known_session_sites, site_target
 from app.workers.runner.netscape_cookie import (
     has_safe_cookie_fields,
     is_allowed_domain,
     serialize_cookies,
+)
+from app.workers.runner.provider_registry import (
+    current_provider_registry,
+    provider_profile_for_key,
 )
 from app.workers.session.macos_keychain import (
     KeychainUnavailable,
@@ -49,26 +52,30 @@ def read_cookies(profile: Path, site: str) -> bytes:
     )
     if logger.failed:
         raise ValueError("source_read_failed")
-    target = site_target(site)
+    target = provider_profile_for_key(site)
     selected = [
         item
         for item in jar
-        if is_allowed_domain(item.domain, target.cookie_domains)
+        if is_allowed_domain(item.domain, target.cookie_domain_allowlist)
         and item.value
         and (item.expires is None or item.expires > time.time())
         and has_safe_cookie_fields(item)
     ]
-    if not target.policy.accepts(frozenset(item.name for item in selected)):
-        if logger.warned:
-            raise ValueError("source_read_failed")
-        raise LookupError("credential_required")
     return serialize_cookies(selected)
 
 
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--profile", type=Path, required=True)
-    parser.add_argument("--site", choices=known_session_sites(), required=True)
+    parser.add_argument(
+        "--site",
+        choices=[
+            p.key
+            for p in current_provider_registry().profiles
+            if p.cookie_domain_allowlist
+        ],
+        required=True,
+    )
     args = parser.parse_args()
     try:
         payload = read_cookies(args.profile, args.site)

@@ -4,17 +4,10 @@ import json
 from collections.abc import Mapping
 from typing import Any
 
-from app.workers.runner.provider_session_headers import (
-    SESSION_HEADER_COOKIE,
-    SESSION_HEADER_URL,
-    decode_session_headers,
-)
 from app.workers.runner.wechat_channels_policy import (
     author_info,
     feed_info,
     has_protection_material,
-    playable_parameters,
-    successful_data,
     video_formats,
 )
 from yt_dlp.extractor.common import InfoExtractor  # type: ignore[import-untyped]
@@ -22,8 +15,6 @@ from yt_dlp.utils import ExtractorError  # type: ignore[import-untyped]
 
 _PREVIEW_PAGE = "https://channels.weixin.qq.com/finder-preview/pages/sph?id={video_id}"
 _FEED_API = "https://channels.weixin.qq.com/finder-preview/api/feed/get_feed_info"
-_YUANBAO_API = "https://yuanbao.tencent.com/api/weixin/get_parse_result"
-_YUANBAO_HOME = "https://yuanbao.tencent.com/"
 _UNAVAILABLE = "WeChat Channels public link unavailable"
 _USER_AGENT = (
     "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
@@ -65,53 +56,10 @@ class WechatChannelsPublicIE(InfoExtractor):  # type: ignore[misc]
         formats = _with_media_headers(video_formats(feed), preview_url)
         parse_data: Mapping[str, Any] = {}
         if not formats:
-            cookies = self._get_cookies(_YUANBAO_HOME)
-            if not {"hy_user", "hy_token"} <= set(cookies):
-                raise ExtractorError(
-                    "FrameFetch credential_required: this public WeChat Channels "
-                    "video needs the declared Yuanbao session",
-                    expected=True,
-                )
-            account_id = str(cookies["hy_user"].value)
-            auth_token = str(cookies["hy_token"].value)
-            session_headers = self._get_cookies(SESSION_HEADER_URL)
-            encoded_headers = session_headers.get(SESSION_HEADER_COOKIE)
-            browser_headers = decode_session_headers(
-                str(encoded_headers.value) if encoded_headers is not None else ""
+            raise ExtractorError(
+                "FrameFetch login_required: WeChat Channels needs account identity",
+                expected=True,
             )
-            parse_payload = self._download_json(
-                _YUANBAO_API,
-                video_id,
-                note="Resolving public WeChat Channels share",
-                data=_json_bytes(
-                    {"type": "video_channel_url", "url": canonical_url, "scene": 1}
-                ),
-                headers=_yuanbao_headers(account_id, auth_token, browser_headers),
-            )
-            _reject_protected(parse_payload)
-            parse_data = successful_data(parse_payload)
-            playable_url = playable_parameters(parse_data)
-            if playable_url is None:
-                raise ExtractorError(
-                    "WeChat Channels resolver returned an unsupported URL",
-                    expected=True,
-                )
-            token, export_id = playable_url
-            feed_payload = self._download_json(
-                _FEED_API,
-                video_id,
-                note="Downloading resolved WeChat Channels media metadata",
-                data=_json_bytes(
-                    {"baseReq": {"generalToken": token}, "exportId": export_id}
-                ),
-                headers=_api_headers(preview_url),
-            )
-            _reject_protected(feed_payload)
-            feed = feed_info(feed_payload) or {}
-            author = author_info(feed_payload) or public_author
-            formats = _with_media_headers(video_formats(feed), preview_url)
-            if not formats:
-                raise ExtractorError(_UNAVAILABLE, expected=True)
 
         description = _text(feed.get("description")) or _text(
             public_feed.get("description")
@@ -152,30 +100,6 @@ def _api_headers(referer: str) -> dict[str, str]:
         "Origin": "https://channels.weixin.qq.com",
         "X-Requested-With": "XMLHttpRequest",
     }
-
-
-def _yuanbao_headers(
-    account_id: str,
-    auth_token: str,
-    browser_headers: Mapping[str, str],
-) -> dict[str, str]:
-    return (
-        {
-            "Accept": "application/json, text/plain, */*",
-            "Accept-Language": "zh-CN,zh;q=0.9,en;q=0.8",
-            "Content-Type": "application/json",
-            "Origin": "https://yuanbao.tencent.com",
-            "Referer": "https://yuanbao.tencent.com/",
-            "User-Agent": _USER_AGENT,
-            "X-Requested-With": "XMLHttpRequest",
-        }
-        | dict(browser_headers)
-        | {
-            "T-Userid": account_id,
-            "X-Token": auth_token,
-            "X-Id": account_id,
-        }
-    )
 
 
 def _with_media_headers(

@@ -1,17 +1,15 @@
 from __future__ import annotations
 
 import re
-from hashlib import sha256
 from pathlib import Path
 from urllib.parse import urlsplit
 
-from app.services.provider_types import ProviderAccessMode
 from app.workers.runner.provider_instances import validated_instance_hosts
 from app.workers.runner.version import (
     YOUTUBE_POT_PROVIDER_ATTESTATION,
     YTDLP_ENGINE_COMMIT,
 )
-from pydantic import Field, SecretStr, field_validator, model_validator
+from pydantic import Field, SecretStr, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 _PROVIDER_KEY = re.compile(r"[a-z][a-z0-9_-]{0,31}")
@@ -49,22 +47,17 @@ class ProviderEgressSettings(BaseSettings):
             provider, self.runner_egress_proxy
         )
 
-    def egress_affinity_for(self, provider: str) -> str:
-        if provider in self.runner_provider_egress_proxies:
-            return egress_affinity_id(
-                f"provider:{provider}", self.runner_provider_egress_proxies[provider]
-            )
-        return egress_affinity_id("default", self.runner_egress_proxy)
+    def egress_route_for(self, provider: str) -> str:
+        return (
+            f"provider:{provider}"
+            if provider in self.runner_provider_egress_proxies
+            else "default"
+        )
 
 
 class RunnerSettings(ProviderEgressSettings):
     runner_hmac_secret: SecretStr
     runner_workspace_root: Path = Path("/var/lib/video-runner")
-    runner_access_mode: ProviderAccessMode = ProviderAccessMode.ANONYMOUS
-    runner_provider_session_temp_root: Path = Path("/run/provider-session")
-    # Site session runner (046): per-task leases come from the session broker.
-    runner_session_broker_url: str | None = None
-    runner_session_rpc_secret: SecretStr | None = None
     peertube_allowed_instances: frozenset[str] = frozenset()
 
     runner_ytdlp_bin: str = "yt-dlp"
@@ -138,7 +131,6 @@ class RunnerSettings(ProviderEgressSettings):
 
     @field_validator(
         "runner_workspace_root",
-        "runner_provider_session_temp_root",
         "runner_browser_profile_root",
         "runner_browser_temp_root",
     )
@@ -153,31 +145,12 @@ class RunnerSettings(ProviderEgressSettings):
             raise ValueError("runner version reference is invalid")
         return value
 
-    @field_validator("runner_youtube_pot_base_url", "runner_session_broker_url")
+    @field_validator("runner_youtube_pot_base_url")
     @classmethod
     def validate_pot_url(cls, value: str | None) -> str | None:
         if value is None or not value.strip():
             return None
         return _validate_service_url(value)
-
-    @model_validator(mode="after")
-    def validate_session_boundary(self) -> RunnerSettings:
-        if self.runner_provider_session_temp_root.is_relative_to(
-            self.runner_workspace_root
-        ):
-            raise ValueError("provider session temp root cannot be in the workspace")
-        operator = self.runner_access_mode is ProviderAccessMode.OPERATOR_MANAGED
-        if operator:
-            secret = self.runner_session_rpc_secret
-            if (
-                self.runner_session_broker_url is None
-                or secret is None
-                or len(secret.get_secret_value().encode()) < 32
-            ):
-                raise ValueError("session runner requires the broker URL and secret")
-        elif self.runner_session_broker_url or self.runner_session_rpc_secret:
-            raise ValueError("only the session runner may reach the session broker")
-        return self
 
     @field_validator(
         "runner_ytdlp_bin",
@@ -234,9 +207,3 @@ def _validate_service_url(value: str) -> str:
     if parsed.query or parsed.fragment:
         raise ValueError("provider service URL cannot contain query or fragment")
     return value.rstrip("/")
-
-
-def egress_affinity_id(scope: str, proxy_url: str) -> str:
-    """Return a non-secret identity that changes whenever an egress route changes."""
-    fingerprint = sha256(proxy_url.encode()).hexdigest()[:12]
-    return f"{scope}:{fingerprint}"

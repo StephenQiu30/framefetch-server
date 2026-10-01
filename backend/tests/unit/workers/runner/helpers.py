@@ -1,13 +1,13 @@
 from __future__ import annotations
 
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
-from app.services.provider_types import ProviderAccessMode
 from app.workers.runner.contracts import DownloadRequest
 from app.workers.runner.process import ProcessResult
-from app.workers.runner.release_identity import runtime_code_sha256
-from app.workers.runner.settings import RunnerSettings, egress_affinity_id
-from app.workers.runner.version import YTDLP_ENGINE_COMMIT
+from app.workers.runner.provider_registry import provider_request
+from app.workers.runner.service import MediaRunnerService
+from app.workers.runner.settings import RunnerSettings
 
 SECRET = "runner-shared-secret-material-at-least-32-bytes"
 
@@ -63,27 +63,13 @@ def download_request(height: int = 1080, width: int = 1920) -> DownloadRequest:
             "url": "https://media.example.com/video",
             "expected_provider_media_id": "controlled",
             "expected_extractor_key": "Controlled",
-            "access_context": {
-                "provider_key": "generic",
-                "profile_version": "default",
-                "access_mode": "anonymous",
-                "credential_version_id": None,
-                "egress_affinity_id": egress_affinity_id(
-                    "default", "http://egress-proxy:3128"
-                ),
-                "client_profile_id": "yt-dlp-default",
-                "attestation_provider_version": None,
-                "engine_commit": YTDLP_ENGINE_COMMIT,
-                "runtime_revision": runtime_code_sha256(
-                    "generic", access_mode=ProviderAccessMode.ANONYMOUS
-                ),
-                "strategy_id": "yt-dlp-anonymous",
-                "adapter_revision": "default",
-                "session_source_id": None,
-                "browser_context_revision": None,
-                "protocol_capabilities": ["http-media"],
-                "egress_observation_ref": None,
-            },
+            "issued_at": datetime.now(UTC).isoformat(),
+            "deadline": (datetime.now(UTC) + timedelta(seconds=600)).isoformat(),
+            "execution_context": MediaRunnerService(
+                settings(Path("/tmp/runner-fixture"))
+            )
+            ._context(provider_request("https://media.example.com/video"))
+            .to_document(),
             "plan": {
                 "height": height,
                 "width": width,

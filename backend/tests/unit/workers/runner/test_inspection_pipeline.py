@@ -1,7 +1,6 @@
 from types import SimpleNamespace
 
 import pytest
-from app.services.provider_types import ProviderAccessMode
 from app.workers.runner.errors import RunnerFailure
 from app.workers.runner.inspection_pipeline import RunnerInspectionPipeline
 from app.workers.runner.provider_registry import provider_request
@@ -30,7 +29,7 @@ async def test_provider_probe_failure_is_not_downgraded_to_incomplete_metadata(
             await RunnerInspectionPipeline(settings(tmp_path), Commands()).inspect(
                 provider_request("https://media.example.com/video"),
                 workspace,
-                context=download_request().access_context.to_domain(),
+                context=download_request().execution_context.to_domain(),
                 cookie_jar=None,
             )
         assert caught.value.code == "provider_rate_limited"
@@ -86,8 +85,8 @@ async def test_authenticated_x_resolves_missing_audio_without_forwarding_cookies
             workspace,
             context=SimpleNamespace(
                 provider_key="x",
-                access_mode=ProviderAccessMode.OPERATOR_MANAGED,
-                strategy_id=None,
+                identity_used=True,
+                resolved_layer="L1",
             ),
             cookie_jar=jar,
         )

@@ -215,7 +215,7 @@ class _VQQPersonalIE(VQQVideoIE, plugin_name="personal_video"):  # type: ignore[
                 if name in cookies
             }
             if not token.get("vuserid") or not token.get("vusession"):
-                reject("credential_required")
+                reject("login_required")
             # Exact Tencent API only; never copy the account token to CDN requests
             # or include it in argv, metadata, application logs or stored plans.
             query = dict(kwargs.get("query") or {})

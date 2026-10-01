@@ -1,7 +1,5 @@
 import pytest
-from app.integrations.site_session_catalog import known_session_provider_keys
 from app.services.provider_types import (
-    ProviderAccessMode,
     ProviderCapability,
     ProviderKey,
     ProviderProfileVersion,
@@ -41,8 +39,7 @@ def test_youtube_uses_the_managed_mweb_pot_route() -> None:
     profile = provider_profile("https://www.youtube.com/watch?v=owned")
 
     assert profile.version == ProviderProfileVersion.YOUTUBE
-    assert profile.client_profile_id == "youtube-mweb"
-    assert profile.attestation_policy == "bgutil-mweb-player-gvs"
+    assert profile.client_profile == "youtube:mweb"
     assert profile.yt_dlp_retry_count == 0
     assert not hasattr(profile, "inspection_attempts")
 
@@ -55,16 +52,6 @@ def test_builtin_profiles_use_centralized_provider_identifiers() -> None:
 
     assert all(profile.key in provider_keys for profile in profiles)
     assert all(profile.version in profile_versions for profile in profiles)
-
-
-def test_operator_profiles_and_site_session_policies_are_the_same_set() -> None:
-    operator_profiles = {
-        profile.key
-        for profile in default_provider_registry().profiles
-        if ProviderAccessMode.OPERATOR_MANAGED in profile.access_modes
-    }
-
-    assert operator_profiles == known_session_provider_keys()
 
 
 def test_registry_rejects_negative_yt_dlp_retry_budget() -> None:
@@ -98,7 +85,7 @@ def test_registry_rejects_negative_yt_dlp_retry_budget() -> None:
     ),
 )
 def test_verified_provider_status(url: str) -> None:
-    assert provider_profile(url).support_status is ProviderSupportStatus.VERIFIED
+    assert provider_profile(url).support_status is ProviderSupportStatus.UNKNOWN
 
 
 def test_hongguo_official_share_is_a_single_video_profile() -> None:
@@ -106,26 +93,8 @@ def test_hongguo_official_share_is_a_single_video_profile() -> None:
 
     assert profile.key == "hongguo_web"
     assert profile.version == "hongguo-official-share"
-    assert profile.support_status is ProviderSupportStatus.VERIFIED
-    assert profile.capabilities == frozenset({ProviderCapability.SINGLE_VIDEO})
-
-
-def test_qqvideo_supports_anonymous_and_optional_operator() -> None:
-    url = "https://v.qq.com/x/page/q326831cny0.html"
-    profile = provider_profile(url)
     assert profile.support_status is ProviderSupportStatus.UNKNOWN
-    assert profile.access_modes == (
-        ProviderAccessMode.ANONYMOUS,
-        ProviderAccessMode.OPERATOR_MANAGED,
-    )
-    assert provider_request_url(url) == url
-    assert profile.probe_authenticated_media is True
-    assert profile.command_args == (
-        "--socket-timeout",
-        "10",
-        "--concurrent-fragments",
-        "4",
-    )
+    assert profile.capabilities == frozenset({ProviderCapability.SINGLE_VIDEO})
 
 
 def test_preserves_unlisted_and_non_vimeo_urls() -> None:
@@ -133,52 +102,6 @@ def test_preserves_unlisted_and_non_vimeo_urls() -> None:
         provider_request_url("https://vimeo.com/76979871/private-hash")
         == "https://vimeo.com/76979871/private-hash"
     )
-
-
-def test_remaining_provider_profiles_record_verified_access_boundaries() -> None:
-    facebook = provider_profile("https://www.facebook.com/reel/1195289147628387")
-    instagram = provider_profile("https://www.instagram.com/reel/DbKfjdhTMAY/")
-    twitch = provider_profile("https://clips.twitch.tv/FaintLightGullWholeWheat")
-    reddit = provider_profile("https://www.reddit.com/comments/124pp33")
-    douyin = provider_profile("https://www.douyin.com/video/7647907920252949425")
-    tiktok = provider_profile(
-        "https://www.tiktok.com/@creator/video/6742501081818877190"
-    )
-    wechat = provider_profile("https://weixin.qq.com/sph/AFWYoXF5Bw")
-
-    assert facebook.version == "facebook-public-reel"
-    assert facebook.client_profile_id == "chrome-136-macos-15"
-    assert ProviderCapability.SHORT_VIDEO in facebook.capabilities
-    assert facebook.probe_authenticated_media is True
-    assert instagram.probe_authenticated_media is True
-    assert provider_profile("https://x.com/user/status/123").probe_authenticated_media
-    assert twitch.version == "twitch-public-clip"
-    assert twitch.capabilities == frozenset(
-        {
-            ProviderCapability.SINGLE_VIDEO,
-            ProviderCapability.CLIP_OR_VOD,
-        }
-    )
-    assert reddit.support_status is ProviderSupportStatus.ACCESS_REQUIRED
-    assert reddit.version == "reddit-public-video"
-    assert douyin.version == "douyin-public"
-    assert douyin.support_status is ProviderSupportStatus.ACCESS_REQUIRED
-    assert douyin.access_modes == (
-        ProviderAccessMode.ANONYMOUS,
-        ProviderAccessMode.OPERATOR_MANAGED,
-    )
-    assert tiktok.support_status is ProviderSupportStatus.VERIFIED
-    assert tiktok.version == "tiktok-public-player"
-    assert wechat.version == "wechat-channels-public"
-    assert wechat.support_status is ProviderSupportStatus.ACCESS_REQUIRED
-    assert wechat.access_modes == (
-        ProviderAccessMode.ANONYMOUS,
-        ProviderAccessMode.OPERATOR_MANAGED,
-    )
-    assert wechat.cookie_domain_allowlist == frozenset({"yuanbao.tencent.com"})
-    assert ProviderCapability.SHORT_VIDEO in wechat.capabilities
-    assert wechat.probe_authenticated_media is True
-    assert wechat.probe_media_duration is True
 
 
 @pytest.mark.parametrize(
@@ -220,7 +143,7 @@ def test_new_social_profiles_have_versioned_single_media_boundaries() -> None:
     }
 
     assert {
-        url: (provider_profile(url).version, provider_profile(url).client_profile_id)
+        url: (provider_profile(url).version, provider_profile(url).client_profile)
         for url in expected
     } == expected
 
@@ -273,24 +196,6 @@ def test_normalizes_douyin_shared_video_urls() -> None:
     assert (
         provider_request_url("https://media.example.com/76979871")
         == "https://media.example.com/76979871"
-    )
-
-
-def test_tiktok_uses_anonymous_first_party_player_profile() -> None:
-    url = "https://www.tiktok.com/@creator/video/123"
-    profile = provider_profile(url)
-
-    assert provider_command_args(url) == ()
-    assert not hasattr(provider_request(url).profile, "inspection_attempts")
-
-    assert profile.access_modes == (ProviderAccessMode.ANONYMOUS,)
-    assert profile.cookie_domain_allowlist == frozenset()
-    assert profile.credential_concurrency == 0
-    assert profile.client_profile_id == "yt-dlp-default"
-    assert profile.canary_suite == "tiktok-public-player-video"
-    assert provider_command_args("https://vimeo.com/123") == ("--check-formats",)
-    assert not hasattr(
-        provider_request("https://vimeo.com/123").profile, "inspection_attempts"
     )
 
 
@@ -372,7 +277,7 @@ def test_targets_xiaohongshu_short_links_with_browser_impersonation() -> None:
         )
         assert not hasattr(provider_request(url).profile, "inspection_attempts")
 
-        assert provider_profile(url).support_status is ProviderSupportStatus.DEGRADED
+        assert provider_profile(url).support_status is ProviderSupportStatus.UNKNOWN
         assert provider_profile(url).cookie_domain_allowlist == frozenset(
             {"xiaohongshu.com"}
         )
@@ -530,3 +435,44 @@ def test_peertube_requires_an_exact_approved_instance_and_video_path() -> None:
         assert captured.value.code == "provider_unsupported"
     finally:
         configure_provider_instances(frozenset())
+
+
+def test_identity_declarations_are_the_rebuild_design():
+    from app.services.provider_types import ProviderIdentity
+
+    registry = default_provider_registry()
+    required = {
+        p.key for p in registry.profiles if p.identity is ProviderIdentity.REQUIRED
+    }
+    assert required == {"wechat_channels", "qqvideo", "youku", "instagram"}
+    assert registry.profile_for_key("bilibili").identity is ProviderIdentity.OPTIONAL
+    assert registry.profile_for_key("reddit").identity is ProviderIdentity.NONE
+    assert registry.profile_for_key("tiktok").identity is ProviderIdentity.NONE
+
+
+def test_registry_declares_content_scope_for_all_profiles():
+    from app.workers.runner.provider_registry import default_provider_registry
+
+    for profile in default_provider_registry().profiles:
+        assert profile.content_scope == (
+            "personal_full" if profile.key in {"qqvideo", "youku"} else "public"
+        )
+    assert (
+        provider_profile("https://media.example.com/file.mp4").content_scope == "public"
+    )
+
+
+def test_registry_rejects_invalid_content_scope():
+    from dataclasses import replace
+
+    from app.workers.runner.provider_registry import ProviderRegistry
+
+    with pytest.raises(ValueError, match="content scope"):
+        ProviderRegistry(
+            [
+                replace(
+                    provider_profile("https://www.youtube.com/watch?v=x"),
+                    content_scope="unsafe",
+                )
+            ]
+        )

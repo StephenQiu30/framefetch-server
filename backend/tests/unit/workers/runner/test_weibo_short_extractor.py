@@ -162,7 +162,14 @@ def test_short_link_failure_classification(
         extractor._real_extract(SHORT)
     assert classify_provider_failure(
         ProviderFailureContext("weibo", SHORT, False), str(caught.value).encode()
-    ) == (code, mapped_status)
+    ) == (
+        {
+            "provider_link_unavailable": "content_unavailable",
+            "provider_rate_limited": "rate_limited",
+            "provider_temporarily_unavailable": "transient",
+        }[code],
+        mapped_status,
+    )
 
 
 def test_plugin_is_discovered_by_production_command() -> None:

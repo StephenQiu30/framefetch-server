@@ -21,7 +21,7 @@ def test_content_markers_have_priority_over_login_hints(reason) -> None:
     )
     assert classify_provider_failure(
         context, f"FrameFetch {reason.value}; login required".encode()
-    ) == (reason.value, 422)
+    ) == ("content_unavailable", 422)
 
 
 async def test_successful_ytdlp_preview_warning_is_still_rejected(
@@ -38,7 +38,7 @@ async def test_successful_ytdlp_preview_warning_is_still_rejected(
     commands = MediaCommands(settings(tmp_path), supervisor)
     with pytest.raises(RunnerFailure) as caught:
         await commands.inspect("https://www.bilibili.com/video/BV1xx411c7mD", tmp_path)
-    assert caught.value.code == "content_preview_only"
+    assert caught.value.code == "content_unavailable"
 
 
 @pytest.mark.parametrize("reason", list(ContentRestriction))

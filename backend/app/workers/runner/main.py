@@ -1,28 +1,26 @@
 from __future__ import annotations
 
 import asyncio
+import math
 import re
+import secrets
 import time
 from collections.abc import AsyncIterator, Awaitable
 from contextlib import asynccontextmanager
-from datetime import UTC, datetime
+from dataclasses import replace
+from datetime import UTC, datetime, timedelta
 from typing import Protocol
 from uuid import uuid4
 
-from app.schemas.resolution import RunnerEngineCatalogResponse
-from app.services.provider_types import ProviderAccessContextRef, ProviderAccessMode
+from app.schemas.engine_catalog import EngineCatalogResponse
+from app.services.provider_types import ExecutionContext
 from app.workers.runner.contracts import (
     CancelCommand,
     CancelResponse,
     DownloadRequest,
     DownloadResponse,
-    InspectionOperationResponse,
     InspectRequest,
     InspectResponse,
-    ProviderAccessContextContract,
-    ProviderContextRequest,
-    ProviderContextsRequest,
-    ProviderContextsResponse,
     ProviderFailureContract,
     RunnerErrorContract,
     RuntimeResponse,
@@ -31,7 +29,6 @@ from app.workers.runner.contracts import (
 from app.workers.runner.engine_catalog import RunnerEngineCatalog
 from app.workers.runner.errors import RunnerFailure
 from app.workers.runner.provider_registry import configure_provider_instances
-from app.workers.runner.provider_sessions import ProviderSessionStore
 from app.workers.runner.readiness import RunnerReadiness, _runtime_packages_ready
 from app.workers.runner.service import MediaRunnerService
 from app.workers.runner.settings import RunnerSettings, get_runner_settings
@@ -48,6 +45,18 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel, ValidationError
 
 _TASK_ID = re.compile(r"[A-Za-z0-9_-]{1,64}")
+_PROTOCOL_ERRORS = frozenset(
+    {
+        "authentication_required",
+        "invalid_signature",
+        "signature_expired",
+        "request_replayed",
+        "invalid_request",
+        "request_too_large",
+        "runner_restarted",
+        "task_not_found",
+    }
+)
 
 
 async def _until_disconnect[ResultT](
@@ -78,38 +87,14 @@ async def _until_disconnect[ResultT](
 
 
 class RunnerService(Protocol):
-    async def context(
-        self,
-        url: str,
-        *,
-        access_mode: ProviderAccessMode | None = None,
-        strategy_id: str | None = None,
-        plan_revision: str | None = None,
-    ) -> ProviderAccessContextRef: ...
-
-    async def contexts_for_providers(
-        self,
-        provider_keys: tuple[str, ...],
-        *,
-        access_mode: ProviderAccessMode | None = None,
-    ) -> tuple[ProviderAccessContextRef, ...]: ...
-
     async def inspect(
         self,
         url: str,
         *,
-        access_context: ProviderAccessContextRef | None = None,
-        deadline_at: datetime | None = None,
-        strategy_id: str | None = None,
-        plan_revision: str | None = None,
-        operation_id: str | None = None,
+        execution_context: ExecutionContext | None = None,
+        task_id: str | None = None,
+        deadline: datetime | None = None,
     ) -> InspectResponse: ...
-
-    def inspection_status(self, operation_id: str) -> InspectionOperationResponse: ...
-
-    async def cancel_inspection(
-        self, operation_id: str
-    ) -> InspectionOperationResponse: ...
 
     async def download(self, request: DownloadRequest) -> DownloadResponse: ...
 
@@ -131,8 +116,7 @@ def create_app(
     configured = settings or get_runner_settings()
     instance_id = uuid4().hex
     configure_provider_instances(configured.peertube_allowed_instances)
-    sessions = ProviderSessionStore(configured)
-    runner = service or MediaRunnerService(configured, session_store=sessions)
+    runner = service or MediaRunnerService(configured)
     readiness_probe = readiness or RunnerReadiness(configured)
     runtime_probe = RunnerReadiness(configured)
     engine_catalog = RunnerEngineCatalog(configured)
@@ -154,7 +138,6 @@ def create_app(
             if service is None:
                 assert isinstance(runner, MediaRunnerService)
                 await runner.close()
-            await sessions.close()
 
     app = FastAPI(
         title="Media Runner",
@@ -165,13 +148,16 @@ def create_app(
 
     @app.exception_handler(RunnerFailure)
     async def runner_failure(_: Request, exc: RunnerFailure) -> JSONResponse:
-        retry_after = exc.failure.retry_after
+        failure = exc.failure
+        if exc.code not in _PROTOCOL_ERRORS:
+            failure = replace(failure, code=failure.failure_class.value)
+        retry_after = failure.retry_after
         headers = (
             {}
             if retry_after is None
             else {
                 "Retry-After": str(
-                    max(0, int((retry_after - datetime.now(UTC)).total_seconds()))
+                    max(0, math.ceil((retry_after - datetime.now(UTC)).total_seconds()))
                 )
             }
         )
@@ -179,9 +165,9 @@ def create_app(
             status_code=exc.status,
             content={
                 "error": RunnerErrorContract(
-                    code=exc.code,
-                    message=exc.message,
-                    failure=ProviderFailureContract.from_domain(exc.failure),
+                    code=failure.code,
+                    message=failure.summary,
+                    failure=ProviderFailureContract.from_domain(failure),
                 ).model_dump(mode="json")
             },
             headers=headers,
@@ -208,8 +194,6 @@ def create_app(
 
     @app.get("/health/runtime")
     async def runtime_ready() -> JSONResponse:
-        # Deployment health is independent of an optional platform session.
-        # /health/ready continues to report actual platform readiness honestly.
         healthy = await runtime_probe.check()
         return JSONResponse(
             status_code=200 if healthy else 503,
@@ -228,10 +212,56 @@ def create_app(
         if request.headers.get("X-Runner-Instance") != instance_id:
             raise RunnerFailure("runner_restarted", status=409)
 
-    @app.get("/internal/engine-catalog", response_model=RunnerEngineCatalogResponse)
-    async def get_engine_catalog(request: Request) -> RunnerEngineCatalogResponse:
+    @app.get("/internal/engine-catalog", response_model=EngineCatalogResponse)
+    async def get_engine_catalog(request: Request) -> EngineCatalogResponse:
         await _authenticated_body(request, configured, authenticator)
         return await engine_catalog.get()
+
+    # This short-lived admission barrier only spans the signed request lifetime.
+    # An ACK nonce proves the successor was issued after confirmed cleanup; wall
+    # clock skew cannot let an older signed request cross this barrier. Recovery
+    # reuses the resource ID with that nonce, without a business operation ledger.
+    cancelled_before: dict[str, datetime] = {}
+    cancelling: dict[str, int] = {}
+    cleanup_tokens: dict[str, str] = {}
+
+    def prune_cancel_barriers(now: datetime) -> None:
+        lifetime = timedelta(
+            seconds=configured.runner_signature_max_age_seconds
+            + configured.runner_signature_future_skew_seconds
+            + 1
+        )
+        for task_id, cutoff in tuple(cancelled_before.items()):
+            if task_id not in cancelling and now - cutoff > lifetime:
+                cancelled_before.pop(task_id)
+                cancelling.pop(task_id, None)
+                cleanup_tokens.pop(task_id, None)
+
+    def require_admission(
+        task_id: str,
+        issued_at: datetime,
+        deadline: datetime | None,
+        cleanup_token: str | None,
+        request: Request,
+    ) -> None:
+        now = datetime.now(UTC)
+        signed_at = int(request.headers["X-Runner-Timestamp"])
+        age = now.timestamp() - signed_at
+        if (
+            age > configured.runner_signature_max_age_seconds
+            or age < -configured.runner_signature_future_skew_seconds
+        ):
+            raise RunnerFailure("signature_expired", status=401)
+        prune_cancel_barriers(now)
+        if abs(issued_at.timestamp() - signed_at) > 1:
+            raise RunnerFailure("invalid_request")
+        if deadline is not None and deadline <= now:
+            raise RunnerFailure("inspection_timeout", status=504)
+        if task_id in cancelling:
+            raise RunnerFailure("cancellation_pending", status=409)
+        expected_token = cleanup_tokens.get(task_id)
+        if expected_token is not None and cleanup_token != expected_token:
+            raise RunnerFailure("cancelled", status=409)
 
     @app.post("/internal/inspect", response_model=InspectResponse)
     async def inspect(request: Request) -> InspectResponse:
@@ -242,97 +272,30 @@ def create_app(
         )
         require_instance(request)
         payload = _parse(InspectRequest, body)
-        _require_pinned_engine(configured)
-        return await _until_disconnect(
-            request,
-            runner.inspect(
-                payload.url,
-                access_context=payload.access_context.to_domain(),
-                deadline_at=payload.deadline_at,
-                strategy_id=payload.strategy_id,
-                plan_revision=payload.plan_revision,
-                operation_id=payload.operation_id,
-            ),
-        )
+        if "issued_at" not in payload.model_fields_set:
+            raise RunnerFailure("invalid_request")
+        _require_engine_runtime(configured)
 
-    @app.get(
-        "/internal/inspection-operations/{operation_id}",
-        response_model=InspectionOperationResponse,
-    )
-    async def inspection_status(
-        request: Request, operation_id: str
-    ) -> InspectionOperationResponse:
-        await _authenticated_body(request, configured, authenticator)
-        require_instance(request)
-        if re.fullmatch(r"[0-9a-f]{64}", operation_id) is None:
-            raise RunnerFailure("invalid_request", status=422)
-        return runner.inspection_status(operation_id)
-
-    @app.post(
-        "/internal/inspection-operations/{operation_id}/cancel",
-        response_model=InspectionOperationResponse,
-    )
-    async def cancel_inspection(
-        request: Request, operation_id: str
-    ) -> InspectionOperationResponse:
-        body = await _authenticated_body(request, configured, authenticator)
-        require_instance(request)
-        _parse(CancelCommand, body)
-        if re.fullmatch(r"[0-9a-f]{64}", operation_id) is None:
-            raise RunnerFailure("invalid_request", status=422)
-        return await runner.cancel_inspection(operation_id)
-
-    @app.post(
-        "/internal/context",
-        response_model=ProviderAccessContextContract,
-    )
-    async def context(request: Request) -> ProviderAccessContextContract:
-        body = await _authenticated_body(
-            request,
-            configured,
-            authenticator,
-        )
-        payload = _parse(ProviderContextRequest, body)
-        _require_pinned_engine(configured)
-        if payload.strategy_id is None:
-            prepared = await runner.context(
-                payload.url, access_mode=payload.access_mode
+        async def admitted_inspect() -> InspectResponse:
+            # Run inside the actual work task. No await separates this check from
+            # MediaRunnerService registering its resources at the first entry.
+            require_admission(
+                payload.task_id,
+                payload.issued_at,
+                payload.deadline,
+                payload.cleanup_token,
+                request,
             )
-        else:
-            prepared = await runner.context(
+            return await runner.inspect(
                 payload.url,
-                access_mode=payload.access_mode,
-                strategy_id=payload.strategy_id,
-                plan_revision=payload.plan_revision,
+                task_id=payload.task_id,
+                deadline=payload.deadline,
+                execution_context=None
+                if payload.execution_context is None
+                else payload.execution_context.to_domain(),
             )
-        return ProviderAccessContextContract.from_domain(prepared)
 
-    @app.post(
-        "/internal/contexts",
-        response_model=ProviderContextsResponse,
-    )
-    async def contexts(request: Request) -> ProviderContextsResponse:
-        body = await _authenticated_body(
-            request,
-            configured,
-            authenticator,
-        )
-        payload = _parse(ProviderContextsRequest, body)
-        _require_pinned_engine(configured)
-        resolved = await runner.contexts_for_providers(
-            tuple(payload.provider_keys),
-            **(
-                {"access_mode": payload.access_mode}
-                if payload.access_mode is not None
-                else {}
-            ),
-        )
-        return ProviderContextsResponse(
-            contexts=[
-                ProviderAccessContextContract.from_domain(context)
-                for context in resolved
-            ]
-        )
+        return await _until_disconnect(request, admitted_inspect())
 
     @app.post("/internal/download", response_model=DownloadResponse)
     async def download(request: Request) -> DownloadResponse:
@@ -343,8 +306,21 @@ def create_app(
         )
         require_instance(request)
         payload = _parse(DownloadRequest, body)
-        _require_pinned_engine(configured)
-        return await _until_disconnect(request, runner.download(payload))
+        if "issued_at" not in payload.model_fields_set:
+            raise RunnerFailure("invalid_request")
+        _require_engine_runtime(configured)
+
+        async def admitted_download() -> DownloadResponse:
+            require_admission(
+                payload.task_id,
+                payload.issued_at,
+                payload.deadline,
+                payload.cleanup_token,
+                request,
+            )
+            return await runner.download(payload)
+
+        return await _until_disconnect(request, admitted_download())
 
     @app.post(
         "/internal/tasks/{task_id}/cancel",
@@ -356,10 +332,33 @@ def create_app(
             configured,
             authenticator,
         )
+        require_instance(request)
         _parse(CancelCommand, body)
         if _TASK_ID.fullmatch(task_id) is None:
             raise RunnerFailure("invalid_request")
-        return await runner.cancel(task_id)
+        now = datetime.now(UTC)
+        prune_cancel_barriers(now)
+        if (
+            task_id not in cancelled_before
+            and len(cancelled_before) >= configured.runner_nonce_max_entries
+        ):
+            await runner.cancel(task_id)
+            raise RunnerFailure("cancellation_pending", status=503)
+        cancelling[task_id] = cancelling.get(task_id, 0) + 1
+        cancelled_before[task_id] = datetime.now(UTC)
+        cleanup_tokens[task_id] = secrets.token_hex(16)
+        confirmed = False
+        try:
+            response = await runner.cancel(task_id)
+            confirmed = True
+        finally:
+            remaining_cancellations = max(0, cancelling.get(task_id, 1) - 1)
+            if confirmed and remaining_cancellations == 0:
+                cancelling.pop(task_id, None)
+            else:
+                cancelling[task_id] = remaining_cancellations
+        cancelled_before[task_id] = datetime.now(UTC)
+        return response.model_copy(update={"cleanup_token": cleanup_tokens[task_id]})
 
     @app.get(
         "/internal/tasks/{task_id}",
@@ -378,7 +377,7 @@ def create_app(
     return app
 
 
-def _require_pinned_engine(settings: RunnerSettings) -> None:
+def _require_engine_runtime(settings: RunnerSettings) -> None:
     if not _runtime_packages_ready(settings):
         raise RunnerFailure("engine_unavailable", status=503)
 

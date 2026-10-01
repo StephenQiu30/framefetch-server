@@ -1,30 +1,15 @@
 import { spawn } from "node:child_process";
-import { createHash } from "node:crypto";
-import { readFileSync } from "node:fs";
-import { createServer } from "node:http";
-import { fileURLToPath } from "node:url";
-
-const expectedVersion = process.env.YOUTUBE_POT_EXPECTED_VERSION;
-if (!expectedVersion) {
-  throw new Error("YOUTUBE_POT_EXPECTED_VERSION is required");
-}
 
 const egressProxy = resolveYoutubeEgressProxy(process.env);
 if (process.argv.includes("--check-config")) {
   process.exit(0);
 }
-// Capture the bytes actually loaded by this process, not the later bind-mounted
-// host file contents. A host edit only changes identity after sidecar restart.
-const scriptSha256 = createHash("sha256")
-  .update(readFileSync(fileURLToPath(import.meta.url)))
-  .digest("hex");
-if (process.argv.includes("--check-identity")) {
+if (process.argv.includes("--check-health")) {
   try {
-    const response = await fetch("http://127.0.0.1:4417/identity", {
+    const response = await fetch("http://127.0.0.1:4416/ping", {
       signal: AbortSignal.timeout(2_000),
     });
-    const identity = await response.json();
-    process.exit(response.status === 200 && identity?.sha256 === scriptSha256 ? 0 : 1);
+    process.exit(response.ok ? 0 : 1);
   } catch {
     process.exit(1);
   }
@@ -55,20 +40,6 @@ let active;
 let restartTimer;
 let restartDelayMs = RESTART_DELAY_MS;
 let stopping = false;
-
-const identityServer = createServer((request, response) => {
-  if (request.method !== "GET" || request.url !== "/identity") {
-    response.writeHead(404).end();
-    return;
-  }
-  const ready = active !== undefined && active.ready === true;
-  response.writeHead(ready ? 200 : 503, {
-    "content-type": "application/json",
-    "cache-control": "no-store",
-  });
-  response.end(JSON.stringify({ sha256: scriptSha256 }));
-});
-identityServer.listen(4417, "0.0.0.0");
 
 function startChild() {
   if (stopping) return;
@@ -114,8 +85,7 @@ async function probe(state) {
     const response = await fetch(HEALTH_URL, {
       signal: AbortSignal.timeout(PROBE_TIMEOUT_MS),
     });
-    const payload = await response.json();
-    if (!response.ok || payload?.version !== expectedVersion) {
+    if (!response.ok) {
       throw new Error("unexpected POT provider response");
     }
     state.failures = 0;

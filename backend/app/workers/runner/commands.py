@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import re
 from collections.abc import Awaitable, Callable, Mapping, Sequence
 from datetime import UTC, datetime
 from pathlib import Path
@@ -9,7 +10,6 @@ from tempfile import TemporaryDirectory
 from typing import Any, Protocol
 
 import httpx
-from app.services.downloads.rules.content_restrictions import ContentRestriction
 from app.services.downloads.rules.enums import Container, MediaKind
 from app.services.provider_failures import (
     FailureClass,
@@ -46,9 +46,8 @@ _REMOTE_PROBE_USER_AGENT = (
     "Chrome/136.0.0.0 Safari/537.36"
 )
 _POT_PROBE_TIMEOUT_SECONDS = 2.0
-_POT_ATTESTATION_PREFIX = "bgutil-http-"
 _LOGGER = logging.getLogger(__name__)
-PotProviderProbe = Callable[[str, str], Awaitable[bool]]
+PotProviderProbe = Callable[[str], Awaitable[bool]]
 
 
 class ProcessRunner(Protocol):
@@ -99,7 +98,7 @@ class MediaCommands:
             max_assets=self._settings.runner_max_gallery_assets,
         )
         if restriction is not None and (
-            restriction[0] in ContentRestriction
+            restriction[0] in {"content_unavailable", "content_protected"}
             or not _inspection_payload_has_media(payload)
         ):
             raise RunnerFailure(
@@ -464,8 +463,8 @@ class MediaCommands:
         failure_context: ProviderFailureContext | None = None,
     ) -> ProcessResult:
         selected_proxy = egress_proxy or self._settings.runner_egress_proxy
-        needs_attestation = command[0] == self._settings.runner_ytdlp_bin
-        if needs_attestation:
+        needs_pot_provider = command[0] == self._settings.runner_ytdlp_bin
+        if needs_pot_provider:
             await self._ensure_youtube_pot_provider(failure_context)
         try:
             operation = self._supervisor.run(
@@ -518,12 +517,12 @@ class MediaCommands:
                 if failure_context is not None
                 else None
             )
-            if needs_attestation and (
+            if needs_pot_provider and (
                 provider_failure is None
                 or failure_definition(provider_failure[0])[0]
                 not in {
                     FailureClass.CONTENT_UNAVAILABLE,
-                    FailureClass.CONTENT_RESTRICTED,
+                    FailureClass.CONTENT_PROTECTED,
                 }
             ):
                 await self._ensure_youtube_pot_provider(failure_context)
@@ -545,6 +544,13 @@ class MediaCommands:
                     status=status,
                     phase=phase,
                     evidence_kind=FailureEvidenceKind.UPSTREAM_RESPONSE,
+                    retry_after=_stderr_retry_after(result.stderr),
+                    evidence={
+                        "kind": "upstream_response",
+                        "returncode": result.returncode,
+                        "stderr_truncated": result.stderr_truncated,
+                        **({"http_status": status} if status == 429 else {}),
+                    },
                 )
             _log_command_failure(
                 operation=failure_code,
@@ -576,18 +582,12 @@ class MediaCommands:
             or base_url is None
         ):
             return
-        expected_version = _pot_release(
-            self._settings.runner_youtube_pot_provider_version
-        )
         try:
-            ready = bool(
-                expected_version
-                and await self._pot_provider_probe(base_url, expected_version)
-            )
+            ready = await self._pot_provider_probe(base_url)
         except Exception:
             ready = False
         if not ready:
-            raise RunnerFailure("pot_provider_unavailable", status=503)
+            raise RunnerFailure("runtime_unavailable", status=503)
 
     def _egress_proxy(self, url: str) -> str:
         return self._settings.egress_proxy_for(provider_request(url).profile.key)
@@ -620,6 +620,10 @@ class MediaCommands:
                 phase=phase,
                 evidence_kind=FailureEvidenceKind.UPSTREAM_RESPONSE,
                 retry_after=retry_after,
+                evidence={
+                    "kind": "upstream_response",
+                    **({"http_status": status} if status == 429 else {}),
+                },
             )
         return RunnerFailure(
             fallback_code,
@@ -662,7 +666,7 @@ def _inspection_payload_has_media(payload: Mapping[str, Any]) -> bool:
     )
 
 
-async def _pot_provider_ready(base_url: str, expected_version: str) -> bool:
+async def _pot_provider_ready(base_url: str) -> bool:
     try:
         async with asyncio.timeout(_POT_PROBE_TIMEOUT_SECONDS):
             async with httpx.AsyncClient(
@@ -671,19 +675,9 @@ async def _pot_provider_ready(base_url: str, expected_version: str) -> bool:
                 follow_redirects=False,
             ) as client:
                 response = await client.get(f"{base_url}/ping")
-        if response.status_code != 200:
-            return False
-        payload = response.json()
-    except (httpx.HTTPError, TimeoutError, ValueError):
+    except (httpx.HTTPError, TimeoutError):
         return False
-    return isinstance(payload, dict) and payload.get("version") == expected_version
-
-
-def _pot_release(attestation_version: str) -> str | None:
-    if not attestation_version.startswith(_POT_ATTESTATION_PREFIX):
-        return None
-    release = attestation_version.removeprefix(_POT_ATTESTATION_PREFIX)
-    return release or None
+    return response.status_code == 200
 
 
 def _log_command_failure(
@@ -703,3 +697,17 @@ def _log_command_failure(
         returncode,
         stderr_truncated,
     )
+
+
+def _stderr_retry_after(stderr: bytes) -> datetime | None:
+    # Only a bounded header value crosses the boundary; stderr itself is discarded.
+    match = re.search(
+        rb"(?im)^\s*(?:WARNING:\s*)?retry-after:\s*([^\r\n]{1,128})\s*$", stderr
+    )
+    if match is None:
+        return None
+    try:
+        value = match[1].strip().decode("ascii")
+    except UnicodeDecodeError:
+        return None
+    return parse_retry_after(value, datetime.now(UTC))

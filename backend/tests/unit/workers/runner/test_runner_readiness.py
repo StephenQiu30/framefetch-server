@@ -70,7 +70,7 @@ async def test_runner_readiness_rejects_runtime_version_drift(
     assert await probe.check() is False
 
 
-def test_runtime_package_probe_requires_exact_source_commit(
+def test_runtime_package_probe_accepts_version_drift_but_requires_binaries(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -84,7 +84,7 @@ def test_runtime_package_probe_requires_exact_source_commit(
     }
     monkeypatch.setattr(readiness, "_package_record", packages.get)
 
-    assert readiness._runtime_packages_ready(configured) is False
+    assert readiness._runtime_packages_ready(configured) is True
 
     packages["yt-dlp"] = (
         "2026.8.19",
@@ -100,7 +100,7 @@ def test_runtime_package_probe_requires_exact_source_commit(
     wrong_pot = configured.model_copy(
         update={"runner_youtube_pot_provider_version": "bgutil-http-9.9.9"}
     )
-    assert readiness._runtime_packages_ready(wrong_pot) is False
+    assert readiness._runtime_packages_ready(wrong_pot) is True
 
 
 async def _always_ready(_url: str) -> bool:

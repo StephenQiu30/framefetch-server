@@ -2,14 +2,14 @@
 
 from __future__ import annotations
 
-from app.services.provider_access import ProviderAccessPolicy
+from typing import Literal
+
 from app.services.provider_types import (
-    ProviderAccessMode,
     ProviderCapability,
+    ProviderIdentity,
     ProviderProfileVersion,
     ProviderSupportStatus,
 )
-from app.services.site_sessions import SiteSessionPolicy
 from app.workers.runner.provider_registry import (
     ProviderProfile,
     RuntimeCommandArgs,
@@ -51,24 +51,15 @@ def standard_provider(
     capabilities: frozenset[ProviderCapability] = STANDARD_CAPABILITIES,
     status: ProviderSupportStatus = ProviderSupportStatus.UNKNOWN,
     host_suffixes: frozenset[str] = frozenset(),
-    operator_cookie_domains: frozenset[str] = frozenset(),
-    anonymous_access: bool = True,
-    access_policy: ProviderAccessPolicy = ProviderAccessPolicy.PUBLIC,
-    session_policy: SiteSessionPolicy | None = None,
+    identity: ProviderIdentity = ProviderIdentity.NONE,
+    content_scope: Literal["public", "personal_full"] = "public",
+    cookie_domain_allowlist: frozenset[str] = frozenset(),
     command_args: tuple[str, ...] = (),
     runtime_command_args: RuntimeCommandArgs = default_runtime_command_args,
-    client_profile_id: str = "yt-dlp-default",
-    canary_suite: str = "anonymous-metadata-range",
+    client_profile: str = "yt-dlp-default",
     probe_authenticated_media: bool = False,
     probe_media_duration: bool = False,
 ) -> ProviderProfile:
-    access_modes: tuple[ProviderAccessMode, ...] = (
-        (ProviderAccessMode.ANONYMOUS,) if anonymous_access else ()
-    )
-    if operator_cookie_domains:
-        access_modes += (ProviderAccessMode.OPERATOR_MANAGED,)
-    if not access_modes:
-        raise ValueError("provider must allow at least one access mode")
     return ProviderProfile(
         key=key,
         display_name=display_name,
@@ -77,13 +68,10 @@ def standard_provider(
         version=version,
         capabilities=capabilities,
         support_status=status,
-        access_modes=access_modes,
-        access_policy=access_policy,
-        session_policy=session_policy,
-        cookie_domain_allowlist=operator_cookie_domains,
-        client_profile_id=client_profile_id,
-        credential_concurrency=1 if operator_cookie_domains else 0,
-        canary_suite=canary_suite,
+        identity=identity,
+        content_scope=content_scope,
+        cookie_domain_allowlist=cookie_domain_allowlist,
+        client_profile=client_profile,
         command_args=command_args,
         runtime_command_args=runtime_command_args,
         probe_authenticated_media=probe_authenticated_media,
@@ -100,14 +88,12 @@ def challenged_provider(
     version: str = ProviderProfileVersion.DEFAULT,
     normalize_url: UrlNormalizer = identity_url,
     status: ProviderSupportStatus = ProviderSupportStatus.UNKNOWN,
-    operator_cookie_domains: frozenset[str] = frozenset(),
-    anonymous_access: bool = True,
-    access_policy: ProviderAccessPolicy = ProviderAccessPolicy.PUBLIC,
-    session_policy: SiteSessionPolicy | None = None,
+    identity: ProviderIdentity = ProviderIdentity.NONE,
+    content_scope: Literal["public", "personal_full"] = "public",
+    cookie_domain_allowlist: frozenset[str] = frozenset(),
     command_args: tuple[str, ...] = CHROME_IMPERSONATION,
-    client_profile_id: str = "chrome-136-macos-15",
+    client_profile: str = "chrome-136-macos-15",
     runtime_command_args: RuntimeCommandArgs = default_runtime_command_args,
-    canary_suite: str = "anonymous-metadata-range",
     probe_authenticated_media: bool = False,
     probe_media_duration: bool = False,
 ) -> ProviderProfile:
@@ -119,14 +105,12 @@ def challenged_provider(
         normalize_url=normalize_url,
         capabilities=CHALLENGED_CAPABILITIES,
         status=status,
-        operator_cookie_domains=operator_cookie_domains,
-        anonymous_access=anonymous_access,
-        access_policy=access_policy,
-        session_policy=session_policy,
+        identity=identity,
+        content_scope=content_scope,
+        cookie_domain_allowlist=cookie_domain_allowlist,
         command_args=command_args,
         runtime_command_args=runtime_command_args,
-        client_profile_id=client_profile_id,
-        canary_suite=canary_suite,
+        client_profile=client_profile,
         probe_authenticated_media=probe_authenticated_media,
         probe_media_duration=probe_media_duration,
     )

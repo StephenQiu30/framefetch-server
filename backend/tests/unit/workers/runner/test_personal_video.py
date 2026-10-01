@@ -6,7 +6,6 @@ from types import SimpleNamespace
 
 import pytest
 from app.services.provider_types import (
-    ProviderAccessMode,
     ProviderKey,
 )
 from app.workers.runner.entitlements import enforce_media_rights
@@ -227,28 +226,24 @@ def test_tencent_missing_session_never_makes_anonymous_api_request(
     monkeypatch.setattr(
         InfoExtractor, "_download_webpage", lambda *a, **kw: calls.append(kw)
     )
-    with pytest.raises(ExtractorError, match="credential_required"):
+    with pytest.raises(ExtractorError, match="login_required"):
         extractor._download_webpage(extractor._API_URL, "fixture")
     assert calls == []
 
 
 @pytest.mark.parametrize("provider", [ProviderKey.YOUKU, ProviderKey.QQVIDEO])
-def test_personal_membership_disables_account_on_entitlement_drift(
+def test_anonymous_rejects_personal_membership_markers(
     provider,
 ) -> None:
-    mode = ProviderAccessMode.OPERATOR_MANAGED
     with pytest.raises(RunnerFailure) as caught:
-        enforce_media_rights(
-            {"is_premium": True}, provider_key=provider, access_mode=mode
-        )
-    assert caught.value.code == "credential_entitlement_drift"
+        enforce_media_rights({"is_premium": True}, provider_key=provider)
+    assert caught.value.code == "content_unavailable"
     with pytest.raises(RunnerFailure) as caught:
         enforce_media_rights(
             {"availability": "premium_only", "_framefetch_full_stream": True},
             provider_key=provider,
-            access_mode=mode,
         )
-    assert caught.value.code == "credential_entitlement_drift"
+    assert caught.value.code == "content_unavailable"
     data = {"_framefetch_full_stream": True}
     for flags in (
         {"is_preview": True},
@@ -257,21 +252,23 @@ def test_personal_membership_disables_account_on_entitlement_drift(
         {"is_private": True},
     ):
         with pytest.raises(RunnerFailure):
-            enforce_media_rights(
-                {**data, **flags}, provider_key=provider, access_mode=mode
-            )
+            enforce_media_rights({**data, **flags}, provider_key=provider)
     with pytest.raises(RunnerFailure):
         enforce_media_rights(
             {"is_premium": True, **data},
             provider_key=provider,
-            access_mode=ProviderAccessMode.ANONYMOUS,
         )
 
 
 @pytest.mark.parametrize("provider", ["youku", "qqvideo"])
 @pytest.mark.parametrize(
     "reason",
-    ["content_preview_only", "content_access_metadata_invalid", "drm_protected"],
+    [
+        "content_preview_only",
+        "content_access_metadata_invalid",
+        "drm_protected",
+        "login_required",
+    ],
 )
 def test_personal_plugin_errors_keep_stable_public_classification(
     provider, reason
@@ -284,7 +281,14 @@ def test_personal_plugin_errors_keep_stable_public_classification(
     context = ProviderFailureContext(provider, "https://example.com/fixture", True)
     assert classify_provider_failure(
         context, f"ERROR: FrameFetch {reason}".encode()
-    ) == (reason, 422)
+    ) == (
+        "content_protected"
+        if reason == "drm_protected"
+        else "login_required"
+        if reason == "login_required"
+        else "content_unavailable",
+        422,
+    )
 
 
 def test_empty_youku_manifest_is_unknown_instead_of_falsely_reported_as_drm(

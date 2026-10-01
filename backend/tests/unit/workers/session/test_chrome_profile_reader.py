@@ -65,18 +65,11 @@ def test_fixed_profile_scopes_current_cookie_material_without_platform_calls(ext
         cookie("empty", value=""),
         cookie("control", value="unsafe\nvalue"),
     ]
-    payload = reader.read_cookies(Path("/fixed/Default"), "youtube.com")
+    payload = reader.read_cookies(Path("/fixed/Default"), "youtube")
     assert calls == [("chrome", "/fixed/Default")]
     assert payload == (
         b"# Netscape HTTP Cookie File\n.youtube.com\tTRUE\t/\tTRUE\t0\tSID\tsynthetic\n"
     )
-
-
-def test_filtered_cookie_names_cannot_fake_required_login(extractor):
-    state, _ = extractor
-    state.jar = [cookie(domain=".google.com"), cookie("analytics")]
-    with pytest.raises(LookupError, match="credential_required"):
-        reader.read_cookies(Path("/fixed/Default"), "youtube.com")
 
 
 def test_keychain_refusal_never_calls_extractor(extractor, monkeypatch):
@@ -87,7 +80,7 @@ def test_keychain_refusal_never_calls_extractor(extractor, monkeypatch):
 
     monkeypatch.setattr(reader, "chrome_storage_password", denied)
     with pytest.raises(KeychainUnavailable):
-        reader.read_cookies(Path("/fixed/Default"), "youtube.com")
+        reader.read_cookies(Path("/fixed/Default"), "youtube")
     assert calls == []
 
 
@@ -96,25 +89,9 @@ def test_extraction_warning_allows_complete_target_material_without_logging_valu
 ):
     state, _ = extractor
     state.warning = True
-    payload = reader.read_cookies(Path("/fixed/Default"), "youtube.com")
+    payload = reader.read_cookies(Path("/fixed/Default"), "youtube")
     assert b"SID\tsynthetic\n" in payload
     assert capsys.readouterr() == ("", "")
-
-
-def test_extraction_warning_does_not_allow_missing_required_material(extractor, capsys):
-    state, _ = extractor
-    state.warning = True
-    state.jar = [cookie("analytics")]
-    with pytest.raises(ValueError, match="source_read_failed"):
-        reader.read_cookies(Path("/fixed/Default"), "youtube.com")
-    assert capsys.readouterr() == ("", "")
-
-
-def test_missing_material_without_extraction_warning_is_a_missing_account(extractor):
-    state, _ = extractor
-    state.jar = [cookie("analytics")]
-    with pytest.raises(LookupError, match="credential_required"):
-        reader.read_cookies(Path("/fixed/Default"), "youtube.com")
 
 
 def test_extraction_error_rejects_even_complete_target_material_without_logging_values(
@@ -123,7 +100,7 @@ def test_extraction_error_rejects_even_complete_target_material_without_logging_
     state, _ = extractor
     state.error = True
     with pytest.raises(ValueError, match="source_read_failed"):
-        reader.read_cookies(Path("/fixed/Default"), "youtube.com")
+        reader.read_cookies(Path("/fixed/Default"), "youtube")
     assert capsys.readouterr() == ("", "")
 
 
@@ -143,7 +120,7 @@ def test_reader_exit_codes_never_write_material_for_failures(
     error, expected, monkeypatch, capsys
 ):
     monkeypatch.setattr(
-        sys, "argv", ["reader", "--profile", "/fixed/Default", "--site", "youtube.com"]
+        sys, "argv", ["reader", "--profile", "/fixed/Default", "--site", "youtube"]
     )
 
     def failed(*_):
@@ -156,7 +133,7 @@ def test_reader_exit_codes_never_write_material_for_failures(
 
 def test_reader_stdout_is_only_site_material_and_no_key(monkeypatch, capsysbinary):
     monkeypatch.setattr(
-        sys, "argv", ["reader", "--profile", "/fixed/Default", "--site", "youtube.com"]
+        sys, "argv", ["reader", "--profile", "/fixed/Default", "--site", "youtube"]
     )
     monkeypatch.setattr(reader, "read_cookies", lambda *_: b"synthetic-site-material")
     assert reader.main() == 0

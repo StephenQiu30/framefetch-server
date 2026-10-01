@@ -1,17 +1,12 @@
 """Public single-media provider profiles."""
 
-from app.services.provider_access import ProviderAccessPolicy
 from app.services.provider_types import (
     ProviderCapability,
     ProviderCookieDomain,
+    ProviderIdentity,
     ProviderKey,
     ProviderProfileVersion,
     ProviderSupportStatus,
-)
-from app.services.site_sessions import (
-    CookieRequirement,
-    SessionEntitlement,
-    SiteSessionPolicy,
 )
 from app.workers.runner.provider_factories import (
     CHROME_IMPERSONATION,
@@ -36,19 +31,9 @@ PUBLIC_PROVIDER_PROFILES: tuple[ProviderProfile, ...] = (
         ProviderKey.PINTEREST,
         "Pinterest",
         ("pinterest.com", "www.pinterest.com", "pin.it"),
-        access_policy=ProviderAccessPolicy.OPERATOR_PUBLIC,
-        session_policy=SiteSessionPolicy(
-            "pinterest.com",
-            ProviderKey.PINTEREST,
-            "https://www.pinterest.com/",
-            required_cookie_names=frozenset({"_auth", "_pinterest_sess"}),
-            requirement=CookieRequirement.ALL,
-        ),
         version=ProviderProfileVersion.PINTEREST,
         capabilities=SINGLE_VIDEO,
-        status=ProviderSupportStatus.VERIFIED,
-        operator_cookie_domains=frozenset({ProviderCookieDomain.PINTEREST}),
-        canary_suite="pinterest-public-video-pin",
+        status=ProviderSupportStatus.UNKNOWN,
     ),
     standard_provider(
         ProviderKey.WEIBO,
@@ -64,45 +49,30 @@ PUBLIC_PROVIDER_PROFILES: tuple[ProviderProfile, ...] = (
         version=ProviderProfileVersion.WEIBO,
         normalize_url=weibo_url,
         capabilities=SINGLE_VIDEO,
-        status=ProviderSupportStatus.VERIFIED,
-        canary_suite="weibo-public-single-video",
+        status=ProviderSupportStatus.UNKNOWN,
+        identity=ProviderIdentity.OPTIONAL,
     ),
     standard_provider(
         ProviderKey.YOUKU,
         "优酷",
         ("youku.com", "www.youku.com", "v.youku.com"),
-        access_policy=ProviderAccessPolicy.PERSONAL_ENTITLED,
-        session_policy=SiteSessionPolicy(
-            "youku.com",
-            ProviderKey.YOUKU,
-            "https://www.youku.com/",
-            entitlement=SessionEntitlement.ACCOUNT_ENTITLED_FULL_VIDEO,
-            required_cookie_names=frozenset({"P_sck"}),
-        ),
         version=ProviderProfileVersion.YOUKU,
+        content_scope="personal_full",
         capabilities=SINGLE_VIDEO,
         status=ProviderSupportStatus.UNKNOWN,
-        operator_cookie_domains=frozenset({ProviderCookieDomain.YOUKU}),
-        canary_suite="youku-public-single-video",
+        cookie_domain_allowlist=frozenset({ProviderCookieDomain.YOUKU}),
+        identity=ProviderIdentity.REQUIRED,
     ),
     standard_provider(
         ProviderKey.QQVIDEO,
         "腾讯视频",
         ("v.qq.com",),
-        access_policy=ProviderAccessPolicy.PERSONAL_ENTITLED,
-        session_policy=SiteSessionPolicy(
-            "v.qq.com",
-            ProviderKey.QQVIDEO,
-            "https://v.qq.com/",
-            entitlement=SessionEntitlement.ACCOUNT_ENTITLED_FULL_VIDEO,
-            required_cookie_names=frozenset({"v_vuserid", "v_vusession"}),
-            requirement=CookieRequirement.ALL,
-        ),
         version=ProviderProfileVersion.QQVIDEO,
+        content_scope="personal_full",
         capabilities=SINGLE_VIDEO,
         status=ProviderSupportStatus.UNKNOWN,
         normalize_url=qqvideo_url,
-        operator_cookie_domains=frozenset({ProviderCookieDomain.QQVIDEO}),
+        cookie_domain_allowlist=frozenset({ProviderCookieDomain.QQVIDEO}),
         probe_authenticated_media=True,
         command_args=(
             "--socket-timeout",
@@ -110,7 +80,7 @@ PUBLIC_PROVIDER_PROFILES: tuple[ProviderProfile, ...] = (
             "--concurrent-fragments",
             "4",
         ),
-        canary_suite="qqvideo-personal-single-video",
+        identity=ProviderIdentity.REQUIRED,
     ),
     standard_provider(
         ProviderKey.SNAPCHAT,
@@ -121,8 +91,7 @@ PUBLIC_PROVIDER_PROFILES: tuple[ProviderProfile, ...] = (
         capabilities=frozenset(
             {ProviderCapability.SINGLE_VIDEO, ProviderCapability.SHORT_VIDEO}
         ),
-        status=ProviderSupportStatus.VERIFIED,
-        canary_suite="snapchat-public-spotlight",
+        status=ProviderSupportStatus.UNKNOWN,
     ),
     standard_provider(
         ProviderKey.LINKEDIN,
@@ -131,8 +100,7 @@ PUBLIC_PROVIDER_PROFILES: tuple[ProviderProfile, ...] = (
         version=ProviderProfileVersion.LINKEDIN,
         normalize_url=linkedin_url,
         capabilities=SINGLE_VIDEO,
-        status=ProviderSupportStatus.VERIFIED,
-        canary_suite="linkedin-public-single-video-post",
+        status=ProviderSupportStatus.UNKNOWN,
     ),
     standard_provider(
         ProviderKey.TELEGRAM,
@@ -141,8 +109,7 @@ PUBLIC_PROVIDER_PROFILES: tuple[ProviderProfile, ...] = (
         version=ProviderProfileVersion.TELEGRAM,
         normalize_url=telegram_url,
         capabilities=SINGLE_VIDEO,
-        status=ProviderSupportStatus.VERIFIED,
-        canary_suite="telegram-public-channel-single-video",
+        status=ProviderSupportStatus.UNKNOWN,
     ),
     standard_provider(
         ProviderKey.KICK,
@@ -153,8 +120,7 @@ PUBLIC_PROVIDER_PROFILES: tuple[ProviderProfile, ...] = (
         capabilities=frozenset(
             {ProviderCapability.SINGLE_VIDEO, ProviderCapability.CLIP_OR_VOD}
         ),
-        status=ProviderSupportStatus.VERIFIED,
-        canary_suite="kick-public-clip",
+        status=ProviderSupportStatus.UNKNOWN,
     ),
     standard_provider(
         ProviderKey.TUMBLR,
@@ -164,10 +130,9 @@ PUBLIC_PROVIDER_PROFILES: tuple[ProviderProfile, ...] = (
         normalize_url=tumblr_url,
         host_suffixes=frozenset({"tumblr.com"}),
         capabilities=SINGLE_VIDEO,
-        status=ProviderSupportStatus.VERIFIED,
+        status=ProviderSupportStatus.UNKNOWN,
         command_args=CHROME_IMPERSONATION,
-        client_profile_id="chrome-136-macos-15",
-        canary_suite="tumblr-public-single-video-post",
+        client_profile="chrome-136-macos-15",
     ),
     ProviderProfile(
         key=ProviderKey.HONGGUO_WEB,
@@ -176,7 +141,7 @@ PUBLIC_PROVIDER_PROFILES: tuple[ProviderProfile, ...] = (
         version=ProviderProfileVersion.HONGGUO_WEB,
         normalize_url=hongguo_url,
         capabilities=SINGLE_VIDEO,
-        support_status=ProviderSupportStatus.VERIFIED,
-        canary_suite="hongguo-official-share-single-video",
+        support_status=ProviderSupportStatus.UNKNOWN,
+        identity=ProviderIdentity.OPTIONAL,
     ),
 )

@@ -1,7 +1,9 @@
+"""Exercise the signed anonymous Runner boundary and artifact path checks."""
+
 from __future__ import annotations
 
+import asyncio
 import json
-from dataclasses import replace
 from datetime import UTC, datetime
 from email.utils import format_datetime
 from pathlib import Path
@@ -10,36 +12,45 @@ import httpx
 import pytest
 from app.integrations.media_runner import MediaRunnerHttpClient, _retry_after
 from app.integrations.media_runner_models import MediaRunnerClientError
-from app.services.downloads.errors import (
-    MediaInspectionAuthRequired,
-    MediaInspectionDurationLimitExceeded,
-    MediaInspectionFailure,
-    MediaInspectionLinkUnavailable,
-    MediaInspectionMediaUnsupported,
-    MediaInspectionSessionNotReady,
-    MediaInspectionTemporarilyUnavailable,
-    MediaInspectionTimeout,
-    MediaInspectionUnsupported,
-)
-from app.services.provider_route_admission import (
-    ProviderRouteAdmission,
-    ProviderRouteLease,
-)
-from app.services.provider_types import ProviderAccessContextRef, ProviderAccessMode
-from app.workers.runner.contracts import DownloadPlanContract
-from app.workers.runner.provider_registry import provider_profile
-from tests.resolution import capability_for
+from app.services.provider_types import ExecutionContext
+from app.workers.runner.contracts import ProviderFailureContract, RunnerErrorContract
+from app.workers.runner.errors import RunnerFailure
+from app.workers.runner.signing import sign_request
+from tests.unit.workers.runner.helpers import download_request
+
+SECRET = b"s" * 32
+INSTANCE = "0" * 32
 
 
-@pytest.fixture(autouse=True)
-def declared_capabilities(monkeypatch):
-    async def capability(_self, url):
-        profile = provider_profile(url)
-        return capability_for(
-            profile.access_policy, provider_key=profile.key, version=profile.version
-        )
+def client(http: httpx.AsyncClient, root: Path) -> MediaRunnerHttpClient:
+    return MediaRunnerHttpClient(
+        base_url="http://runner",
+        secret=SECRET,
+        workspace_root=root,
+        inspect_timeout_seconds=1,
+        download_timeout_seconds=1,
+        client=http,
+        clock=lambda: 1000,
+        nonce=lambda: "fixture_nonce_1234567890",
+    )
 
-    monkeypatch.setattr(MediaRunnerHttpClient, "resolution_capability", capability)
+
+def context() -> ExecutionContext:
+    return download_request().execution_context.to_domain()
+
+
+def inspection() -> dict[str, object]:
+    return {
+        "media": {
+            "provider_media_id": "controlled",
+            "title": "Controlled",
+            "duration_seconds": 30,
+            "extractor_key": "Controlled",
+        },
+        "streams": [],
+        "options": [],
+        "execution_context": context().to_document(),
+    }
 
 
 def test_retry_after_parses_seconds_dates_and_rejects_malformed_values():
@@ -51,544 +62,137 @@ def test_retry_after_parses_seconds_dates_and_rejects_malformed_values():
         assert _retry_after(invalid) is None
 
 
-@pytest.mark.asyncio
-async def test_context_reads_the_runner_runtime_generation() -> None:
-    expected = _access_context()
+async def test_inspect_has_cancellation_resource_and_execution_context_and_is_signed(
+    tmp_path,
+):
+    captured = []
 
-    async def respond(request: httpx.Request) -> httpx.Response:
+    async def respond(request):
+        captured.append(request)
         if request.url.path == "/internal/runtime":
-            return httpx.Response(200, json={"instance_id": "0" * 32})
-        assert request.url.path == "/internal/context"
-        assert json.loads(request.content) == {"url": "https://media.example/video"}
-        return httpx.Response(200, json=expected.to_document())
+            return httpx.Response(200, json={"instance_id": INSTANCE})
+        assert request.url.path == "/internal/inspect"
+        sent = json.loads(request.content)
+        assert sent["task_id"] == "parse_fixture"
+        assert sent["url"] == "https://media.example.com/video"
+        assert sent["execution_context"] is None
+        assert datetime.fromisoformat(sent["deadline"]).tzinfo is not None
+        assert datetime.fromisoformat(sent["issued_at"]).timestamp() >= 1000
+        assert request.headers["X-Runner-Instance"] == INSTANCE
+        assert request.headers["X-Runner-Signature"] == sign_request(
+            SECRET,
+            "POST",
+            "/internal/inspect",
+            request.content,
+            1000,
+            "fixture_nonce_1234567890",
+            runtime_instance_id=INSTANCE,
+        )
+        return httpx.Response(200, json=inspection())
 
-    http = httpx.AsyncClient(
-        base_url="http://runner",
-        transport=httpx.MockTransport(respond),
-    )
-    client = MediaRunnerHttpClient(
-        base_url="http://runner",
-        secret=b"s" * 32,
-        workspace_root=Path("."),
-        inspect_timeout_seconds=1,
-        download_timeout_seconds=1,
-        client=http,
-    )
-
-    context = await client.context("https://media.example/video")
-
-    assert context == expected
-    await http.aclose()
-
-
-@pytest.mark.asyncio
-async def test_new_client_fails_closed_against_pre_revision_runner() -> None:
-    old_document = _access_context().to_document()
-    for field in (
-        "runtime_revision",
-        "strategy_id",
-        "adapter_revision",
-        "session_source_id",
-        "browser_context_revision",
-        "protocol_capabilities",
-        "egress_observation_ref",
-    ):
-        old_document.pop(field, None)
-
-    async def respond(_request: httpx.Request) -> httpx.Response:
-        if _request.url.path == "/internal/runtime":
-            return httpx.Response(200, json={"instance_id": "0" * 32})
-        return httpx.Response(200, json=old_document)
-
-    http = httpx.AsyncClient(
+    async with httpx.AsyncClient(
         base_url="http://runner", transport=httpx.MockTransport(respond)
-    )
-    client = MediaRunnerHttpClient(
-        base_url="http://runner",
-        secret=b"s" * 32,
-        workspace_root=Path("."),
-        inspect_timeout_seconds=1,
-        download_timeout_seconds=1,
-        client=http,
-    )
-
-    with pytest.raises(MediaRunnerClientError) as caught:
-        await client.context("https://media.example/video")
-
-    assert caught.value.code == "runner_release_mismatch"
-    await http.aclose()
+    ) as http:
+        result = await client(http, tmp_path).inspect(
+            "https://media.example.com/video", task_id="parse_fixture"
+        )
+    assert result.execution_context == context()
+    assert len(captured) == 2
 
 
-@pytest.mark.asyncio
-async def test_context_batch_uses_one_short_lived_runner_request() -> None:
-    expected = _access_context()
-
-    async def respond(request: httpx.Request) -> httpx.Response:
+@pytest.mark.parametrize("broken", [None, {}, {"media": {}}])
+async def test_invalid_runner_response_is_rejected(tmp_path, broken):
+    async def respond(request):
         if request.url.path == "/internal/runtime":
-            return httpx.Response(200, json={"instance_id": "0" * 32})
-        assert request.url.path == "/internal/contexts"
-        assert json.loads(request.content) == {"provider_keys": ["generic"]}
-        assert request.extensions["timeout"]["read"] == 0.25
-        return httpx.Response(200, json={"contexts": [expected.to_document()]})
+            return httpx.Response(200, json={"instance_id": INSTANCE})
+        return httpx.Response(200, json=broken)
 
-    http = httpx.AsyncClient(
-        base_url="http://runner",
-        transport=httpx.MockTransport(respond),
-    )
-    client = MediaRunnerHttpClient(
-        base_url="http://runner",
-        secret=b"s" * 32,
-        workspace_root=Path("."),
-        inspect_timeout_seconds=30,
-        download_timeout_seconds=30,
-        client=http,
-    )
-
-    contexts = await client.contexts_for_providers(("generic",))
-
-    assert contexts == (expected,)
-    await http.aclose()
-
-
-@pytest.mark.asyncio
-async def test_context_batch_rejects_a_semantically_invalid_runner_context() -> None:
-    invalid = {
-        **_access_context().to_document(),
-        "access_mode": "operator_managed",
-        "credential_version_id": None,
-    }
-
-    async def respond(_request: httpx.Request) -> httpx.Response:
-        if _request.url.path == "/internal/runtime":
-            return httpx.Response(200, json={"instance_id": "0" * 32})
-        return httpx.Response(200, json={"contexts": [invalid]})
-
-    http = httpx.AsyncClient(
-        base_url="http://runner",
-        transport=httpx.MockTransport(respond),
-    )
-    client = MediaRunnerHttpClient(
-        base_url="http://runner",
-        secret=b"s" * 32,
-        workspace_root=Path("."),
-        inspect_timeout_seconds=30,
-        download_timeout_seconds=30,
-        client=http,
-    )
-
-    with pytest.raises(MediaRunnerClientError) as captured:
-        await client.contexts_for_providers(("generic",))
-
-    assert captured.value.code == "invalid_runner_response"
-    await http.aclose()
-
-
-@pytest.mark.asyncio
-async def test_inspect_exposes_provider_access_requirement() -> None:
-    async def respond(_request: httpx.Request) -> httpx.Response:
-        if _request.url.path == "/internal/runtime":
-            return httpx.Response(200, json={"instance_id": "0" * 32})
-        return httpx.Response(
-            422,
-            json={
-                "error": {
-                    "code": "credential_required",
-                    "message": "provider access required",
-                }
-            },
-        )
-
-    http = httpx.AsyncClient(
-        base_url="http://runner",
-        transport=httpx.MockTransport(respond),
-    )
-    client = MediaRunnerHttpClient(
-        base_url="http://runner",
-        secret=b"s" * 32,
-        workspace_root=Path("."),
-        inspect_timeout_seconds=1,
-        download_timeout_seconds=1,
-        client=http,
-    )
-
-    with pytest.raises(MediaInspectionAuthRequired):
-        await client.inspect("https://www.douyin.com/video/123")
-
-    await http.aclose()
-
-
-@pytest.mark.asyncio
-async def test_operator_source_missing_requires_user_login(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    async def context(
-        _url: str, *, access_mode: ProviderAccessMode | None = None
-    ) -> ProviderAccessContextRef:
-        raise MediaRunnerClientError("credential_required", 422)
-
-    http = httpx.AsyncClient(base_url="http://runner")
-    client = MediaRunnerHttpClient(
-        base_url="http://runner",
-        secret=b"s" * 32,
-        workspace_root=Path("."),
-        inspect_timeout_seconds=1,
-        download_timeout_seconds=1,
-        expected_access_mode=ProviderAccessMode.OPERATOR_MANAGED,
-        client=http,
-    )
-    monkeypatch.setattr(client, "context", context)
-
-    with pytest.raises(MediaInspectionAuthRequired):
-        await client.inspect("https://www.youtube.com/watch?v=jNQXAC9IVRw")
-
-    await http.aclose()
-
-
-@pytest.mark.asyncio
-async def test_operator_content_auth_requirement_stays_content_error(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    async def context(
-        _url: str, *, access_mode: ProviderAccessMode | None = None
-    ) -> ProviderAccessContextRef:
-        return _access_context()
-
-    async def respond(_request: httpx.Request) -> httpx.Response:
-        if _request.url.path == "/internal/runtime":
-            return httpx.Response(200, json={"instance_id": "0" * 32})
-        return httpx.Response(
-            422,
-            json={"error": {"code": "credential_required", "message": "required"}},
-        )
-
-    http = httpx.AsyncClient(
+    async with httpx.AsyncClient(
         base_url="http://runner", transport=httpx.MockTransport(respond)
-    )
-    client = MediaRunnerHttpClient(
-        base_url="http://runner",
-        secret=b"s" * 32,
-        workspace_root=Path("."),
-        inspect_timeout_seconds=1,
-        download_timeout_seconds=1,
-        expected_access_mode=ProviderAccessMode.OPERATOR_MANAGED,
-        client=http,
-    )
-    monkeypatch.setattr(client, "context", context)
-
-    with pytest.raises(MediaInspectionAuthRequired):
-        await client.inspect("https://www.youtube.com/watch?v=jNQXAC9IVRw")
-
-    await http.aclose()
+    ) as http:
+        with pytest.raises(MediaRunnerClientError, match="invalid_runner_response"):
+            await client(http, tmp_path).inspect("https://media.example.com/video")
 
 
-@pytest.mark.asyncio
-@pytest.mark.parametrize("context_ready", (False, True))
 @pytest.mark.parametrize(
-    "code", ("provider_session_not_ready", "provider_session_unavailable")
+    "failure_type, expected",
+    [
+        (httpx.ReadTimeout, "transient"),
+        (httpx.ConnectError, "runner_unavailable"),
+    ],
 )
-async def test_inspect_exposes_a_site_session_that_is_not_ready(
-    monkeypatch: pytest.MonkeyPatch, context_ready: bool, code: str
-) -> None:
-    async def respond(_request: httpx.Request) -> httpx.Response:
-        if _request.url.path == "/internal/runtime":
-            return httpx.Response(200, json={"instance_id": "0" * 32})
-        return httpx.Response(503, json={"error": {"code": code, "message": code}})
+async def test_transport_failures_keep_bounded_stable_codes(
+    tmp_path, failure_type, expected
+):
+    async def respond(request):
+        if request.url.path == "/internal/runtime":
+            return httpx.Response(200, json={"instance_id": INSTANCE})
+        raise failure_type("private upstream message", request=request)
 
-    http = httpx.AsyncClient(
+    async with httpx.AsyncClient(
         base_url="http://runner", transport=httpx.MockTransport(respond)
-    )
-    client = MediaRunnerHttpClient(
-        base_url="http://runner",
-        secret=b"s" * 32,
-        workspace_root=Path("."),
-        inspect_timeout_seconds=1,
-        download_timeout_seconds=1,
-        client=http,
-        expected_access_mode=ProviderAccessMode.OPERATOR_MANAGED,
-    )
-
-    async def context(
-        _url: str, *, access_mode: ProviderAccessMode | None = None
-    ) -> ProviderAccessContextRef:
-        if not context_ready:
-            raise MediaRunnerClientError(code, 503)
-        return _access_context()
-
-    monkeypatch.setattr(client, "context", context)
-    with pytest.raises(MediaInspectionSessionNotReady) as captured:
-        await client.inspect("https://www.douyin.com/video/123")
-    assert captured.value.before_media_io is not context_ready
-    await http.aclose()
+    ) as http:
+        with pytest.raises(MediaRunnerClientError) as caught:
+            await client(http, tmp_path).inspect("https://media.example.com/video")
+    assert caught.value.code == expected
+    assert "private" not in str(caught.value)
 
 
-@pytest.mark.asyncio
-async def test_inspect_exposes_duration_safety_boundary() -> None:
-    async def respond(_request: httpx.Request) -> httpx.Response:
-        if _request.url.path == "/internal/runtime":
-            return httpx.Response(200, json={"instance_id": "0" * 32})
-        return httpx.Response(
-            422,
-            json={
-                "error": {
-                    "code": "duration_limit_exceeded",
-                    "message": "duration limit exceeded",
-                }
-            },
-        )
+async def test_failure_facts_and_retry_after_survive_http_projection(tmp_path):
+    error = RunnerFailure("rate_limited", status=429)
+    document = RunnerErrorContract(
+        code=error.code,
+        message=error.message,
+        failure=ProviderFailureContract.from_domain(error.failure),
+    ).model_dump(mode="json")
 
-    http = httpx.AsyncClient(
-        base_url="http://runner",
-        transport=httpx.MockTransport(respond),
-    )
-    client = MediaRunnerHttpClient(
-        base_url="http://runner",
-        secret=b"s" * 32,
-        workspace_root=Path("."),
-        inspect_timeout_seconds=1,
-        download_timeout_seconds=1,
-        client=http,
-    )
-
-    with pytest.raises(MediaInspectionDurationLimitExceeded):
-        await client.inspect("https://x.com/example/status/123")
-
-    await http.aclose()
-
-
-@pytest.mark.asyncio
-async def test_inspect_exposes_unavailable_provider_link() -> None:
-    async def respond(_request: httpx.Request) -> httpx.Response:
-        if _request.url.path == "/internal/runtime":
-            return httpx.Response(200, json={"instance_id": "0" * 32})
-        return httpx.Response(
-            422,
-            json={
-                "error": {
-                    "code": "provider_link_unavailable",
-                    "message": "provider link unavailable",
-                }
-            },
-        )
-
-    http = httpx.AsyncClient(
-        base_url="http://runner",
-        transport=httpx.MockTransport(respond),
-    )
-    client = MediaRunnerHttpClient(
-        base_url="http://runner",
-        secret=b"s" * 32,
-        workspace_root=Path("."),
-        inspect_timeout_seconds=1,
-        download_timeout_seconds=1,
-        client=http,
-    )
-
-    with pytest.raises(MediaInspectionLinkUnavailable):
-        await client.inspect("https://v.douyin.com/KWku50HECg/")
-
-    await http.aclose()
-
-
-@pytest.mark.asyncio
-async def test_inspect_exposes_unsupported_provider() -> None:
-    async def respond(_request: httpx.Request) -> httpx.Response:
-        if _request.url.path == "/internal/runtime":
-            return httpx.Response(200, json={"instance_id": "0" * 32})
-        return httpx.Response(
-            422,
-            json={
-                "error": {
-                    "code": "provider_unsupported",
-                    "message": "provider unsupported",
-                }
-            },
-        )
-
-    http = httpx.AsyncClient(
-        base_url="http://runner",
-        transport=httpx.MockTransport(respond),
-    )
-    client = MediaRunnerHttpClient(
-        base_url="http://runner",
-        secret=b"s" * 32,
-        workspace_root=Path("."),
-        inspect_timeout_seconds=1,
-        download_timeout_seconds=1,
-        client=http,
-    )
-
-    with pytest.raises(MediaInspectionUnsupported):
-        await client.inspect("https://weixin.qq.com/sph/AFWYoXF5Bw")
-
-    await http.aclose()
-
-
-@pytest.mark.asyncio
-async def test_inspect_exposes_unsupported_provider_media() -> None:
-    async def respond(_request: httpx.Request) -> httpx.Response:
-        if _request.url.path == "/internal/runtime":
-            return httpx.Response(200, json={"instance_id": "0" * 32})
-        return httpx.Response(
-            422,
-            json={
-                "error": {
-                    "code": "provider_media_unsupported",
-                    "message": "provider media unsupported",
-                }
-            },
-        )
-
-    http = httpx.AsyncClient(
-        base_url="http://runner",
-        transport=httpx.MockTransport(respond),
-    )
-    client = MediaRunnerHttpClient(
-        base_url="http://runner",
-        secret=b"s" * 32,
-        workspace_root=Path("."),
-        inspect_timeout_seconds=1,
-        download_timeout_seconds=1,
-        client=http,
-    )
-
-    with pytest.raises(MediaInspectionMediaUnsupported):
-        await client.inspect("https://www.facebook.com/share/p/example/")
-
-    await http.aclose()
-
-
-@pytest.mark.asyncio
-async def test_inspect_maps_unsupported_source() -> None:
-    async def respond(_request: httpx.Request) -> httpx.Response:
-        if _request.url.path == "/internal/runtime":
-            return httpx.Response(200, json={"instance_id": "0" * 32})
-        return httpx.Response(
-            422,
-            json={
-                "error": {
-                    "code": "unsupported_source",
-                    "message": "unsupported source",
-                }
-            },
-        )
-
-    http = httpx.AsyncClient(
-        base_url="http://runner",
-        transport=httpx.MockTransport(respond),
-    )
-    client = MediaRunnerHttpClient(
-        base_url="http://runner",
-        secret=b"s" * 32,
-        workspace_root=Path("."),
-        inspect_timeout_seconds=1,
-        download_timeout_seconds=1,
-        client=http,
-    )
-
-    with pytest.raises(MediaInspectionMediaUnsupported):
-        await client.inspect("https://www.youtube.com/watch?v=owned")
-
-    await http.aclose()
-
-
-@pytest.mark.asyncio
-async def test_inspect_exposes_runner_timeout_response() -> None:
-    async def respond(_request: httpx.Request) -> httpx.Response:
-        if _request.url.path == "/internal/runtime":
-            return httpx.Response(200, json={"instance_id": "0" * 32})
-        return httpx.Response(
-            504,
-            json={"error": {"code": "inspection_timeout", "message": "timeout"}},
-        )
-
-    http = httpx.AsyncClient(
-        base_url="http://runner",
-        transport=httpx.MockTransport(respond),
-    )
-    client = MediaRunnerHttpClient(
-        base_url="http://runner",
-        secret=b"s" * 32,
-        workspace_root=Path("."),
-        inspect_timeout_seconds=1,
-        download_timeout_seconds=1,
-        client=http,
-    )
-
-    with pytest.raises(MediaInspectionTimeout):
-        await client.inspect("https://www.douyin.com/video/123")
-
-    await http.aclose()
-
-
-@pytest.mark.asyncio
-async def test_inspect_exposes_client_read_timeout() -> None:
-    async def respond(request: httpx.Request) -> httpx.Response:
+    async def respond(request):
         if request.url.path == "/internal/runtime":
-            return httpx.Response(200, json={"instance_id": "0" * 32})
-        raise httpx.ReadTimeout("runner timed out", request=request)
+            return httpx.Response(200, json={"instance_id": INSTANCE})
+        return httpx.Response(
+            429, json={"error": document}, headers={"Retry-After": "30"}
+        )
 
-    http = httpx.AsyncClient(
-        base_url="http://runner",
-        transport=httpx.MockTransport(respond),
-    )
-    client = MediaRunnerHttpClient(
-        base_url="http://runner",
-        secret=b"s" * 32,
-        workspace_root=Path("."),
-        inspect_timeout_seconds=1,
-        download_timeout_seconds=1,
-        client=http,
-    )
-
-    with pytest.raises(MediaInspectionTimeout):
-        await client.inspect("https://www.douyin.com/video/123")
-
-    await http.aclose()
+    async with httpx.AsyncClient(
+        base_url="http://runner", transport=httpx.MockTransport(respond)
+    ) as http:
+        with pytest.raises(MediaRunnerClientError) as caught:
+            await client(http, tmp_path).inspect("https://media.example.com/video")
+    assert caught.value.failure.layer == "L1"
+    assert caught.value.failure.stage == "resolve"
+    assert caught.value.retry_at is not None
 
 
-@pytest.mark.asyncio
-async def test_inspect_classifies_runner_disconnect_as_dependency_unavailable() -> None:
-    async def respond(request: httpx.Request) -> httpx.Response:
-        if request.url.path == "/internal/runtime":
-            return httpx.Response(200, json={"instance_id": "0" * 32})
-        raise httpx.ConnectError("runner unavailable", request=request)
+@pytest.mark.parametrize(
+    "workspace, relative_path, valid",
+    [
+        ("inside", "artifact.mp4", True),
+        ("outside", "artifact.mp4", False),
+        ("inside", "../../outside.mp4", False),
+        ("inside", "/outside.mp4", False),
+    ],
+)
+async def test_download_rejects_artifact_outside_shared_workspace(
+    tmp_path, workspace, relative_path, valid
+):
+    request = download_request()
+    root = tmp_path / "root"
+    selected = root / "job" if workspace == "inside" else tmp_path / "outside"
 
-    http = httpx.AsyncClient(
-        base_url="http://runner",
-        transport=httpx.MockTransport(respond),
-    )
-    client = MediaRunnerHttpClient(
-        base_url="http://runner",
-        secret=b"s" * 32,
-        workspace_root=Path("."),
-        inspect_timeout_seconds=1,
-        download_timeout_seconds=1,
-        client=http,
-    )
-
-    with pytest.raises(MediaInspectionFailure) as caught:
-        await client.inspect("https://www.douyin.com/video/123")
-
-    assert type(caught.value) is MediaInspectionTemporarilyUnavailable
-    await http.aclose()
-
-
-@pytest.mark.asyncio
-async def test_download_sends_expected_inspection_identity(tmp_path) -> None:
-    captured: dict[str, object] = {}
-    workspace = tmp_path / "job-controlled"
-
-    async def respond(request: httpx.Request) -> httpx.Response:
-        if request.url.path == "/internal/runtime":
-            return httpx.Response(200, json={"instance_id": "0" * 32})
-        captured.update(json.loads(request.content))
+    async def respond(http_request):
+        if http_request.url.path == "/internal/runtime":
+            return httpx.Response(200, json={"instance_id": INSTANCE})
+        assert (
+            json.loads(http_request.content)["execution_context"]
+            == context().to_document()
+        )
         return httpx.Response(
             200,
             json={
-                "task_id": "job_123",
-                "workspace_path": str(workspace),
+                "task_id": request.task_id,
+                "workspace_path": str(selected),
                 "artifact": {
-                    "relative_path": "artifact.mp4",
+                    "relative_path": relative_path,
                     "size_bytes": 5,
                     "sha256": "a" * 64,
                     "duration_seconds": 30,
@@ -596,256 +200,162 @@ async def test_download_sends_expected_inspection_identity(tmp_path) -> None:
                     "video_streams": 1,
                     "audio_streams": 1,
                 },
-                "selection": None,
             },
         )
-
-    http = httpx.AsyncClient(
-        base_url="http://runner",
-        transport=httpx.MockTransport(respond),
-    )
-    client = MediaRunnerHttpClient(
-        base_url="http://runner",
-        secret=b"s" * 32,
-        workspace_root=tmp_path,
-        inspect_timeout_seconds=1,
-        download_timeout_seconds=1,
-        client=http,
-    )
-    plan = DownloadPlanContract.model_validate(
-        {
-            "height": 720,
-            "width": 1280,
-            "fps_bucket": "fps_30",
-            "dynamic_range": "sdr",
-            "video_codec_family": "h264",
-            "audio_codec_family": "aac",
-            "audio_language": None,
-            "container_preference": "mp4",
-            "compatibility_profile": "balanced",
-            "hints": {"video_id": "video-id", "audio_id": "a1"},
-        }
-    ).to_domain()
-
-    await client.download(
-        "job_123",
-        "https://media.example/video",
-        plan,
-        expected_provider_media_id="video-1",
-        expected_extractor_key="Controlled",
-        access_context=_access_context(),
-    )
-
-    assert captured["expected_provider_media_id"] == "video-1"
-    assert captured["expected_extractor_key"] == "Controlled"
-    assert captured["access_context"] == _access_context().to_document()
-    await http.aclose()
-
-
-@pytest.mark.asyncio
-async def test_new_client_rejects_legacy_probe_revision(tmp_path: Path) -> None:
-    newer = replace(_access_context(), runtime_revision="a" * 64)
-    returned = _access_context().to_document()
-    for field in (
-        "runtime_revision",
-        "strategy_id",
-        "adapter_revision",
-        "session_source_id",
-        "browser_context_revision",
-        "protocol_capabilities",
-        "egress_observation_ref",
-    ):
-        returned.pop(field, None)
-
-    async def respond(request: httpx.Request) -> httpx.Response:
-        if request.url.path == "/internal/runtime":
-            return httpx.Response(200, json={"instance_id": "0" * 32})
-        assert request.url.path == "/internal/inspect"
-        assert json.loads(request.content)["access_context"] == newer.to_document()
-        return httpx.Response(
-            200,
-            json={
-                "media": {
-                    "provider_media_id": "video-1",
-                    "title": "Video",
-                    "duration_seconds": 30,
-                    "extractor_key": "Controlled",
-                },
-                "streams": [],
-                "options": [{"option_id": "one", "label": "720p"}],
-                "access_context": returned,
-            },
-        )
-
-    http = httpx.AsyncClient(
-        base_url="http://runner", transport=httpx.MockTransport(respond)
-    )
-    client = MediaRunnerHttpClient(
-        base_url="http://runner",
-        secret=b"s" * 32,
-        workspace_root=tmp_path,
-        inspect_timeout_seconds=1,
-        download_timeout_seconds=1,
-        client=http,
-    )
-    with pytest.raises(MediaRunnerClientError) as captured:
-        await client._inspect_response(
-            "https://media.example/video", newer, plan_revision="a" * 64
-        )
-    assert captured.value.code == "runner_release_mismatch"
-    returned["engine_commit"] = "different"
-    with pytest.raises(MediaRunnerClientError) as captured:
-        await client._inspect_response(
-            "https://media.example/video", newer, plan_revision="a" * 64
-        )
-    assert captured.value.code == "runner_release_mismatch"
-    await http.aclose()
-
-
-@pytest.mark.asyncio
-async def test_new_client_half_open_download_rejects_legacy_runner(
-    tmp_path: Path,
-) -> None:
-    newer = replace(_access_context(), runtime_revision="a" * 64)
-    events: list[str] = []
-
-    class HalfOpen:
-        def __init__(self) -> None:
-            self.probing = True
-
-        async def acquire(self, key, owner):
-            return ProviderRouteLease(
-                key,
-                owner,
-                1 if self.probing else None,
-                datetime.now(UTC).replace(year=datetime.now(UTC).year + 1),
-            )
-
-        async def finish(self, _lease, *, success, **_kwargs):
-            assert not success
-            self.probing = False
-
-    async def respond(request: httpx.Request) -> httpx.Response:
-        if request.url.path == "/internal/runtime":
-            return httpx.Response(200, json={"instance_id": "0" * 32})
-        if request.url.path == "/internal/inspect":
-            events.append("probe")
-            return httpx.Response(
-                200,
-                json={
-                    "media": {
-                        "provider_media_id": "video-1",
-                        "title": "Video",
-                        "duration_seconds": 30,
-                        "extractor_key": "Controlled",
-                    },
-                    "streams": [],
-                    "options": [{"option_id": "one", "label": "gallery"}],
-                    "access_context": {
-                        key: value
-                        for key, value in _access_context().to_document().items()
-                        if key
-                        not in {
-                            "runtime_revision",
-                            "strategy_id",
-                            "adapter_revision",
-                            "session_source_id",
-                            "browser_context_revision",
-                            "protocol_capabilities",
-                            "egress_observation_ref",
-                        }
-                    },
-                },
-            )
-        events.append("download")
-        return httpx.Response(
-            200,
-            json={
-                "task_id": "job_123",
-                "workspace_path": str(tmp_path / "job-controlled"),
-                "artifact": {
-                    "relative_path": "artifact.zip",
-                    "size_bytes": 5,
-                    "sha256": "a" * 64,
-                    "duration_seconds": 30,
-                    "container": "zip",
-                    "video_streams": 0,
-                    "audio_streams": 0,
-                    "media_kind": "image_gallery",
-                    "asset_count": 1,
-                },
-                "selection": None,
-            },
-        )
-
-    http = httpx.AsyncClient(
-        base_url="http://runner", transport=httpx.MockTransport(respond)
-    )
-    client = MediaRunnerHttpClient(
-        base_url="http://runner",
-        secret=b"s" * 32,
-        workspace_root=tmp_path,
-        inspect_timeout_seconds=1,
-        download_timeout_seconds=1,
-        client=http,
-        admission=ProviderRouteAdmission(HalfOpen()),  # type: ignore[arg-type]
-    )
-    with pytest.raises(MediaRunnerClientError) as captured:
-        await client.download(
-            "job_123",
-            "https://media.example/video",
-            None,
-            expected_provider_media_id="video-1",
-            expected_extractor_key="Controlled",
-            access_context=newer,
-            media_kind="image_gallery",  # type: ignore[arg-type]
-            asset_count=1,
-        )
-    assert captured.value.code == "runner_release_mismatch"
-    assert events == ["probe"]
-    await http.aclose()
-
-
-def _access_context() -> ProviderAccessContextRef:
-    return ProviderAccessContextRef(
-        provider_key="generic",
-        profile_version="1",
-        access_mode=ProviderAccessMode.ANONYMOUS,
-        credential_version_id=None,
-        egress_affinity_id="default",
-        client_profile_id="yt-dlp-default",
-        attestation_provider_version=None,
-        engine_commit="5d6b8c8",
-        runtime_revision="a" * 64,
-        strategy_id="yt-dlp-anonymous",
-        adapter_revision="1",
-        protocol_capabilities=("http-media",),
-    )
-
-
-async def test_execution_is_bound_to_handshake_and_never_replayed_on_restart():
-    paths = []
-
-    async def respond(request):
-        paths.append(request.url.path)
-        if request.url.path == "/internal/context":
-            return httpx.Response(200, json=_access_context().to_document())
-        if request.url.path == "/internal/runtime":
-            return httpx.Response(200, json={"instance_id": "a" * 32})
-        assert request.headers["X-Runner-Instance"] == "a" * 32
-        return httpx.Response(409, json={"error": {"code": "runner_restarted"}})
 
     async with httpx.AsyncClient(
         base_url="http://runner", transport=httpx.MockTransport(respond)
     ) as http:
-        client = MediaRunnerHttpClient(
-            base_url="http://runner",
-            secret=b"s" * 32,
-            workspace_root=Path("."),
-            inspect_timeout_seconds=1,
-            download_timeout_seconds=1,
-            client=http,
+        operation = client(http, root).download(
+            request.task_id,
+            request.url,
+            request.plan.to_domain(),
+            expected_provider_media_id=request.expected_provider_media_id,
+            expected_extractor_key=request.expected_extractor_key,
+            execution_context=context(),
         )
-        with pytest.raises(MediaInspectionTemporarilyUnavailable):
-            await client.inspect("https://media.example/video")
-    assert paths == ["/internal/context", "/internal/runtime", "/internal/inspect"]
+        if valid:
+            result = await operation
+            assert result.sha256 == "a" * 64 and result.size_bytes == 5
+        else:
+            with pytest.raises(MediaRunnerClientError, match="invalid_artifact_path"):
+                await operation
+
+
+async def test_inspection_cancellation_waits_for_pinned_cleanup_ack_and_retries_loss(
+    tmp_path,
+):
+    started, cleaning, finish = asyncio.Event(), asyncio.Event(), asyncio.Event()
+    cancel_requests = []
+
+    async def respond(request):
+        if request.url.path == "/internal/runtime":
+            return httpx.Response(200, json={"instance_id": INSTANCE})
+        if request.url.path == "/internal/inspect":
+            started.set()
+            await asyncio.Event().wait()
+        cancel_requests.append(request)
+        assert request.url.path == "/internal/tasks/parse_fixture/cancel"
+        assert request.headers["X-Runner-Instance"] == INSTANCE
+        cleaning.set()
+        await finish.wait()
+        if len(cancel_requests) == 1:
+            raise httpx.ReadTimeout("lost reply", request=request)
+        return httpx.Response(
+            200,
+            json={
+                "task_id": "parse_fixture",
+                "status": "stopped",
+                "cleanup_token": "a" * 32,
+            },
+        )
+
+    async with httpx.AsyncClient(
+        base_url="http://runner", transport=httpx.MockTransport(respond)
+    ) as http:
+        task = asyncio.create_task(
+            client(http, tmp_path).inspect(
+                "https://vimeo.com/1", task_id="parse_fixture"
+            )
+        )
+        await started.wait()
+        task.cancel()
+        await cleaning.wait()
+        assert not task.done()
+        finish.set()
+        with pytest.raises(asyncio.CancelledError):
+            await asyncio.wait_for(task, 1)
+    assert len(cancel_requests) == 2
+
+
+async def test_inspection_cancel_without_ack_surfaces_failure(tmp_path):
+    started = asyncio.Event()
+    attempts = 0
+
+    async def respond(request):
+        nonlocal attempts
+        if request.url.path == "/internal/runtime":
+            return httpx.Response(200, json={"instance_id": INSTANCE})
+        if request.url.path == "/internal/inspect":
+            started.set()
+            await asyncio.Event().wait()
+        attempts += 1
+        raise httpx.ReadTimeout("lost reply", request=request)
+
+    async with httpx.AsyncClient(
+        base_url="http://runner", transport=httpx.MockTransport(respond)
+    ) as http:
+        task = asyncio.create_task(
+            client(http, tmp_path).inspect(
+                "https://vimeo.com/1", task_id="parse_fixture"
+            )
+        )
+        await started.wait()
+        task.cancel()
+        with pytest.raises(MediaRunnerClientError, match="runtime_unavailable"):
+            await asyncio.wait_for(task, 1)
+    assert attempts == 3
+
+
+async def test_cancel_confirms_old_resource_is_lost_only_after_boot_change(tmp_path):
+    started = asyncio.Event()
+    runtime_calls = 0
+    cancelled_instances = []
+
+    async def respond(request):
+        nonlocal runtime_calls
+        if request.url.path == "/internal/runtime":
+            runtime_calls += 1
+            return httpx.Response(
+                200, json={"instance_id": INSTANCE if runtime_calls == 1 else "1" * 32}
+            )
+        if request.url.path == "/internal/inspect":
+            started.set()
+            await asyncio.Event().wait()
+        cancelled_instances.append(request.headers["X-Runner-Instance"])
+        error = RunnerFailure("runner_restarted", status=409)
+        return httpx.Response(
+            409,
+            json={
+                "error": RunnerErrorContract(
+                    code=error.code,
+                    message=error.message,
+                    failure=ProviderFailureContract.from_domain(error.failure),
+                ).model_dump(mode="json")
+            },
+        )
+
+    async with httpx.AsyncClient(
+        base_url="http://runner", transport=httpx.MockTransport(respond)
+    ) as http:
+        task = asyncio.create_task(
+            client(http, tmp_path).inspect(
+                "https://vimeo.com/1", task_id="parse_fixture"
+            )
+        )
+        await started.wait()
+        task.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await asyncio.wait_for(task, 1)
+    assert runtime_calls == 2
+    assert cancelled_instances == [INSTANCE]
+
+
+@pytest.mark.parametrize(
+    "ack",
+    [
+        {"task_id": "different", "status": "stopped"},
+        {"task_id": "parse_fixture", "status": "running"},
+    ],
+)
+async def test_cancel_rejects_mismatched_or_incomplete_ack(tmp_path, ack):
+    async def respond(request):
+        if request.url.path == "/internal/runtime":
+            return httpx.Response(200, json={"instance_id": INSTANCE})
+        return httpx.Response(200, json=ack)
+
+    async with httpx.AsyncClient(
+        base_url="http://runner", transport=httpx.MockTransport(respond)
+    ) as http:
+        with pytest.raises(MediaRunnerClientError, match="invalid_runner_response"):
+            await client(http, tmp_path).cancel("parse_fixture")

@@ -4,14 +4,14 @@ import hashlib
 
 from app.services.downloads.rules.enums import AudioCodecFamily, MediaKind
 from app.services.downloads.rules.formats import DownloadPlan
-from app.services.provider_types import ProviderAccessContextRef
+from app.services.provider_types import ExecutionContext
 from app.workers.runner.contracts import (
     CandidateStreamContract,
     DownloadOption,
     DownloadPlanContract,
+    ExecutionContextContract,
     InspectResponse,
     MediaSummary,
-    ProviderAccessContextContract,
 )
 from app.workers.runner.metadata import MediaInspection
 
@@ -20,7 +20,7 @@ def inspect_response(
     inspection: MediaInspection,
     plans: tuple[DownloadPlan, ...],
     *,
-    access_context: ProviderAccessContextRef,
+    execution_context: ExecutionContext,
     thumbnail_data_url: str | None = None,
 ) -> InspectResponse:
     return InspectResponse(
@@ -42,7 +42,7 @@ def inspect_response(
             in {MediaKind.IMAGE_GALLERY, MediaKind.VIDEO_COLLECTION}
             else [_option(plan) for plan in plans]
         ),
-        access_context=ProviderAccessContextContract.from_domain(access_context),
+        execution_context=ExecutionContextContract.from_domain(execution_context),
     )
 
 

@@ -77,7 +77,7 @@ async def test_gallery_assets_do_not_override_paid_content_restrictions(
     warning = f"FrameFetch {reason.value}".encode() + b"\n" + WARNING
     with pytest.raises(RunnerFailure) as caught:
         await commands(tmp_path, gallery(), warning).inspect(URL, tmp_path)
-    assert caught.value.code == reason.value
+    assert caught.value.code == "content_unavailable"
 
 
 @pytest.mark.parametrize(
@@ -88,7 +88,7 @@ async def test_empty_or_malformed_assets_do_not_suppress_warning(
 ) -> None:
     with pytest.raises(RunnerFailure) as caught:
         await commands(tmp_path, {**gallery(), "assets": assets}).inspect(URL, tmp_path)
-    assert caught.value.code == "extractor_regression"
+    assert caught.value.code == "extractor_broken"
 
 
 async def test_unknown_media_kind_cannot_use_gallery_assets(tmp_path: Path) -> None:
@@ -96,7 +96,7 @@ async def test_unknown_media_kind_cannot_use_gallery_assets(tmp_path: Path) -> N
         await commands(tmp_path, {**gallery(), "media_kind": "unknown"}).inspect(
             URL, tmp_path
         )
-    assert caught.value.code == "extractor_regression"
+    assert caught.value.code == "extractor_broken"
 
 
 @pytest.mark.parametrize("url", ["http://127.0.0.1/image.jpg", "file:///image.jpg"])

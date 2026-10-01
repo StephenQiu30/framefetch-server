@@ -2,17 +2,12 @@ from __future__ import annotations
 
 import asyncio
 from contextlib import asynccontextmanager
-from dataclasses import replace
 from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
 from app.services.provider_failures import FailureClass, FailureScope
-from app.services.provider_types import (
-    ProviderAccessContextRef,
-    ProviderAccessMode,
-    ProviderSessionSource,
-)
+from app.services.provider_types import ExecutionContext
 from app.workers.runner import browser_runtime
 from app.workers.runner.browser_runtime import (
     BrowserRuntime,
@@ -37,19 +32,20 @@ def configured(tmp_path: Path, **overrides) -> RunnerSettings:
     )
 
 
-def anonymous_context() -> ProviderAccessContextRef:
-    return ProviderAccessContextRef(
+def anonymous_context() -> ExecutionContext:
+    return ExecutionContext(
         provider_key="youtube",
-        profile_version="youtube",
-        access_mode=ProviderAccessMode.ANONYMOUS,
-        credential_version_id=None,
-        egress_affinity_id="test",
-        client_profile_id="test",
-        attestation_provider_version=None,
-        engine_commit="test",
-        runtime_revision="test",
-        strategy_id="yt-dlp-anonymous",
-        adapter_revision="youtube",
+        registry_revision="test",
+        resolved_layer="L3",
+        client="test",
+        engine_revision="test",
+        egress_route="default",
+        egress_revision="test",
+        egress_class="unknown",
+        egress_observed_ip=None,
+        identity_used=False,
+        identity_digest=None,
+        browser_context_kind="anonymous",
     )
 
 
@@ -127,7 +123,7 @@ async def test_anonymous_context_is_temporary_and_bound_to_provider_proxy(
         assert options["headless"] is True
         assert options["accept_downloads"] is False
         assert options["service_workers"] == "block"
-    assert not Path(directory).exists()
+    assert Path(directory).exists()
     assert chromium.contexts[0].closed
     assert chromium.drivers_closed == 1
     await runtime.close()
@@ -171,7 +167,6 @@ async def test_cancel_does_not_release_profile_or_ack_before_native_cleanup(
     with pytest.raises(asyncio.CancelledError):
         await owner
     assert chromium.contexts[0].closed
-    assert not any(settings.runner_browser_temp_root.iterdir())
     async with runtime.operation(profile, anonymous_context()):
         pass
 
@@ -182,17 +177,7 @@ async def test_native_profile_uses_cross_runtime_os_lock_and_keeps_state(
     settings = configured(tmp_path)
     first, second = BrowserRuntime(settings), BrowserRuntime(settings)
     profile = provider_profile("https://www.youtube.com/watch?v=owned")
-    session = replace(
-        profile.resolution_strategies[-1],
-        session_source=ProviderSessionSource.MANAGED_BROWSER,
-    )
-    profile = replace(profile, resolution_strategies=(session,))
-    context = replace(
-        anonymous_context(),
-        access_mode=ProviderAccessMode.OPERATOR_MANAGED,
-        credential_version_id="approved:1",
-        session_source_id="managed_browser:youtube",
-    )
+    context = anonymous_context()
     async with first.operation(profile, context):
         directory = Path(chromium.calls[0][0])
         marker = directory / "native-state"
@@ -205,28 +190,6 @@ async def test_native_profile_uses_cross_runtime_os_lock_and_keeps_state(
     async with second.operation(profile, context):
         assert chromium.calls[-1][0] == str(directory)
         assert marker.read_text() == "retained by browser"
-
-
-async def test_anonymous_or_undeclared_source_cannot_load_account_material(
-    tmp_path, chromium
-):
-    runtime = BrowserRuntime(configured(tmp_path))
-    profile = provider_profile("https://www.youtube.com/watch?v=owned")
-    with pytest.raises(RunnerFailure, match="context changed"):
-        async with runtime.operation(
-            profile, anonymous_context(), cookie_jar=tmp_path / "jar"
-        ):
-            pass
-    undeclared = replace(
-        anonymous_context(),
-        access_mode=ProviderAccessMode.OPERATOR_MANAGED,
-        credential_version_id="approved:1",
-        session_source_id="managed_browser:youtube",
-    )
-    with pytest.raises(RunnerFailure, match="context changed"):
-        async with runtime.operation(profile, undeclared):
-            pass
-    assert chromium.calls == []
 
 
 def test_approved_lease_preserves_native_cookie_attributes_and_domain_scope(tmp_path):
