@@ -32,15 +32,15 @@
 
 帧取（FrameFetch）是一个面向创作者、内容研究者和开发者的开源媒体工作流。它把公开媒体链接、本地视频或剧本文档转换为可观察、可恢复的异步任务：解析来源、选择真实格式、隔离下载与校验、保存制品，并按需生成结构化 AI 分析报告。
 
-项目不是规避平台限制的下载脚本。默认能力只处理用户有权使用、公开、免费且非 DRM 的 HTTP(S) 内容；受保护、会员、私密、购买或地域限制内容不属于项目目标。
+项目处理用户有权获取的 HTTP(S) 非 DRM 内容。R0 只执行匿名 L1；账号可访问的非加密内容按设计 17 在身份层重建后逐平台验收。加密媒体不解密、不取得内容密钥。
 
 ## 最新动态
 
-**宿主 Chrome 会话复用与自动解析**
+**解析引擎重建 R0**
 
-- 平台来源按任务通过 yt-dlp 官方能力读取宿主固定 Chrome Profile，沿现有短期租约交给 Runner；不要求扩展、平台登录窗口或点击继续。实施和冷启动验收状态见[设计 17](docs/design/17-通用解析架构与实施计划.md)。
-- `migrate` 容器幂等应用当前数据库结构，普通重启复用已有基础环境与配置。
-- TikTok 改走 yt-dlp 官方维护的提取器；金丝雀默认探测仓库自带的公开样例。
+- 清退旧会话链、运营治理和解析计划／尝试账本，Runner 暂时仅执行匿名 L1 yt-dlp。
+- 保留单 Activity Temporal 解析、RabbitMQ 下载、受控出口与最终制品校验；平台完整文件状态以[设计 17](docs/design/17-解析引擎重建.md)的验收为准。
+- 公开样本移到 `backend/scripts/fixtures/fixed_public_cases.json`，供冷启动矩阵使用。身份层在 R4 重建。
 
 **[v0.2.0](https://github.com/StephenQiu30/video-server/releases/tag/v0.2.0) · 容器自持平台会话**
 
@@ -116,7 +116,7 @@ Web 实例提供公开页面：`/guide/` 使用指南、`/self-hosting/` 自托�
   </tr>
 </table>
 
-主要 Web 路由包括媒体解析与下载、任务历史与详情、剧本文档阅读与分析、Provider 状态、账户设置，以及管理员用户、文件、分析和 AI Provider 管理。实际可用平台和状态以部署实例的 `/providers` 页面与 canary 结果为准。
+主要 Web 路由包括媒体解析与下载、任务历史与详情、剧本文档阅读与分析、Provider 状态、账户设置，以及管理员用户、文件、分析和 AI Provider 管理。实际可用平台和状态以部署实例的 `/providers` 页面及真实完整文件验收为准。
 
 ## 快速开始
 
@@ -125,7 +125,6 @@ Web 实例提供公开页面：`/guide/` 使用指南、`/self-hosting/` 自托�
 ### 前置条件
 
 - Docker Engine 与 Docker Compose
-- macOS 会话来源需要 uv（Python 3.12）、已登录的固定 Chrome Profile，以及宿主用户已有的非交互 Keychain 读取权限
 - 本机已运行 PostgreSQL、RabbitMQ、Redis 和 MinIO，已有配置直接复用
 - 用于生产部署时，需要自行提供强随机密钥和公开访问地址
 
@@ -138,14 +137,11 @@ test -f .env || cp .env.example .env
 
 # 确认 .env 连接本机已运行的 PostgreSQL、RabbitMQ、Redis 与 MinIO
 
-# 一次性：安装宿主 Chrome 会话来源（macOS 用户登录后自启、崩溃自动重启）
-uv run --project backend python -m app.workers.session.source_cli install --env-file .env
-
 # 启动：migrate 容器先应用幂等的 backend/sql/schema.sql，其余服务随后启动
 docker compose up -d --build --wait --remove-orphans
 ```
 
-所有容器化后台循环（Outbox 投递、解析与下载、导入、报告发布、Provider 探针）运行在一个 `worker` 容器中，使用一个 RabbitMQ 账号 `RABBITMQ_WORKER_USER` / `RABBITMQ_WORKER_PASS`，权限是原 outbox、download、import、report 四个角色的并集，不授予 `.*`。从旧的多 Worker 拓扑升级时，先创建该账号（生产环境替换账号名与密码，并写入环境文件）：
+所有容器化后台循环（Outbox 投递、解析与下载、导入、报告发布）运行在一个 `worker` 容器中，使用一个 RabbitMQ 账号 `RABBITMQ_WORKER_USER` / `RABBITMQ_WORKER_PASS`，权限是原 outbox、download、import、report 四个角色的并集，不授予 `.*`。从旧的多 Worker 拓扑升级时，先创建该账号（生产环境替换账号名与密码，并写入环境文件）：
 
 ```bash
 DL='(?:^video\.(events|events\.dead|download|download\.dead)$)|^video\.download-intent(?:\.dead)?$'
@@ -155,7 +151,7 @@ rabbitmqctl set_permissions -p video video-worker "$DL" "$DL" "$DL|^video\.impor
 
 `--remove-orphans` 会移除已退役的 `outbox`、`worker-*`、`provider-canary`、`provider-lease-redis` 与 `workspace-init` 容器，旧的 outbox／download／import／report 账号随后可删除。
 
-安装只注册宿主来源服务，不操作 Chrome。固定 Profile 与按需诊断说明见下方；固定公开线路不需要账号来源。
+R0 不安装平台身份来源；当前仅执行匿名 L1。
 
 全新空库还没有登录账号时，在部署机终端执行一次首管理员初始化（需使用可连接 PostgreSQL 的 `DATABASE_URL`，密码交互输入，不进入命令行历史）：
 
@@ -179,35 +175,17 @@ createdb -O framefetch_temporal framefetch_temporal_visibility
 
 将同一个密码保存到部署环境文件的 `TEMPORAL_POSTGRES_PASSWORD`，文件权限设为 `0600`。`TEMPORAL_POSTGRES_USER` 默认 `framefetch_temporal`；容器使用已有的 `POSTGRES_HOST/PORT`。`temporal-schema` 使用对应版本官方工具幂等初始化，工作进程首次连接时幂等创建 `framefetch` 命名空间。普通 `docker compose up -d --build --wait` 重启复用配置与数据库，不重新生成密码。CLI／宿主 Worker 地址默认为 `127.0.0.1:17233`，容器内部为 `temporal:7233`；不会占用其他项目默认 7233 端口。
 
-首次切换前停止 API 接单并排空解析任务，再配套发布 API、worker 和 `migrate` 容器。`schema.sql` 检测到旧解析在途记录会拒绝移除旧租约列；切勿通过删记录绕过。更新使用 `up --build`，不能只 `start` 旧版已退出的迁移容器。回退也需先排空新执行并恢复匹配的结构备份，不允许两套解析执行者并存。
+首次切换前停止 API 接单并排空解析任务，再配套发布 API、worker 和 `migrate` 容器。R0 会删除旧治理表与解析管控列；先备份现有业务库，确认在途任务已排空。更新使用 `up --build`，不能只 `start` 旧版已退出的迁移容器。回退也需先排空新执行并恢复匹配的结构备份，不允许两套解析执行者并存。
 
 备份业务库时同步备份两个 Temporal 库，稳定环境密钥单独保管。该服务不设置公共访问，单节点停机期间任务暂停；端口健康不等于平台可以下载。Skill 分析同样由 Temporal 调度，宿主 AI Worker 连接 `TEMPORAL_ADDRESS`（默认 `127.0.0.1:17233`）而不再连接 RabbitMQ；报告发布、下载与导入长期使用 RabbitMQ，分工见[工作流设计](docs/design/15-工作流与平台下载目标.md)。
 
-### 自动复用平台登录态
+### 平台身份与升级
 
-来源使用 macOS 宿主用户已有的 Chrome 登录态，默认固定读取 `~/Library/Application Support/Google/Chrome/Default`。如果账号在其他 Profile，在宿主环境文件中设置 `SITE_SESSION_CHROME_PROFILE` 为该 Profile 的绝对路径（支持 `~` 展开），然后安装来源服务；来源不会按最近使用时间切换账号。`SITE_SESSION_AGENT_SECRET` 继续使用同一稳定值，API、Broker、Runner 与来源按既有签名配置配套运行。
+R0 只保留匿名 L1，不提供旧宿主来源安装命令或 broker。身份层的 cookie-source、Chrome 读取与任务注入在[设计 17 第 3.4 节](docs/design/17-解析引擎重建.md#34-身份层)规定，待 R4 实现后发布运行命令。匿名任务遇到登录要求时返回明确失败；不会启动身份服务。
 
-每次任务自动按站点读取所需材料，不要求打开 Chrome 标签页、加载扩展、导出 Cookie 或点击继续。读取依赖已有系统权限；Keychain 拒绝非交互访问、Profile 不可读或平台会话失效时，任务在原期限与预算内明确结束，不打开授权或登录窗口。首次任务是否能生成正确完整文件仍以[设计 17](docs/design/17-通用解析架构与实施计划.md)的真实冷启动验收为准。
-
-```bash
-uv run --project backend python -m app.workers.session.source_cli install --env-file .env
-# 可选：按需检查一个已登记站点的材料是否可读，不代表平台已接受会话
-uv run --project backend python -m app.workers.session.source_cli check --site youtube.com --env-file .env
-```
-
-仅需前台排错时，先卸载受监督的来源服务，再运行 `serve`，避免启动两个来源进程：
+升级前暂停接单并排空媒体操作，备份业务库，幂等执行当前 schema.sql，再配套重建 API、worker、session-runner 与前端。移除旧 broker 由 Compose 的 `--remove-orphans` 完成，不删除用户业务记录或制品。生产入口：
 
 ```bash
-uv run --project backend python -m app.workers.session.source_cli uninstall
-uv run --project backend python -m app.workers.session.source_cli serve --env-file .env
-```
-
-`install` 仅写入权限为 `0600` 的 macOS 用户 LaunchAgent 并启动来源；`uninstall` 不删除 Chrome 登录、Profile 或业务数据。`check` 返回 `source_ready` 只表示材料可读，不建立平台登录或完整下载验收事实。读取有超时，`SITE_SESSION_READ_TIMEOUT_SECONDS` 默认 15 秒，可配置 1–60 秒。固定 Profile、稳定密钥与必要认证材料相同的来源重启应保持会话代；Profile、密钥或材料变化使旧上下文失效。官方读取所需的临时数据库快照在宿主清理，材料不持久化为项目 Cookie 库。边界见[平台会话设计](docs/design/08-平台会话.md)。
-
-升级时先暂停接单并排空在途媒体操作，再配套重建 API、worker、session-runner、session-broker 和前端，并执行上述安装命令。安装更新同一个宿主来源服务。密封租约直接从来源发给 Runner，中继仅转发；不要混用新旧镜像。生产使用同一套入口：
-
-```bash
-uv run --project backend python -m app.workers.session.source_cli install --env-file .env.prod
 docker compose --env-file .env.prod -f docker-compose-prod.yml up -d --build --wait --remove-orphans
 ```
 
@@ -225,7 +203,7 @@ curl --fail http://127.0.0.1:8111/health/ready
 curl --fail --head http://127.0.0.1:8101/
 ```
 
-只需要下载与剧本文档导入时，可在 `.env` 中设置 `ANALYSIS_ENABLED=false`。完整的启动、停止、已有基础环境复用和故障恢复方式见[可靠性与运行](docs/design/13-可靠性与运行.md)。更新代码时先执行 `git pull --ff-only`，再按上面的命令更新宿主 Chrome 会话来源并构建启动 Compose；`docker compose restart` 不会应用新代码、镜像或环境配置。
+只需要下载与剧本文档导入时，可在 `.env` 中设置 `ANALYSIS_ENABLED=false`。完整的启动、停止、已有基础环境复用和故障恢复方式见[可靠性与运行](docs/design/13-可靠性与运行.md)。更新代码时先执行 `git pull --ff-only`，再按上面的命令构建启动 Compose；`docker compose restart` 不会应用新代码、镜像或环境配置。
 
 ### 启用 AI 分析
 
@@ -246,7 +224,7 @@ uv run python -m app.workers.analysis.agent_cli doctor --env-file ../.env.prod
 uv run python -m app.workers.analysis.agent_cli install --env-file ../.env.prod
 ```
 
-不要把 Codex/Claude OAuth 目录复制或挂载进容器。启用第三方模型前，请使用已获授权样本完成 canary，并确认模型服务条款和组织数据策略。
+不要把 Codex/Claude OAuth 目录复制或挂载进容器。启用第三方模型前，请使用已获授权样本完成一次真实分析验收，并确认模型服务条款和组织数据策略。
 
 ## 架构
 
@@ -256,6 +234,9 @@ flowchart LR
   Frontend --> API[FastAPI :8111]
   API --> DB[(PostgreSQL)]
   DB --> Outbox[Transactional Outbox]
+  Outbox --> Temporal[Temporal]
+  Temporal --> Resolve[Resolve Activity]
+  Resolve --> Runner
   Outbox --> MQ[RabbitMQ]
   MQ --> Download[Download Worker]
   MQ --> Documents[Import / Report Workers]
@@ -263,7 +244,7 @@ flowchart LR
   Runner --> Proxy[Controlled Egress Proxy]
   Download --> Storage[(MinIO)]
   Documents --> Storage
-  HostAI[Host AI Agent] --> MQ
+  Temporal --> HostAI[Host AI Agent]
   HostAI --> Storage
   API -. WebSocket events .-> Browser
 ```
@@ -272,7 +253,7 @@ flowchart LR
 | --- | --- |
 | Frontend | Next.js 16、React 19、TypeScript、Tailwind CSS、Radix UI |
 | Backend | Python 3.12、FastAPI、SQLAlchemy、PostgreSQL |
-| Async | Transactional Outbox、RabbitMQ、Redis、幂等 Worker 与 lease/heartbeat |
+| Async | Transactional Outbox、Temporal、RabbitMQ、Redis、幂等 Worker 与 lease/heartbeat |
 | Media | FFmpeg、ffprobe、yt-dlp 适配层、隔离 Runner、Squid egress proxy |
 | Storage | MinIO 对象存储与短时预签名访问地址 |
 | Contract | OpenAPI 是 Web、Flutter 与服务端之间的唯一接口契约 |
@@ -282,8 +263,8 @@ flowchart LR
 ## 安全与合规边界
 
 - 只处理你拥有相应权利的内容，并遵守内容来源、所在地和部署环境适用的法律与平台规则。
-- Provider 只接受公开、免费、非 DRM 的 HTTP(S) 内容；私网 URL、任意 yt-dlp 参数和 shell 输入始终禁止。
-- 普通业务请求不接收原始 Cookie。登录态按次从宿主固定 Chrome Profile 读取，经密封信道交给 `session-runner`，明文只进入来源读取内存与 Runner 单次操作的 tmpfs，操作结束即清理，不落库、不进入日志或其他 Worker。见[平台会话设计](docs/design/08-平台会话.md)。
+- R0 只执行匿名 L1，保留内容权益和非 DRM 校验；后续账号路径以设计 17 及真实完整文件为准。私网 URL、任意 yt-dlp 参数和 shell 输入始终禁止。
+- 普通业务请求不接收原始 Cookie。身份目标见设计 17 第 3.4 节，R0 不启用身份服务；设计 17 第 3.7 节的十二字段 ExecutionContext 不保存凭据。
 - Edge Agent 只能传输用户已合法取得并明确选择的明文文件，不能读取平台会话、拦截流量、提取密钥或转换受保护媒体。
 - 外部媒体访问必须经过阻断私网的出口代理；入口 URL 校验不能替代网络隔离。
 
@@ -291,12 +272,12 @@ flowchart LR
 
 ## 当前限制
 
-- 腾讯视频与优酷已增加可选个人会话下载路径，仅尝试获取账号可访问的完整非 DRM 内容；完整 VIP 下载尚待真实样本验证，参见[平台与 Provider 体系](docs/design/07-平台与Provider.md)与[平台会话设计](docs/design/08-平台会话.md)。
+- 腾讯视频、优酷等账号平台的身份层待 R4 重建，完整文件须按设计 17 重新验收。
 - 项目仍在持续演进，目前提供自托管源码和 Compose 运行方式，不承诺官方 SaaS、公共演示站或服务可用性 SLA。
 - Provider 能力受来源页面和平台变化影响；平台名称不代表对所有内容、地区或账户权益都可用。
 - AI 分析依赖独立宿主机 Agent 或部署方配置的模型服务，关闭 AI 不影响下载和文档导入。
 - 预签名 URL 会过期，但最终制品不会因此自动删除；管理员仍需规划 MinIO 容量、备份和显式清理策略。
-- 对外部署前必须检查 `.env.prod` 的实际配置，替换所有占位凭据，并完成网络、存储、Runner 和 Provider canary 验收。
+- 对外部署前必须检查 `.env.prod` 的实际配置，替换所有占位凭据，并完成网络、存储、Runner 和真实文件验收。
 
 ## 本地开发
 

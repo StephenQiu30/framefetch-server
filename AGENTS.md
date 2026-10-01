@@ -21,7 +21,7 @@
 ## 架构与数据边界
 
 - 后端模块职责遵循 PROJECT.md；路由不反向导入主应用，共享依赖通过 Depends 提供，业务逻辑按复用需求提取，不为目录整齐增加转发层。
-- API、worker（全部容器化后台循环）、媒体 Runner、宿主 AI Worker 是独立进程；新增后台循环并入 worker 作为独立监督的组件，不新增容器，除非它需要不同的凭据或信任边界。PostgreSQL 是业务状态事实来源；跨 PostgreSQL／Temporal／RabbitMQ 使用 transactional outbox。Temporal 与 RabbitMQ 按职责长期并存：Temporal 只编排解析和 Skill 分析调用（均已独占），Activity 保留业务 generation／fence，分析模型调用经步骤日志执行、不自动重发结果不明的调用；报告发布、下载、导入与实时事件保留 RabbitMQ，消费者继续保留幂等和 lease/heartbeat。不以清退 RabbitMQ 为目标，不经 RabbitMQ 中转启动 Workflow，不给已迁移链路重新增加数据库租约扫描。
+- API、worker（全部容器化后台循环）、媒体 Runner、宿主 AI Worker 是独立进程；新增后台循环并入 worker 作为独立监督的组件，不新增容器，除非它需要不同的凭据或信任边界。PostgreSQL 是业务状态事实来源；跨 PostgreSQL／Temporal／RabbitMQ 使用 transactional outbox。Temporal 与 RabbitMQ 按职责长期并存：Temporal 只编排解析和 Skill 分析调用（均已独占），解析为单 resolve Activity，分析保留执行所有权；模型调用经步骤日志执行、不自动重发结果不明的调用；报告发布、下载、导入与实时事件保留 RabbitMQ，消费者继续保留幂等和 lease/heartbeat。不以清退 RabbitMQ 为目标，不经 RabbitMQ 中转启动 Workflow，不给已迁移链路重新增加数据库租约扫描。
 - PostgreSQL 只通过 `backend/sql/schema.sql` 维护当前态结构。本机直接复用已运行的 PostgreSQL，按结构变更需要在已有项目数据库中幂等执行该 SQL；不得为启动或验证项目另起基础服务或覆盖现有数据。空库验证只能使用已有服务中的隔离测试数据库或远端 CI。项目不维护迁移目录、历史 schema 或旧版本兼容逻辑。结构变化时同步更新可重复执行的当前态 SQL、ORM 和测试，并同时使用空数据库与已有当前态数据库验证。
 - OpenAPI 是前后端接口契约的唯一来源，通过 `/openapi.json` 提供，并由 `/docs` 展示 Swagger UI；不维护平行 DTO、手写生成类型或旧 API 适配层。
 - 只实现当前需求，不添加旧目录、旧 API、旧 Provider 或旧数据库的兼容分支。文件按业务内聚性和事务边界拆分，不以固定行数机械拆分，不为缩短文件引入转发层或多重继承。
@@ -29,11 +29,10 @@
 
 ## 安全与运行约束
 
-- 帧取为单人自行部署的自用工具，不计划上线为互联网服务，不为隐私合规、多租户或公开运营增加本轮架构。平台访问策略、账号站点、上下文与解析策略统一声明在 Provider Profile，API、Runner、状态与探针共用 Registry。账号材料按任务从 macOS 宿主固定 Chrome Profile 通过 yt-dlp 官方读取能力取得，来源不依赖扩展、Native Messaging、平台登录窗口或用户点击继续；宿主读取须使用已有系统权限，Keychain 不允许交互时明确失败，不诱发系统授权弹窗。固定公开线路不读取账号材料，个人权益仍显式使用账号。来源直接密封给 Runner，中继仅转发；同一 Profile、站点、必要认证材料与稳定密钥生成的会话代不因来源进程重启而改变，材料变化使旧上下文失效。通用策略、页面执行、自动恢复、冷启动与真实文件验收统一以设计 17 为唯一计划，未验证真实文件不得宣称平台修复完成。
-- 不新增自建 SQLite 业务数据库、独立 Cookie 库、文件任务账本、第二套调度器或通用 Agent 框架；浏览器自身持久 Profile 不承担这些职责。PostgreSQL 保存任务事实、计划、预算和操作身份，Temporal／RabbitMQ 沿用既定分工，执行进程只保留当前运行资源；进程重启须由现有所有权、期限与 fence 协议恢复，不能把丢失内存状态解释为可以立即重复执行。设计模式只用于实际变化点，优先声明、函数策略与组合，不增加空基类、多层继承或纯转发层。
-
-- 仅处理用户有权下载和分析的内容。公开内容路线只处理能够正向证明为公开、免费、非 DRM 的 HTTP(S) 内容；按用户确认的 032 个人范围，腾讯视频和优酷可在单平台持久会话线路中尝试处理账号可访问的完整非 DRM 单视频，必须保留原始完整时长并通过最终文件校验；不能把账号可见性标成官方导出授权。其他受限平台内容仍需官方授权 Provider/Connector 按资产明确返回下载或导出授权，且输出未加密时才可生成 Artifact。Edge Agent 只能传输用户已经合法取得并显式选择的 clear 文件与脱敏声明，不得访问平台会话、网络流量、缓存或保护材料，也不得生成客户端签名、取得内容密钥或转换受保护媒体。不得借技术路径扩张会员/购买、private、follow-only 或地域权益；私网 URL、任意 yt-dlp 参数和 shell 输入始终禁止。普通业务 JSON 禁止上传原始 Cookie；受控 Provider 会话按现有 Registry 声明、独立 Runner、内容校验与真实文件验收启用；来源及持久 Profile 的目标边界见设计 07、08、17。
-- 在线媒体入口复用单个 `session-runner`；固定公开平台不领取或携带账号材料。Chrome 来源按任务提供绑定任务与站点的短期封装租约；官方读取过程需要的临时数据库快照只在宿主读取期间使用并清理，不复制完整 Chrome Profile、不维护第二份 Cookie 库，不将宿主 Profile 或 Keychain 挂入容器。Runner 不取得数据库、队列、对象存储或 AI 凭据；HTTP 与浏览器均沿 Provider 声明的出口执行，入口 URL 校验不能替代现有网络边界。
+- 帧取为单人自行部署的自用工具，解析引擎唯一目标与实施计划为 docs/design/17-解析引擎重建.md。Registry 分别声明平台阶梯、出口、identity 与 content_scope。仅处理用户有权获取的非 DRM 内容，不解密媒体、取得内容密钥、转换保护流或调用第三方公共解析站；私网 URL、任意 yt-dlp 参数和 shell 输入禁止。账号可见性不能表述为官方导出授权；不能证明 clear 完整媒体时返回 content_protected 并提示文件导入。Edge Agent 仅传输用户合法取得并显式选择的 clear 文件。
+- 身份层按设计 17 第 3.4 节在 R4 重建：同一 macOS 用户的 cookie-source 读取固定 Chrome Profile，解密交给 yt-dlp；先查询钥匙串锁状态，短命读取进程先确认无图形访问安全会话，再以五秒限时执行 `/usr/bin/security`，不修改 ACL、解锁或诱发授权弹窗。宿主固定本机端口提供 Bearer 鉴权的 `POST /cookies`（site、task_id、deadline），令牌只由 Runner 持有；返回声明域的未过期 Cookie 与材料摘要，不做密封、会话代或租约。Runner 使用操作私有 tmpfs 并在启动及每次结束清理；required 每次注入、optional 在登录证据后同任务重试一次、none 永不注入。启动方式、锁定、拒绝与无弹窗必须按 R4 实测，R0 不实现或启用 cookie-source，仅保留匿名 L1。
+- PostgreSQL 保存业务事实；不新增 SQLite 业务库、Cookie 库、文件任务账本、第二调度器或通用 Agent 框架。浏览器原生 persistent Profile 只保存浏览器状态。Temporal 解析只编排单个 resolve Activity，解析总时限 120 秒，保留意图的业务 generation/fence、持久截止时间与取消确认，不维护操作级预算、策略尝试或 fence 账本；Skill 分析继续保留步骤日志与不确定调用保护，下载继续保留 RabbitMQ lease/heartbeat。
+- 在线媒体入口复用单个 session-runner，保留 URL/SSRF 与出口边界，Runner 不取得数据库、队列、对象存储或 AI 凭据。容器不挂载宿主 Chrome Profile、Keychain 或 CLI OAuth；Cookie 不进入普通业务 JSON、日志、队列、Temporal History 或持久字段。ExecutionContext 保存设计 17 第 3.7 节的十二字段非敏感摘要；失败按第 3.6 节的十三类记录 layer、stage、gate、结构化 evidence 与摘要。身份、浏览器与平台冷启动必须通过真实完整文件验收，技术健康不证明平台可用。
 - Worker 开工前重新解析语义下载计划；Provider format id 不能作为唯一恢复依据。
 - AI 任务独立于下载任务；AI 失败不得改变下载成功状态。模型输出必须通过严格 schema、连续分镜时间轴和 shot evidence 校验，普通日志不得记录完整 Prompt、抽帧或原始模型响应。
 - 基础设施 Secret 只来自类型化配置和环境变量；管理员在 Web 中维护的 AI Provider Key 只允许进入记录绑定的加密数据库字段，并仅在 Analysis Worker 内存中解密。任何 Secret 都不得进入前端、API 响应、异常、快照、测试夹具或普通日志。外部操作必须设置大小、时长、并发和超时上限，取消时终止整个子进程组。
@@ -96,6 +95,6 @@ pnpm build
 
 API 使用 `runtime.py` 定义类型化的 `ApiServices`，在 `app.state.services` 中只挂载一次，通过 FastAPI 依赖函数读取；`lifespan.py` 管理资源所有权和释放，不逐项复制服务到动态 State。外部注入的运行时由调用方管理。
 
-API readiness 检查业务核心依赖，不把单个平台 Runner 的健康作为全局可用条件。API 与 worker 的启动不得等待所有 Provider 健康；共享工作目录由镜像预建。broker readiness 只表示中继资源已初始化；来源可读和平台接受会话分别由按需查询与真实任务验证，不通过空转扫描、预热或无人消费的上报实现就绪。worker 与 Runner 的容器停止宽限必须覆盖下载有限排空预算。当前设计见 docs/design/08-平台会话.md 与 docs/design/13-可靠性与运行.md。
+API readiness 检查业务核心依赖，不把单个平台 Runner 的健康作为全局可用条件。API 与 worker 的启动不得等待所有 Provider 健康；共享工作目录由镜像预建。平台身份与可用性按任务验证，不以空转扫描或预热作为就绪条件。worker 与 Runner 的容器停止宽限必须覆盖下载有限排空预算。当前设计见 docs/design/17-解析引擎重建.md 与 docs/design/13-可靠性与运行.md。
 
 前端目录职责以 PROJECT.md“前端目录与文件规则”为准。接口类型直接使用生成的 API.*，不新增 services、utils、types 聚合目录或纯转发文件。

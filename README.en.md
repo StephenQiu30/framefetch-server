@@ -31,15 +31,15 @@
 
 FrameFetch is an open-source, self-hosted video downloader and media workflow for creators, content researchers and developers. It turns an authorized public-media URL, local video or screenplay into an observable, recoverable job: inspect the source, select a real format, download and verify it in an isolated runner, persist the artifact, and optionally produce a structured AI analysis report.
 
-FrameFetch is not designed to circumvent platform restrictions. By default it only handles HTTP(S) content the user is entitled to use and that is public, free and non-DRM. Membership, private, purchased, region-restricted and protected playback rights are outside the project's scope.
+FrameFetch handles HTTP(S), non-DRM content the user is authorized to obtain. R0 executes anonymous L1 only. Account-visible clear content requires identity-layer implementation and per-platform acceptance under design 17. Encrypted media and content keys are not decrypted or extracted.
 
 ## What's new
 
-**Unreleased · Host Chrome sessions and automatic resolution**
+**Unreleased · Resolution engine R0**
 
-- The host source reads a fixed Chrome profile through yt-dlp's supported cookie reader and passes task-scoped leases to the existing Runner. No extension, platform login window or resume button is required. Implementation and cold-start acceptance are tracked in [design 17](docs/design/17-通用解析架构与实施计划.md).
-- A `migrate` container applies the current schema idempotently; normal restarts reuse existing infrastructure and configuration.
-- TikTok now uses yt-dlp's maintained extractor; the provider canary probes the bundled public samples by default.
+- Remove the old session relay, operational governance and resolution plan/attempt ledger. The Runner temporarily executes anonymous L1 yt-dlp only.
+- Keep one resolve Activity in Temporal, RabbitMQ downloads, controlled egress and final artifact verification. Acceptance is tracked in [design 17](docs/design/17-解析引擎重建.md).
+- Public samples now live in `backend/scripts/fixtures/fixed_public_cases.json`. Host identity injection is rebuilt in R4.
 
 **[v0.2.0](https://github.com/StephenQiu30/video-server/releases/tag/v0.2.0) · Container-owned platform sessions**
 
@@ -108,16 +108,15 @@ The system is built for recoverability and isolation rather than one-shot comman
   </tr>
 </table>
 
-The web application includes media inspection and download, job history and details, screenplay reading and analysis, provider status, account settings, and administrator views for users, files, analytics and AI providers. The deployment's `/providers` page reports registered routes and recent verification evidence; the result for a specific public link is established by its actual inspection and file download.
+The web application includes media inspection and download, job history and details, screenplay reading and analysis, provider status, account settings, and administrator views for users, files, analytics and AI providers. The deployment's `/providers` page reports Registry declarations; the result for a specific public link is established by its actual inspection and file download.
 
 ## Quick start
 
-Use `docker-compose.yml` locally and `docker-compose-prod.yml` in production. Public-account profiles start anonymously; only explicit authentication failures request the approved Chrome account session. Rate limits and network failures retain their actual reasons. A readable session does not establish real media availability.
+Use `docker-compose.yml` locally and `docker-compose-prod.yml` in production. R0 executes anonymous L1 only. Identity injection is rebuilt in R4. Actual availability requires complete-file acceptance.
 
 ### Requirements
 
 - Docker Engine and Docker Compose
-- For the macOS session source: `uv` (Python 3.12), a signed-in fixed Chrome profile, and existing non-interactive Keychain access for the host user
 - Existing PostgreSQL, RabbitMQ, Redis and MinIO services; reuse their addresses and credentials
 - Strong random secrets and a public origin before any internet-facing deployment
 
@@ -130,16 +129,13 @@ test -f .env || cp .env.example .env
 
 # Configure .env to reuse existing PostgreSQL, RabbitMQ, Redis and MinIO
 
-# Once: install the host Chrome session source (starts at macOS user login)
-uv run --project backend python -m app.workers.session.source_cli install --env-file .env
-
 # Start: the migrate container applies the idempotent backend/sql/schema.sql first
 docker compose up -d --build --wait --remove-orphans
 ```
 
-Every containerized background loop (Outbox dispatch, inspection and downloads, imports, report publication, provider canaries) runs in one `worker` container with one RabbitMQ account, `RABBITMQ_WORKER_USER` / `RABBITMQ_WORKER_PASS`, which needs configure/write/read on `RABBITMQ_VHOST`. When upgrading from the former multi-worker topology, create that account first; `--remove-orphans` removes the retired `outbox`, `worker-*`, `provider-canary`, `provider-lease-redis` and `workspace-init` containers.
+Every containerized background loop (Outbox dispatch, inspection and downloads, imports, report publication) runs in one `worker` container with one RabbitMQ account, `RABBITMQ_WORKER_USER` / `RABBITMQ_WORKER_PASS`, which needs configure/write/read on `RABBITMQ_VHOST`. When upgrading from the former multi-worker topology, create that account first; `--remove-orphans` removes the retired `outbox`, `worker-*`, `provider-canary`, `provider-lease-redis` and `workspace-init` containers.
 
-Installation registers the host source without operating Chrome. Profile configuration and optional diagnostics are described below; fixed public routes do not need account material.
+R0 does not install a platform identity source.
 
 For an empty user table, create the first administrator on the deployment host. The command prompts for a password, refuses to run once any user exists, and does not expose a remote bootstrap endpoint:
 
@@ -148,31 +144,13 @@ uv run --project backend python -m app.workers.bootstrap_admin \
   --env-file .env --username your-admin --email you@example.com
 ```
 
-### Automatic platform session reuse
+### Identity and upgrades
 
-The source reuses the host user's existing Chrome session. It reads the fixed `~/Library/Application Support/Google/Chrome/Default` profile by default. If the account belongs to another profile, set `SITE_SESSION_CHROME_PROFILE` in the host environment file to that profile's absolute path (`~` expansion is supported), then install the source. It never switches profiles based on recent use. Keep the existing `SITE_SESSION_AGENT_SECRET` stable and use the matching signed configuration across the API, Broker, Runner and source.
+R0 provides anonymous L1 only. The old host-source CLI and relay are removed. The cookie-source target is specified in [design 17 section 3.4](docs/design/17-解析引擎重建.md#34-身份层); operating instructions will be added when R4 is implemented. Login requirements currently produce a typed failure.
 
-Each task reads the required site material automatically; it does not require an open Chrome tab, an extension, cookie export or a resume action. Existing operating-system permissions are required. Non-interactive Keychain denial, an unreadable profile or an expired platform session produces a bounded failure without opening authorization or login windows. Correct first-download behavior is still subject to the real cold-start acceptance in [design 17](docs/design/17-通用解析架构与实施计划.md).
-
-```bash
-uv run --project backend python -m app.workers.session.source_cli install --env-file .env
-# Optional material-readability check; this does not establish platform acceptance
-uv run --project backend python -m app.workers.session.source_cli check --site youtube.com --env-file .env
-```
-
-For foreground diagnostics only, uninstall the supervised source before running `serve` so that two source processes do not run at once:
+Before upgrading, pause admissions, drain media operations and back up the business database. Apply the current schema.sql, then rebuild the API, worker, session-runner and frontend together. `--remove-orphans` retires the old broker while preserving business records and artifacts. Production:
 
 ```bash
-uv run --project backend python -m app.workers.session.source_cli uninstall
-uv run --project backend python -m app.workers.session.source_cli serve --env-file .env
-```
-
-`install` writes a `0600` user LaunchAgent and starts the source. `uninstall` does not delete Chrome sessions, profiles or business data. `check` reporting `source_ready` establishes material readability only. Reads time out after 15 seconds by default; `SITE_SESSION_READ_TIMEOUT_SECONDS` accepts 1–60 seconds. Restarting with the same fixed profile, stable secret and required authentication material should preserve the session generation. Changing those inputs invalidates old contexts. Temporary database snapshots used by the supported reader are cleaned up on the host; no project cookie database is created. See the [platform session design](docs/design/08-平台会话.md).
-
-Drain media operations before upgrading API, worker, Runner, relay and frontend together. Reinstall the same host source with the matching environment file. The relay forwards end-to-end sealed leases without decrypting them. For production:
-
-```bash
-uv run --project backend python -m app.workers.session.source_cli install --env-file .env.prod
 docker compose --env-file .env.prod -f docker-compose-prod.yml up -d --build --wait --remove-orphans
 ```
 
@@ -209,7 +187,7 @@ uv run python -m app.workers.analysis.agent_cli doctor --env-file ../.env.prod
 uv run python -m app.workers.analysis.agent_cli install --env-file ../.env.prod
 ```
 
-Do not copy or mount Codex/Claude OAuth directories into containers. Before enabling an external model, run a canary with authorized material and review the provider's terms and your organization's data policy.
+Do not copy or mount Codex/Claude OAuth directories into containers. Before enabling an external model, complete a real analysis acceptance with authorized material and review the provider's terms and your organization's data policy.
 
 ## Architecture
 
@@ -219,6 +197,9 @@ flowchart LR
   Frontend --> API[FastAPI :8111]
   API --> DB[(PostgreSQL)]
   DB --> Outbox[Transactional Outbox]
+  Outbox --> Temporal[Temporal]
+  Temporal --> Resolve[Resolve Activity]
+  Resolve --> Runner
   Outbox --> MQ[RabbitMQ]
   MQ --> Download[Download Worker]
   MQ --> Documents[Import / Report Workers]
@@ -226,7 +207,7 @@ flowchart LR
   Runner --> Proxy[Controlled Egress Proxy]
   Download --> Storage[(MinIO)]
   Documents --> Storage
-  HostAI[Host AI Agent] --> MQ
+  Temporal --> HostAI[Host AI Agent]
   HostAI --> Storage
   API -. WebSocket events .-> Client
 ```
@@ -235,7 +216,7 @@ flowchart LR
 | --- | --- |
 | Frontend | Next.js 16, React 19, TypeScript, Tailwind CSS, Radix UI |
 | Backend | Python 3.12, FastAPI, SQLAlchemy, PostgreSQL |
-| Async | Transactional Outbox, RabbitMQ, Redis, idempotent workers with leases and heartbeats |
+| Async | Transactional Outbox, Temporal, RabbitMQ, Redis, idempotent workers with leases and heartbeats |
 | Media | FFmpeg, ffprobe, yt-dlp adapters, isolated runners and Squid egress proxy |
 | Storage | MinIO object storage with short-lived presigned access URLs |
 | Contract | OpenAPI is the single contract shared by the web, Flutter and server code |
@@ -245,8 +226,8 @@ See [docs/design/README.md](docs/design/README.md) for the maintained system des
 ## Security and content boundaries
 
 - Process only content you are legally authorized to download or analyze.
-- Providers accept only public, free and non-DRM HTTP(S) content. Private-network URLs, arbitrary yt-dlp arguments and shell input are always rejected.
-- Normal API requests never accept raw cookies. Login state is read per operation from the fixed host Chrome profile and handed to `session-runner` over a sealed channel. Clear material exists only during the source read and in the Runner's task-scoped tmpfs, and is cleaned up when the operation ends. See the [platform session design](docs/design/08-平台会话.md).
+- R0 executes anonymous L1 with content-rights and non-DRM validation. Account paths require design 17 implementation and complete-file acceptance. Private-network URLs, arbitrary yt-dlp arguments and shell input are always rejected.
+- Normal API requests never accept raw cookies. Identity targets are specified in design 17 section 3.4 and are implemented in R4. ExecutionContext stores the twelve non-secret fields defined in design 17 section 3.7.
 - An edge agent may transfer only a clear file the user has legally obtained and explicitly selected. It must not inspect platform sessions, intercept traffic, extract content keys or transform protected media.
 - External media access must pass through an egress proxy that blocks private networks; input validation is not a substitute for network isolation.
 
@@ -254,12 +235,12 @@ Do not disclose exploit details, secrets or user content in a public issue. Foll
 
 ## Current limitations
 
-- Tencent Video and Youku have an optional personal-session path that only attempts full, non-DRM content the account can access; full VIP downloads still await real-sample verification.
+- Identity support for account platforms is rebuilt in R4; complete files require fresh design 17 acceptance.
 - FrameFetch is evolving open-source software. It currently provides self-hosted source and Compose workflows, not an official SaaS, public demo or availability SLA.
 - Provider behavior can change with source pages and platforms. A platform name does not imply support for every item, region or account entitlement.
 - AI analysis needs a separate host agent or a deployment-configured model service. Disabling AI does not disable downloads or document imports.
 - Presigned URLs expire, but stored artifacts are not automatically deleted for that reason. Operators must plan MinIO capacity, backups and explicit retention cleanup.
-- Replace every placeholder credential in your deployment environment and complete network, storage, runner and provider-canary acceptance before exposing a deployment to the internet.
+- Replace every placeholder credential in your deployment environment and complete network, storage, runner and complete-file acceptance before exposing a deployment to the internet.
 
 ## Development
 

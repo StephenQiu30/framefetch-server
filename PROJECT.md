@@ -20,9 +20,9 @@
 
 具体版本通过依赖清单与锁文件固定；禁止在本文维护另一份版本快照。新依赖必须承担明确职责，不因脚手架默认包含就保留。
 
-媒体获取面向单人自部署使用，不计划提供互联网服务。平台账号来源使用 macOS 宿主固定 Chrome Profile 与 yt-dlp 官方读取能力，无扩展、Native Messaging 或人工平台登录/继续旅程。来源读取在既有系统权限下完成，Keychain 交互被禁止时明确返回读取失败。[设计 17](docs/design/17-通用解析架构与实施计划.md)是自动解析、冷启动下载、平台差异与验收的唯一计划；固定版本 Playwright/Chromium 仅承担确需页面执行的职责。Runner 已实现浏览器资源管理与镜像依赖，平台浏览器策略尚未启用；各阶段状态与验证事实以该设计为准，不将 Cookie 可读或页面可访问视为完整媒体交付能力。
+媒体获取面向单人自部署使用。解析引擎的唯一架构与实施状态见[设计 17](docs/design/17-解析引擎重建.md)。Registry 统一声明 identity，R0 仅运行匿名 L1；保留 yt-dlp、可信插件、bgutil、browser_runtime、受控出口和完整文件校验。浏览器阶梯与宿主身份层分别在 R3、R4 重建，不能把保留组件写成已启用的能力。
 
-平台策略统一声明于 Provider Registry，失败后的备用路径串行执行并共享预算；结果成功后冻结最终策略与上下文。Chrome 来源只读取配置的固定 Profile，不按最近修改时间切换账号；官方读取临时快照不承担材料或任务存储。会话代绑定固定来源身份、站点和必要认证材料，同材料下重启保持稳定；密钥、Profile 或认证材料变化使旧上下文失效。不新增自建 SQLite、Cookie 数据库、账户池或任务存储。PostgreSQL 是业务事实来源，Temporal／RabbitMQ 各自拥有既定任务；执行进程不复制业务状态机。媒体执行保留现有 Source API、无状态 Broker、短期租约、Runner 容器与出口边界，不为隐私合规、多租户或公开运营增加本轮架构要求。
+ExecutionContext 按设计 17 第 3.7 节保存十二字段非敏感摘要，贯穿 Runner、检查结果、意图、下载 Job 与制品元数据。解析由单 resolve Activity 在 120 秒期限内执行，不维护策略计划、操作级尝试账本、预算账本、会话代或运营准入；意图的业务 generation/fence、持久截止时间与取消确认保留。下载保留 RabbitMQ lease/heartbeat，Skill 分析保留模型步骤日志与未知调用保护；PostgreSQL 是业务事实来源。R4 的身份读取、钥匙串锁状态与无图形交互验证、Runner 独占 Bearer 鉴权的 `POST /cookies`、操作私有 tmpfs 清理及真实验收统一遵循设计 17 第 3.4 节，不在工程规范另定义协议。
 
 ## 2. FastAPI 工程结构
 
@@ -84,9 +84,8 @@ backend/
 │       ├── imports/                导入组件
 │       ├── outbox/                 Outbox 投递组件
 │       ├── report/                 报告发布组件
-│       ├── canary/                 平台探针组件
 │       ├── dlq/                    死信管理
-│       ├── session/                宿主固定 Chrome Profile 来源、密封租约与无状态中继
+│       ├── session/                宿主 Chrome Cookie 纯读取模块（身份服务在 R4 重建）
 │       └── runner/                 独立隔离的媒体执行进程与可信插件
 ├── sql/schema.sql                 当前态数据库结构
 ├── egress/                        Runner 出口代理配置
@@ -96,10 +95,8 @@ backend/
 `workers/runner/` 内部按实际边界就近组织，不保留空文件或兼容转发层：
 
 - `provider_catalog_*.py` 声明各平台的 Profile（访问策略、URL、能力、账号要求、引擎参数）；`provider_registry.py` 统一识别与启动校验；`provider_factories.py` 仅复用确有重复的声明默认值。
-- 平台差异采用函数策略与可信提取器适配，通用顺序复用现有 inspection/download Pipeline；不按每个平台复制 Workflow、HTTP 路由、Repository 或生成器框架。会话纯规则位于 `services/site_sessions.py`，Registry 查询与站点映射位于 `integrations/site_session_catalog.py`，不再维护第二份站点声明。
-- `site_sessions.py` 负责向 broker 按需查询并解封单次租约；`provider_sessions.py` 管理操作期间的凭据使用与执行租约，不回写 Cookie 或发送失败上报。
-- `provider_session_files.py` 与 `_secure_file.py` 管理私有临时文件，`provider_session_headers.py` 校验受控请求头；`netscape_cookie.py` 统一解析与序列化 Cookie。
-- 宿主机来源和 RPC 契约位于 `workers/session/`；broker 不保存会话副本，不运行扫描或保活状态机。
+- 平台差异采用函数策略与可信提取器，复用 inspection/download Pipeline；不复制 Workflow、路由、Repository 或生成器框架。Registry 分别声明 identity 与 content_scope，ExecutionContext 保存设计 17 第 3.7 节的十二字段摘要。
+- `_secure_file.py` 管理私有临时文件，`netscape_cookie.py` 保留 Cookie 格式规则；`session/chrome_profile_reader.py` 与 `macos_keychain.py` 只保留纯读取职责，R0 不提供身份服务。
 
 所有 Python 包有 `__init__.py`；该文件默认不重导出业务符号。调用方直接从定义模块导入，避免用数百行导出清单再建一层公共接口。models 的导入注册用于建立完整 SQLAlchemy metadata，属于必要的初始化行为。
 

@@ -4,13 +4,11 @@ FastAPI API、下载/分析领域逻辑、异步 Worker、当前态数据库 SQL
 
 所有 Python 与 `uv` 命令都应从 `backend/` 执行。数据库当前结构定义在可重复执行的 `sql/schema.sql`；由部署者按需在已有项目数据库中幂等加载；业务启动不创建基础服务，也不重复初始化已有环境。项目不维护迁移历史或旧 schema 兼容路径。本目录 `Dockerfile` 构建 API、Worker 与 Runner 镜像；前端使用 frontend/Dockerfile 独立构建。
 
-## 平台会话
+## 解析引擎
 
-账号登录态按任务从 macOS 宿主固定 Chrome Profile 通过 yt-dlp 官方能力读取，由来源直接密封给 Runner；无需扩展、Native Messaging 或人工平台登录/继续。读取只使用已有非交互系统权限，Keychain 拒绝时明确失败。Broker 只作签名转发；Runner 只在单次操作期间保留 tmpfs 工作文件，结束即清理。Broker 不连接会话数据库、不运行保活或扫描，也不接收 Cookie 回写与失败上报。来源读取失败与平台拒绝会话分别返回错误。
+R0 仅运行匿名 L1 yt-dlp 与可信插件，保留单个 session-runner、egress-proxy、现有 bgutil 与 browser_runtime。身份层与浏览器阶梯在[设计 17](../docs/design/17-解析引擎重建.md)的 R4、R3 中重建；旧 broker、密封、会话代和来源 CLI 已删除，当前不启用 cookie-source。
 
-接入与安装命令统一见[根 README](../README.md)，职责、错误与尚未解决的限制见[平台会话设计](../docs/design/08-平台会话.md)。
-
-Runner 镜像随锁文件安装配套 Playwright/Chromium。业务 Compose 通过 `RUNNER_BROWSER_ENABLED` 控制浏览器资源能力；现有 `browser_profiles` 卷只保存 Runner 浏览器原生状态，不挂载宿主 Chrome Profile，也不保存业务任务。匿名与 Chrome 租约上下文在 `/tmp` 临时目录中执行并清理；持久 Profile 使用平台/来源隔离与进程锁。浏览器与 HTTP 复用 Provider 出口，缺浏览器、资源忙和页面响应分别分类。当前 Registry 尚未启用平台浏览器解析策略，普通 HTTP 解析继续按既有声明执行；启用条件、冷启动与真实文件证据统一见唯一计划[设计 17](../docs/design/17-通用解析架构与实施计划.md)。
+Runner 安装锁定的 Playwright/Chromium，browser_profiles 卷只保存浏览器原生状态；保留组件不代表已启用 L3。ExecutionContext 按设计 17 第 3.7 节保存十二字段非敏感摘要；任务目录、进程组取消、媒体校验与出口边界继续保留。公开样本位于 scripts/fixtures/fixed_public_cases.json。
 
 ## 目录约定
 
@@ -27,7 +25,7 @@ app/
 └── workers/          Worker、独立 Runner 及各自进程入口
 ```
 
-完整文件职责与依赖规则以根 PROJECT.md 为准。直接从定义模块导入业务符号；不维护平行 domain、顶层 runner、顶层技能资源或大量重导出。Runner 仍使用原来的隔离容器与会话边界。
+完整文件职责与依赖规则以根 PROJECT.md 为准。直接从定义模块导入业务符号；不维护平行 domain、顶层 runner、顶层技能资源或大量重导出。Runner 保留隔离容器与网络边界。
 
 公共接口不维护无实际兼容需求的版本目录或 URL 前缀。服务启动后可通过 `/docs` 访问 Swagger UI，通过 `/openapi.json` 获取供前端生成客户端的 OpenAPI 契约。
 
@@ -42,9 +40,9 @@ Web 登录、注册、退出和 Cookie 写操作都校验精确 Origin（缺失�
 
 此次 Web 协议需要前后端配套发布：先执行当前 `backend/sql/schema.sql`，再同时替换 API 和 Web 镜像；旧 Web 会话需重新登录一次，原有用户、任务、App 协议保留。普通服务重启复用 PostgreSQL 会话事实。回滚优先回到仍支持不透明会话的已验证镜像；不得只降级某一端，或把旧双 JWT Web 重新接入现有会话。若必须退回切换前版本，应停写并明确重新登录、旧凭据失效与 App 受影响范围，不能承诺透明回滚。完整执行证据与尚未完成的验收见 [P9.11](../docs/design/README.md)。
 
-Media Runner 通过 `app/workers/runner/plugins/yt_dlp_plugins/` 加载随项目交付的可信站点提取器。MediaTrack 适配仅处理无需登录的公开审片视频和 API 明确授权的播放转码；抖音适配用数字视频 ID 构造固定公开分享页并修正 landscape 下载规格的短边尺寸语义，TikTok 适配只使用其第一方嵌入播放器 item API 和 yt-dlp 默认客户端，明确无 item/HTTPS 格式、API 临时故障与响应结构漂移分别返回链接不可用、临时不可用和提取器回归，不回退网页挑战；快手适配把公开作品规范化到第一方移动分享页并限制短链重定向域，Tumblr 适配优先读取当前 `www.tumblr.com` 公开页而不强制改写到旧 blog 子域。小红书适配识别第一方 `300031` 笔记失效和 `300012` 平台验证边界，避免把失效内容误报成提取器故障。视频号适配只接受公开 `weixin.qq.com/sph/...` 单视频，读取第一方公开信息，并可在受控线路使用专用元宝会话解析；只接受批准腾讯媒体域上的非加密媒体，保护材料直接拒绝。所有适配都继续经过受控代理、作品身份校验、大小/时长限制、重新 inspect、FFmpeg 和 ffprobe 校验，不支持图集截断、账号内容、无水印承诺或原文件权限绕过。
+Media Runner 通过 `app/workers/runner/plugins/yt_dlp_plugins/` 加载随项目交付的可信站点提取器。MediaTrack 适配仅处理无需登录的公开审片视频和 API 明确授权的播放转码；抖音适配用数字视频 ID 构造固定公开分享页并修正 landscape 下载规格的短边尺寸语义，TikTok 适配只使用其第一方嵌入播放器 item API 和 yt-dlp 默认客户端，明确无 item/HTTPS 格式、API 临时故障与响应结构漂移分别返回链接不可用、临时不可用和提取器回归，不回退网页挑战；快手适配把公开作品规范化到第一方移动分享页并限制短链重定向域，Tumblr 适配优先读取当前 `www.tumblr.com` 公开页而不强制改写到旧 blog 子域。小红书适配识别第一方 `300031` 笔记失效和 `300012` 平台验证边界，避免把失效内容误报成提取器故障。视频号适配只接受公开 `weixin.qq.com/sph/...` 单视频，读取第一方公开信息，R0 不提供账号线路；只接受批准腾讯媒体域上的非加密媒体，保护材料直接拒绝。所有适配都继续经过受控代理、作品身份校验、大小/时长限制、重新 inspect、FFmpeg 和 ffprobe 校验，不支持图集截断、账号内容、无水印承诺或原文件权限绕过。
 
-主流视频源使用声明式 Provider Profile 接入：`provider_catalog_*.py` 按策略族登记能力和运行参数，`ProviderRegistry.prepare()` 一次解析得到贯穿 inspect/download 的不可变 `ProviderRequest`，`YtDlpCommandBuilder` 只消费该请求生成固定参数，错误由有序 `FailureRule` 归一化。已有 yt-dlp extractor 的公开单视频平台通常只需增加一个 Profile、契约测试和 metadata/media canary；需要自定义解析时再按 yt-dlp 官方插件目录增加可信 extractor，不修改通用命令执行器。固定公开平台和已验证的账号平台均复用 `session-runner`；未知站点不因 yt-dlp Generic 匹配或存在 Cookie 而自动开放。
+主流视频源使用声明式 Provider Profile 接入：`provider_catalog_*.py` 按策略族登记能力和运行参数，`ProviderRegistry.prepare()` 一次解析得到贯穿 inspect/download 的不可变 `ProviderRequest`，`YtDlpCommandBuilder` 只消费该请求生成固定参数，错误由有序 `FailureRule` 归一化。已有 yt-dlp extractor 的公开单视频平台通常只需增加一个 Profile、契约测试和冷启动完整文件验收；需要自定义解析时再按 yt-dlp 官方插件目录增加可信 extractor，不修改通用命令执行器。所有媒体任务复用 `session-runner`；未知站点不因 yt-dlp Generic 匹配或存在 Cookie 而自动开放。
 
 管理员可通过只读接口 `GET /api/admin/provider-runtime/engine-catalog` 查询 `session-runner` 实际安装的提取器及项目插件，获取安装版本、固定依赖是否匹配和清单摘要；extractor 数量不代表可下载的平台数。首次读取在独立子进程中有界枚举，后续复用当前进程快照，更新镜像后重新生成；不访问平台、不读取账号材料。API 或 Runner 缺失时返回服务不可用，不改变本站身份。平台策略、部署就绪和真实下载证据仍分别由 Profile、管理员运行诊断 API 与实际下载验证决定。
 
@@ -56,9 +54,7 @@ Media Runner 通过 `app/workers/runner/plugins/yt_dlp_plugins/` 加载随项目
 
 ## 资源准入
 
-在线解析使用 Registry 声明的策略：固定公开路线不携带账号，批准的账号路线按操作从宿主 Chrome 来源领取短期会话；结果冻结最终执行上下文，不临时切换账号。自动上下文准备与失败后的声明路径沿原任务、原期限和共用预算执行，不进入人工登录等待。来源材料相同的进程重启应保持会话代，不把进程重启当成账号变化。接入与恢复边界见[平台会话设计](../docs/design/08-平台会话.md)。
-
-持久解析入口为 `POST /api/download-intents`，接单提交后返回 202；查询和取消使用同一资源 ID。API 不等待上游解析。Outbox 将 `download.intent.requested` 投递为 `InspectionWorkflow`，同一个下载 Worker 进程中的 `ff-inspect` 队列保留 2 个解析 Activity 槽。Temporal 接管持久投递、重试、心跳、取消和恢复；业务库只保存 generation／operation／fence 与结果，解析总预算仍为 180 秒、最多三次执行。用户取消后 Worker 停止 HTTP 操作，Runner 断连处理终止实际子进程。迁移范围见[工作流设计](../docs/design/15-工作流与平台下载目标.md)。解析按每日任务计量、零下载字节，同幂等键重放不重复计量。Worker 与 API 使用相同 `REQUEST_FINGERPRINT_SECRET`，生产环境禁止开发默认值。
+Registry 统一声明 identity，R0 仅执行匿名 L1。`POST /api/download-intents` 在事务提交后返回 202，Outbox 直接启动单 resolve Activity 的 InspectionWorkflow，ff-inspect 保留两个槽。解析使用 120 秒总期限，业务库保存 generation、当前状态、结果及 ExecutionContext，不保存预算或操作账本；取消传播到 Runner 进程组。下载 Job 继续通过 RabbitMQ lease/heartbeat 执行。解析按每日任务计量、零下载字节；同幂等键重放不重复计量。
 
 高成本路由显式声明速率策略，PostgreSQL 在资源/run/outbox 创建事务内统一检查账户及全局配额。配置入口为 `RATE_LIMIT_POLICIES` 与 `QUOTA_LIMITS`；幂等重放不重复扣减，取消释放活跃名额，物理清理完成后释放保留存储。报告超限是可见的终态失败；取消后迟到的报告只进入清理流程。完整计量口径和生产边界见 [上线准入设计](../docs/design/README.md)。
 
@@ -66,7 +62,7 @@ Media Runner 通过 `app/workers/runner/plugins/yt_dlp_plugins/` 加载随项目
 
 ## 运行与就绪
 
-完整启动与更新统一使用[根 README](../README.md)的入口，复用已有 PostgreSQL、RabbitMQ、Redis、MinIO 和环境配置。固定 Chrome Profile 来源与 AI Worker 为宿主机组件，业务 Compose 不负责安装它们；容器健康不能代替宿主机材料可读与真实任务验证。
+完整启动与更新统一使用[根 README](../README.md)，复用已有基础服务与环境配置；R0 不安装宿主平台来源。API readiness 检查核心业务依赖，不等待平台就绪；安装版本与引擎目录只用于诊断，真实平台能力须完整文件验收。
 
 只调试无异步依赖的 API 路由时，才使用 Python 模块入口：
 
@@ -76,18 +72,6 @@ uv run python -m app.main
 ```
 
 该命令是后端模块调试入口，不替代完整本地拓扑中的 Worker、Runner 与前端构建。
-
-API readiness 与媒体 Runner 健康隔离。在线解析复用 `session-runner`；固定公开平台不携带账号，批准的账号策略在来源缺失或不可读时保留类型化原因。API、Worker 不等待平台健康；共享工作目录由镜像预建。宿主 `source_cli check` 的 `source_ready` 只证明材料可读，Broker 状态只证明传递链路；平台是否接受会话与能否生成完整文件由真实任务验证。
-接入范围和未完成验证见[平台与 Provider 体系](../docs/design/07-平台与Provider.md)。
-
-固定 Provider 诊断矩阵和真实媒体探针命令见 [设计文档](../docs/design/README.md) 与 `backend/app/workers/canary/`。
-
-`GET /api/providers` 将 Registry 发布验收基线、近期固定探针和已经生成完整制品的
-真实下载合并展示。长期无人使用或未配置探针不会撤销已验收能力；近期重复失败仍会
-自动降级对应平台。真实任务投影只使用非敏感 Provider 上下文与完成时间，不读取或
-公开来源 URL、账号和 Cookie。`browser` 只是本机动态来源标识；关联的近期成功
-表示该来源曾在相同非敏感上下文生成完整制品，不是当前 Cookie 内容 cohort，也不能单独证明
-当前会话可用或将 `access_required` 提升为 `verified`。
 
 宿主机 AI Worker 不属于 Compose，默认作为本机 Codex App Server Worker 独立受监督；第三方 Provider 从 Web 管理页选择，不通过额外启动脚本或 `.env` 切换。只使用跨平台 Agent 管理入口：
 
