@@ -44,7 +44,7 @@ def parse_cookie_payload(
             raise RunnerFailure("credential_rejected", status=422)
         try:
             domain = fields[0].removeprefix(b"#HttpOnly_").decode("ascii")
-            name = fields[5].decode("ascii")
+            name = fields[5].decode("utf-8")
             expires = int(fields[4])
         except (UnicodeDecodeError, ValueError) as exc:
             raise RunnerFailure("credential_rejected", status=422) from exc

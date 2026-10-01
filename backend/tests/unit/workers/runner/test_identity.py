@@ -200,7 +200,17 @@ async def test_runner_lifespan_clears_tmpfs_before_accepting_requests(transport)
 
 
 @pytest.mark.parametrize(
-    "cause", ["extension_disconnected", "extension_timeout", "credential_missing"]
+    "cause",
+    [
+        "extension_disconnected",
+        "extension_timeout",
+        "credential_missing",
+        "identity_material_invalid",
+        "identity_cookie_name_invalid",
+        "identity_cookie_encoding_invalid",
+        "identity_cookie_value_invalid",
+        "identity_cookie_payload_invalid",
+    ],
 )
 async def test_extension_subcause_survives_runner_failure(transport, cause):
     root, _, state, _ = transport

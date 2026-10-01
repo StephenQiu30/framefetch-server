@@ -21,7 +21,14 @@ from app.workers.runner.provider_registry import provider_profile_for_key
 from fastapi import FastAPI, Request, WebSocket, WebSocketDisconnect
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
-from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, StrictBool
+from pydantic import (
+    AwareDatetime,
+    BaseModel,
+    ConfigDict,
+    Field,
+    StrictBool,
+    ValidationError,
+)
 
 # Audited 2026-10-01. Each inner set is an AND group; groups are alternatives.
 # This is a necessary-material gate, not a claim that the account is still valid.
@@ -143,7 +150,7 @@ class ExtensionCookie(BaseModel):
     model_config = ConfigDict(extra="forbid", hide_input_in_errors=True)
     domain: str = Field(pattern=r"^\.?[A-Za-z0-9.-]{1,253}$")
     path: str = Field(pattern=r"^/[^\t\r\n\x00]*$", max_length=4096)
-    name: str = Field(pattern=r"^[\x21-\x7e]+$", max_length=4096)
+    name: str = Field(pattern=r"^[^\t\r\n\x00]*$", max_length=4096)
     value: str = Field(pattern=r"^[^\t\r\n\x00]*$", max_length=65536)
     secure: StrictBool
     httpOnly: StrictBool
@@ -335,7 +342,45 @@ class CookieSource:
                     raise IdentityUnavailable("extension_disconnected") from None
                 items = await future
                 now = time.time()
-                selected = [ExtensionCookie.model_validate(item) for item in items]
+                try:
+                    selected = [ExtensionCookie.model_validate(item) for item in items]
+                except ValidationError as error:
+                    # Only fixed field names escape; never input, message or context.
+                    fields = {
+                        entry["loc"][0] for entry in error.errors() if entry["loc"]
+                    }
+                    field = next(
+                        (
+                            name
+                            for name in (
+                                "domain",
+                                "path",
+                                "name",
+                                "value",
+                                "expirationDate",
+                                "secure",
+                                "httpOnly",
+                                "hostOnly",
+                            )
+                            if name in fields
+                        ),
+                        None,
+                    )
+                    cause = {
+                        "domain": "identity_cookie_domain_invalid",
+                        "path": "identity_cookie_path_invalid",
+                        "name": "identity_cookie_name_invalid",
+                        "value": "identity_cookie_value_invalid",
+                        "expirationDate": "identity_cookie_expiry_invalid",
+                        "secure": "identity_cookie_flags_invalid",
+                        "httpOnly": "identity_cookie_flags_invalid",
+                        "hostOnly": "identity_cookie_flags_invalid",
+                    }.get(field or "", "identity_cookie_structure_invalid")
+                    if any(
+                        entry["type"] == "string_unicode" for entry in error.errors()
+                    ):
+                        cause = "identity_cookie_encoding_invalid"
+                    raise IdentityUnavailable(cause) from None
                 selected = [
                     c
                     for c in selected
@@ -343,12 +388,24 @@ class CookieSource:
                 ]
                 if not selected:
                     raise IdentityUnavailable("credential_missing")
-                payload = (
-                    "# Netscape HTTP Cookie File\n"
-                    + "\n".join(c.line() for c in selected)
-                    + "\n"
-                ).encode()
-                lines = parse_cookie_payload(payload, profile.cookie_domain_allowlist)
+                try:
+                    payload = (
+                        "# Netscape HTTP Cookie File\n"
+                        + "\n".join(c.line() for c in selected)
+                        + "\n"
+                    ).encode("utf-8")
+                except UnicodeEncodeError:
+                    raise IdentityUnavailable(
+                        "identity_cookie_encoding_invalid"
+                    ) from None
+                try:
+                    lines = parse_cookie_payload(
+                        payload, profile.cookie_domain_allowlist
+                    )
+                except Exception:
+                    raise IdentityUnavailable(
+                        "identity_cookie_payload_invalid"
+                    ) from None
                 alternatives, necessary = rule
                 names = {line.name for line in lines}
                 if not any(required <= names for required in alternatives):

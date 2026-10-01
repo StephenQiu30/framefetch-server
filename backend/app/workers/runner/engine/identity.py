@@ -146,6 +146,16 @@ async def fetch_identity(
         if response.status_code != 200:
             cause = result.get("cause") if isinstance(result, dict) else None
             if cause not in {
+                "identity_material_invalid",
+                "identity_cookie_domain_invalid",
+                "identity_cookie_path_invalid",
+                "identity_cookie_name_invalid",
+                "identity_cookie_value_invalid",
+                "identity_cookie_expiry_invalid",
+                "identity_cookie_flags_invalid",
+                "identity_cookie_structure_invalid",
+                "identity_cookie_encoding_invalid",
+                "identity_cookie_payload_invalid",
                 "extension_disconnected",
                 "extension_timeout",
                 "credential_missing",
