@@ -413,25 +413,25 @@ def test_xhs_feed_capa_is_seconds_when_stream_duration_is_absent():
     assert xiaohongshu.parse_response(payload).duration_seconds == 13
 
 
-def test_r3_cases_have_two_independent_public_works_and_verified_time_baselines():
+def test_browser_cases_have_two_independent_public_works_and_verified_baselines():
     cases = json.loads(
         (
             Path(__file__).resolve().parents[4]
-            / "scripts/fixtures/r3_public_cases.json"
+            / "scripts/fixtures/coldstart_cases.json"
         ).read_text()
     )
-    assert len(cases) == 4
     for platform in ("douyin", "xiaohongshu"):
-        own = [case for case in cases if case["platform"] == platform]
+        own = [
+            case
+            for case in cases
+            if case["platform"] == platform and case["kind"] == "positive"
+        ]
         assert len(own) == len({case["expected_media_id"] for case in own}) == 2
         for case in own:
             assert case["content_scope"] == "public" and not case["needs_identity"]
             assert case["duration_seconds"] > 0
-            assert case["duration_source"]["status"] == "verified"
-            assert case["duration_source"]["kind"] == "platform_page_or_api"
+            for source in (case["duration_source"], case["availability_source"]):
+                assert source["status"] == "verified"
+                assert source["checked_at"] and source["field"]
+                assert source["url"].startswith("https://")
             assert case["minimum_spec"]["audio"] is True
-    assert all(
-        "xsec_token=" in case["url"]
-        for case in cases
-        if case["platform"] == "xiaohongshu"
-    )
