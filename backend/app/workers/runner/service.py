@@ -606,6 +606,14 @@ class MediaRunnerService:
                 self._commands,
                 failure_context=failure_context,
             )
+            try:
+                # Normalization may replace the file. Bind the contract to the
+                # final bytes, including workspace limits and the actual size.
+                output = workspace.validate_outputs([artifact.name])[0]
+            except WorkspaceViolation as exc:
+                raise RunnerFailure(
+                    "invalid_artifact", status=502, phase=FailurePhase.VALIDATE
+                ) from exc
         verification_plan = plan
         if selection.video.width is not None and selection.video.height is not None:
             verification_plan = replace(
