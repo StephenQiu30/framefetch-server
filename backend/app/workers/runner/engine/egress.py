@@ -51,7 +51,7 @@ def resolve_egress(
         if global_route
         else settings.egress_cn_upstream_port
     )
-    egress_class = "residential"
+    egress_class = "residential" if host else "unknown"
     if global_route and not host:
         host, port = (
             settings.egress_fallback_upstream_host,

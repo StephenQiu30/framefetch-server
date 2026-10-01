@@ -8,6 +8,13 @@ validate_port() {
   case "$1" in ''|*[!0-9]*) echo 'Invalid egress upstream port' >&2; exit 1;; esac
   [ "$1" -gt 0 ] && [ "$1" -le 65535 ] || exit 1
 }
+# Squid's peer connector can select an AAAA record even when the container
+# lacks IPv6 routing. Prefer a configured upstream's IPv4 address; retain the
+# hostname for IPv6-only deployments. Client destination ACLs remain unchanged.
+peer_host() {
+  ipv4=$(getent ahostsv4 "$1" 2>/dev/null | awk 'NR == 1 { print $1; exit }')
+  printf '%s' "${ipv4:-$1}"
+}
 cn_host=${EGRESS_CN_UPSTREAM_HOST:-}
 cn_port=${EGRESS_CN_UPSTREAM_PORT:-7897}
 global_host=${EGRESS_GLOBAL_UPSTREAM_HOST:-${EGRESS_FALLBACK_UPSTREAM_HOST:-host.docker.internal}}
@@ -22,7 +29,8 @@ validate_port "$global_port"
   echo 'acl cn_residential myportname cn_residential'
   echo 'acl global_residential myportname global_residential'
   if [ -n "$cn_host" ]; then
-    echo "cache_peer $cn_host parent $cn_port 0 no-query default name=cn_parent"
+    cn_peer=$(peer_host "$cn_host")
+    echo "cache_peer $cn_peer parent $cn_port 0 no-query default name=cn_parent"
     echo 'cache_peer_access cn_parent allow cn_residential'
     echo 'cache_peer_access cn_parent deny all'
     echo 'never_direct allow cn_residential'
@@ -30,7 +38,8 @@ validate_port "$global_port"
     # An existing domestic ISP connection needs no additional proxy node.
     echo 'always_direct allow cn_residential'
   fi
-  echo "cache_peer $global_host parent $global_port 0 no-query default name=global_parent"
+  global_peer=$(peer_host "$global_host")
+  echo "cache_peer $global_peer parent $global_port 0 no-query default name=global_parent"
   echo 'cache_peer_access global_parent allow global_residential'
   echo 'cache_peer_access global_parent deny all'
   echo 'never_direct allow global_residential'

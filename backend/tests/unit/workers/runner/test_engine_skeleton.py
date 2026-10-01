@@ -100,7 +100,7 @@ def test_egress_preserves_existing_proxy_override(tmp_path):
     )
     assert binding.proxy_url == "http://proxy.example:3128"
     assert binding.route == "cn_residential"
-    assert binding.egress_class == "residential" and binding.observed_ip is None
+    assert binding.egress_class == "unknown" and binding.observed_ip is None
     assert "proxy.example" not in repr(binding)
 
 

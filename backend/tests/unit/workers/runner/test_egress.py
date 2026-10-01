@@ -30,7 +30,7 @@ def test_routes_and_global_fallback(config):
     assert (cn.route, cn.proxy_url, cn.egress_class) == (
         "cn_residential",
         "http://egress-proxy:3128",
-        "residential",
+        "unknown",
     )
     assert (global_.route, global_.proxy_url, global_.egress_class) == (
         "global_residential",
@@ -307,3 +307,9 @@ async def test_download_rejects_changed_ip_before_media_io(tmp_path, monkeypatch
             deadline=datetime.now(UTC) + timedelta(seconds=5),
         )
     assert caught.value.code == "context_changed"
+
+
+def test_domestic_class_requires_declared_fixed_upstream(config):
+    assert binding(config, "bilibili").egress_class == "unknown"
+    config.egress_cn_upstream_host = "fixed-domestic-listener"
+    assert binding(config, "bilibili").egress_class == "residential"

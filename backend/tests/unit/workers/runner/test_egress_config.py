@@ -142,13 +142,23 @@ def test_douyin_cold_media_port_remains_domain_scoped() -> None:
     assert "http_access deny blocked_destination" in config
 
 
-def render_routes(tmp_path, **environment):
+def render_routes(tmp_path, *, ipv4=None, **environment):
     import os
     import subprocess
 
     executable = tmp_path / "squid"
     executable.write_text("#!/bin/sh\nexit 0\n")
     executable.chmod(0o700)
+    resolver = tmp_path / "getent"
+    resolver.write_text(
+        "#!/bin/sh\n"
+        + (
+            f'printf "%s STREAM\\n%s DGRAM\\n" "{ipv4}" "{ipv4}"\n'
+            if ipv4
+            else "exit 2\n"
+        )
+    )
+    resolver.chmod(0o700)
     routes = tmp_path / "routes.conf"
     script = (
         (CONFIG_ROOT / "start.sh")
@@ -224,3 +234,18 @@ def test_compose_runner_and_squid_share_upstream_configuration():
             services["youtube-pot-provider"]["environment"]["RUNNER_EGRESS_PROXY"]
             == runner["RUNNER_GLOBAL_EGRESS_PROXY"]
         )
+
+
+def test_squid_peer_prefers_ipv4_when_host_also_has_unroutable_ipv6(tmp_path):
+    result, routes = render_routes(
+        tmp_path,
+        ipv4="192.0.2.42",
+        EGRESS_CN_UPSTREAM_HOST="host.docker.internal",
+        EGRESS_CN_UPSTREAM_PORT="17897",
+        EGRESS_GLOBAL_UPSTREAM_HOST="host.docker.internal",
+        EGRESS_GLOBAL_UPSTREAM_PORT="17898",
+    )
+    assert result.returncode == 0, result.stderr
+    assert "cache_peer 192.0.2.42 parent 17897 0" in routes
+    assert "cache_peer 192.0.2.42 parent 17898 0" in routes
+    assert "cache_peer host.docker.internal" not in routes
