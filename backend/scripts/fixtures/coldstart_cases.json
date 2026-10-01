@@ -948,11 +948,11 @@
     },
     "availability_source": {
       "url": "https://v.youku.com/v_show/id_XOTUxMzg4NDMy.html",
-      "kind": "public_page",
-      "field": "public_free_clear_media",
-      "checked_at": null,
-      "status": "unverified",
-      "note": "公开、免费、非 DRM 的完整媒体尚未独立证实；候选不能记通过。"
+      "kind": "independent_official_manifest_and_segment_probe",
+      "field": "account_accessible_full_clear_media",
+      "checked_at": "2026-10-01T10:41:23.484257+00:00",
+      "status": "verified",
+      "note": "独立 HTTPX 客户端读取官方 UPS 提供的完整媒体清单：HTTP 200、ENDLIST、无 EXT-X-KEY/SESSION-KEY；总时长 702.08/542.133 秒与官方原始时长相符；首段 Range 206，独立 ffprobe 检出 H264/AAC 640x360。声明域身份材料存在 P_sck；personal_full 不要求公开免费。本 worktree artifacts/coldstart/r6-g4-round6/runner-diagnostic.json 保存无敏感值证据；完整文件由正式矩阵另验。"
     },
     "minimum_spec": {
       "width": 320,
@@ -979,11 +979,11 @@
     },
     "availability_source": {
       "url": "https://v.youku.com/v_show/id_XNTA2NTA0MjA1Mg==.html",
-      "kind": "public_page",
-      "field": "public_free_clear_media",
-      "checked_at": null,
-      "status": "unverified",
-      "note": "公开、免费、非 DRM 的完整媒体尚未独立证实；候选不能记通过。"
+      "kind": "independent_official_manifest_and_segment_probe",
+      "field": "account_accessible_full_clear_media",
+      "checked_at": "2026-10-01T10:41:23.484257+00:00",
+      "status": "verified",
+      "note": "独立 HTTPX 客户端读取官方 UPS 提供的完整媒体清单：HTTP 200、ENDLIST、无 EXT-X-KEY/SESSION-KEY；总时长 702.08/542.133 秒与官方原始时长相符；首段 Range 206，独立 ffprobe 检出 H264/AAC 640x360。声明域身份材料存在 P_sck；personal_full 不要求公开免费。本 worktree artifacts/coldstart/r6-g4-round6/runner-diagnostic.json 保存无敏感值证据；完整文件由正式矩阵另验。"
     },
     "minimum_spec": {
       "width": 320,
@@ -1010,11 +1010,11 @@
     },
     "availability_source": {
       "url": "https://v.qq.com/x/page/q326831cny0.html",
-      "kind": "public_page",
-      "field": "public_free_clear_media",
-      "checked_at": null,
-      "status": "unverified",
-      "note": "独立官方 videoInfo.drm=0；原 content_protected 不能证明 DRM 或 VIP。完整 clear 媒体及账号可访问性仍待正式矩阵，元数据和 enc=1 包装均不代替媒体验收。"
+      "kind": "independent_native_official_browser_playback",
+      "field": "account_accessible_full_clear_media",
+      "checked_at": "2026-10-01T10:41:23.484257+00:00",
+      "status": "verified",
+      "note": "独立容器 Chromium 的官方页面原生 proxyhttp 响应中 vinfo 为明文 JSON，未解密任何包装；精确 vid 和完整时长匹配，当前 rendition fl.fi.drm=0。账号必要材料 v_vuserid/v_vusession 存在；personal_full 不要求公开免费。正式矩阵已另交付完整文件并全片解码成功。本 worktree artifacts/coldstart/r6-g4-round6/runner-diagnostic.json 保存原生响应非敏感字段。"
     },
     "minimum_spec": {
       "width": 320,
@@ -1041,11 +1041,11 @@
     },
     "availability_source": {
       "url": "https://v.qq.com/x/page/o3013za7cse.html",
-      "kind": "public_page",
-      "field": "public_free_clear_media",
-      "checked_at": null,
-      "status": "unverified",
-      "note": "独立官方 videoInfo.drm=0；原 content_protected 不能证明 DRM 或 VIP。完整 clear 媒体及账号可访问性仍待正式矩阵，元数据和 enc=1 包装均不代替媒体验收。"
+      "kind": "independent_native_official_browser_playback",
+      "field": "account_accessible_full_clear_media",
+      "checked_at": "2026-10-01T10:41:23.484257+00:00",
+      "status": "verified",
+      "note": "独立容器 Chromium 的官方页面原生 proxyhttp 响应中 vinfo 为明文 JSON，未解密任何包装；精确 vid 和完整时长匹配，当前 rendition fl.fi.drm=0。账号必要材料 v_vuserid/v_vusession 存在；personal_full 不要求公开免费。正式矩阵已另交付完整文件并全片解码成功。本 worktree artifacts/coldstart/r6-g4-round6/runner-diagnostic.json 保存原生响应非敏感字段。"
     },
     "minimum_spec": {
       "width": 320,
