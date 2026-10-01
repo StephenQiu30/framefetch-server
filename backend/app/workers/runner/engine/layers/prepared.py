@@ -150,6 +150,10 @@ async def _request(
     # Fixed first-party URLs only; redirects cannot escape the preparation scope.
     for _ in range(4):
         parsed = urlsplit(url)
+        if parsed.hostname == "login.sina.com.cn":
+            # SSO login is not guest initialization. Do not follow it or broaden
+            # the visitor allowlist; let the ladder try the page oracle instead.
+            raise _failure(FailureClass.CHALLENGE, "visitor_login_redirect")
         if (
             parsed.scheme != "https"
             or parsed.username
@@ -217,10 +221,12 @@ async def prepare_visitor(site: str, ctx: RunContext) -> RunContext:
                 existing.load(ignore_discard=True)
                 client.cookies = httpx.Cookies(existing)
             # Kuaishou: GET https://www.kuaishou.com/ -> first-visit Cookie -> yt-dlp.
-            # Weibo: homepage -> passport genvisitor POST -> visitor incarnate GET
-            # -> homepage -> yt-dlp. Parameters mirror upstream WeiboBaseIE;
+            # Weibo: passport genvisitor POST -> visitor incarnate GET -> yt-dlp.
+            # The homepage can redirect to Sina SSO before guests exist.
+            # Parameters mirror upstream WeiboBaseIE;
             # no local signatures, JS emulation or login credentials are generated.
-            await _request(client, "GET", referer, domains)
+            if site == "kuaishou":
+                await _request(client, "GET", referer, domains)
             if site == "weibo":
                 raw = await _request(
                     client,
@@ -273,7 +279,6 @@ async def prepare_visitor(site: str, ctx: RunContext) -> RunContext:
                         "from": "weibo",
                     },
                 )
-                await _request(client, "GET", referer, domains)
             cookies = [
                 cookie
                 for cookie in client.cookies.jar
@@ -282,6 +287,11 @@ async def prepare_visitor(site: str, ctx: RunContext) -> RunContext:
                 and has_safe_cookie_fields(cookie)
             ]
             if not cookies:
+                if site == "kuaishou":
+                    # A successful first visit need not set HTTP cookies: the
+                    # public mobile share extractor is also cookie-free. Do not
+                    # manufacture a did or reject the next extraction upfront.
+                    return ctx.with_material(user_agent=ua, referer=referer)
                 raise _failure(FailureClass.CHALLENGE, "visitor_cookie_missing")
             payload_bytes = serialize_cookies(cookies)
     except httpx.HTTPError as exc:
