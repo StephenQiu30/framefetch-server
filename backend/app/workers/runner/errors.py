@@ -53,9 +53,6 @@ class RunnerFailure(RuntimeError):
                 or location is FailurePhase.VALIDATE
                 else "②"
                 if location is FailurePhase.PROBE_MEDIA
-                else "①"
-                if kind
-                in {FailureClass.CONTENT_UNAVAILABLE, FailureClass.CONTENT_PROTECTED}
                 else "none"
             )
         self.failure = ProviderFailure.for_code(

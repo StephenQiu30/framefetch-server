@@ -82,6 +82,10 @@ class Case(BaseModel):
     url: str
     expected_media_id: str
     kind: str = Field(pattern="^(positive|protected)$")
+    expected_failure_class: str = Field(
+        default="content_protected", pattern="^(content_protected|content_unavailable)$"
+    )
+    expected_gate: str | None = Field(default=None, pattern="^(①|②|③|none)$")
     content_scope: str = Field(pattern="^(public|personal_full)$")
     needs_identity: bool = False
     duration_seconds: float | None = Field(default=None, gt=0, allow_inf_nan=False)
@@ -545,7 +549,7 @@ def verify_probe(probe: Json, case: Case, plan: Json, tolerance_seconds: float) 
 
 
 def failure_result(case: Case, category: str) -> str:
-    if category == "content_protected" and case.kind == "protected":
+    if category == case.expected_failure_class and case.kind == "protected":
         return "protected_negative"
     if category in {
         "identity_unavailable",
@@ -703,6 +707,12 @@ def run_case(api: Api, case: Case, args: argparse.Namespace, output: Path) -> Js
         )
         if result["result"] == "protected_negative" and result["qualification_gaps"]:
             result["result"] = "blocked"
+        if (
+            result["result"] == "protected_negative"
+            and case.expected_gate is not None
+            and exc.evidence.get("gate") != case.expected_gate
+        ):
+            result["result"] = "failed"
     except (
         httpx.HTTPError,
         subprocess.TimeoutExpired,

@@ -42,6 +42,7 @@ from app.workers.runner.workspace_monitor import (
     WorkspaceLimitExceeded,
     run_with_workspace_limit,
 )
+from app.workers.runner.youtube_availability import explicit_content_restriction
 from app.workers.runner.yt_dlp_commands import YtDlpCommandBuilder
 
 _YTDLP_PLUGIN_ROOT = Path(__file__).resolve().parent
@@ -110,16 +111,21 @@ class MediaCommands:
         cookie_jar: Path | None = None,
     ) -> dict[str, Any]:
         command = self._ytdlp.inspect(source, cookie_jar=cookie_jar)
-        result = await self._run(
-            command.argv,
-            cwd,
-            self._settings.runner_inspect_timeout_seconds,
-            timeout_code="inspection_timeout",
-            failure_code="inspection_failed",
-            phase=FailurePhase.FETCH_METADATA,
-            egress_proxy=command.egress_proxy,
-            failure_context=command.failure_context,
-        )
+        try:
+            result = await self._run(
+                command.argv,
+                cwd,
+                self._settings.runner_inspect_timeout_seconds,
+                timeout_code="inspection_timeout",
+                failure_code="inspection_failed",
+                phase=FailurePhase.FETCH_METADATA,
+                egress_proxy=command.egress_proxy,
+                failure_context=command.failure_context,
+            )
+        except RunnerFailure as error:
+            if error.failure.failure_class is FailureClass.EXTRACTOR_BROKEN:
+                await self._confirm_content_restriction(command.request)
+            raise
         # Explicit content restrictions precede asset parsing/validation. Only
         # the DRM warning rule may be superseded by a clear candidate below.
         restriction = classify_provider_failure(
@@ -137,6 +143,8 @@ class MediaCommands:
             restriction = classify_provider_failure(
                 command.failure_context, result.stderr, has_clear_media=has_media
             )
+            if not has_media:
+                await self._confirm_content_restriction(command.request)
             if restriction is None or has_media:
                 return payload
         raise RunnerFailure(
@@ -145,6 +153,17 @@ class MediaCommands:
             phase=FailurePhase.FETCH_METADATA,
             evidence_kind=FailureEvidenceKind.UPSTREAM_RESPONSE,
         )
+
+    async def _confirm_content_restriction(self, request: ProviderRequest) -> None:
+        if await explicit_content_restriction(request, self._run_context):
+            raise RunnerFailure(
+                "content_unavailable",
+                status=403,
+                gate="none",
+                phase=FailurePhase.FETCH_METADATA,
+                evidence_kind=FailureEvidenceKind.UPSTREAM_RESPONSE,
+                cause_code="explicit_public_player_restriction",
+            )
 
     async def probe_remote(
         self,

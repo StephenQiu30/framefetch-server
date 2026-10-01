@@ -37,6 +37,12 @@ from app.workers.runner.provider_errors import (
         (b"rate-limit reached or login required", "extractor_broken"),
         (b"empty response", "extractor_broken"),
         (b"This video is unavailable", "extractor_broken"),
+        (
+            "ERROR: [youtube] s7_qI6_mIXc: 非公開動画; LOGIN_REQUIRED; "
+            "Sign in to confirm you're not a bot; HTTP Error 429; "
+            "Unable to extract player response".encode(),
+            "content_unavailable",
+        ),
     ],
 )
 def test_priority(message, expected):
@@ -59,6 +65,11 @@ def test_datacenter_login_required_is_network_evidence():
         classify_provider_failure(context, b"LOGIN_REQUIRED: This video is private")[0]
         == "content_unavailable"
     )
+
+
+def test_localized_private_reason_is_youtube_specific():
+    context = ProviderFailureContext("vimeo", "https://vimeo.com/123", False)
+    assert classify_provider_failure(context, "非公開動画".encode()) is None
 
 
 @pytest.mark.parametrize(
