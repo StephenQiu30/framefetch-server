@@ -118,14 +118,20 @@ _define(
         "content_private",
         "content_not_entitled",
         "content_entitlement_unknown",
+        "provider_content_restricted",
+    ),
+    FailureClass.CONTENT_UNAVAILABLE,
+    FailureScope.CONTENT,
+)
+_define(
+    (
         "content_access_metadata_invalid",
         "content_preview_only",
         "content_supporter_only",
         "content_paid_only",
         "content_export_required",
-        "provider_content_restricted",
     ),
-    FailureClass.CONTENT_UNAVAILABLE,
+    FailureClass.CONTENT_PROTECTED,
     FailureScope.CONTENT,
 )
 _define(("provider_rate_limited",), FailureClass.RATE_LIMITED, FailureScope.ROUTE)
