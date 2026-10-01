@@ -300,7 +300,7 @@ function AnalysisRuns({
         />
       ) : null}
       {runs.isPending ? <p role="status">正在读取运行记录…</p> : null}
-      <ol className="mt-4 divide-y divide-border">
+      <ol className="mt-4">
         {runs.data?.items.map((run) => (
           <li key={run.id} className="flex flex-wrap gap-4 py-4 text-sm">
             <span>第 {run.run_no} 次</span>

@@ -98,14 +98,13 @@ export default function InspectionWorkspace({
             : decisionTitle(inspection),
           footer:
             inspection.access_decision === 'export_required' ? (
-              <Button className="w-full" size="lg" onClick={onUseUpload}>
+              <Button className="w-full" onClick={onUseUpload}>
                 <UploadSimple data-icon="inline-start" />
                 上传自有 MP4
               </Button>
             ) : downloadable ? (
               <Button
                 className="w-full"
-                size="lg"
                 disabled={!selectedId || busy}
                 onClick={onCreate}
               >

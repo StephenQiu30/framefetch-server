@@ -75,7 +75,7 @@ function SiteHeader() {
   }
 
   return (
-    <header className="sticky top-0 z-40 border-b bg-background">
+    <header className="sticky top-0 z-40 bg-background">
       <div className="content-shell flex h-16 items-center justify-between">
         <BrandLink />
         <div

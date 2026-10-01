@@ -26,13 +26,6 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card';
-import {
   Field,
   FieldDescription,
   FieldError,
@@ -65,6 +58,9 @@ import {
 type Notice = { text: string } | null;
 const MAX_AVATAR_UPLOAD_BYTES = 4 * 1024 * 1024;
 const AVATAR_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp']);
+const formClassName = 'mt-14 sm:mt-16';
+const summaryClassName = 'flex min-w-0 flex-col gap-6';
+const identityClassName = 'flex flex-col items-center gap-3 text-center';
 
 export function AccountView() {
   const { user, loading, setUser, refreshUser } = useAuth();
@@ -171,22 +167,45 @@ export function AccountView() {
 
   if (loading) {
     return (
-      <div
-        aria-label="正在加载个人资料"
-        className="flex flex-col gap-8"
-        role="status"
-      >
-        <Skeleton className="h-3 w-32" />
-        <Skeleton className="h-24 w-full max-w-2xl" />
-        <SplitLayout className="pt-4" columns="sidebar-start">
-          <Skeleton className="w-full aspect-square" />
-          <div className="flex flex-col gap-6">
-            <Skeleton className="h-20 w-full" />
-            <Skeleton className="h-20 w-full" />
-            <Skeleton className="h-20 w-full" />
+      <>
+        <PageNavigation fallbackHref="/" />
+        <PageHeader
+          description="管理用户名与头像；管理员还可调整账户身份。"
+          title="个人资料"
+        />
+        <SplitLayout
+          aria-label="正在加载个人资料"
+          className={formClassName}
+          columns="sidebar-start"
+          role="status"
+        >
+          <div aria-hidden className={summaryClassName}>
+            <div className={identityClassName}>
+              <Skeleton className="size-10 rounded-full" />
+              <Skeleton className="h-6 w-24" />
+              <Skeleton className="h-5 w-40" />
+              <Skeleton className="h-5 w-16" />
+            </div>
+            <div className="mt-auto flex flex-col items-center gap-2">
+              <Skeleton className="h-10 w-full" />
+              <Skeleton className="h-8 w-28" />
+            </div>
+          </div>
+          <div aria-hidden className="flex min-w-0 flex-col gap-6">
+            <Skeleton className="h-5 w-16" />
+            <div className="flex flex-col gap-6">
+              {['username', 'email', 'role'].map((key) => (
+                <div className="flex flex-col gap-2" key={key}>
+                  <Skeleton className="h-5 w-20" />
+                  <Skeleton className="h-8 w-full" />
+                  <Skeleton className="h-5 w-4/5" />
+                </div>
+              ))}
+            </div>
+            <Skeleton className="mt-3 h-8 w-24" />
           </div>
         </SplitLayout>
-      </div>
+      </>
     );
   }
 
@@ -214,21 +233,21 @@ export function AccountView() {
         title="个人资料"
       />
 
-      <Form className="mt-14 sm:mt-16" onSubmit={submit}>
+      <Form className={formClassName} onSubmit={submit}>
         <SplitLayout columns="sidebar-start">
-          <Card className="ring-0">
-            <CardHeader className="justify-items-center gap-3 text-center">
+          <section aria-label="头像与账户概览" className={summaryClassName}>
+            <div className={identityClassName}>
               <Avatar aria-hidden size="lg">
                 <AvatarImage alt="" src={avatarUrl(user)} />
                 <AvatarFallback>{initials}</AvatarFallback>
               </Avatar>
-              <CardTitle>
-                <h2>{user.username}</h2>
-              </CardTitle>
-              <CardDescription>{user.email}</CardDescription>
+              <h2 className="text-base font-medium leading-snug">
+                {user.username}
+              </h2>
+              <p className="text-sm text-muted-foreground">{user.email}</p>
               <Badge variant="secondary">{role}</Badge>
-            </CardHeader>
-            <CardContent>
+            </div>
+            <div className="mt-auto">
               <Input
                 accept="image/jpeg,image/png,image/webp"
                 aria-describedby={
@@ -249,6 +268,16 @@ export function AccountView() {
                 className="items-center text-center"
                 data-invalid={avatarError ? true : undefined}
               >
+                <FieldDescription
+                  aria-live="polite"
+                  className="text-center"
+                  id="avatar-help"
+                >
+                  JPEG、PNG 或 WebP，最大 4 MB。上传后自动裁切为方形。
+                </FieldDescription>
+                {avatarError ? (
+                  <FieldError id="avatar-error">{avatarError}</FieldError>
+                ) : null}
                 <FieldGroup className="flex-row flex-wrap justify-center gap-2">
                   <Button
                     aria-describedby={
@@ -278,19 +307,9 @@ export function AccountView() {
                     </Button>
                   ) : null}
                 </FieldGroup>
-                <FieldDescription
-                  aria-live="polite"
-                  className="text-center"
-                  id="avatar-help"
-                >
-                  JPEG、PNG 或 WebP，最大 4 MB。上传后自动裁切为方形。
-                </FieldDescription>
-                {avatarError ? (
-                  <FieldError id="avatar-error">{avatarError}</FieldError>
-                ) : null}
               </Field>
-            </CardContent>
-          </Card>
+            </div>
+          </section>
 
           <FieldSet className="min-w-0 gap-6">
             <FieldLegend variant="label">资料字段</FieldLegend>

@@ -60,7 +60,7 @@ export default async function RootLayout({
       lang="zh-CN"
       suppressHydrationWarning
     >
-      <body>
+      <body data-design="borderless">
         <ThemeProvider
           attribute="class"
           defaultTheme="light"

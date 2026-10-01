@@ -10,7 +10,10 @@ import {
   ItemDescription,
   ItemMedia,
 } from '@/components/ui/item';
+import { Skeleton } from '@/components/ui/skeleton';
 import { Spinner } from '@/components/ui/spinner';
+
+const headerClassName = 'flex flex-wrap items-end justify-between gap-3 pb-5';
 
 enum DiscoveryItemStatusCode {
   Ready = 'ready',
@@ -49,7 +52,7 @@ export function SourceDiscoveryWorkspace({
 }) {
   return (
     <div className="pt-10">
-      <div className="flex flex-wrap items-end justify-between gap-3 pb-5">
+      <div className={headerClassName}>
         <div>
           <h2
             className="text-xl font-medium tracking-tight"
@@ -93,7 +96,6 @@ export function SourceDiscoveryWorkspace({
                       className="w-full sm:w-auto"
                       disabled={busyItemRef !== null}
                       onClick={() => onSelect(item)}
-                      size="lg"
                       variant="secondary"
                     >
                       {busy ? (
@@ -114,6 +116,36 @@ export function SourceDiscoveryWorkspace({
           请检查文章是否仍公开，或改用自有明文 MP4 导入。
         </p>
       )}
+    </div>
+  );
+}
+
+export function SourceDiscoverySkeleton() {
+  return (
+    <div aria-label="正在读取文章视频候选项" className="pt-10" role="status">
+      <div aria-hidden className={headerClassName}>
+        <div className="flex min-w-0 flex-1 flex-col gap-2">
+          <Skeleton className="h-7 w-3/4" />
+          <Skeleton className="h-6 w-full" />
+        </div>
+        <Skeleton className="h-4 w-28" />
+      </div>
+      <div aria-hidden className="flex flex-col gap-1">
+        {['first', 'second', 'third'].map((key) => (
+          <Item className="-mx-3 gap-4" key={key}>
+            <ItemMedia className="self-start">
+              <Skeleton className="size-6" />
+            </ItemMedia>
+            <ItemContent className="min-w-0">
+              <Skeleton className="h-5 w-3/4" />
+              <Skeleton className="h-5 w-full" />
+            </ItemContent>
+            <ItemActions className="w-full sm:w-auto">
+              <Skeleton className="h-8 w-full sm:w-28" />
+            </ItemActions>
+          </Item>
+        ))}
+      </div>
     </div>
   );
 }

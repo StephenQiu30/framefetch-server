@@ -172,6 +172,102 @@
 }
 
 @layer utilities {
+  /* Product-wide borderless surfaces, including controls mounted in portals.
+     Transparent edges retain official dimensions and interactive state styles. */
+  [data-design="borderless"]
+  :is(
+    [data-slot="button"],
+    [data-variant]:is(button, a, [role="button"]),
+    [data-slot="input"],
+    [data-slot="textarea"],
+    [data-slot="select-trigger"],
+    [data-slot="checkbox"],
+    [data-slot="radio-group-item"],
+    [data-slot="tabs-trigger"],
+    [data-slot="accordion-trigger"],
+    [data-slot="item"],
+    [data-slot="badge"]
+  ):not(:focus-visible):not([aria-invalid="true"]) {
+    border-color: transparent;
+  }
+
+  [data-design="borderless"]
+    :is(
+      [data-slot="input"],
+      [data-slot="textarea"],
+      [data-slot="select-trigger"]
+    ) {
+    background-color: var(--muted);
+  }
+
+  [data-design="borderless"]
+    :is([data-slot="checkbox"], [data-slot="radio-group-item"]):not(
+      [data-state="checked"]
+    ) {
+    background-color: var(--muted);
+  }
+
+  [data-design="borderless"]
+    :is([data-slot="input-group"], [data-slot="field-label"]):not(
+      :has(:focus-visible, [aria-invalid="true"], [data-invalid="true"])
+    ) {
+    border-color: transparent;
+  }
+
+  [data-design="borderless"] [data-slot="input-group"] {
+    background-color: var(--muted);
+  }
+
+  [data-design="borderless"]
+    :is(
+      [data-slot="card"],
+      [data-slot="card-header"],
+      [data-slot="card-footer"],
+      [data-slot="dialog-content"],
+      [data-slot="dialog-footer"],
+      [data-slot="alert-dialog-content"],
+      [data-slot="alert-dialog-footer"],
+      [data-slot="sheet-content"],
+      [data-slot="select-content"],
+      [data-slot="dropdown-menu-content"],
+      [data-slot="dropdown-menu-sub-content"],
+      [data-slot="popover-content"],
+      [data-slot="navigation-menu-content"],
+      [data-slot="navigation-menu-viewport"],
+      [data-slot="item-media"],
+      [data-slot="accordion-item"],
+      [data-slot="alert"]
+    ) {
+    border-color: transparent;
+    --tw-ring-color: transparent;
+  }
+
+  [data-design="borderless"]
+    :is(
+      [data-slot="separator"],
+      [data-slot="item-separator"],
+      [data-slot="select-separator"],
+      [data-slot="dropdown-menu-separator"],
+      [data-slot="command-separator"]
+    ) {
+    background-color: transparent;
+  }
+
+  [data-design="borderless"] [data-slot="avatar"]::after {
+    border-color: transparent;
+  }
+
+  [data-design="borderless"] [data-sonner-toast] {
+    border-color: transparent;
+  }
+
+  [data-design="borderless"]
+    [data-slot="chart"]
+    .recharts-tooltip-wrapper
+    > div {
+    border-color: transparent;
+  }
+
   /* Shared borderless layout, retaining official interactive states. */
   .table-borderless [data-slot="table-row"] {
     border-width: 0;

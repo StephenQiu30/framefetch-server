@@ -10,7 +10,10 @@ import { getSourceDiscovery } from '@/api/sourceDiscoveries';
 import { useAuth } from '@/components/auth/auth-provider';
 import InspectionWorkspace from '@/components/intake/inspection-workspace';
 import { useIntakeDraft } from '@/components/intake/intake-draft-provider';
-import { SourceDiscoveryWorkspace } from '@/components/intake/source-discovery-workspace';
+import {
+  SourceDiscoverySkeleton,
+  SourceDiscoveryWorkspace,
+} from '@/components/intake/source-discovery-workspace';
 import { rememberDownloadIntent } from '@/components/intake/use-download-intent';
 import { FeedbackNotice } from '@/components/layout/feedback-notice';
 import { markNavigationPush } from '@/components/layout/navigation-history';
@@ -183,7 +186,11 @@ export default function InspectionRoute() {
           message="结果地址无效，请返回首页重新解析。"
         />
       ) : query.isPending ? (
-        <InspectionSkeleton />
+        validInspectionId ? (
+          <InspectionSkeleton />
+        ) : (
+          <SourceDiscoverySkeleton />
+        )
       ) : query.error && !query.data ? (
         <PageErrorNotice
           title={

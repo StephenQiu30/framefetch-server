@@ -116,7 +116,6 @@ export default function DownloadState({
             className="w-full"
             disabled={action !== null}
             onClick={onDownload}
-            size="lg"
           >
             {action === 'download' ? (
               <Spinner aria-hidden data-icon="inline-start" />
@@ -131,12 +130,12 @@ export default function DownloadState({
           </Button>
         ) : null}
         {recovery === 'reimport' ? (
-          <Button asChild className="w-full" size="lg">
+          <Button asChild className="w-full">
             <Link href="/">返回首页重新导入</Link>
           </Button>
         ) : null}
         {recovery === 'reparse' ? (
-          <Button asChild className="w-full" size="lg">
+          <Button asChild className="w-full">
             <Link href="/">重新解析</Link>
           </Button>
         ) : null}
@@ -145,7 +144,6 @@ export default function DownloadState({
             className="w-full"
             disabled={action !== null}
             onClick={onRetry}
-            size="lg"
           >
             {action === 'retry' ? (
               <Spinner aria-hidden data-icon="inline-start" />
@@ -161,7 +159,6 @@ export default function DownloadState({
               <Button
                 className="w-full"
                 disabled={action !== null}
-                size="lg"
                 variant="outline"
               >
                 {action === 'cancel' ? (

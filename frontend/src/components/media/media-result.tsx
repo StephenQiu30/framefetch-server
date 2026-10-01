@@ -59,11 +59,7 @@ export function MediaResult({
       <Card
         // Let the fixed media frame and its metadata determine the desktop row.
         // The selection list scrolls within the remaining panel space.
-        className={cn(
-          borderlessCardClassName,
-          'lg:pt-1',
-          panel && 'lg:contain-size',
-        )}
+        className={cn(borderlessCardClassName, panel && 'lg:contain-size')}
         data-media-result-column="actions"
       >
         {panel ? (
@@ -114,7 +110,6 @@ export function MediaResultSkeleton({
       <Card
         className={cn(
           borderlessCardClassName,
-          'lg:pt-1',
           selectionPanel && 'lg:contain-size',
         )}
       >
@@ -149,7 +144,7 @@ export function MediaResultSkeleton({
         </CardContent>
         {selectionPanel ? (
           <CardFooter className="mt-auto rounded-none border-0 bg-transparent p-0 pt-7">
-            <Skeleton className="h-11 w-full" />
+            <Skeleton className="h-8 w-full" />
           </CardFooter>
         ) : null}
       </Card>

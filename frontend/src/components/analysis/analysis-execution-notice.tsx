@@ -47,7 +47,6 @@ export function AnalysisExecutionNotice({
           className="w-full shrink-0 sm:w-auto"
           disabled={busy || !resultContract}
           onClick={onStart}
-          size="lg"
         >
           {busy ? <Spinner aria-hidden data-icon="inline-start" /> : null}
           {resultContract === 'video-article'

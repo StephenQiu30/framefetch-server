@@ -41,7 +41,7 @@ function SiteFooter({ className }: { className?: string }) {
   );
 
   return (
-    <footer className={cn('shrink-0 border-t bg-background', className)}>
+    <footer className={cn('shrink-0 bg-background', className)}>
       <div className="content-shell flex min-h-16 flex-wrap items-center justify-between gap-x-8 gap-y-3 py-5 text-sm text-muted-foreground">
         <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
           <Link className="focus-ring font-medium text-foreground" href="/">
