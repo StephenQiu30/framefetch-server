@@ -845,3 +845,39 @@ def test_g3_unverified_public_or_duration_evidence_still_blocks(platform):
     assert len(positives) == 2
     assert all(c.qualification_gaps() for c in positives)
     assert all(c.availability_source.status == "unverified" for c in positives)
+
+
+@pytest.mark.parametrize(
+    "failure,gate,expected",
+    [
+        ("content_unavailable", "none", "protected_negative"),
+        ("content_unavailable", "③", "failed"),
+        ("content_unavailable", None, "failed"),
+        ("content_protected", "none", "failed"),
+        ("extractor_broken", "none", "failed"),
+        ("login_required", "③", "blocked"),
+    ],
+)
+def test_private_negative_requires_exact_failure_class_and_gate(
+    tmp_path, failure, gate, expected
+):
+    api = FakeApi(failure=failure)
+    original = api.poll
+
+    def poll(*args):
+        result = original(*args)
+        result["failure"]["gate"] = gate
+        return result
+
+    api.poll = poll
+    sample = case(
+        kind="protected",
+        expected_failure_class="content_unavailable",
+        expected_gate="none",
+    )
+    row = matrix.run_case(api, sample, args(), tmp_path)
+    assert row["result"] == expected
+    assert not any(method == "FILE" for method, _, _ in api.calls)
+    assert (
+        matrix.failure_result(case(kind="protected"), "content_unavailable") == "failed"
+    )

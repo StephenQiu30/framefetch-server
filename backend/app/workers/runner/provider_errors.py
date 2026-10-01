@@ -252,6 +252,14 @@ PROVIDER_FAILURE_RULES: tuple[FailureRule, ...] = (
     FailureRule(
         "content_unavailable",
         403,
+        # YouTube returns localized playability reasons on the current JP exit.
+        # This explicit private-content signal takes precedence over login hints.
+        any_stderr=("非公開動画".encode(),),
+        providers=frozenset({ProviderKey.YOUTUBE}),
+    ),
+    FailureRule(
+        "content_unavailable",
+        403,
         any_stderr=(
             b"members-only content",
             b"join this channel",

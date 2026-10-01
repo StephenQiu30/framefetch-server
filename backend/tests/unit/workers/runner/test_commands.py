@@ -316,6 +316,32 @@ async def test_instagram_missing_video_formats_is_not_retried_as_temporary_failu
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize("returncode", [0, 1])
+@pytest.mark.parametrize("reason", ["Private video", "非公開動画"])
+async def test_youtube_private_content_precedes_login_and_extractor_failure(
+    tmp_path: Path, returncode: int, reason: str
+) -> None:
+    stderr = (
+        f"WARNING: [youtube] s7_qI6_mIXc: {reason}\n"
+        "WARNING: LOGIN_REQUIRED; HTTP Error 429; Unable to extract player response"
+    ).encode()
+    supervisor = (
+        FailingSupervisor(stderr)
+        if returncode
+        else SuccessfulWarningSupervisor(b'{"id":"s7_qI6_mIXc","formats":[]}', stderr)
+    )
+    commands = MediaCommands(settings(tmp_path), supervisor)
+    with pytest.raises(RunnerFailure) as caught:
+        await commands.inspect("https://www.youtube.com/watch?v=s7_qI6_mIXc", tmp_path)
+    failure = caught.value.failure
+    assert caught.value.code == "content_unavailable"
+    assert failure.gate == "none"
+    assert failure.stage == "resolve"
+    assert failure.evidence["kind"] == "upstream_response"
+    assert reason not in str(failure.evidence)
+
+
+@pytest.mark.asyncio
 async def test_inspection_classifies_youtube_bot_confirmation_requirement(
     tmp_path: Path,
 ) -> None:
@@ -1435,3 +1461,37 @@ async def test_drm_warning_does_not_hide_a_clear_format(tmp_path, clear):
     else:
         with pytest.raises(RunnerFailure, match="content protected"):
             await commands.inspect("https://youtu.be/jNQXAC9IVRw", tmp_path)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("returncode", [0, 1])
+@pytest.mark.parametrize("explicit", [True, False])
+async def test_ambiguous_youtube_failure_uses_affirmative_anonymous_evidence(
+    monkeypatch, tmp_path, returncode, explicit
+):
+    calls = []
+
+    async def evidence(request, ctx):
+        calls.append((request.profile.key, ctx.egress.proxy_url))
+        return explicit
+
+    monkeypatch.setattr(commands_module, "explicit_content_restriction", evidence)
+    stderr = b"WARNING: [youtube] Video unavailable"
+    supervisor = (
+        FailingSupervisor(stderr)
+        if returncode
+        else SuccessfulWarningSupervisor(b'{"id":"s7_qI6_mIXc","formats":[]}', stderr)
+    )
+    commands = MediaCommands(settings(tmp_path), supervisor)
+    with pytest.raises(RunnerFailure) as caught:
+        await commands.inspect("https://www.youtube.com/watch?v=s7_qI6_mIXc", tmp_path)
+    assert caught.value.code == (
+        "content_unavailable" if explicit else "extractor_broken"
+    )
+    assert caught.value.failure.gate == "none"
+    if explicit:
+        assert (
+            caught.value.failure.evidence["cause_code"]
+            == "explicit_public_player_restriction"
+        )
+    assert len(calls) == 1

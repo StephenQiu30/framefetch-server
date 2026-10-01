@@ -1516,7 +1516,9 @@
       "width": 320,
       "height": 180,
       "audio": true
-    }
+    },
+    "expected_failure_class": "content_unavailable",
+    "expected_gate": "none"
   },
   {
     "id": "vimeo-protected-1",
