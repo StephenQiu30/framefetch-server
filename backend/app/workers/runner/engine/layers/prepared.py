@@ -55,9 +55,11 @@ def _failure(kind: FailureClass, cause: str) -> LayerFailure:
 class PreparedLayer:
     def __init__(self) -> None:
         self.failures: list[ProviderFailure] = []
+        self.active_client: str | None = None
 
     async def resolve(self, source: ResolutionSource, ctx: RunContext) -> ResolvedMedia:
         self.failures.clear()
+        self.active_client = source.execution_context.client
         spec = source.request.profile.l2_prepare
         if spec is None:
             raise _failure(FailureClass.RUNTIME_UNAVAILABLE, "preparation_not_declared")
@@ -90,6 +92,7 @@ class PreparedLayer:
         errors: list[RunnerFailure] = []
         for client in clients:
             context = replace(source.execution_context, client=f"youtube:{client}")
+            self.active_client = context.client
             try:
                 return await HttpLayer().resolve(
                     replace(source, execution_context=context), ctx

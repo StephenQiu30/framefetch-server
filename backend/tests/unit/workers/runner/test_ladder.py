@@ -495,3 +495,68 @@ async def test_anonymous_download_stays_anonymous_even_if_identity_appears(
     assert result.execution_context == source.expected_context
     assert calls == [("L1", None)]
     fetch.assert_not_awaited()
+
+
+@pytest.mark.parametrize("used", [False, True])
+async def test_failure_attempt_preserves_actual_identity_egress_and_client(
+    source, monkeypatch, used
+):
+    source = layers(source, Layer.L1, identity=ProviderIdentity.PREFER)
+
+    async def fetch(*args):
+        if not used:
+            raise LayerFailure(
+                FailureClass.IDENTITY_UNAVAILABLE,
+                "③",
+                {"kind": "runtime", "cause_code": "extension_disconnected"},
+            )
+        return IdentityMaterial(None, "safe-test-digest")
+
+    monkeypatch.setattr(identity, "fetch_identity", fetch)
+    dispatch(monkeypatch, {"L1": [FailureClass.CONTENT_PROTECTED]})
+    with pytest.raises(RunnerFailure) as caught:
+        await run_ladder(source, source.request.profile, source.run_context.deadline)
+    evidence = caught.value.failure.evidence
+    assert evidence["identity_used"] is used
+    assert evidence["layer"] == "L1"
+    assert evidence["client"] == source.request.profile.client_profile
+    assert evidence["egress_route"] == source.run_context.egress.route
+    assert evidence["egress_revision"] == source.run_context.egress.revision
+    assert evidence["egress_class"] == source.run_context.egress.egress_class
+    assert evidence["egress_observed_ip"] == source.run_context.egress.observed_ip
+    assert "identity_digest" not in evidence and "cookie_file" not in evidence
+
+
+def test_outer_attribution_cannot_replace_precise_failed_client(source):
+    exact = replace(source.execution_context, resolved_layer="L2", client="youtube:tv")
+    error = RunnerFailure("network_blocked").attributed_to(exact)
+    error.attributed_to(replace(exact, client="yt-dlp-default"))
+    assert error.failure.evidence["client"] == "youtube:tv"
+    from app.workers.runner.engine.layers.base import LayerFailure
+
+    copied = LayerFailure.from_runner_failure(error)
+    assert copied.failure == error.failure
+
+
+async def test_timeout_records_the_inflight_proof_client(source, monkeypatch):
+    source = layers(source, Layer.L2)
+    source = replace(
+        source,
+        run_context=replace(
+            source.run_context, deadline=datetime.now(UTC) + timedelta(seconds=0.02)
+        ),
+    )
+
+    class SlowProof:
+        active_client = None
+
+        async def resolve(self, source, ctx):
+            self.active_client = "youtube:tv"
+            await asyncio.sleep(1)
+
+    monkeypatch.setitem(LAYER_TABLE, Layer.L2, SlowProof)
+    with pytest.raises(RunnerFailure) as caught:
+        await run_ladder(source, source.request.profile, source.run_context.deadline)
+    assert caught.value.code == "inspection_timeout"
+    assert caught.value.failure.evidence["client"] == "youtube:tv"
+    assert caught.value.failure.evidence["layer"] == "L2"
