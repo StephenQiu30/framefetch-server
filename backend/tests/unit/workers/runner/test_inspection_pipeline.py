@@ -96,7 +96,17 @@ async def test_authenticated_x_resolves_missing_audio_without_forwarding_cookies
         workspace.cleanup()
 
 
-async def test_bilibili_advertised_rate_is_probed_before_confirming_plan(tmp_path):
+@pytest.mark.parametrize(
+    "url,authenticated",
+    [
+        ("https://www.bilibili.com/video/BV13x41117TL", False),
+        ("https://www.bilibili.com/video/BV13x41117TL", True),
+        ("https://clips.twitch.tv/Test", False),
+    ],
+)
+async def test_advertised_rate_is_probed_before_confirming_plan(
+    tmp_path, authenticated, url
+):
     from app.workers.runner.metadata import build_download_options
 
     probes = []
@@ -130,12 +140,14 @@ async def test_bilibili_advertised_rate_is_probed_before_confirming_plan(tmp_pat
         inspection = await RunnerInspectionPipeline(
             settings(tmp_path), Commands()
         ).inspect(
-            provider_request("https://www.bilibili.com/video/BV13x41117TL"),
+            provider_request(url),
             workspace,
             context=SimpleNamespace(
-                provider_key="bilibili", identity_used=False, resolved_layer="L1"
+                provider_key=provider_request(url).profile.key,
+                identity_used=authenticated,
+                resolved_layer="L1",
             ),
-            cookie_jar=None,
+            cookie_jar=tmp_path / "identity.txt" if authenticated else None,
         )
         assert len(probes) == 2
         assert all(
