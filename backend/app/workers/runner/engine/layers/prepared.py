@@ -2,7 +2,6 @@
 
 import json
 import logging
-import re
 import tempfile
 from dataclasses import replace
 from datetime import UTC, datetime
@@ -27,6 +26,7 @@ from app.workers.runner.netscape_cookie import (
     is_allowed_domain,
     serialize_cookies,
 )
+from yt_dlp.utils import strip_jsonp  # type: ignore[import-untyped]
 
 _LOG = logging.getLogger(__name__)
 
@@ -249,8 +249,7 @@ async def prepare_visitor(site: str, ctx: RunContext) -> RunContext:
                 )
                 try:
                     text = raw.decode()
-                    match = re.fullmatch(r"\s*gen_callback\((.*)\);?\s*", text, re.S)
-                    payload = json.loads(match[1] if match else text)
+                    payload = json.loads(strip_jsonp(text))
                     visitor = payload["data"]
                     tid = visitor["tid"]
                     confidence = int(visitor.get("confidence", 100))

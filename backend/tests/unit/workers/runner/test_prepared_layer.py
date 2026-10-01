@@ -191,7 +191,10 @@ async def test_first_party_sequence_and_guest_cookie_handoff(
             assert request.method == "POST" and b"gen_callback" in request.content
             return httpx.Response(
                 200,
-                content=b'gen_callback({"data":{"tid":"guest","confidence":80,"new_tid":true}});',
+                content=(
+                    b'window.gen_callback && gen_callback({"data":'
+                    b'{"tid":"guest","confidence":80,"new_tid":true}});'
+                ),
             )
         if request.url.path == "/visitor/visitor":
             assert (
