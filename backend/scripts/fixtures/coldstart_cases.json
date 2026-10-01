@@ -68,7 +68,7 @@
     "expected_media_id": "jNQXAC9IVRw",
     "kind": "positive",
     "content_scope": "public",
-    "needs_identity": false,
+    "needs_identity": true,
     "duration_seconds": 19,
     "duration_source": {
       "url": "https://www.youtube.com/results?search_query=jNQXAC9IVRw",
@@ -84,7 +84,7 @@
       "field": "public_free_clear_media",
       "checked_at": null,
       "status": "unverified",
-      "note": "官方匿名搜索页与 oEmbed 公开可达，无付费字段；完整 clear 媒体仍待住宅出口验收。"
+      "note": "2026-10-01 独立匿名官方页面可见作品与时长（19/635秒）；本机出口 HTTP 429，尚无独立 clear 媒体证据，不将公开元数据或登录材料当作非DRM证明。"
     },
     "minimum_spec": {
       "width": 320,
@@ -99,7 +99,7 @@
     "expected_media_id": "aqz-KE-bpKQ",
     "kind": "positive",
     "content_scope": "public",
-    "needs_identity": false,
+    "needs_identity": true,
     "duration_seconds": 635,
     "duration_source": {
       "url": "https://www.youtube.com/results?search_query=aqz-KE-bpKQ",
@@ -115,7 +115,7 @@
       "field": "public_free_clear_media",
       "checked_at": null,
       "status": "unverified",
-      "note": "官方匿名搜索页与 oEmbed 公开可达，无付费字段；完整 clear 媒体仍待住宅出口验收。"
+      "note": "2026-10-01 独立匿名官方页面可见作品与时长（19/635秒）；本机出口 HTTP 429，尚无独立 clear 媒体证据，不将公开元数据或登录材料当作非DRM证明。"
     },
     "minimum_spec": {
       "width": 320,

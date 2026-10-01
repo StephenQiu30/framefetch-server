@@ -277,7 +277,11 @@ def runtime(args: argparse.Namespace, output: Path, facts: Json) -> Iterator[Non
                 log=output / "cookie-source.log",
             )
         facts["cookie_source"] = (
-            "restarted" if args.cookie_source_label else "not_implemented_in_this_stage"
+            "restarted"
+            if args.cookie_source_label
+            else "existing_host_service_reused"
+            if getattr(args, "reuse_cookie_source", False)
+            else "not_cold_started"
         )
         inspect = run_command(
             [
@@ -632,11 +636,19 @@ def run_case(api: Api, case: Case, args: argparse.Namespace, output: Path) -> Js
             log=output / f"{case.id}.decode.log",
         )
         result["full_decode_exit_code"] = 0
-        if case.platform == "youtube" and context.get("egress_class") != "residential":
+        # User decision (Design 17 §3.4): the current datacenter upstream
+        # is valid with the logged-in session. Keep actual egress diagnostics.
+        if (
+            case.platform == "youtube"
+            and context.get("egress_class") != "residential"
+            and not context.get("identity_used")
+        ):
             result["qualification_gaps"].append(
-                "YouTube residential egress unavailable"
+                "YouTube datacenter egress requires logged-in identity"
             )
-        if case.needs_identity and not args.cookie_source_label:
+        if case.needs_identity and not (
+            args.cookie_source_label or getattr(args, "reuse_cookie_source", False)
+        ):
             result["qualification_gaps"].append("cookie-source was not cold-started")
         result["result"] = "blocked" if result["qualification_gaps"] else "passed"
         if result["qualification_gaps"]:
@@ -760,9 +772,15 @@ def main() -> int:
         default=Path(__file__).parent / "fixtures/coldstart_cases.json",
     )
     parser.add_argument("--env-file", type=Path, default=ROOT / ".env")
-    parser.add_argument(
+    identity_mode = parser.add_mutually_exclusive_group()
+    identity_mode.add_argument(
         "--cookie-source-label",
-        help="LaunchAgent label to restart; omit only before R4 integration",
+        help="LaunchAgent label to restart",
+    )
+    identity_mode.add_argument(
+        "--reuse-cookie-source",
+        action="store_true",
+        help="Reuse the connected shared host identity service without restarting it",
     )
     parser.add_argument(
         "--output",

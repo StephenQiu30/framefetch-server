@@ -529,3 +529,45 @@ def test_file_retrieval_has_a_total_time_bound(tmp_path):
     with pytest.raises(matrix.MatrixFailure, match="file_timeout"):
         api.file("id", tmp_path / "file", 10, timeout=0)
     api.client.close()
+
+
+@pytest.mark.parametrize(
+    "identity_used,expected", [(True, "passed"), (False, "blocked")]
+)
+def test_youtube_datacenter_requires_identity_and_complete_file(
+    monkeypatch, tmp_path, identity_used, expected
+):
+    fake_commands(monkeypatch)
+    context = {
+        **FakeApi().context,
+        "provider_key": "youtube",
+        "resolved_layer": "L2",
+        "client": "youtube:mweb",
+        "egress_class": "datacenter",
+        "identity_used": identity_used,
+    }
+    options = args()
+    options.reuse_cookie_source = True
+    row = matrix.run_case(
+        FakeApi(context=context),
+        case(platform="youtube", needs_identity=identity_used),
+        options,
+        tmp_path,
+    )
+    assert row["result"] == expected
+    assert row["full_decode_exit_code"] == 0
+    assert row["execution_context"]["egress_class"] == "datacenter"
+
+
+def test_shared_identity_service_still_requires_actual_injection(monkeypatch, tmp_path):
+    fake_commands(monkeypatch)
+    options = args()
+    options.reuse_cookie_source = True
+    row = matrix.run_case(
+        FakeApi(context={**FakeApi().context, "provider_key": "youtube"}),
+        case(platform="youtube", needs_identity=True),
+        options,
+        tmp_path,
+    )
+    assert row["result"] == "blocked"
+    assert row["failure_class"] == "identity_unavailable"
