@@ -694,6 +694,10 @@ def test_datacenter_does_not_disqualify_complete_youtube_delivery(
         {"kind": "official_anonymous_watch_metadata"},
         {"kind": "official_page_metadata"},
         {"kind": "official_public_blog_metadata"},
+        {"kind": "independent_official_metadata_api"},
+        {"kind": "independent_native_official_browser_playback"},
+        {"kind": "independent_official_manifest_and_segment_probe"},
+        {"kind": "independent_anonymous_official_page_and_mp4_header"},
         {"url": "file:///tmp/probe"},
         {"checked_at": "yesterday"},
         {"checked_at": None},
@@ -901,3 +905,174 @@ def test_private_negative_requires_exact_failure_class_and_gate(
     assert (
         matrix.failure_result(case(kind="protected"), "content_unavailable") == "failed"
     )
+
+
+@pytest.mark.parametrize(
+    "status,items",
+    [
+        ("empty", []),
+        (
+            "ready",
+            [
+                {
+                    "item_ref": "asset",
+                    "kind": "official_account_native",
+                    "status": "ready",
+                    "decision_hint": "export_required",
+                }
+            ],
+        ),
+    ],
+)
+def test_article_matrix_uses_discovery_without_certifying_video(
+    tmp_path, status, items
+):
+    class ArticleApi:
+        def __init__(self):
+            self.calls = []
+
+        def request(self, method, path, **kwargs):
+            self.calls.append((method, path, kwargs))
+            assert path in {
+                "/api/source-discoveries",
+                "/api/source-discoveries/discovery",
+            }
+            return {
+                "id": "discovery",
+                "provider_key": "wechat_official_account_article",
+                "status": status,
+                "items": items,
+            }
+
+    api = ArticleApi()
+    article = case(
+        platform="wechat_official_account_article", expected_media_id="article-share-id"
+    )
+    row = matrix.run_case(api, article, args(), tmp_path)
+    assert row["result"] == "blocked"
+    assert row["failure_class"] == "source_discovery_only"
+    assert row["discovery"]["item_count"] == len(items)
+    assert "actual_media_id" not in row and "artifact" not in row
+    assert row["elapsed_seconds"] >= 0
+    assert api.calls[0][2]["json"] == {"kind": article.platform, "url": article.url}
+    assert matrix.platform_results([row, row]) == {article.platform: "blocked"}
+
+
+def test_article_access_challenge_remains_blocked(tmp_path):
+    class RestrictedApi:
+        def request(self, *args, **kwargs):
+            raise matrix.MatrixFailure(
+                "article_access_restricted", {"http_status": 403}
+            )
+
+    row = matrix.run_case(
+        RestrictedApi(),
+        case(platform="wechat_official_account_article"),
+        args(),
+        tmp_path,
+    )
+    assert row["result"] == "blocked"
+    assert row["failure_class"] == "article_access_restricted"
+
+
+def test_article_discovery_must_roundtrip_correct_provider(tmp_path):
+    class WrongApi:
+        def request(self, method, path, **kwargs):
+            return {
+                "id": "discovery",
+                "provider_key": "qqvideo",
+                "status": "ready",
+                "items": [],
+            }
+
+    row = matrix.run_case(
+        WrongApi(), case(platform="wechat_official_account_article"), args(), tmp_path
+    )
+    assert row["result"] == "failed"
+    assert row["failure_class"] == "source_discovery_contract_mismatch"
+
+
+# G4 recorded files, independently checked on 2026-10-01. This does not
+# execute a provider or certify identity cold start for the merged branch.
+@pytest.mark.parametrize(
+    "sample_id,duration,width,height,rate",
+    [
+        ("youku-positive-1", 702.126, 640, 360, "25/1"),
+        ("youku-positive-2", 542.179333, 640, 360, "243915/8132"),
+        ("qqvideo-positive-1", 215.959, 1280, 720, "539800/21589"),
+        ("qqvideo-positive-2", 1290.635208, 1280, 720, "30/1"),
+        ("hongguo_web-positive-1", 197.6, 1280, 720, "30/1"),
+        ("hongguo_web-positive-2", 153.345011, 1280, 720, "30/1"),
+    ],
+)
+def test_g4_recorded_files_keep_independent_evidence_and_strict_thresholds(
+    sample_id, duration, width, height, rate
+):
+    sample = next(
+        c
+        for c in matrix.load_cases(SCRIPT.parent / "fixtures/coldstart_cases.json")
+        if c.id == sample_id
+    )
+    assert sample.qualification_gaps() == []
+    assert sample.availability_source.field and sample.availability_source.note
+    assert (
+        datetime.fromisoformat(sample.availability_source.checked_at).date().isoformat()
+        == "2026-10-01"
+    )
+    if sample.platform == "hongguo_web":
+        assert sample.content_scope == "public" and not sample.needs_identity
+        assert sample.availability_source.kind == "public_page"
+        assert sample.availability_source.field == (
+            "anonymous_free_page_and_clear_sample_entries"
+        )
+    else:
+        assert sample.content_scope == "personal_full" and sample.needs_identity
+        assert sample.availability_source.kind == "official_player_metadata"
+        assert sample.availability_source.field == "account_accessible_full_clear_media"
+        if sample.platform == "qqvideo":
+            assert sample.duration_source.kind == "platform_api"
+            assert sample.duration_source.field == "data.videoInfo.duration"
+    actual = probe(duration)
+    actual["streams"][0].update(width=width, height=height, avg_frame_rate=rate)
+    confirmed = {
+        **plan(),
+        "width": width,
+        "height": height,
+        "fps_bucket": "fps_30",
+        "dynamic_range": "sdr",
+    }
+    assert matrix.verify_probe(actual, sample, confirmed, 3)
+    with pytest.raises(matrix.MatrixFailure, match="frame_rate_mismatch"):
+        matrix.verify_probe(actual, sample, {**confirmed, "fps_bucket": "fps_60"}, 3)
+    truncated = probe(duration / 2)
+    truncated["streams"] = actual["streams"]
+    with pytest.raises(matrix.MatrixFailure, match="full_duration_mismatch"):
+        matrix.verify_probe(truncated, sample, confirmed, 3)
+
+
+def test_g4_unverified_capabilities_and_protection_still_block():
+    samples = matrix.load_cases(SCRIPT.parent / "fixtures/coldstart_cases.json")
+    blocked = [
+        c
+        for c in samples
+        if c.platform in {"wechat_channels", "wechat_official_account_article"}
+        or (c.platform in {"qqvideo", "youku"} and c.kind == "protected")
+    ]
+    assert len(blocked) == 6
+    assert all(c.qualification_gaps() for c in blocked)
+    assert all(c.availability_source.status == "unverified" for c in blocked)
+
+
+def test_fixture_and_registry_agree_on_content_scope_and_anonymous_hongguo():
+    from app.workers.runner.provider_registry import current_provider_registry
+
+    registry = current_provider_registry()
+    for sample in matrix.load_cases(SCRIPT.parent / "fixtures/coldstart_cases.json"):
+        profile = registry.profile_for_key(sample.platform)
+        assert sample.content_scope == profile.content_scope
+        assert (sample.content_scope == "personal_full") == (
+            sample.platform in {"qqvideo", "youku"}
+        )
+        if sample.platform == "hongguo_web":
+            assert profile.identity == "none" and not sample.needs_identity
+            assert not profile.cookie_domain_allowlist

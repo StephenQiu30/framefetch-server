@@ -438,6 +438,7 @@ class MediaCommands:
         cwd: Path,
         *,
         include_audio: bool = True,
+        drop_video_packet: tuple[int, int] | None = None,
         failure_context: ProviderFailureContext | None = None,
     ) -> None:
         command: list[str] = [
@@ -456,6 +457,16 @@ class MediaCommands:
         if include_audio:
             command.extend(("-map", "0:a:0" if len(inputs) == 1 else "1:a:0"))
         command.extend(("-c", "copy", "-map_metadata", "-1"))
+        if drop_video_packet is not None:
+            pos, size = drop_video_packet
+            if type(pos) is not int or type(size) is not int or pos < 0 or size <= 0:
+                raise RunnerFailure("invalid_input", status=422)
+            command.extend(
+                (
+                    "-bsf:v",
+                    f"noise=amount=0:drop=eq(pos\\,{pos})*eq(size\\,{size})",
+                )
+            )
         if container is Container.MP4:
             command.extend(("-movflags", "+faststart"))
         command.extend(("-f", container.value, str(output)))
@@ -469,6 +480,42 @@ class MediaCommands:
             monitor_workspace=True,
             failure_context=failure_context,
         )
+
+    async def probe_terminal_packets(
+        self,
+        artifact: Path,
+        cwd: Path,
+        *,
+        start_seconds: float,
+        failure_context: ProviderFailureContext,
+    ) -> dict[str, Any]:
+        command = (
+            self._settings.runner_ffprobe_bin,
+            "-v",
+            "error",
+            "-protocol_whitelist",
+            "file",
+            "-select_streams",
+            "v:0",
+            "-read_intervals",
+            f"{start_seconds:.6f}%",
+            "-show_packets",
+            "-show_entries",
+            "packet=pos,size,pts_time,flags",
+            "-of",
+            "json",
+            str(artifact),
+        )
+        result = await self._run(
+            command,
+            cwd,
+            min(10, self._settings.runner_inspect_timeout_seconds),
+            timeout_code="inspection_timeout",
+            failure_code="media_probe_failed",
+            phase=FailurePhase.VALIDATE,
+            failure_context=failure_context,
+        )
+        return json_object(result.stdout, "media_probe_failed")
 
     async def probe(
         self,

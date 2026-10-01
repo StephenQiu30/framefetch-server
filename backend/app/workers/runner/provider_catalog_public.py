@@ -62,6 +62,7 @@ PUBLIC_PROVIDER_PROFILES: tuple[ProviderProfile, ...] = (
         capabilities=SINGLE_VIDEO,
         status=ProviderSupportStatus.UNKNOWN,
         cookie_domain_allowlist=frozenset({ProviderCookieDomain.YOUKU}),
+        probe_authenticated_media=True,
         identity=ProviderIdentity.REQUIRED,
     ),
     standard_provider(
@@ -143,7 +144,8 @@ PUBLIC_PROVIDER_PROFILES: tuple[ProviderProfile, ...] = (
         normalize_url=hongguo_url,
         capabilities=SINGLE_VIDEO,
         support_status=ProviderSupportStatus.UNKNOWN,
-        identity=ProviderIdentity.PREFER,
-        cookie_domain_allowlist=frozenset({"novelquickapp.com", "hongguoduanju.com"}),
+        # The supported official web share is anonymous. ttwid is a visitor
+        # identifier, not account material; no verified login route is declared.
+        identity=ProviderIdentity.NONE,
     ),
 )

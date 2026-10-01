@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import re
 import shutil
 import tempfile
 from dataclasses import fields, replace
@@ -20,6 +21,7 @@ from app.workers.runner.engine.browser import (
     tiktok,
     weibo,
     xiaohongshu,
+    youku,
     youtube,
 )
 from app.workers.runner.engine.browser.intercept import (
@@ -40,6 +42,7 @@ PARSERS = {
     "kuaishou": kuaishou,
     "weibo": weibo,
     "tiktok": tiktok,
+    "youku": youku,
 }
 
 
@@ -96,6 +99,10 @@ def _expected_id(url: str, platform: str) -> str | None:
         return value if value.isdigit() else None
     if platform == "tiktok":
         return segments[-1] if segments[-1].isdigit() else None
+
+    if platform == "youku":
+        matched = re.fullmatch(r"/v_show/id_([A-Za-z0-9]+)=*\.html", parsed.path)
+        return matched.group(1) if matched else None
     value = segments[-1]
     if platform == "kuaishou":
         return (
@@ -161,10 +168,20 @@ class BrowserLayer:
             )
         if profile.identity is ProviderIdentity.NONE and ctx.identity is not None:
             raise failure(FailureClass.INVALID_INPUT, "unexpected_identity", "none")
-        if profile.identity is ProviderIdentity.REQUIRED and ctx.identity is None:
-            fetched = await identity.fetch_identity(
-                profile.key, source.workspace.path.name, ctx.deadline
-            )
+        if profile.identity is ProviderIdentity.REQUIRED and (
+            ctx.identity is None or profile.key == "youku"
+        ):
+            # yt-dlp persists new visitor cookies into its jar on process exit.
+            # Those cookies are not necessarily in the declared account domains.
+            # Youku L3 leases fresh approved material instead of widening them.
+            previous = ctx.identity
+            try:
+                fetched = await identity.fetch_identity(
+                    profile.key, source.workspace.path.name, ctx.deadline
+                )
+            finally:
+                if previous is not None:
+                    await _remove_identity(previous.cookie_file)
             ctx = ctx.with_material(identity=fetched)
         try:
             operation = await runtime.acquire(
@@ -248,15 +265,24 @@ class BrowserLayer:
                 referer=operation.page.url,
             )
             commands = source.pipeline._commands.with_context(updated)
+            if profile.key == "youku":
+                await youku.prepare_manifests(media, updated)
             payload = media.download_info
             # Reuse the media probe to establish actual codecs/fps, not guesses.
             usable = []
             handoff_kind = media.handoff
             for raw in payload["formats"][:8]:
                 try:
-                    probe = await commands.probe_remote(
-                        raw["url"], source.workspace.path, referer=updated.referer
-                    )
+                    if profile.key == "youku":
+                        probe = await commands.probe_remote_prefix(
+                            raw["_framefetch_probe_url"],
+                            source.workspace.path,
+                            referer=updated.referer,
+                        )
+                    else:
+                        probe = await commands.probe_remote(
+                            raw["url"], source.workspace.path, referer=updated.referer
+                        )
                     usable.append(enrich_format_metadata(raw, probe))
                 except RunnerFailure:
                     # Only a successful native media response proves browser binding.

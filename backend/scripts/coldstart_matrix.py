@@ -570,6 +570,51 @@ def run_case(api: Api, case: Case, args: argparse.Namespace, output: Path) -> Js
         "qualification_gaps": case.qualification_gaps(),
     }
     try:
+        if case.platform == "wechat_official_account_article":
+            # SourceAdmission deliberately returns an opaque source-* inspection
+            # for articles. It is not the embedded video's work identity. Use the
+            # discovery API and retain a blocked video result until a specific
+            # asset can traverse inspection/download/Artifact verification.
+            discovery = api.request(
+                "POST",
+                "/api/source-discoveries",
+                json={"kind": case.platform, "url": case.url},
+                headers={"Idempotency-Key": uuid4().hex},
+            )
+            result["discovery_id"] = discovery["id"]
+            saved = api.request("GET", f"/api/source-discoveries/{discovery['id']}")
+            if (
+                saved.get("id") != discovery["id"]
+                or saved.get("provider_key") != case.platform
+                or saved.get("status") not in {"ready", "empty"}
+                or not isinstance(saved.get("items"), list)
+                or any(not isinstance(item, dict) for item in saved["items"])
+            ):
+                raise MatrixFailure("source_discovery_contract_mismatch")
+            result["discovery"] = {
+                "status": saved["status"],
+                "item_count": len(saved["items"]),
+                "items": [
+                    {
+                        key: item.get(key)
+                        for key in (
+                            "item_ref",
+                            "kind",
+                            "status",
+                            "decision_hint",
+                            "duration_ms",
+                        )
+                    }
+                    for item in saved["items"]
+                ],
+            }
+            result["qualification_gaps"].append(
+                "article discovery is not complete embedded-video delivery"
+            )
+            raise MatrixFailure(
+                "source_discovery_only",
+                {"cause_code": "embedded_video_delivery_not_implemented"},
+            )
         intent = api.request(
             "POST",
             "/api/download-intents",
@@ -713,6 +758,13 @@ def run_case(api: Api, case: Case, args: argparse.Namespace, output: Path) -> Js
             and exc.evidence.get("gate") != case.expected_gate
         ):
             result["result"] = "failed"
+
+        if case.platform == "wechat_official_account_article" and exc.category in {
+            "article_access_restricted",
+            "article_discovery_failed",
+            "source_discovery_only",
+        }:
+            result["result"] = "blocked"
     except (
         httpx.HTTPError,
         subprocess.TimeoutExpired,

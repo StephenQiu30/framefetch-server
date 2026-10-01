@@ -21,6 +21,32 @@ from app.workers.runner.metadata import (
 )
 
 
+@pytest.mark.parametrize(
+    "avg,nominal,expected",
+    [("0/0", "25/1", 25), ("30000/1001", "25/1", 30000 / 1001), ("0/0", "0/0", None)],
+)
+def test_sparse_prefix_uses_valid_rate_without_guessing(avg, nominal, expected):
+    enriched = enrich_format_metadata(
+        {"format_id": "clear-prefix"},
+        {
+            "streams": [
+                {
+                    "codec_type": "video",
+                    "codec_name": "h264",
+                    "width": 640,
+                    "height": 360,
+                    "avg_frame_rate": avg,
+                    "r_frame_rate": nominal,
+                }
+            ]
+        },
+    )
+    if expected is None:
+        assert enriched["fps"] is None
+    else:
+        assert enriched["fps"] == pytest.approx(expected)
+
+
 def media_info() -> dict[str, object]:
     return {
         "id": "controlled-video",

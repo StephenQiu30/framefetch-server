@@ -228,7 +228,15 @@ def test_registry_permissions_cover_every_identity_platform():
         if profile.identity is not ProviderIdentity.NONE:
             assert profile.cookie_domain_allowlist
             assert set(profile.cookie_domain_allowlist) <= domains
-    assert {"kuaishou.com", "weibo.com", "hongguoduanju.com", "reddit.com"} <= domains
+    assert {
+        "kuaishou.com",
+        "weibo.com",
+        "channels.weixin.qq.com",
+        "reddit.com",
+    } <= domains
+    assert (
+        not {"hongguoduanju.com", "novelquickapp.com", "yuanbao.tencent.com"} & domains
+    )
     permissions = extension.manifest(19101)["host_permissions"]
     assert all(f"*://*.{domain}/*" in permissions for domain in domains)
     assert "*://*.tiktok.com/*" not in permissions

@@ -9,6 +9,7 @@ from typing import Any
 import pytest
 from app.workers.runner.plugins.yt_dlp_plugins.extractor.hongguo_official_share import (
     HongguoOfficialShareIE,
+    _enforce_public_clear,
     _is_h5_share_url,
     _is_official_media_url,
 )
@@ -188,3 +189,36 @@ def test_plugin_registers_with_ytdlp() -> None:
     )
 
     assert "HongguoOfficialShare" in result.stderr
+
+
+@pytest.mark.parametrize(
+    "field",
+    ["drm", "has_drm", "is_encrypt", "is_encrypted", "decodeKey", "encrypt_key"],
+)
+def test_protected_hongguo_player_never_exposes_signed_source(monkeypatch, field):
+
+    payload = player_payload()
+    payload["loaderData"]["player_(series_id)/(vid)/page"]["video_player_info"][
+        field
+    ] = "synthetic-protection-marker"
+    with pytest.raises(ExtractorError, match="drm_protected"):
+        configured_extractor(monkeypatch, player=payload)._real_extract(PLAYER_URL)
+
+
+@pytest.mark.parametrize(
+    "field", ["is_paid", "is_vip", "is_member_only", "requires_purchase"]
+)
+def test_hongguo_cookie_cannot_expand_public_content_scope(monkeypatch, field):
+    payload = player_payload()
+    payload["loaderData"]["player_(series_id)/(vid)/page"]["seriesDetail"][field] = True
+    with pytest.raises(ExtractorError, match="content_paid_only"):
+        configured_extractor(monkeypatch, player=payload)._real_extract(PLAYER_URL)
+
+
+def test_clear_hongguo_player_accepts_false_protection_flags():
+    _enforce_public_clear(
+        {
+            "video_player_info": {"drm": 0, "is_encrypt": False},
+            "seriesDetail": {"is_vip": False},
+        }
+    )
