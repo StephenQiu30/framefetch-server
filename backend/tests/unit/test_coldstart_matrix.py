@@ -529,3 +529,88 @@ def test_file_retrieval_has_a_total_time_bound(tmp_path):
     with pytest.raises(matrix.MatrixFailure, match="file_timeout"):
         api.file("id", tmp_path / "file", 10, timeout=0)
     api.client.close()
+
+
+@pytest.mark.parametrize(
+    "status,items",
+    [
+        ("empty", []),
+        (
+            "ready",
+            [
+                {
+                    "item_ref": "asset",
+                    "kind": "official_account_native",
+                    "status": "ready",
+                    "decision_hint": "export_required",
+                }
+            ],
+        ),
+    ],
+)
+def test_article_matrix_uses_discovery_without_certifying_video(
+    tmp_path, status, items
+):
+    class ArticleApi:
+        def __init__(self):
+            self.calls = []
+
+        def request(self, method, path, **kwargs):
+            self.calls.append((method, path, kwargs))
+            assert path in {
+                "/api/source-discoveries",
+                "/api/source-discoveries/discovery",
+            }
+            return {
+                "id": "discovery",
+                "provider_key": "wechat_official_account_article",
+                "status": status,
+                "items": items,
+            }
+
+    api = ArticleApi()
+    article = case(
+        platform="wechat_official_account_article", expected_media_id="article-share-id"
+    )
+    row = matrix.run_case(api, article, args(), tmp_path)
+    assert row["result"] == "blocked"
+    assert row["failure_class"] == "source_discovery_only"
+    assert row["discovery"]["item_count"] == len(items)
+    assert "actual_media_id" not in row and "artifact" not in row
+    assert row["elapsed_seconds"] >= 0
+    assert api.calls[0][2]["json"] == {"kind": article.platform, "url": article.url}
+    assert matrix.platform_results([row, row]) == {article.platform: "blocked"}
+
+
+def test_article_access_challenge_remains_blocked(tmp_path):
+    class RestrictedApi:
+        def request(self, *args, **kwargs):
+            raise matrix.MatrixFailure(
+                "article_access_restricted", {"http_status": 403}
+            )
+
+    row = matrix.run_case(
+        RestrictedApi(),
+        case(platform="wechat_official_account_article"),
+        args(),
+        tmp_path,
+    )
+    assert row["result"] == "blocked"
+    assert row["failure_class"] == "article_access_restricted"
+
+
+def test_article_discovery_must_roundtrip_correct_provider(tmp_path):
+    class WrongApi:
+        def request(self, method, path, **kwargs):
+            return {
+                "id": "discovery",
+                "provider_key": "qqvideo",
+                "status": "ready",
+                "items": [],
+            }
+
+    row = matrix.run_case(
+        WrongApi(), case(platform="wechat_official_account_article"), args(), tmp_path
+    )
+    assert row["result"] == "failed"
+    assert row["failure_class"] == "source_discovery_contract_mismatch"
