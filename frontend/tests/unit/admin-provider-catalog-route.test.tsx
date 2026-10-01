@@ -9,10 +9,6 @@ vi.mock('@/components/admin/admin-provider-catalog-view', () => ({
   AdminProviderCatalogView: () => null,
 }));
 
-vi.mock('@/api/admin', () => ({
-  getAdminProviderRuntime: vi.fn().mockResolvedValue({ items: [] }),
-}));
-
 vi.mock('@/components/auth/protected-route', () => ({
   ProtectedRoute: ({
     children,

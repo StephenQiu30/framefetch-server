@@ -3,7 +3,6 @@
 import { useQueryClient } from '@tanstack/react-query';
 import { useRouter } from 'next/navigation';
 import {
-  type RefObject,
   useCallback,
   useEffect,
   useEffectEvent,
@@ -11,7 +10,6 @@ import {
   useState,
 } from 'react';
 import { toast } from 'sonner';
-import { inspectMedia } from '@/api/inspections';
 import { createSourceDiscovery } from '@/api/sourceDiscoveries';
 import { ContentIntakeHero } from '@/components/intake/content-intake-hero';
 import { useIntakeDraft } from '@/components/intake/intake-draft-provider';
@@ -40,7 +38,6 @@ import { displayError } from '@/lib/request-error';
 import { createUuid as createIdempotencyKey } from '@/lib/uuid';
 
 type BusyAction = 'inspect' | null;
-type StableKey = { payload: string; value: string };
 const PARSE_STATUS_TOAST_ID = 'framefetch-parse-status';
 export default function DownloadWorkspace() {
   const router = useRouter();
@@ -163,8 +160,7 @@ export default function DownloadWorkspace() {
     },
     [],
   );
-  const inspectionKey = useRef<StableKey | null>(null);
-  const discoveryKey = useRef<StableKey | null>(null);
+  const discoveryKey = useRef<{ input: string; value: string } | null>(null);
   const openingResultKey = useRef<string | null>(null);
   const handledQuickParseId = useRef<number | null>(null);
   useEffect(() => {
@@ -247,10 +243,14 @@ export default function DownloadWorkspace() {
     }
   }
 
-  async function inspect(
-    accessPolicy?: API.ProviderAccessPolicy,
-    overrideInput?: string,
-  ) {
+  function discoveryIdempotencyKey(input: string) {
+    if (discoveryKey.current?.input !== input) {
+      discoveryKey.current = { input, value: createIdempotencyKey() };
+    }
+    return discoveryKey.current.value;
+  }
+
+  async function inspect(overrideInput?: string) {
     if (busy !== null || (intent.pending && !intent.canResubmit)) return;
     const input = (overrideInput ?? url).trim();
     clearLinkResult();
@@ -267,7 +267,7 @@ export default function DownloadWorkspace() {
         const result = await createSourceDiscovery(
           { kind: 'wechat_official_account_article', url: input },
           {
-            headers: { 'Idempotency-Key': stableKey(discoveryKey, input) },
+            headers: { 'Idempotency-Key': discoveryIdempotencyKey(input) },
             timeout: 30_000,
           },
         );
@@ -276,28 +276,6 @@ export default function DownloadWorkspace() {
           result,
         );
         const target = `/downloads/new?discoveryId=${encodeURIComponent(result.id)}`;
-        markNavigationPush(target);
-        router.push(target);
-      } else if (accessPolicy) {
-        const source: API.PublicUrlInspectionSource = {
-          kind: 'public_url',
-          url: input,
-          ...(accessPolicy ? { access_policy_id: accessPolicy } : {}),
-        };
-        const result = await inspectMedia(
-          { source },
-          {
-            headers: {
-              'Idempotency-Key': stableKey(
-                inspectionKey,
-                `${input}:${accessPolicy ?? 'default'}`,
-              ),
-            },
-            timeout: 180_000,
-          },
-        );
-        queries.setQueryData(privateQueryKey('inspection', result.id), result);
-        const target = `/downloads/new?inspectionId=${encodeURIComponent(result.id)}`;
         markNavigationPush(target);
         router.push(target);
       } else {
@@ -311,7 +289,7 @@ export default function DownloadWorkspace() {
   }
 
   const inspectFromQuickParse = useEffectEvent((input: string) => {
-    void inspect(undefined, input);
+    void inspect(input);
   });
 
   useEffect(() => {
@@ -450,11 +428,4 @@ export default function DownloadWorkspace() {
       ) : null}
     </div>
   );
-}
-
-function stableKey(ref: RefObject<StableKey | null>, payload: string) {
-  if (ref.current?.payload !== payload) {
-    ref.current = { payload, value: createIdempotencyKey() };
-  }
-  return ref.current.value;
 }

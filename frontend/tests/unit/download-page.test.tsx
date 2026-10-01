@@ -99,7 +99,7 @@ describe('home parsing route', () => {
   it('does not resurrect an old failed record as a homepage parse notification', async () => {
     const failed = intentFixture({
       status: 'failed',
-      reason_code: 'provider_auth_required',
+      reason_code: 'login_required',
       inspection_id: null,
     });
     sessionStorage.setItem(

@@ -98,7 +98,7 @@ describe('opaque Web session failures', () => {
         'ERR_BAD_RESPONSE',
         config,
         undefined,
-        response(config, { code: 'provider_auth_required' }, 401),
+        response(config, { code: 'login_required' }, 401),
       );
     };
     try {

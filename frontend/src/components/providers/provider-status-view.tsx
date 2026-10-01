@@ -11,7 +11,7 @@ import {
   DEFAULT_PAGE_SIZE,
   PagePagination,
 } from '@/components/layout/page-pagination';
-import { isCurrentlyAvailable } from '@/components/providers/provider-availability';
+import { isDownloadEnabled } from '@/components/providers/provider-availability';
 import { ProviderStatusItem } from '@/components/providers/provider-status-item';
 import { useProviderStatuses } from '@/components/providers/use-provider-statuses';
 import { Button } from '@/components/ui/button';
@@ -26,8 +26,8 @@ import {
 } from '@/components/ui/table';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 
-type StatusFilter = 'all' | 'available' | 'attention';
-const STATUS_FILTERS: StatusFilter[] = ['all', 'available', 'attention'];
+type StatusFilter = 'all' | 'enabled' | 'disabled';
+const STATUS_FILTERS: StatusFilter[] = ['all', 'enabled', 'disabled'];
 const EMPTY_PROVIDERS: API.ProviderListResponse['items'][number][] = [];
 
 export function ProviderStatusView() {
@@ -66,7 +66,7 @@ export function ProviderStatusView() {
             {state.refreshing ? '刷新中…' : '刷新'}
           </Button>
         }
-        description="这里展示已登记平台的当前状态。解析需要部署者配置有效登录状态，是否可下载以实际文件结果为准。"
+        description="这里展示平台的接入与身份要求。下载是否成功以实际文件结果为准。"
         title="平台状态"
         titleId="provider-status-title"
       />
@@ -120,11 +120,11 @@ export function ProviderStatusView() {
                 <ToggleGroupItem data-filter="all" value="all">
                   全部
                 </ToggleGroupItem>
-                <ToggleGroupItem data-filter="available" value="available">
-                  当前可用
+                <ToggleGroupItem data-filter="enabled" value="enabled">
+                  已接入
                 </ToggleGroupItem>
-                <ToggleGroupItem data-filter="attention" value="attention">
-                  需关注
+                <ToggleGroupItem data-filter="disabled" value="disabled">
+                  未开放
                 </ToggleGroupItem>
               </ToggleGroup>
             </div>
@@ -136,12 +136,12 @@ export function ProviderStatusView() {
                     <TableRow>
                       <TableHead className="whitespace-normal">平台</TableHead>
                       <TableHead className="whitespace-normal">
-                        状态与接入
+                        接入与身份
                       </TableHead>
                       <TableHead className="hidden sm:table-cell">
                         已登记能力
                       </TableHead>
-                      <TableHead className="text-right">操作</TableHead>
+                      <TableHead>说明</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -186,8 +186,8 @@ function matchesFilter(
   provider: API.ProviderListResponse['items'][number],
   filter: StatusFilter,
 ) {
-  if (filter === 'available') return isCurrentlyAvailable(provider);
-  if (filter === 'attention') return !isCurrentlyAvailable(provider);
+  if (filter === 'enabled') return isDownloadEnabled(provider);
+  if (filter === 'disabled') return !isDownloadEnabled(provider);
   return true;
 }
 

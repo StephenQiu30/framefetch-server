@@ -45,12 +45,15 @@ describe('request errors', () => {
 
   it.each([
     ['invalid_credentials', '邮箱或密码错误，请重新输入。'],
-    ['provider_rate_limited', '平台请求过于频繁，请稍后重试。'],
+    ['transient', '连接媒体平台时发生临时故障，请稍后重试。'],
     ['import_disabled', '当前部署未开放本地视频上传。'],
+    ['challenge', '平台要求验证，当前无法继续读取媒体。'],
     [
-      'provider_verification_failed',
-      '平台要求当前系统无法自动完成的验证，本次解析已停止。',
+      'identity_unavailable',
+      '平台登录材料暂不可用，请检查部署主机的登录状态后重新解析。',
     ],
+    ['rate_limited', '操作过于频繁，请稍后再试。'],
+    ['context_changed', '媒体执行上下文已变化，请重新解析链接并确认下载规格。'],
     [
       'duration_limit_exceeded',
       '该平台支持下载，但当前内容超出单次处理的安全边界。',

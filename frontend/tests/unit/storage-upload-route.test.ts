@@ -1,10 +1,10 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+import { PUT } from '@/app/storage-upload/route';
 import {
   internalStorageTarget,
-  PUT,
   resolveTarget,
-} from '@/app/storage-upload/route';
+} from '@/app/storage-upload/target';
 
 const signedTarget =
   'https://storage.example/video-artifacts/file?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Signature=signature';

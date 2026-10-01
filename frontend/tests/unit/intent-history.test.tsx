@@ -156,7 +156,7 @@ it('shows numbered pages and resets to page one when the category changes', asyn
 it('opens failed history in a read-only dialog without restoring it as the current home task', async () => {
   const failed = intentFixture({
     status: 'failed',
-    reason_code: 'provider_auth_required',
+    reason_code: 'login_required',
     inspection_id: null,
   });
   mockHttpResponses(
@@ -181,9 +181,7 @@ it('opens failed history in a read-only dialog without restoring it as the curre
   // The status renders in its column and, for narrow screens, inside the
   // content cell; CSS shows exactly one of them.
   expect(screen.getAllByText('本次解析未完成')).toHaveLength(2);
-  expect(
-    await screen.findByText(/系统无法取得此内容所需的平台会话/),
-  ).toBeVisible();
+  expect(await screen.findByText(/该内容需要登录/)).toBeVisible();
   expect(httpRequests().map((request) => request.url)).toEqual([
     '/api/download-intents/history/records',
     `/api/download-intents/${failed.id}`,

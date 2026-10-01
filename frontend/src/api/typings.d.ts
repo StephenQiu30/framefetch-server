@@ -475,15 +475,6 @@ declare namespace API {
     data: ProviderListResponse;
   };
 
-  type ApiResponseProviderRuntimeListResponse_ = {
-    /** 稳定的业务结果码。 */
-    code: ErrorCode;
-    /** Message 安全的结果说明。 */
-    message: string;
-    /** 成功时为业务数据，错误时为 null。 */
-    data: ProviderRuntimeListResponse;
-  };
-
   type ApiResponseRegistrationCodeResponse_ = {
     /** 稳定的业务结果码。 */
     code: ErrorCode;
@@ -957,24 +948,21 @@ declare namespace API {
     | "cancelled"
     | "download_timeout"
     | "format_unavailable"
-    | "inspection_timeout"
     | "internal_error"
     | "media_validation_failed"
     | "output_limit_exceeded"
-    | "provider_access_policy_not_allowed"
-    | "provider_auth_required"
-    | "provider_content_restricted"
-    | "provider_drm_protected"
-    | "provider_geo_restricted"
-    | "provider_guest_context_required"
-    | "provider_link_unavailable"
-    | "provider_media_unsupported"
-    | "provider_rate_limited"
-    | "provider_session_expired"
-    | "provider_session_not_ready"
-    | "provider_temporarily_unavailable"
-    | "provider_unsupported"
-    | "provider_verification_failed"
+    | "network_blocked"
+    | "challenge"
+    | "login_required"
+    | "identity_unavailable"
+    | "rate_limited"
+    | "context_changed"
+    | "content_unavailable"
+    | "content_protected"
+    | "extractor_broken"
+    | "transient"
+    | "invalid_input"
+    | "runtime_unavailable"
     | "storage_unavailable"
     | "temp_space_exhausted"
     | "transcode_required"
@@ -1157,6 +1145,17 @@ declare namespace API {
     | "unknown";
 
   type ErrorCode =
+    | "network_blocked"
+    | "challenge"
+    | "login_required"
+    | "identity_unavailable"
+    | "context_changed"
+    | "content_unavailable"
+    | "content_protected"
+    | "extractor_broken"
+    | "transient"
+    | "invalid_input"
+    | "runtime_unavailable"
     | "active_ai_provider_delete"
     | "active_task_quota_exceeded"
     | "admin_bootstrap_required"
@@ -1188,8 +1187,6 @@ declare namespace API {
     | "import_disabled"
     | "import_size_mismatch"
     | "import_storage_unavailable"
-    | "inspection_failed"
-    | "inspection_timeout"
     | "internal_error"
     | "invalid_ai_provider_profile"
     | "invalid_credentials"
@@ -1206,24 +1203,9 @@ declare namespace API {
     | "metrics_unavailable"
     | "not_found"
     | "ok"
-    | "provider_access_policy_not_allowed"
-    | "provider_auth_required"
     | "provider_catalog_conflict"
     | "provider_catalog_not_found"
-    | "provider_configuration_missing"
-    | "provider_guest_context_required"
-    | "provider_content_restricted"
-    | "provider_drm_protected"
     | "provider_failure"
-    | "provider_geo_restricted"
-    | "provider_link_unavailable"
-    | "provider_media_unsupported"
-    | "provider_rate_limited"
-    | "provider_session_expired"
-    | "provider_session_not_ready"
-    | "provider_temporarily_unavailable"
-    | "provider_unsupported"
-    | "provider_verification_failed"
     | "rate_limited"
     | "rate_limiter_unavailable"
     | "refresh_in_progress"
@@ -1274,53 +1256,19 @@ declare namespace API {
   };
 
   type FailureClass =
-    | "auth_required"
-    | "session_expired"
-    | "challenge_required"
-    | "token_unavailable"
-    | "token_rejected"
-    | "extractor_changed"
-    | "protocol_unavailable"
-    | "format_unavailable"
-    | "media_probe_failed"
-    | "egress_denied"
-    | "network_transient"
+    | "network_blocked"
+    | "challenge"
+    | "login_required"
+    | "identity_unavailable"
     | "rate_limited"
-    | "content_unavailable"
-    | "content_restricted"
     | "context_changed"
-    | "runtime_unavailable"
-    | "capacity_exhausted"
+    | "content_unavailable"
+    | "content_protected"
+    | "extractor_broken"
+    | "format_unavailable"
+    | "transient"
     | "invalid_input"
-    | "source_unsupported"
-    | "artifact_invalid"
-    | "storage_unavailable"
-    | "outcome_unknown"
-    | "upstream_unclassified";
-
-  type FailureEvidenceKind =
-    | "upstream_response"
-    | "transport"
-    | "local_validation"
-    | "runtime"
-    | "unknown";
-
-  type FailurePhase =
-    | "recognize"
-    | "prepare_context"
-    | "fetch_metadata"
-    | "select_format"
-    | "probe_media"
-    | "transfer"
-    | "validate"
-    | "publish";
-
-  type FailureScope =
-    | "content"
-    | "session"
-    | "route"
-    | "dependency"
-    | "runtime";
+    | "runtime_unavailable";
 
   type findDownloadIntentParams = {
     idempotency_key: string;
@@ -1519,24 +1467,22 @@ declare namespace API {
     restriction_reason: string | null;
     /** User Action */
     user_action: string | null;
-    access_policy_id: ProviderAccessPolicy | null;
   };
 
   type IntentFailureResponse = {
     /** Code */
     code: string;
-    phase: FailurePhase;
-    scope: FailureScope;
     failure_class: FailureClass;
-    /** Cause Code */
-    cause_code: string | null;
-    evidence_kind: FailureEvidenceKind;
-    /** Observed At */
-    observed_at: string;
-    /** Retry After */
-    retry_after: string | null;
-    /** Diagnostic Ref */
-    diagnostic_ref: string | null;
+    /** Layer */
+    layer: string;
+    /** Stage */
+    stage: "resolve" | "download" | "validate" | "publish";
+    /** Gate */
+    gate: "①" | "②" | "③" | "none";
+    /** Evidence */
+    evidence: Record<string, any>;
+    /** Summary */
+    summary: string;
   };
 
   type IntentHistoryItemResponse = {
@@ -1547,12 +1493,9 @@ declare namespace API {
     status: IntentStatus;
     /** Reason Code */
     reason_code: string | null;
-    phase: FailurePhase | null;
     failure: IntentFailureResponse | null;
     /** Next Action */
     next_action?: "none" | "wait" | "refresh_result" | "import_file";
-    /** Retry At */
-    retry_at: string | null;
     /** Deadline */
     deadline: string;
     /** Inspection Id */
@@ -1573,7 +1516,7 @@ declare namespace API {
   };
 
   type IntentRequest = {
-    /** Input 公开媒体地址或包含唯一媒体地址的分享文案。 */
+    /** Input 媒体地址或包含唯一媒体地址的分享文案。 */
     input: string;
   };
 
@@ -1585,12 +1528,9 @@ declare namespace API {
     status: IntentStatus;
     /** Reason Code */
     reason_code: string | null;
-    phase: FailurePhase | null;
     failure: IntentFailureResponse | null;
     /** Next Action */
     next_action?: "none" | "wait" | "refresh_result" | "import_file";
-    /** Retry At */
-    retry_at: string | null;
     /** Deadline */
     deadline: string;
     /** Inspection Id */
@@ -1601,11 +1541,10 @@ declare namespace API {
 
   type IntentStatus =
     | "queued"
-    | "preparing"
     | "resolving"
-    | "retry_wait"
     | "ready"
     | "handed_off"
+    | "cancelling"
     | "cancelled"
     | "expired"
     | "failed";
@@ -1848,12 +1787,9 @@ declare namespace API {
     status: IntentStatus;
     /** Reason Code */
     reason_code: string | null;
-    phase: FailurePhase | null;
     failure: IntentFailureResponse | null;
     /** Next Action */
     next_action?: "none" | "wait" | "refresh_result" | "import_file";
-    /** Retry At */
-    retry_at: string | null;
     /** Deadline */
     deadline: string;
     /** Inspection Id */
@@ -1894,31 +1830,6 @@ declare namespace API {
 
   type ProtectionState = "clear" | "encrypted" | "drm" | "unknown";
 
-  type ProviderAccessMode = "anonymous" | "guest" | "operator_managed";
-
-  type ProviderAccessPolicy =
-    | "public"
-    | "public_session"
-    | "operator_public"
-    | "personal_entitled";
-
-  type ProviderAccessPolicyResponse = {
-    id: ProviderAccessPolicy;
-    /** Configured */
-    configured: boolean;
-  };
-
-  type ProviderAccessState =
-    | "public_probe"
-    | "public_ready"
-    | "authorization_required"
-    | "operator_probe"
-    | "operator_ready"
-    | "degraded"
-    | "blocked"
-    | "disabled"
-    | "unsupported";
-
   type ProviderCapability =
     | "single_video"
     | "short_video"
@@ -1952,49 +1863,11 @@ declare namespace API {
     items: ProviderCatalogEntryResponse[];
   };
 
-  type ProviderEvidenceState = "missing" | "stale" | "fresh";
+  type ProviderIdentity = "none" | "optional" | "required";
 
   type ProviderListResponse = {
     /** Items */
     items: ProviderStatusResponse[];
-  };
-
-  type ProviderRuntimeListResponse = {
-    /** Items */
-    items: ProviderRuntimeResponse[];
-    /** Snapshot Max Age Seconds */
-    snapshot_max_age_seconds?: number;
-  };
-
-  type ProviderRuntimeResponse = {
-    /** Login State */
-    login_state: "not_required" | "signed_in" | "unavailable";
-    /** Session Site */
-    session_site?: string | null;
-    /** Provider Key */
-    provider_key: string;
-    access_policy_id: ProviderAccessPolicy | null;
-    /** Route Configured */
-    route_configured: boolean;
-    /** Context Available */
-    context_available: boolean;
-    /** Profile Version */
-    profile_version: string | null;
-    /** Engine Commit */
-    engine_commit: string | null;
-    /** Source State */
-    source_state:
-      | "not_required"
-      | "revision_observed"
-      | "not_observed"
-      | "unknown";
-    evidence_state: ProviderEvidenceState;
-    /** Last Media Verified At */
-    last_media_verified_at: string | null;
-    /** User Action */
-    user_action: string | null;
-    /** Route Retry At */
-    route_retry_at?: string | null;
   };
 
   type ProviderStatusResponse = {
@@ -2008,53 +1881,25 @@ declare namespace API {
     extractor_exists: boolean;
     /** Capabilities */
     capabilities: ProviderCapability[];
-    /** Access Modes */
-    access_modes: ProviderAccessMode[];
-    access_state: ProviderAccessState;
+    identity: ProviderIdentity;
     status: ProviderSupportStatus;
-    /** Last Checked At */
-    last_checked_at: string | null;
-    /** Last Check Succeeded */
-    last_check_succeeded: boolean | null;
     /** Download Supported */
     download_supported: boolean;
-    /** Download Available */
-    download_available: boolean;
-    /** Last Media Verified At */
-    last_media_verified_at: string | null;
-    /** Last Verified At */
-    last_verified_at: string | null;
     /** User Action */
     user_action: string | null;
-    /** Access Policies */
-    access_policies: ProviderAccessPolicyResponse[];
-    default_access_policy_id: ProviderAccessPolicy | null;
-    evidence_state: ProviderEvidenceState;
     /** Hosts */
     hosts: string[];
     /** Host Suffixes */
     host_suffixes: string[];
-    /** Route Retry At */
-    route_retry_at?: string | null;
   };
 
-  type ProviderSupportStatus =
-    | "unknown"
-    | "verified"
-    | "degraded"
-    | "access_required"
-    | "rate_limited"
-    | "blocked"
-    | "disabled"
-    | "unsupported";
+  type ProviderSupportStatus = "unknown" | "disabled" | "unsupported";
 
   type PublicUrlInspectionSource = {
     /** Kind */
     kind: "public_url";
     /** Url 用户有权处理的公开、非 DRM HTTP(S) 媒体地址。 */
     url: string;
-    /** 显式选择平台允许的访问策略；省略时使用平台固定默认策略，不按端点存在性切换。 */
-    access_policy_id?: ProviderAccessPolicy | null;
   };
 
   type ReadinessResponse = {

@@ -130,6 +130,7 @@ export function useDownloadIntent() {
     if (
       writing.current ||
       attempt?.submitting ||
+      intent.data?.status === IntentStatusCode.Cancelling ||
       (attempt &&
         !reuse &&
         !isTerminalIntentStatus(intent.data?.status ?? IntentStatusCode.Queued))
@@ -191,7 +192,12 @@ export function useDownloadIntent() {
   }
 
   async function cancel() {
-    if (!intent.data || cancelling) return;
+    if (
+      !intent.data ||
+      cancelling ||
+      intent.data.status === IntentStatusCode.Cancelling
+    )
+      return;
     setCancelling(true);
     setOperationError(null);
     try {
@@ -213,7 +219,9 @@ export function useDownloadIntent() {
       !attempt ||
       writing.current ||
       attempt.submitting ||
-      cancelling
+      cancelling ||
+      intent.data.status === IntentStatusCode.Cancelling ||
+      intent.data.status === IntentStatusCode.Cancelled
     )
       return;
     writing.current = true;
@@ -278,7 +286,8 @@ export function useDownloadIntent() {
       !intent.data &&
       intent.error instanceof ApiError &&
       intent.error.status === 404,
-    cancelling,
+    cancelling:
+      cancelling || intent.data?.status === IntentStatusCode.Cancelling,
     restored,
     submit,
     cancel,

@@ -2,9 +2,8 @@ import { localizedErrorMessage } from '@/lib/error-messages';
 
 export enum IntentStatusCode {
   Queued = 'queued',
-  Preparing = 'preparing',
   Resolving = 'resolving',
-  RetryWait = 'retry_wait',
+  Cancelling = 'cancelling',
   Ready = 'ready',
   HandedOff = 'handed_off',
   Cancelled = 'cancelled',
@@ -30,14 +29,6 @@ const intentStatusPresentation = {
     active: true,
     terminal: false,
   },
-  [IntentStatusCode.Preparing]: {
-    title: '正在准备解析',
-    description: activeDescription,
-    historyActionLabel: '查看进度',
-    variant: 'secondary',
-    active: true,
-    terminal: false,
-  },
   [IntentStatusCode.Resolving]: {
     title: '正在读取媒体信息',
     description: activeDescription,
@@ -46,9 +37,9 @@ const intentStatusPresentation = {
     active: true,
     terminal: false,
   },
-  [IntentStatusCode.RetryWait]: {
-    title: '正在自动恢复',
-    description: activeDescription,
+  [IntentStatusCode.Cancelling]: {
+    title: '正在取消解析',
+    description: () => '正在确认后台解析已停止，请稍候。',
     historyActionLabel: '查看进度',
     variant: 'secondary',
     active: true,
@@ -111,11 +102,6 @@ export function intentTitle(status?: API.IntentStatus): string {
 }
 
 export function intentDescription(intent: API.IntentResponse): string {
-  if (
-    intent.status === IntentStatusCode.RetryWait &&
-    intent.failure?.scope === 'session'
-  )
-    return '系统正在恢复平台会话，将在本次解析期限内自动继续。无需重复提交链接。';
   if (isActiveIntentStatus(intent.status))
     return intentStatusPresentation[intent.status].description(intent);
   if (intent.failure?.code) {

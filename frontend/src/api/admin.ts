@@ -189,18 +189,7 @@ export async function listOperationLogs(
   );
 }
 
-/** 读取已开放平台的脱敏运行诊断 仅元数据快照，不登录、不导出会话、不解析或下载媒体。 GET /api/admin/provider-runtime */
-export async function getAdminProviderRuntime(options?: RequestOptions) {
-  return request<API.ApiResponseProviderRuntimeListResponse_>(
-    "/api/admin/provider-runtime",
-    {
-      method: "GET",
-      ...(options || {}),
-    }
-  );
-}
-
-/** 读取会话 Runner 实际安装的引擎候选清单 GET /api/admin/provider-runtime/engine-catalog */
+/** 读取媒体 Runner 实际安装的引擎候选清单 GET /api/admin/provider-runtime/engine-catalog */
 export async function getAdminEngineCatalog(options?: RequestOptions) {
   return request<API.ApiResponseEngineCatalogResponse_>(
     "/api/admin/provider-runtime/engine-catalog",

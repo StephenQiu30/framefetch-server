@@ -213,6 +213,13 @@ function HistoryActions({
             <span className="sr-only sm:not-sr-only">返回首页重新导入</span>
           </Link>
         </Button>
+      ) : recovery === 'reparse' ? (
+        <Button asChild size="sm" variant="ghost">
+          <Link href="/">
+            <ArrowClockwise aria-hidden data-icon="inline-start" />
+            <span className="sr-only sm:not-sr-only">重新解析</span>
+          </Link>
+        </Button>
       ) : recovery === 'retry' ? (
         <Button
           disabled={busy}

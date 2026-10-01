@@ -20,8 +20,7 @@ export enum DownloadStageCode {
 export enum DownloadErrorCode {
   FormatUnavailable = 'format_unavailable',
   MediaValidationFailed = 'media_validation_failed',
-  ProviderAuthRequired = 'provider_auth_required',
-  ProviderSessionExpired = 'provider_session_expired',
+  LoginRequired = 'login_required',
 }
 
 type DownloadStatusPresentation = {
@@ -159,30 +158,27 @@ const failureDetails: Record<string, string> = {
 };
 
 const failureTitles: Partial<Record<API.DownloadErrorCode, string>> = {
-  [DownloadErrorCode.ProviderAuthRequired]: '需要授权访问',
-  [DownloadErrorCode.ProviderSessionExpired]: '授权会话已过期',
+  [DownloadErrorCode.LoginRequired]: '需要登录',
   [DownloadErrorCode.MediaValidationFailed]: '文件校验未通过',
   [DownloadErrorCode.FormatUnavailable]: '当前格式不可用',
 };
 
 const failureStages: Partial<Record<API.DownloadErrorCode, string>> = {
-  [DownloadErrorCode.ProviderAuthRequired]: '授权检查失败',
-  [DownloadErrorCode.ProviderSessionExpired]: '授权检查失败',
+  [DownloadErrorCode.LoginRequired]: '登录要求未满足',
   [DownloadErrorCode.MediaValidationFailed]: '文件校验失败',
   [DownloadErrorCode.FormatUnavailable]: '下载源检查失败',
 };
 
 const retryActionLabels: Partial<Record<API.DownloadErrorCode, string>> = {
-  [DownloadErrorCode.ProviderAuthRequired]: '使用授权会话重试',
-  [DownloadErrorCode.ProviderSessionExpired]: '使用授权会话重试',
+  [DownloadErrorCode.LoginRequired]: '重新下载',
   [DownloadErrorCode.MediaValidationFailed]: '重新获取并下载',
   [DownloadErrorCode.FormatUnavailable]: '重新获取并下载',
 };
 
 const failedStatusDescriptions: Partial<Record<API.DownloadErrorCode, string>> =
   {
-    [DownloadErrorCode.ProviderAuthRequired]:
-      '当前平台需要新的授权会话，系统无法继续获取文件。',
+    [DownloadErrorCode.LoginRequired]:
+      '该内容需要登录，请确认部署主机已登录对应平台。',
     [DownloadErrorCode.MediaValidationFailed]:
       '生成文件未通过完整性校验，系统会重新下载并再次验证。',
   };
@@ -196,13 +192,23 @@ export function isTerminalDownloadStatus(status: API.DownloadStatus): boolean {
 }
 
 export function downloadRecovery(
-  job: Pick<API.DownloadResponse, 'source_kind' | 'status' | 'file_available'>,
-): 'retry' | 'reimport' | null {
+  job: Pick<
+    API.DownloadResponse,
+    'source_kind' | 'status' | 'file_available'
+  > & {
+    error_code?: API.DownloadErrorCode | null;
+  },
+): 'retry' | 'reimport' | 'reparse' | null {
   const terminal =
     job.status === DownloadStatusCode.Failed ||
     job.status === DownloadStatusCode.Cancelled ||
     (job.status === DownloadStatusCode.Succeeded && !job.file_available);
   if (!terminal) return null;
+  if (
+    job.source_kind === 'remote_provider' &&
+    job.error_code === 'context_changed'
+  )
+    return 'reparse';
   return job.source_kind === 'remote_provider' ? 'retry' : 'reimport';
 }
 

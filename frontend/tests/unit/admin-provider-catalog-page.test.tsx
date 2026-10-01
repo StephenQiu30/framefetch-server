@@ -181,7 +181,7 @@ function youtube(): API.ProviderCatalogEntryResponse {
     key: 'youtube',
     sort_order: 10,
     system_registered: true,
-    system_status: 'verified',
+    system_status: 'unknown',
   });
 }
 

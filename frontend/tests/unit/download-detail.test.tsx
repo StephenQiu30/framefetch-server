@@ -200,6 +200,28 @@ describe('DownloadJobView', () => {
     expect(screen.queryByText('download_timeout')).not.toBeInTheDocument();
   });
 
+  it('requires a new inspection when the execution context changed', async () => {
+    const changed = {
+      ...job('failed'),
+      error_code: 'context_changed' as const,
+    };
+    mockHttpResponses(changed);
+    render(<DownloadJobView jobId={changed.id} pollIntervalMs={60_000} />);
+
+    expect(
+      await screen.findByRole('link', { name: '重新解析' }),
+    ).toHaveAttribute('href', '/');
+    expect(
+      screen.queryByRole('button', { name: '重新下载' }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getAllByText(/重新解析链接并确认下载规格/).length,
+    ).toBeGreaterThan(0);
+    expect(httpRequests().every((request) => request.method === 'GET')).toBe(
+      true,
+    );
+  });
+
   it('turns media validation failures into a file recovery action', async () => {
     const failed = {
       ...job('failed'),
@@ -231,14 +253,7 @@ describe('DownloadJobView', () => {
 
   it('does not present a retry failure as a task read failure', async () => {
     mockHttpResponses(job('failed'));
-    mockHttpError(
-      new ApiError(
-        503,
-        'provider_verification_failed',
-        'Unavailable',
-        '暂时不可用',
-      ),
-    );
+    mockHttpError(new ApiError(503, 'challenge', 'Unavailable', '暂时不可用'));
     render(<DownloadJobView jobId={job().id} pollIntervalMs={60_000} />);
 
     fireEvent.click(await screen.findByRole('button', { name: '重新下载' }));

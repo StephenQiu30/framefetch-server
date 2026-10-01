@@ -135,6 +135,11 @@ export default function DownloadState({
             <Link href="/">返回首页重新导入</Link>
           </Button>
         ) : null}
+        {recovery === 'reparse' ? (
+          <Button asChild className="w-full" size="lg">
+            <Link href="/">重新解析</Link>
+          </Button>
+        ) : null}
         {recovery === 'retry' ? (
           <Button
             className="w-full"
