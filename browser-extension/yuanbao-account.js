@@ -76,31 +76,45 @@
   async function readExistingAccount(api, operationDeadlineMs) {
     const deadline = Math.min(Date.now() + 5000, operationDeadlineMs);
     const checkDeadline = () => { if (!Number.isFinite(deadline) || Date.now() >= deadline) throw new Error('extension_timeout'); };
+    // A stalled Chrome promise must release the worker's serial message chain.
+    // Every call shares the same deadline; late results remain race-consumed.
+    const awaitChrome = async action => {
+      checkDeadline();
+      let timer;
+      try {
+        return await Promise.race([
+          Promise.resolve().then(() => { checkDeadline(); return action(); }),
+          new Promise((_, reject) => {
+            timer = setTimeout(() => reject(new Error('extension_timeout')), deadline - Date.now());
+          }),
+        ]);
+      } finally { clearTimeout(timer); }
+    };
     try {
       checkDeadline();
-      const queried = await api.tabs.query({ url: ORIGIN + '/*' });
+      const queried = await awaitChrome(() => api.tabs.query({ url: ORIGIN + '/*' }));
       checkDeadline();
       const tabs = queried.filter(scopedTab);
       if (!tabs.length) throw new Error('identity_page_unavailable');
       if (tabs.length !== 1) throw new Error('identity_tab_ambiguous');
       const tab = tabs[0];
       if (tab.pendingUrl) throw new Error('identity_navigation_changed');
-      const first = await api.scripting.executeScript({
+      const first = await awaitChrome(() => api.scripting.executeScript({
         target: { tabId: tab.id, frameIds: [0] }, world: 'ISOLATED', func: readAccount,
-      });
+      }));
       checkDeadline();
       const account = checkedResult(first);
-      const current = await api.tabs.get(tab.id);
+      const current = await awaitChrome(() => api.tabs.get(tab.id));
       checkDeadline();
       if (!scopedTab(current) || current.pendingUrl || current.url !== tab.url) throw new Error('identity_navigation_changed');
       // Target the same document, so even a same-URL reload is rejected.
-      const second = await api.scripting.executeScript({
+      const second = await awaitChrome(() => api.scripting.executeScript({
         target: { tabId: tab.id, documentIds: [first[0].documentId] }, world: 'ISOLATED', func: readAccount,
-      });
+      }));
       checkDeadline();
       const confirmed = checkedResult(second, first[0].documentId);
       if (account.account_id !== confirmed.account_id || account.auth_token !== confirmed.auth_token) throw new Error('identity_account_conflict');
-      const finalTab = await api.tabs.get(tab.id);
+      const finalTab = await awaitChrome(() => api.tabs.get(tab.id));
       checkDeadline();
       if (!scopedTab(finalTab) || finalTab.pendingUrl || finalTab.url !== tab.url) throw new Error('identity_navigation_changed');
       return confirmed;

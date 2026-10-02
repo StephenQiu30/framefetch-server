@@ -113,3 +113,42 @@ test('worker wires the fixed page reader only after HMAC and preserves Cookie co
   ws.onmessage({ data: JSON.stringify({ type: 'cookies', request_id: 'e'.repeat(32), domains: ['instagram.com'] }) }); await w.flush();
   assert.deepEqual(ws.sent.at(-1), { type: 'cookies', request_id: 'e'.repeat(32), cookies: [] });
 });
+test('stalled page reads release the worker chain and late results or rejection cannot send account material', async () => {
+  for (const phase of ['query', 'execution']) {
+    for (const lateFailure of [false, true]) {
+      let release, reject, executions = 0;
+      const pending = new Promise((done, fail) => { release = done; reject = fail; });
+      const tab = { id: 9, url: 'https://yuanbao.tencent.com/chat', incognito: false };
+      const w = worker({
+        tabs: { query: () => phase === 'query' ? pending : Promise.resolve([tab]) },
+        scripting: { executeScript: () => { executions++; return pending; } },
+      });
+      await w.flush();
+      const ws = w.sockets[0], server = 'd'.repeat(64);
+      ws.onmessage({ data: JSON.stringify({ type: 'challenge', nonce: server }) }); await w.flush();
+      ws.onmessage({ data: JSON.stringify({ type: 'proof', proof: await proof(KEY, 'server', ws.sent[0].nonce, server) }) });
+      for (let i = 0; i < 20 && !w.intervals.length; i++) await w.flush();
+      const request = { type: 'yuanbao_account', request_id: 'c'.repeat(32), site: 'wechat_channels', deadline: new Date(10).toISOString() };
+      ws.onmessage({ data: JSON.stringify(request) });
+      ws.onmessage({ data: JSON.stringify({ type: 'cookies', request_id: 'e'.repeat(32), domains: ['instagram.com'] }) });
+      ws.onmessage({ data: JSON.stringify({ type: 'ping' }) });
+      await w.flush();
+      const deadlineTimer = w.timers.find(timer => timer.active && timer.ms === 10);
+      assert.ok(deadlineTimer, 'page reads must have an active operation timer');
+      w.advance(10); deadlineTimer.fn(); await w.flush();
+      assert.deepEqual(ws.sent.slice(-3), [
+        { type: 'yuanbao_account', request_id: request.request_id, cause: 'extension_timeout' },
+        { type: 'cookies', request_id: 'e'.repeat(32), cookies: [] },
+        { type: 'pong' },
+      ]);
+      assert.equal(ws.readyState, 1);
+      assert.equal(deadlineTimer.active, false);
+      const count = ws.sent.length;
+      if (lateFailure) reject(new Error('synthetic-private-error'));
+      else release(phase === 'query' ? [tab] : [{ frameId: 0, documentId: 'one', result: { origin: 'https://yuanbao.tencent.com', account_id: 'synthetic-account', auth_token: 'synthetic-token' } }]);
+      await w.flush();
+      assert.equal(ws.sent.length, count);
+      assert.equal(executions, phase === 'query' ? 0 : 1);
+    }
+  }
+});

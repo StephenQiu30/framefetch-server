@@ -40,6 +40,22 @@ function browser(overrides = {}) {
   };
   return { api, calls, tab, p };
 }
+function timedReader() {
+  let now = 0;
+  const timers = new Set();
+  const context = vm.createContext({
+    URL, TextEncoder, Date: { now: () => now },
+    setTimeout: (fn, delay) => { const timer = { fn, at: now + delay }; timers.add(timer); return timer; },
+    clearTimeout: timer => timers.delete(timer),
+  });
+  vm.runInContext(fs.readFileSync(__dirname + '/yuanbao-account.js', 'utf8'), context);
+  return {
+    read: context.FrameFetchYuanbaoAccount.readExistingAccount,
+    timers,
+    advance: ms => { now += ms; for (const timer of [...timers]) if (timer.at <= now) { timers.delete(timer); timer.fn(); } },
+  };
+}
+const flush = async () => { await new Promise(resolve => setImmediate(resolve)); };
 test('fixed function exports only bounded primary account fields and no signatures or DOM', () => {
   const p = page({ yb_user_id: ACCOUNT.account_id, yb_token: ACCOUNT.auth_token, arbitrary_secret: 'must-not-read', 'LOCAL_OTHER': 'ignored' });
   const get = p.context.localStorage.getItem;
@@ -171,7 +187,7 @@ test('earlier operation deadline and five-second boundary stop after every Chrom
   for (let expireAt = 1; expireAt <= 5; expireAt++) {
     let now = 0, calls = 0;
     const step = value => { if (++calls === expireAt) now = limit; return value; };
-    const context = vm.createContext({ URL, TextEncoder, Date: { now: () => now } });
+    const context = vm.createContext({ URL, TextEncoder, Date: { now: () => now }, setTimeout: () => 0, clearTimeout: () => {} });
     vm.runInContext(fs.readFileSync(__dirname + '/yuanbao-account.js', 'utf8'), context);
     const tab = { id: 9, url: ORIGIN + '/chat', incognito: false };
     const api = {
@@ -184,4 +200,95 @@ test('earlier operation deadline and five-second boundary stop after every Chrom
     assert.equal(calls, expireAt);
   }
   }
+});
+test('a stalled Chrome API finishes at the shared deadline and late results cannot continue reading', async () => {
+  for (const limit of [10, 5000]) {
+  for (let blockAt = 1; blockAt <= 5; blockAt++) {
+    const clock = timedReader();
+    let calls = 0, release;
+    const pending = new Promise(resolve => { release = resolve; });
+    const tab = { id: 9, url: ORIGIN + '/chat', incognito: false };
+    const step = value => ++calls === blockAt ? pending : Promise.resolve(value);
+    const api = {
+      tabs: { query: () => step([tab]), get: () => step(tab) },
+      scripting: { executeScript: () => step([{ frameId: 0, documentId: 'document-one', result: ACCOUNT }]) },
+    };
+    let result;
+    const read = clock.read(api, limit === 5000 ? 60000 : limit).then(value => { result = value; });
+    await flush();
+    assert.equal(calls, blockAt);
+    clock.advance(limit);
+    await flush();
+    try {
+      assert.ok(result, 'Chrome read must finish without releasing the stalled API');
+      assert.deepEqual(JSON.parse(JSON.stringify(result)), { cause: 'extension_timeout' });
+      assert.equal(clock.timers.size, 0);
+    } finally {
+      release(blockAt === 1 ? [tab] : blockAt === 3 || blockAt === 5 ? tab : [{ frameId: 0, documentId: 'document-one', result: ACCOUNT }]);
+      await read;
+    }
+    await flush();
+    assert.equal(calls, blockAt);
+  }
+  }
+});
+test('Chrome failures and successful reads clear their deadline timers', async () => {
+  for (const broken of [false, true]) {
+    const clock = timedReader();
+    const b = browser();
+    b.api.scripting.executeScript = async () => [{ frameId: 0, documentId: 'document-one', result: ACCOUNT }];
+    if (broken) b.api.tabs.query = () => Promise.reject(new Error('synthetic-private-error'));
+    const result = await clock.read(b.api, 100);
+    assert.deepEqual(JSON.parse(JSON.stringify(result)), broken ? { cause: 'identity_page_unavailable' } : ACCOUNT);
+    assert.equal(clock.timers.size, 0);
+    clock.advance(100);
+    await flush();
+  }
+});
+test('an earlier Chrome call does not restart the operation timeout', async () => {
+  const clock = timedReader();
+  const tab = { id: 9, url: ORIGIN + '/chat', incognito: false };
+  let result;
+  const read = clock.read({
+    tabs: { query: async () => { clock.advance(6); return [tab]; } },
+    scripting: { executeScript: () => new Promise(() => {}) },
+  }, 10).then(value => { result = value; });
+  await flush();
+  clock.advance(3);
+  await flush();
+  assert.equal(result, undefined);
+  clock.advance(1);
+  await read;
+  assert.deepEqual(JSON.parse(JSON.stringify(result)), { cause: 'extension_timeout' });
+  assert.equal(clock.timers.size, 0);
+});
+test('expiry before the scheduled Chrome call prevents all browser access', async () => {
+  const clock = timedReader();
+  let calls = 0;
+  const read = clock.read({ tabs: { query: async () => { calls++; return []; } } }, 10);
+  clock.advance(10);
+  const result = await read;
+  assert.deepEqual(JSON.parse(JSON.stringify(result)), { cause: 'extension_timeout' });
+  assert.equal(calls, 0);
+  assert.equal(clock.timers.size, 0);
+});
+test('real timer releases protocol busy and late script rejection sends no material', { timeout: 1000 }, async () => {
+  const b = browser(), sent = [];
+  let reject;
+  const stalled = new Promise((_, fail) => { reject = fail; });
+  b.api.scripting.executeScript = () => stalled;
+  const p = new Protocol({ pairingKey: KEY, domains: ['instagram.com'], yuanbaoAccount: true }, async () => [], m => sent.push(m), '1.0.0', deadline => readExistingAccount(b.api, deadline));
+  await authenticated(p);
+  const request = p.receive({ type: 'yuanbao_account', request_id: ID, site: 'wechat_channels', deadline: new Date(Date.now() + 20).toISOString() });
+  await flush();
+  assert.equal(p.busy, true);
+  await request;
+  assert.equal(p.busy, false);
+  assert.deepEqual(sent.at(-1), { type: 'yuanbao_account', request_id: ID, cause: 'extension_timeout' });
+  await p.receive({ type: 'cookies', request_id: 'e'.repeat(32), domains: ['instagram.com'] });
+  assert.deepEqual(sent.at(-1), { type: 'cookies', request_id: 'e'.repeat(32), cookies: [] });
+  const count = sent.length;
+  reject(new Error('synthetic-private-error'));
+  await flush();
+  assert.equal(sent.length, count);
 });
