@@ -134,7 +134,7 @@ backend/.venv/bin/python backend/scripts/coldstart_matrix.py --all
 
 脚本仅调用正式 HTTP API：创建下载意图、轮询 Temporal 解析结果、查询 InspectionResponse、选择达到最低规格的格式、创建 RabbitMQ 下载、取回发布的 Artifact。文件通过鉴权 `/api/downloads/{id}/file` 下载，核对 Content-Length 与 ETag/SHA-256，再进行 ffprobe 和 `ffmpeg -xerror` 全片解码。独立完整时长的容差与 Runner 相同：`max(3 秒, 2% × 完整时长)`；若部署修改了 Runner 容差，使用 `--duration-tolerance` 传入同一个值。规格核对包括尺寸、编解码器、容器、帧率档与动态范围；身份和出口读取正式响应中的 execution_context。
 
-`--platforms a,b` 只运行指定 registered 平台，要求每个平台至少两部不同作品；`--all` 要求样本平台集合与正式 `GET /api/providers` 的 registered 集合严格相等，缺少或多出平台都报错。当前该 API 暴露 24 个 Registry profiles；Generic fallback 和未配置的 PeerTube 不在该集合中。启用新的 registered 平台后必须补充样本，否则全量模式不能运行。脚本不导入 Runner，也不从静态平台状态推断通过。
+`--platforms a,b` 只运行指定 registered 平台，要求每个平台至少两部不同作品；`--all` 要求样本平台集合与正式 `GET /api/providers` 的 registered 集合严格相等，缺少或多出平台都报错。当前该 API 暴露 25 个 Registry profiles；Generic fallback 和未配置的 PeerTube 不在该集合中。启用新的 registered 平台后必须补充样本，否则全量模式不能运行。脚本不导入 Runner，也不从静态平台状态推断通过。
 
 样本在 `scripts/fixtures/coldstart_cases.json`，每条包含作品 ID、范围、正例/受保护负例、needs_identity、独立时长来源、可访问/公开/免费/非 DRM 证据和最低规格。`verified` 证据须有核实日期；时长不得来自被测流或历史 yt-dlp 测试预期。当前 fixture 包含待核实候选：空时长与 `unverified` 会在 JSON/Markdown 明确保留，即使完整文件交付也只能记为阻塞。这些候选不满足第 7 节的有效正例要求，需要在平台可访问后替换或补齐证据。受保护负例只有独立保护证据成立且 API 返回 content_protected 才记为 `protected_negative`，不参与平台通过判定。平台通过要求全部正例完整通过，至少两部不同作品。
 
