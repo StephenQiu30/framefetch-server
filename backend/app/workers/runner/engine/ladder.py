@@ -7,6 +7,7 @@ from datetime import UTC, datetime, timedelta
 
 from app.services.provider_failures import FailureClass, ProviderFailure
 from app.services.provider_types import Layer, ProviderIdentity
+from app.workers.runner.browser_runtime import _finish
 from app.workers.runner.engine import identity
 from app.workers.runner.engine.layers.base import Layer as ResolverLayer
 from app.workers.runner.engine.layers.base import LayerFailure
@@ -59,12 +60,7 @@ def log_failure(source: ResolutionSource, failure: ProviderFailure) -> None:
 async def close_material(ctx: RunContext) -> None:
     try:
         if ctx.browser is not None:
-            cleanup = asyncio.create_task(ctx.browser.close())
-            try:
-                await asyncio.shield(cleanup)
-            except asyncio.CancelledError:
-                await cleanup
-                raise
+            await _finish(ctx.browser.close())
     finally:
         # Only files validated on the operation-private tmpfs can be removed.
         if ctx.cookie_file is not None and ctx.cookie_file.exists():

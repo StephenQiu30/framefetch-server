@@ -333,6 +333,51 @@ async def test_cancel_waits_for_browser_cleanup(source, monkeypatch, phase):
     assert browser.events == [("close", None)]
 
 
+async def test_material_cleanup_waits_through_repeated_cancellation(
+    source, identity_material
+):
+    allowed = asyncio.Event()
+
+    class WaitingBrowser(Browser):
+        async def close(self):
+            self.started.set()
+            await allowed.wait()
+            await super().close()
+
+    browser = WaitingBrowser()
+    ctx = source.run_context.with_material(identity=identity_material, browser=browser)
+    owner = asyncio.create_task(close_material(ctx))
+    try:
+        await asyncio.wait_for(browser.started.wait(), 1)
+        owner.cancel()
+        await asyncio.sleep(0)
+        owner.cancel()
+        await asyncio.sleep(0)
+        assert not owner.done() and not browser.events
+        assert identity_material.cookie_file.exists()
+        allowed.set()
+        with pytest.raises(asyncio.CancelledError):
+            await asyncio.wait_for(owner, 1)
+        assert browser.events == [("close", None)]
+        assert not identity_material.cookie_file.exists()
+    finally:
+        allowed.set()
+        await asyncio.wait_for(asyncio.gather(owner, return_exceptions=True), 1)
+
+
+async def test_material_cleanup_own_cancellation_propagates_and_deletes_cookie(
+    source, monkeypatch, identity_material
+):
+    browser = Browser()
+    close = AsyncMock(side_effect=asyncio.CancelledError)
+    monkeypatch.setattr(browser, "close", close)
+    ctx = source.run_context.with_material(identity=identity_material, browser=browser)
+    with pytest.raises(asyncio.CancelledError):
+        await asyncio.wait_for(close_material(ctx), 1)
+    close.assert_awaited_once()
+    assert not identity_material.cookie_file.exists()
+
+
 @pytest.mark.parametrize(
     "field,value",
     [
