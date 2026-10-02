@@ -3,6 +3,7 @@
 import asyncio
 from dataclasses import replace
 from datetime import UTC, datetime, timedelta
+from unittest.mock import AsyncMock
 
 import pytest
 from app.services.provider_failures import FailureClass
@@ -11,7 +12,9 @@ from app.workers.runner.engine import identity
 from app.workers.runner.engine.identity import IdentityMaterial
 from app.workers.runner.engine.ladder import LAYER_TABLE, close_material, run_ladder
 from app.workers.runner.engine.layers.base import LayerFailure
+from app.workers.runner.engine.layers.browser import BrowserLayer
 from app.workers.runner.errors import RunnerFailure
+from app.workers.runner.provider_registry import provider_request
 from app.workers.runner.service import MediaRunnerService
 from helpers import settings
 from test_engine_skeleton import source_for
@@ -21,6 +24,16 @@ from test_p1_wiring import Browser, resolved
 @pytest.fixture
 def source(tmp_path):
     item = source_for(MediaRunnerService(settings(tmp_path)), tmp_path)
+    yield item
+    item.workspace.cleanup()
+
+
+@pytest.fixture
+def missing_browser_source(tmp_path):
+    service = MediaRunnerService(settings(tmp_path))
+    item = source_for(service, tmp_path)
+    request = provider_request("https://weixin.qq.com/sph/fixture")
+    item = replace(item, request=request, execution_context=service._context(request))
     yield item
     item.workspace.cleanup()
 
@@ -560,3 +573,112 @@ async def test_timeout_records_the_inflight_proof_client(source, monkeypatch):
     assert caught.value.code == "inspection_timeout"
     assert caught.value.failure.evidence["client"] == "youtube:tv"
     assert caught.value.failure.evidence["layer"] == "L2"
+
+
+@pytest.mark.parametrize("download", [False, True])
+async def test_missing_only_browser_parser_fails_before_identity_io(
+    missing_browser_source, monkeypatch, download
+):
+    source = missing_browser_source
+    if download:
+        source = replace(source, expected_context=source.execution_context)
+    fetch = AsyncMock(side_effect=AssertionError("missing parser fetched identity"))
+    acquire = AsyncMock(side_effect=AssertionError("missing parser acquired browser"))
+    monkeypatch.setattr(identity, "fetch_identity", fetch)
+    monkeypatch.setattr(source.pipeline.browser, "acquire", acquire)
+    with pytest.raises(RunnerFailure) as caught:
+        await run_ladder(source, source.request.profile, source.run_context.deadline)
+    failure = caught.value.failure
+    assert failure.failure_class is FailureClass.RUNTIME_UNAVAILABLE
+    assert failure.gate == "none" and failure.layer == "L3"
+    assert failure.evidence["kind"] == "runtime"
+    assert failure.evidence["cause_code"] == "browser_parser_missing"
+    assert failure.evidence["client"] == "wechat_channels:browser"
+    assert not failure.evidence["identity_used"]
+    assert len(caught.value.failures) == 1
+    fetch.assert_not_awaited()
+    acquire.assert_not_awaited()
+
+
+@pytest.mark.parametrize("fault", ["expired", "binding", "none_identity"])
+async def test_missing_parser_does_not_override_deadline_or_context_validation(
+    missing_browser_source, monkeypatch, fault
+):
+    source = missing_browser_source
+    code = "context_changed"
+    if fault == "expired":
+        source = replace(
+            source,
+            run_context=replace(source.run_context, deadline=datetime.now(UTC)),
+        )
+        code = "inspection_timeout"
+    elif fault == "binding":
+        source = replace(
+            source,
+            expected_context=replace(source.execution_context, engine_revision="old"),
+        )
+    else:
+        source = layers(source, Layer.L3, identity=ProviderIdentity.NONE)
+        source = replace(
+            source,
+            expected_context=replace(
+                source.execution_context, identity_used=True, identity_digest="old"
+            ),
+        )
+    fetch = AsyncMock(side_effect=AssertionError("invalid context fetched identity"))
+    monkeypatch.setattr(identity, "fetch_identity", fetch)
+    with pytest.raises(RunnerFailure) as caught:
+        await run_ladder(source, source.request.profile, source.run_context.deadline)
+    assert caught.value.code == code
+    fetch.assert_not_awaited()
+
+
+@pytest.mark.parametrize("download", [False, True])
+async def test_missing_fallback_parser_does_not_block_l1_but_bound_l3_fails_early(
+    missing_browser_source, monkeypatch, identity_material, download
+):
+    source = layers(
+        missing_browser_source, Layer.L1, Layer.L3, identity=ProviderIdentity.REQUIRED
+    )
+    if download:
+        source = replace(source, expected_context=source.execution_context)
+    fetch = AsyncMock(return_value=identity_material)
+    monkeypatch.setattr(identity, "fetch_identity", fetch)
+    calls = dispatch(monkeypatch, {"L1": [None]})
+    if download:
+        with pytest.raises(RunnerFailure) as caught:
+            await run_ladder(
+                source, source.request.profile, source.run_context.deadline
+            )
+        assert caught.value.failure.evidence["cause_code"] == "browser_parser_missing"
+        assert not calls
+        fetch.assert_not_awaited()
+    else:
+        result = await run_ladder(
+            source, source.request.profile, source.run_context.deadline
+        )
+        assert calls == [("L1", identity_material)]
+        fetch.assert_awaited_once()
+        await close_material(result.run_context)
+
+
+async def test_custom_browser_layer_is_not_rejected_by_production_parser_precheck(
+    missing_browser_source, monkeypatch, identity_material
+):
+    source = missing_browser_source
+    fetch = AsyncMock(return_value=identity_material)
+    monkeypatch.setattr(identity, "fetch_identity", fetch)
+    calls = []
+
+    class CustomBrowser(BrowserLayer):
+        async def resolve(self, source, ctx):
+            calls.append(ctx.identity)
+            return resolved(ctx, client=source.execution_context.client)
+
+    monkeypatch.setitem(LAYER_TABLE, Layer.L3, CustomBrowser)
+    result = await run_ladder(
+        source, source.request.profile, source.run_context.deadline
+    )
+    assert calls == [identity_material]
+    fetch.assert_awaited_once()
+    await close_material(result.run_context)

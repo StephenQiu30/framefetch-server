@@ -11,7 +11,13 @@ import pytest
 from app.services.provider_failures import FailureClass
 from app.services.provider_types import ProviderIdentity
 from app.workers.runner.engine import identity
-from app.workers.runner.engine.browser import douyin, kuaishou, weibo, xiaohongshu
+from app.workers.runner.engine.browser import (
+    douyin,
+    kuaishou,
+    weibo,
+    xiaohongshu,
+    youtube,
+)
 from app.workers.runner.engine.browser.intercept import (
     MAX_RESPONSE_BYTES,
     PageResponses,
@@ -287,6 +293,51 @@ async def test_required_identity_comes_only_from_fetch_identity(tmp_path, monkey
     )
     assert acquire.call_args.kwargs["ctx"].identity is material
     source.workspace.cleanup()
+
+
+async def test_missing_browser_runtime_has_distinct_cause_before_identity_io(
+    tmp_path, monkeypatch
+):
+    service = MediaRunnerService(settings(tmp_path))
+    source = source_for(service, tmp_path)
+    request = provider_request("https://www.douyin.com/video/123")
+    request = replace(
+        request, profile=replace(request.profile, identity=ProviderIdentity.REQUIRED)
+    )
+    source = replace(source, request=request)
+    source.pipeline.browser = None
+    fetch = AsyncMock(side_effect=AssertionError("missing runtime fetched identity"))
+    monkeypatch.setattr(identity, "fetch_identity", fetch)
+    try:
+        with pytest.raises(RunnerFailure) as caught:
+            await BrowserLayer().resolve(source, source.run_context)
+        failure = caught.value.failure
+        assert failure.failure_class is FailureClass.RUNTIME_UNAVAILABLE
+        assert failure.gate == "none"
+        assert failure.evidence["kind"] == "runtime"
+        assert failure.evidence["cause_code"] == "browser_runtime_unavailable"
+        fetch.assert_not_awaited()
+    finally:
+        source.workspace.cleanup()
+
+
+async def test_youtube_special_resolver_does_not_require_page_parser_or_runtime(
+    tmp_path, monkeypatch
+):
+    service = MediaRunnerService(settings(tmp_path))
+    source = source_for(service, tmp_path)
+    request = provider_request("https://www.youtube.com/watch?v=fixture")
+    source = replace(source, request=request)
+    source.pipeline.browser = None
+    result = Mock()
+    resolve = AsyncMock(return_value=result)
+    monkeypatch.setattr(youtube, "resolve", resolve)
+    try:
+        assert BrowserLayer.has_parser("youtube")
+        assert await BrowserLayer().resolve(source, source.run_context) is result
+        resolve.assert_awaited_once_with(source, source.run_context)
+    finally:
+        source.workspace.cleanup()
 
 
 async def test_layer_cancel_destroys_before_return_and_detaches_listener(tmp_path):

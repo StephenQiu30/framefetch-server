@@ -103,6 +103,8 @@ const localizedFailureCauses: Record<string, string> = {
     '该平台的身份规则尚未接通，当前无法解析；可导入已有本地视频。',
   'runtime_unavailable:browser_not_implemented':
     '该平台的解析尚未接通，当前无法解析；可导入已有本地视频。',
+  'runtime_unavailable:browser_parser_missing':
+    '该平台的解析尚未接通，当前无法解析；可导入已有本地视频。',
 };
 
 export function localizedErrorMessage(

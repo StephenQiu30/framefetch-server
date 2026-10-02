@@ -9,6 +9,7 @@ from app.services.provider_failures import FailureClass, ProviderFailure
 from app.services.provider_types import Layer, ProviderIdentity
 from app.workers.runner.engine import identity
 from app.workers.runner.engine.layers.base import Layer as ResolverLayer
+from app.workers.runner.engine.layers.base import LayerFailure
 from app.workers.runner.engine.layers.browser import BrowserLayer
 from app.workers.runner.engine.layers.http import HttpLayer
 from app.workers.runner.engine.layers.prepared import PreparedLayer
@@ -125,7 +126,20 @@ async def run_ladder(
             if profile.identity is ProviderIdentity.NONE:
                 if ctx.identity is not None or (expected and expected.identity_used):
                     raise RunnerFailure("context_changed", status=409)
-            elif profile.identity is ProviderIdentity.REQUIRED or (
+            if (
+                layers == (Layer.L3,)
+                and LAYER_TABLE[Layer.L3] is BrowserLayer
+                and not BrowserLayer.has_parser(profile.key)
+            ):
+                context = replace(
+                    context, resolved_layer=Layer.L3, client=f"{profile.key}:browser"
+                )
+                raise LayerFailure(
+                    FailureClass.RUNTIME_UNAVAILABLE,
+                    "none",
+                    {"kind": "runtime", "cause_code": "browser_parser_missing"},
+                )
+            if profile.identity is ProviderIdentity.REQUIRED or (
                 profile.identity is ProviderIdentity.PREFER
                 and (expected is None or expected.identity_used)
             ):

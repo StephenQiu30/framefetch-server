@@ -237,7 +237,8 @@ async def test_missing_browser_parser_fails_before_identity_or_browser_io(
         failure = caught.value.failure
         assert failure.failure_class is FailureClass.RUNTIME_UNAVAILABLE
         assert failure.gate == "none"
-        assert failure.evidence["cause_code"] == "browser_not_implemented"
+        assert failure.evidence["cause_code"] == "browser_parser_missing"
+        assert failure.evidence["kind"] == "runtime"
         fetch.assert_not_awaited()
         acquire.assert_not_awaited()
     finally:

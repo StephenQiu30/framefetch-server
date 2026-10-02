@@ -29,6 +29,7 @@ from app.workers.runner.engine.browser.intercept import (
     PageResponses,
     failure,
 )
+from app.workers.runner.engine.layers.base import LayerFailure
 from app.workers.runner.engine.resolved import ResolvedMedia
 from app.workers.runner.engine.run_context import ResolutionSource, RunContext
 from app.workers.runner.errors import RunnerFailure
@@ -156,15 +157,27 @@ async def _cookie_jar(operation: BrowserOperation, directory: Path) -> Path:
 
 
 class BrowserLayer:
+    @staticmethod
+    def has_parser(key: str) -> bool:
+        return key == "youtube" or PARSERS.get(key) is not None
+
     async def resolve(self, source: ResolutionSource, ctx: RunContext) -> ResolvedMedia:
         profile = source.request.profile
         if profile.key == "youtube":
             return await youtube.resolve(source, ctx)
         parser = PARSERS.get(profile.key)
         runtime = source.pipeline.browser
-        if parser is None or runtime is None:
-            raise failure(
-                FailureClass.RUNTIME_UNAVAILABLE, "browser_not_implemented", "none"
+        if parser is None:
+            raise LayerFailure(
+                FailureClass.RUNTIME_UNAVAILABLE,
+                "none",
+                {"kind": "runtime", "cause_code": "browser_parser_missing"},
+            )
+        if runtime is None:
+            raise LayerFailure(
+                FailureClass.RUNTIME_UNAVAILABLE,
+                "none",
+                {"kind": "runtime", "cause_code": "browser_runtime_unavailable"},
             )
         if profile.identity is ProviderIdentity.NONE and ctx.identity is not None:
             raise failure(FailureClass.INVALID_INPUT, "unexpected_identity", "none")

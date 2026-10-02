@@ -1170,20 +1170,25 @@ async def test_inspect_retries_a_transient_thumbnail_response_once(
 
 
 @pytest.mark.parametrize(
-    "url",
+    ("url", "expected_code"),
     [
-        "https://www.instagram.com/p/fixture/",
-        "https://weixin.qq.com/sph/Az42YceBcb",
-        "https://v.qq.com/x/page/fixture.html",
-        "https://v.youku.com/v_show/id_fixture.html",
+        ("https://www.instagram.com/p/fixture/", "identity_unavailable"),
+        ("https://weixin.qq.com/sph/Az42YceBcb", "runtime_unavailable"),
+        ("https://v.qq.com/x/page/fixture.html", "identity_unavailable"),
+        ("https://v.youku.com/v_show/id_fixture.html", "identity_unavailable"),
     ],
 )
-async def test_identity_required_provider_uses_fail_closed_identity_stub(tmp_path, url):
+async def test_required_provider_fails_before_platform_io(tmp_path, url, expected_code):
     supervisor = FixtureSupervisor(split_media_info())
     service = MediaRunnerService(settings(tmp_path), supervisor=supervisor)
     with pytest.raises(RunnerFailure) as caught:
         await service.inspect(url)
-    assert caught.value.code == "identity_unavailable"
+    assert caught.value.code == expected_code
+    if expected_code == "runtime_unavailable":
+        assert caught.value.failure.gate == "none"
+        assert caught.value.failure.evidence["kind"] == "runtime"
+        assert caught.value.failure.evidence["cause_code"] == "browser_parser_missing"
+        assert caught.value.failure.evidence["identity_used"] is False
     assert (
         caught.value.failure.layer
         == service._context(provider_request(url)).resolved_layer

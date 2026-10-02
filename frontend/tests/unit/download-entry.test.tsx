@@ -219,6 +219,16 @@ it.each([
     cause: 'browser_not_implemented',
     expected: '该平台的解析尚未接通，当前无法解析；可导入已有本地视频。',
   },
+  {
+    code: 'runtime_unavailable',
+    cause: 'browser_parser_missing',
+    expected: '该平台的解析尚未接通，当前无法解析；可导入已有本地视频。',
+  },
+  {
+    code: 'runtime_unavailable',
+    cause: 'browser_runtime_unavailable',
+    expected: '解析执行环境暂不可用，请检查服务后重试。',
+  },
   ...['extension_disconnected', 'credential_missing', 'session_missing'].map(
     (cause) => ({
       code: 'identity_unavailable' as const,
@@ -239,7 +249,7 @@ it.each([
           failure_class: code,
           layer: 'L3',
           stage: 'resolve',
-          gate: '③',
+          gate: code === 'identity_unavailable' ? '③' : 'none',
           evidence: { kind: 'runtime', cause_code: cause },
           summary: 'upstream detail must not be shown',
         },
