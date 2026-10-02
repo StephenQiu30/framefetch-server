@@ -1,103 +1,124 @@
-<div align="center">
-  <img src="frontend/public/logo.png" alt="FrameFetch open-source media workflow logo" width="88" />
-  <h1>FrameFetch</h1>
-  <p><strong>Open-source, self-hosted public-media download, screenplay processing and AI analysis workflow</strong></p>
-  <p>
-    <a href="https://github.com/StephenQiu30/video-server/actions/workflows/ci.yml"><img src="https://github.com/StephenQiu30/video-server/actions/workflows/ci.yml/badge.svg" alt="CI status" /></a>
-    <a href="https://github.com/StephenQiu30/video-server/releases"><img src="https://img.shields.io/github/v/release/StephenQiu30/video-server?color=111111" alt="Latest release" /></a>
-    <a href="https://github.com/StephenQiu30/video-server/stargazers"><img src="https://img.shields.io/github/stars/StephenQiu30/video-server?style=flat&color=111111" alt="GitHub stars" /></a>
-    <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-111111.svg" alt="MIT License" /></a>
-    <img src="https://img.shields.io/badge/Python-3.12-3776AB.svg" alt="Python 3.12" />
-    <img src="https://img.shields.io/badge/Next.js-16-000000.svg" alt="Next.js 16" />
-    <img src="https://img.shields.io/badge/Docker-Compose-2496ED.svg" alt="Docker Compose" />
-  </p>
-  <p>
-    <a href="#resolution-engine">Resolution engine</a> ·
-    <a href="#quick-start">Quick start</a> ·
-    <a href="#use-cases">Use cases</a> ·
-    <a href="#capabilities">Capabilities</a> ·
-    <a href="#frequently-asked-questions">FAQ</a> ·
-    <a href="#screenshots">Screenshots</a> ·
-    <a href="#architecture">Architecture</a> ·
-    <a href="README.md">简体中文</a>
-  </p>
-</div>
+<img src="frontend/public/logo.png" alt="Official FrameFetch logo shared with the App" width="88" />
 
-![FrameFetch open-source self-hosted video workflow public landing page](docs/images/landing.png)
+# FrameFetch
 
-> The screenshots were captured from a local preview instance with `agent-browser`. Media-bearing views use the repository's visual-regression fixture; none contains real user data, credentials, or third-party hotlinks.
+**An open-source, self-hosted personal video and screenplay workstation.** Bring in material, understand it, and turn it into usable notes and reports.
+
+[![CI status](https://github.com/StephenQiu30/video-server/actions/workflows/ci.yml/badge.svg)](https://github.com/StephenQiu30/video-server/actions/workflows/ci.yml)
+[![Latest release](https://img.shields.io/github/v/release/StephenQiu30/video-server?color=111111)](https://github.com/StephenQiu30/video-server/releases)
+[![GitHub stars](https://img.shields.io/github/stars/StephenQiu30/video-server?style=flat&color=111111)](https://github.com/StephenQiu30/video-server/stargazers)
+[![MIT License](https://img.shields.io/badge/license-MIT-111111.svg)](LICENSE)
+![Python 3.12](https://img.shields.io/badge/Python-3.12-111111.svg)
+![Next.js 16](https://img.shields.io/badge/Next.js-16-111111.svg)
+![Docker Compose](https://img.shields.io/badge/Docker-Compose-111111.svg)
+
+[Product](#what-is-framefetch) · [Workflow](#from-material-to-report) · [AI capabilities](#ai-analysis-and-reports) · [Screenshots](#screenshots) · [Quick start](#quick-start) · [Architecture](#architecture) · [简体中文](README.md)
+
+![Current FrameFetch Web workspace: links, local videos and screenplay inputs](docs/images/current-web-workspace.png)
+
+> Actual pages from the current source on 2026-10-02, using isolated demo responses to show layout and workflows. Example content is not evidence of real download or AI-analysis acceptance. The header logo is the same brand asset used by the Flutter App.
 
 ## What is FrameFetch?
 
-FrameFetch is an open-source, self-hosted video downloader and media workflow for creators, content researchers and developers. It turns an authorized public-media URL, local video or screenplay into an observable, recoverable job: inspect the source, select a real format, download and verify it in an isolated runner, persist the artifact, and optionally produce a structured AI analysis report.
+FrameFetch is a personal video and screenplay workstation that you deploy for your own use. It is designed for creators, content researchers and developers. Authorized video links, local MP4 files and screenplay documents enter one workflow: obtain and verify material, track background jobs, read structured AI analysis, and export reports for further editing.
 
-FrameFetch handles HTTP(S), non-DRM content the user is authorized to obtain. The Registry declares identity and content scope independently. Account cookies do not expand the content scope; encrypted media and content keys are not decrypted or extracted.
-
-## Resolution engine
-
-The current engine uses Registry ladders for HTTP extraction, proof preparation and browser resolution, with controlled egress and a Chrome extension identity source. Temporal runs a single resolve Activity; RabbitMQ workers download and verify artifacts. Implementation status, platform limits and complete-file evidence are maintained only in [design 17](docs/design/17-解析引擎重建.md).
+This repository provides the API, Next.js Web application and background components. The separate [Flutter App](https://github.com/StephenQiu30/video-app) connects to the same backend. See [design 01](docs/design/01-产品定位与边界.md) for product scope (Chinese).
 
 ## Use cases
 
-- **Video and short-form breakdowns**: import your own footage or authorized public videos and generate storyboards, scene timelines and keyframe evidence to review pacing and narrative structure.
-- **Screenplay and script research**: import Markdown, Fountain, TXT, PDF or DOCX screenplays, then read, analyze or rewrite them in one workspace and export Markdown / DOCX reports.
-- **Team media library**: keep format-, duration- and SHA-256-verified media on your own servers, with users, roles, tasks and storage managed in one place.
-- **Self-hosted video downloader**: submit authorized public media links from the Web UI, API or the iOS / Android client, download asynchronously and follow progress in real time without any hosted service.
-- **Building on top**: use OpenAPI as the single contract to add providers, analysis capabilities or clients on FastAPI, Next.js and Flutter.
+- **Review shots and narrative**: import your own footage or authorized videos, then inspect shots, scenes, highlights and time evidence to study framing, editing rhythm and story structure.
+- **Review and rewrite screenplays**: read screenplay documents, analyze story, characters, scenes and dialogue, and produce revision advice or Chinese/English rewrite candidates.
+- **Organize material and articles**: retain verified videos and documents, reorganize a video into an article draft, and export Markdown/DOCX for further editing.
+- **Build on open source**: extend providers, analysis methods or clients using OpenAPI as the single REST contract.
 
-## From video parsing to an AI report
+## From material to report
 
-1. Inspect an authorized public-media link or import your own local video or screenplay.
-2. Confirm the source and format, then track processing; media artifacts and AI analyses have separate task states.
-3. Run an available video, scene, shot or screenplay analysis and review its timeline and keyframe evidence against the source.
-4. Export a Markdown or DOCX report for content research, creative planning or team review.
+1. **Bring in material**: paste an authorized single-video link, upload a local MP4, or import a DOCX, text-extractable PDF, TXT, Markdown or Fountain screenplay.
+2. **Confirm source and format**: inspect media metadata, access decisions and actual formats. Only downloadable links can create download jobs; expired results must be resolved again.
+3. **Follow background jobs**: track inspection, download or import status; cancel, retry or retrieve history as needed. Long-running work stays outside the HTTP request process.
+4. **Keep verified material**: validate video identity, format, size, duration and SHA-256. Keep the original screenplay file and its normalized text.
+5. **Run optional AI analysis**: select a built-in method, output language and focus. Analysis has its own state; an AI failure does not change a successful download.
+6. **Review and export**: read conclusions alongside video time evidence or screenplay scenes, then export a Markdown/DOCX report for continued editing and use.
 
-The Web instance exposes public Chinese pages — `/guide/` (usage guide), `/self-hosting/` (deployment guide) and `/about/` (scope and boundaries) — plus an English `/llms.txt` summary for generative search engines. See the capability table below and the [design index](docs/design/README.md) (Chinese) for implementation and configuration. Available outputs depend on the configured analysis capabilities and AI service.
+The Web application includes job history and details, screenplay reading, provider status and account settings. Administrators can manage users, files and AI services, and inspect download/AI statistics and operation logs. WebSocket delta events and reconnect resync update the Web interface; PostgreSQL remains the source of truth. Expiring access URLs do not delete stored material or reports; cleanup is an explicit operation.
 
-### Frequently asked questions
+## AI analysis and reports
 
-**How does FrameFetch relate to yt-dlp and FFmpeg?** They provide media adaptation and processing within the workflow. FrameFetch adds Web/API access, users and jobs, isolated workers, artifact storage, document processing and optional AI analysis. Extractor support does not guarantee that every platform works in a particular deployment.
+The current server code catalog contains **12 video methods and 8 screenplay methods**. A Skill defines the analysis focus; a fixed result contract defines the report structure. Catalog size does not mean that every method has passed independent real-work acceptance. The independent desktop has its own first-version method set.
 
-**Does open source mean zero operating cost?** The source code is MIT licensed. Infrastructure, storage, bandwidth and external AI services may incur costs; free hosting or model credits are not included.
+- **Video**: comprehensive analysis, storyboard tables, scene extraction, highlights, asset catalogs, director breakdowns, narrative structure, editing rhythm, continuity and finished-video QA, article drafts, short-video packaging and opening-hook review.
+- **Screenplay**: story coverage, short-drama coverage, character and conflict, scene, dialogue, structure and continuity review, plus Chinese/English rewriting.
 
-**Does self-hosting keep all data on the device?** Data resides in the infrastructure configured by the operator. When an external AI provider is used, the content needed for analysis is sent to that service. Check content permissions and the provider's data handling terms before enabling it.
-
-**Where are the Web and mobile clients?** This repository maintains the API, Next.js Web and workers. [video-app](https://github.com/StephenQiu30/video-app) is the Flutter iOS/Android client that connects to this server; it does not run offline AI on the phone.
-
-## Capabilities
-
-| Capability | Current implementation |
+| Result type | What you can read |
 | --- | --- |
-| Public-media inspection | Extract source metadata and actual available formats from an authorized public URL or single-link share text |
-| Reliable asynchronous jobs | FastAPI → Transactional Outbox → RabbitMQ → workers → isolated media runner |
-| Artifact verification | Re-resolve the source, validate semantic format identity, run FFmpeg/ffprobe checks, and verify size, duration and SHA-256 before storage |
-| Persistent artifacts | Store media, imported documents, normalized text and Markdown/DOCX reports in MinIO |
-| Live status | WebSocket delta events with version checks, reconnect and resync; PostgreSQL remains the source of truth |
-| Screenplay workflow | Import Markdown, Fountain, TXT, PDF and DOCX files for reading, navigation and analysis |
-| Optional AI analysis | A host-side Codex Agent or an administrator-configured model provider, with Markdown/DOCX report export |
-| Operations | User roles, provider health, download analytics, paginated artifacts and explicit retention cleanup |
-| Native mobile client | Separate [FrameFetch Flutter client for iOS and Android](https://github.com/StephenQiu30/video-app) |
+| Visual video analysis | Main conclusions, scenes, consecutive shots, highlights, visual assets and time evidence |
+| Video article | Title, lead, body sections, key points and closing; editorial evidence and limitations are separate |
+| General structured report | Summary, analysis sections, candidate items, time evidence and limitations |
+| Screenplay analysis | Story overview, structure, characters, scenes, dialogue and revision advice |
+| Screenplay rewrite | Target-language text candidates and a glossary |
 
-The system is built for recoverability and isolation rather than one-shot command execution. PostgreSQL stores job facts, the transactional outbox aligns state with message intent, and long-running download, FFmpeg and AI work never runs inside the HTTP request process.
+### Execution and review
+
+- **Observation and evidence**: FFmpeg/ffprobe and restricted video-observation tools support media inspection. API routes use bounded, time-ordered frame evidence. Video conclusions carry time ranges; screenplay conclusions refer to normalized scenes. The current system does not perform ASR/OCR and must not invent dialogue or quotations without reliable audio evidence.
+- **Methods and structure**: each job fixes an immutable Skill instruction snapshot. Results undergo strict schema, timeline and evidence validation before storage; reports retain the analysis scope and limitations. Structural validation does not replace human fact-checking.
+- **Background execution**: the host AI Worker uses Temporal `SkillWorkflow`; step logs reuse completed chunks, and model calls with unknown outcomes are not automatically repeated. A separate report pipeline publishes Markdown/DOCX.
+- **Model integrations**: Codex App Server, Claude CLI, DeepSeek, OpenRouter and OpenAI Chat Completions-compatible routes are supported by adapters. Administrators configure engines and models; users select a Skill, language and focus. Availability depends on actual configuration, model capability and real acceptance.
+
+See [AI analysis](docs/design/10-AI分析.md) and [Skill methods and result contracts](docs/design/16-Skill体系与结果契约.md) for implementation and verification boundaries (Chinese).
+
+## Ways to use FrameFetch and current status
+
+| Product form | Scope and current status |
+| --- | --- |
+| Web/Server | Self-hosted source and Compose workflows; inspection, download, import, screenplay, optional AI, report and management pipelines are implemented. Actual platform and model support still requires real acceptance |
+| iOS/Android | A separate [Flutter client](https://github.com/StephenQiu30/video-app) connects to the same backend, with native file selection, job tracking, playback, report reading and sharing. Build from source; no prebuilt App Store/Google Play package. Real-device and real-account business end-to-end acceptance is pending |
+| Independent desktop | `video-electron` **0.1.0 internal test version is implemented**. It provides local MP4/screenplay import, a media library and playback, inspection/download jobs, cancellation and recovery, model configuration, 5 analysis methods and Markdown/DOCX reports. Installed macOS arm64 DMG import, playback, document reading and restart persistence have been verified on the development host |
+
+The phone does not run media extractors, transcoders or offline AI; the operator's server performs that work. Web and mobile use the same backend facts and files. The App currently updates active jobs through controlled polling.
+
+The desktop runs independently. Its installer includes the Python engine, FFmpeg/ffprobe, yt-dlp and Deno; SQLite and the local filesystem hold its data, with no deployment of this server required. An unsigned internal `FrameFetch-0.1.0-mac-arm64.dmg` has been produced. Local import, playback, history and saved reports can work offline. Its 5 methods are comprehensive analysis, shots, highlights, video-to-article and screenplay analysis. Real platform downloads, real user-provided model calls, Windows/Intel Mac installation and formal signing/notarization still require independent acceptance; server evidence cannot substitute for those checks.
+
+**Deployment and costs**: the source is MIT licensed. You provide the server, infrastructure services, storage and network; external model calls may also cost money. Free hosting and model credits are not included. Requirements and commands are under [Quick start](#quick-start).
+
+**Data flow**: Web/App originals, normalized text and reports reside in your configured server infrastructure; the independent desktop keeps them locally. Enabling external AI sends the text or frames needed for analysis to the selected service. Self-hosting or a local workspace does not mean all processing is offline.
+
+## Resolution engine
+
+The current engine uses Registry ladders for HTTP extraction, proof preparation and browser resolution, with controlled egress and a Chrome extension identity source. Temporal runs a single resolve Activity; RabbitMQ workers download and verify artifacts. yt-dlp and FFmpeg supply media adaptation and processing tools; FrameFetch adds input, jobs, isolated execution, storage, documents and analysis. An installed extractor does not guarantee a successful download in the current deployment.
+
+FrameFetch only handles HTTP(S), non-DRM content the user is authorized to obtain. The Registry declares identity and content scope independently; account material does not expand the content scope. Encrypted media and content keys are not decrypted or extracted. Component wiring, successful metadata inspection and complete-file delivery are different states. Implementation status, platform limits and real evidence are maintained only in [design 17](docs/design/17-解析引擎重建.md).
 
 ## Screenshots
 
-![FrameFetch authenticated public-media inspection, real format selection and asynchronous download workspace](docs/images/home.png)
+### Web
 
-<p align="center"><strong>Authenticated media inspection and real-format workspace</strong></p>
+The header and following screenshots were captured from **local preview pages built from the current source on 2026-10-02**. `agent-browser` and isolated demo responses show the workspace, job history, AI report and screenplay reader. They contain no real user data, credentials or third-party hotlinks.
 
-<table>
-  <tr>
-    <td width="50%"><img src="docs/images/providers.png" alt="FrameFetch provider capabilities and recent verification status" /></td>
-    <td width="50%"><img src="docs/images/login.png" alt="FrameFetch account sign-in and secure session entry" /></td>
-  </tr>
-  <tr>
-    <td align="center"><strong>Provider capabilities and verification</strong></td>
-    <td align="center"><strong>Account and secure session</strong></td>
-  </tr>
-</table>
+![Current FrameFetch Web: job history and processing states](docs/images/current-web-history.png)
 
-The web application includes media inspection and download, job history and details, screenplay reading and analysis, provider status, account settings, and administrator views for users, files, analytics and AI providers. The deployment's `/providers` page reports Registry declarations; the result for a specific public link is established by its actual inspection and file download.
+**Job history and processing states.**
+
+![Current FrameFetch Web: structured AI report and shot time-evidence display](docs/images/current-web-ai-report.png)
+
+**Structured AI report.** The report content comes from demo responses. No real model analysis was performed for these screenshots; they do not replace AI product acceptance.
+
+![Current FrameFetch Web: screenplay reading, scenes and analysis entry](docs/images/current-web-screenplay.png)
+
+**Screenplay reading and analysis entry.**
+
+The deployment's `/providers` page and real complete-file acceptance establish platform availability. The Web application also exposes `/guide/`, `/self-hosting/`, `/about/` and `/llms.txt`. See the [documentation index](docs/design/README.md) for maintained design (Chinese).
+
+### Independent desktop
+
+These actual screenshots show the **0.1.0 unsigned internal macOS arm64 installed application** (2026-10-02). They are unedited copies of `video-electron/.artifacts/packaged-*.png`, showing settings and the local media library. The pictured video is first-party validation material.
+
+![FrameFetch Desktop 0.1.0 macOS arm64 installed application: local directories, model services and system settings](docs/images/current-desktop-settings.png)
+
+**Local directories and model settings.**
+
+![FrameFetch Desktop 0.1.0 macOS arm64 installed application: local media library and imported files](docs/images/current-desktop-library.png)
+
+**The installed application's local media library.**
 
 ## Quick start
 
@@ -189,10 +210,13 @@ Do not copy or mount Codex/Claude OAuth directories into containers. Before enab
 
 ## Architecture
 
+This diagram describes the shared Web/App server architecture. The independent Electron desktop uses its own local engine and does not require these services.
+
 ```mermaid
 flowchart LR
-  Client[Web / Mobile Client] --> Frontend[Next.js :8101]
+  Client[Web Browser] --> Frontend[Next.js :8101]
   Frontend --> API[FastAPI :8111]
+  App[Flutter App] -->|Bearer API| API
   API --> DB[(PostgreSQL)]
   DB --> Outbox[Transactional Outbox]
   Outbox --> Temporal[Temporal]
@@ -210,14 +234,18 @@ flowchart LR
   API -. WebSocket events .-> Client
 ```
 
-| Layer | Technologies |
+| Technologies | Role and user value |
 | --- | --- |
-| Frontend | Next.js 16, React 19, TypeScript, Tailwind CSS, Radix UI |
-| Backend | Python 3.12, FastAPI, SQLAlchemy, PostgreSQL |
-| Async | Transactional Outbox, Temporal, RabbitMQ, Redis, idempotent workers with leases and heartbeats |
-| Media | FFmpeg, ffprobe, yt-dlp adapters, isolated runners and Squid egress proxy |
-| Storage | MinIO object storage with short-lived presigned access URLs |
-| Contract | OpenAPI is the single contract shared by the web, Flutter and server code |
+| Next.js, React, TypeScript, Tailwind CSS, Radix/shadcn | Browser workspace, accessible controls, job tracking and structured result reading |
+| Python, FastAPI, Pydantic, OpenAPI | Submit, query and cancel through a generated REST contract shared by Web, App and extensions |
+| PostgreSQL, SQLAlchemy, Transactional Outbox | Persist job facts and delivery intent in the same transaction; recovery does not depend only on process memory |
+| Temporal, RabbitMQ | Temporal orchestrates inspection and Skill analysis; RabbitMQ handles downloads, imports, report publication and live events, with one execution owner per business flow |
+| Redis | Rate-limit counters, login-session caching and short-lived leases; never the business source of truth |
+| yt-dlp, FFmpeg/ffprobe, isolated Runner, Squid | Adapt media sources, inspect and process formats, verify final files, and isolate untrusted media processing with controlled egress |
+| MinIO, restricted multipart uploads, short-lived presigned URLs | Store originals, artifacts and reports, upload large files, and retrieve files through authorized access |
+| Flutter, Riverpod, Dio, media_kit/libmpv | Native iOS/Android input, state and playback; system secure storage holds refresh credentials, and generated OpenAPI clients keep contracts aligned |
+| Electron, React, local Python engine, SQLite | Independent desktop workspace, native file authorization, local jobs and reports; bundled runtimes require no separate Python/FFmpeg or database-server installation |
+| Docker Compose, separate host AI Worker | Reuse existing infrastructure for business services and separate AI execution from media jobs along credential and trust boundaries |
 
 See [docs/design/README.md](docs/design/README.md) for the maintained system design.
 
@@ -233,10 +261,11 @@ Do not disclose exploit details, secrets or user content in a public issue. Foll
 
 ## Current limitations
 
-- Chrome extension identity is connected to the engine; login-platform files and the full matrix still require design 17 acceptance.
+- Chrome extension identity is connected to the engine. Design 17 section 8 owns login-platform and full-matrix acceptance status; identity wiring or successful metadata does not establish complete-file availability.
 - FrameFetch is evolving open-source software. It currently provides self-hosted source and Compose workflows, not an official SaaS, public demo or availability SLA.
 - Provider behavior can change with source pages and platforms. A platform name does not imply support for every item, region or account entitlement.
 - AI analysis needs a separate host agent or a deployment-configured model service. Disabling AI does not disable downloads or document imports.
+- Live recording, unbounded playlists, OCR/image-only PDFs, batch file input and collaborative editing are outside the current scope. Creation and platform publishing are not implemented; see [design 11](docs/design/11-内容创作与发布.md).
 - Presigned URLs expire, but stored artifacts are not automatically deleted for that reason. Operators must plan MinIO capacity, backups and explicit retention cleanup.
 - Replace every placeholder credential in your deployment environment and complete network, storage, runner and complete-file acceptance before exposing a deployment to the internet.
 

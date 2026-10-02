@@ -1,111 +1,124 @@
-<div align="center">
-  <img src="frontend/public/logo.png" alt="帧取 FrameFetch 开源媒体工作流 Logo" width="88" />
-  <h1>帧取 · FrameFetch</h1>
-  <p><strong>开源、自托管的公开视频下载、剧本文档处理与 AI 分析工作流</strong></p>
-  <p><em>Open-source, self-hosted media download, screenplay processing and AI video analysis workflow.</em></p>
-  <p>
-    <a href="https://github.com/StephenQiu30/video-server/actions/workflows/ci.yml"><img src="https://github.com/StephenQiu30/video-server/actions/workflows/ci.yml/badge.svg" alt="CI 状态" /></a>
-    <a href="https://github.com/StephenQiu30/video-server/releases"><img src="https://img.shields.io/github/v/release/StephenQiu30/video-server?color=111111" alt="Latest release" /></a>
-    <a href="https://github.com/StephenQiu30/video-server/stargazers"><img src="https://img.shields.io/github/stars/StephenQiu30/video-server?style=flat&color=111111" alt="GitHub stars" /></a>
-    <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-111111.svg" alt="MIT License" /></a>
-    <img src="https://img.shields.io/badge/Python-3.12-3776AB.svg" alt="Python 3.12" />
-    <img src="https://img.shields.io/badge/Next.js-16-000000.svg" alt="Next.js 16" />
-    <img src="https://img.shields.io/badge/Docker-Compose-2496ED.svg" alt="Docker Compose" />
-  </p>
-  <p>
-    <a href="#解析引擎">解析引擎</a> ·
-    <a href="#快速开始">快速开始</a> ·
-    <a href="#适用场景">适用场景</a> ·
-    <a href="#产品能力">产品能力</a> ·
-    <a href="#常见问题">常见问题</a> ·
-    <a href="#界面预览">界面预览</a> ·
-    <a href="#架构">架构</a> ·
-    <a href="README.en.md">English</a>
-  </p>
-</div>
+<img src="frontend/public/logo.png" alt="帧取 FrameFetch 正式 Logo，与 App 共用" width="88" />
 
-![帧取 FrameFetch 开源自托管视频工作流公开落地页](docs/images/landing.png)
+# 帧取 · FrameFetch
 
-> 截图由 `agent-browser` 在本地预览环境中采集；涉及媒体的界面使用仓库自带视觉回归素材，所有图片均不包含真实用户数据、凭据或第三方图片热链。
+**开源、自托管的个人视频与剧本工作站。** 从一份素材，开始获取、理解与整理。
+
+[![CI 状态](https://github.com/StephenQiu30/video-server/actions/workflows/ci.yml/badge.svg)](https://github.com/StephenQiu30/video-server/actions/workflows/ci.yml)
+[![Latest release](https://img.shields.io/github/v/release/StephenQiu30/video-server?color=111111)](https://github.com/StephenQiu30/video-server/releases)
+[![GitHub stars](https://img.shields.io/github/stars/StephenQiu30/video-server?style=flat&color=111111)](https://github.com/StephenQiu30/video-server/stargazers)
+[![MIT License](https://img.shields.io/badge/license-MIT-111111.svg)](LICENSE)
+![Python 3.12](https://img.shields.io/badge/Python-3.12-111111.svg)
+![Next.js 16](https://img.shields.io/badge/Next.js-16-111111.svg)
+![Docker Compose](https://img.shields.io/badge/Docker-Compose-111111.svg)
+
+[产品介绍](#帧取是什么) · [完整工作流](#从素材到报告) · [AI 能力](#ai-分析与报告) · [界面预览](#界面预览) · [快速开始](#快速开始) · [技术架构](#架构) · [English](README.en.md)
+
+![FrameFetch 当前 Web 工作区：链接、本地视频与剧本文档入口](docs/images/current-web-workspace.png)
+
+> 2026-10-02 当前源码的真实页面，使用隔离演示响应展示布局与流程；示例内容不作为真实下载或 AI 分析验收。页首 Logo 与 Flutter App 使用同一品牌资产。
 
 ## 帧取是什么
 
-帧取（FrameFetch）是一个面向创作者、内容研究者和开发者的开源媒体工作流。它把公开媒体链接、本地视频或剧本文档转换为可观察、可恢复的异步任务：解析来源、选择真实格式、隔离下载与校验、保存制品，并按需生成结构化 AI 分析报告。
+帧取（FrameFetch）是自行部署、供部署者使用的个人视频与剧本工作站，面向创作者、内容研究者和开发者。它把有权获取的视频链接、本地 MP4 和剧本文档接入同一工作流：获取并校验素材、跟踪后台任务、阅读结构化 AI 分析，再导出可继续编辑的报告。
 
-项目处理用户有权获取的 HTTP(S) 非 DRM 内容。平台 Registry 独立声明 identity 与 content_scope；账号材料不扩张内容范围。加密媒体不解密、不取得内容密钥。
-
-## 解析引擎
-
-当前引擎通过 Registry 阶梯统一调用 HTTP 提取、证明准备与浏览器，使用受控出口和 Chrome 扩展身份来源。解析由单 Activity Temporal 工作流执行，下载由 RabbitMQ Worker 处理，最终制品经过完整性校验。组件接线不代表全部平台可用；实现状态、平台限制与真实完整文件证据只在[设计 17](docs/design/17-解析引擎重建.md)维护。
+本仓库提供 API、Next.js Web 和后台执行组件；[Flutter App](https://github.com/StephenQiu30/video-app) 连接同一后端。产品定位与范围见[设计 01](docs/design/01-产品定位与边界.md)。
 
 ## 适用场景
 
-- **短视频与影视拆解**：导入自己的成片或已获授权的公开视频，生成分镜、场景时间轴与关键帧证据，复盘镜头节奏与叙事结构。
-- **剧本与文案研究**：导入 Markdown、Fountain、TXT、PDF、DOCX 剧本文档，在同一工作区阅读、分析或改写，并导出 Markdown / DOCX 报告。
-- **团队素材库**：在自己的服务器上集中保存经过格式、时长与 SHA-256 校验的媒体文件，按用户与角色管理任务和存储。
-- **自托管视频下载器**：用 Web、API 或 iOS / Android 客户端提交授权的公开媒体链接，异步下载并实时查看进度，不依赖任何官方托管服务。
-- **二次开发**：以 OpenAPI 为唯一契约，在 FastAPI、Next.js 与 Flutter 之上扩展新的 Provider、分析能力或客户端。
+- **镜头与叙事复盘**：导入自己的成片或已获授权的视频，查看分镜、场景、高光与时间证据，复盘构图、剪辑节奏和叙事结构。
+- **剧本审稿与改写**：阅读剧本文档，分析故事、人物、场景和对白，形成修改建议或中英改写候选。
+- **素材与文章整理**：保存经校验的视频与文档，把视频重组为文章初稿，并导出 Markdown／DOCX 用于后续编辑。
+- **开源二次开发**：以 OpenAPI 为唯一 REST 契约，扩展 Provider、分析方法或客户端。
 
-**English summary:** FrameFetch is an open-source, self-hosted video downloader and media workflow for authorized public content. It combines FastAPI, Next.js, PostgreSQL, RabbitMQ, MinIO, yt-dlp/FFmpeg adapters, screenplay ingestion and optional AI video analysis. See the [English README](README.en.md) for the complete overview.
+## 从素材到报告
 
-## 视频解析与 AI 分析如何配合
+1. **输入素材**：粘贴授权的单条视频链接，上传本地 MP4，或导入 DOCX、可提取文字的 PDF、TXT、Markdown、Fountain 剧本文档。
+2. **确认来源与格式**：检查媒体信息、访问决策和实际可用格式；仅允许下载的链接可创建下载任务，过期结果须重新解析。
+3. **跟踪后台任务**：查看解析、下载或导入状态，按需取消、重试或找回历史记录；长任务不占用 HTTP 请求进程。
+4. **保存校验后的素材**：视频经过媒体身份、格式、大小、时长和 SHA-256 校验；剧本保留原件与规范化文本。
+5. **按需发起 AI 分析**：选择内置方法、输出语言和关注重点；分析独立记录状态，AI 失败不改变已成功的下载。
+6. **复核与导出**：结合视频时间证据或剧本场景阅读结论，将报告导出为 Markdown／DOCX，继续编辑和使用。
 
-1. 检查已获授权的公开媒体链接，或导入自己的本地视频、剧本文档。
-2. 确认来源和格式，跟踪处理任务；媒体制品与 AI 分析分别记录状态。
-3. 按需执行视频分镜、场景或剧本文档分析，结合时间轴与关键帧证据复核结果。
-4. 导出 Markdown / DOCX 报告，用于内容研究、创作整理与团队审阅。
+Web 提供任务历史、详情、剧本阅读、Provider 状态与账户设置；管理员可管理用户、文件、AI 服务并查看下载／AI 统计及操作日志。网页任务状态通过 WebSocket 增量事件和断线 resync 更新，业务事实以 PostgreSQL 为准。成功后的素材与报告不会因访问 URL 过期而删除；文件清理是显式操作。
 
-Web 实例提供公开页面：`/guide/` 使用指南、`/self-hosting/` 自托管部署指南、`/about/` 项目定位与边界，以及面向生成式搜索的 `/llms.txt`；完整实现与配置见下方能力表和[设计文档索引](docs/design/README.md)。模型可用性与输出内容取决于已配置的分析能力和 AI 服务。
+## AI 分析与报告
 
-### 常见问题
+当前服务端代码目录内置 **12 种视频方法、8 种剧本方法**。Skill 决定分析重点，固定结果契约决定报告结构；方法目录数量不代表每种方法都已通过独立真实作品验收，独立桌面端有自己的首版方法集。
 
-**帧取和 yt-dlp、FFmpeg 有什么关系？** yt-dlp 与 FFmpeg 是媒体适配和处理链路中的工具。FrameFetch 在其上提供 Web / API、用户与任务管理、隔离 Worker、制品存储、文档处理和可选 AI 分析，不保证所有提取器支持的平台在当前部署中都可用。
+- **视频**：综合分析、分镜表制作、场景提炼、高光提炼、资产目录、导演拉片、成片叙事结构审阅、剪辑节奏审阅、连续性与成片 QA、公众号文章、短视频包装、开场钩子审查。
+- **剧本**：故事审稿、短剧故事审稿、人物与冲突、场景、对白、结构、连续性审阅，以及中英改写。
 
-**开源免费是否包含模型与服务器费用？** MIT 许可证开放源代码；服务器、存储、流量和外部模型可能产生费用，不包含免费托管或模型额度。
-
-**自托管是否代表所有数据仅在本地？** 数据保存在部署者配置的基础设施中；使用外部 AI Provider 时，分析所需内容会发送到该服务。启用前请确认素材授权与服务的数据处理约定。
-
-**Web 和手机端在哪个仓库？** 本仓库维护 API、Next.js Web 和 Worker；[video-app](https://github.com/StephenQiu30/video-app) 是连接本服务的 Flutter iOS / Android 客户端，不在手机端运行离线 AI。
-
-## 产品能力
-
-| 能力 | 当前实现 |
+| 结果形态 | 你可以读到什么 |
 | --- | --- |
-| 公开媒体解析 | 从公开链接或单链接分享文案中识别来源、媒体信息和真实可用格式 |
-| 可靠异步下载 | API → Transactional Outbox → RabbitMQ → Download Worker → 隔离 Media Runner |
-| 制品校验与存储 | 通过重新解析、语义格式校验、FFmpeg/ffprobe、大小、时长和 SHA-256 校验后写入 MinIO |
-| 实时任务状态 | WebSocket 增量事件、版本检查、断线重连与 resync；实时连接不作为任务事实源 |
-| 剧本文档工作流 | 导入 Markdown、Fountain、TXT、PDF、DOCX，提供阅读、目录、分页和分析入口 |
-| 可选 AI 分析 | 宿主机 Codex Agent 或管理员配置的模型 Provider；报告可导出 Markdown/DOCX |
-| 运维与管理 | 用户与角色、Provider 状态、下载分析、持久文件分页和显式清理 |
-| 原生移动端 | 独立的 [FrameFetch Flutter iOS/Android 客户端](https://github.com/StephenQiu30/video-app) |
+| 视频视觉分析 | 核心判断、场景、连续分镜、高光、视觉资产及时间证据 |
+| 视频文章 | 标题、导语、章节正文、要点与结语；编辑证据和局限另列 |
+| 通用结构化报告 | 摘要、分析章节、候选条目、时间证据与局限 |
+| 剧本分析 | 故事概览、结构、人物、场景、对白与修改建议 |
+| 剧本改写 | 目标语言的文本候选与术语表 |
 
-### 为什么采用工作流架构
+### 如何执行与复核
 
-- **可恢复**：PostgreSQL 保存任务事实，Transactional Outbox 保证数据库状态与消息意图一致。
-- **可隔离**：下载、媒体命令和 AI 长任务不在 HTTP 请求进程中执行；Runner 经过受控出口代理。
-- **可验证**：Provider 返回值不会直接成为最终制品，Worker 会重新解析并验证媒体身份、格式和文件完整性。
-- **可扩展**：Provider、Runner、应用用例、OpenAPI 客户端和前端 feature 组件保持清晰边界。
-- **可自托管**：Docker Compose 只管理业务服务并复用已有基础环境，不依赖官方托管服务。
+- **观察与证据**：使用 FFmpeg／ffprobe 和受限视频观察工具；API 路线使用有界、按时间排序的画面证据。视频结论绑定时间范围，剧本结论关联规范化场景。当前不做 ASR／OCR，没有可靠音频时不编造对白或引语。
+- **方法与结构**：每项任务固定 Skill 指令快照，模型结果在保存前进行严格 Schema、时间轴与证据校验；报告保留分析口径与局限。结构校验不能代替人工事实复核。
+- **后台执行**：宿主 AI Worker 通过 Temporal `SkillWorkflow` 调度，步骤日志复用已完成的块；结果不明的模型调用不自动重发。Markdown／DOCX 报告由独立报告链路发布。
+- **模型接入**：支持 Codex App Server、Claude CLI、DeepSeek、OpenRouter 和 OpenAI Chat Completions 兼容线路。管理员配置引擎与模型，普通用户选择 Skill、语言与关注重点；可用性取决于实际配置、模型能力和真实验收。
+
+实现细节与验证边界见 [AI 分析](docs/design/10-AI分析.md)及 [Skill 体系与结果契约](docs/design/16-Skill体系与结果契约.md)。
+
+## 使用方式与当前状态
+
+| 产品形态 | 当前范围与状态 |
+| --- | --- |
+| Web／Server | 自托管源码与 Compose 运行方式；已实现解析、下载、导入、剧本、可选 AI、报告与管理链路。具体平台和模型仍以真实验收为准 |
+| iOS／Android | 独立 [Flutter 客户端](https://github.com/StephenQiu30/video-app)，连接同一后端，提供原生文件选择、任务跟踪、播放、报告阅读与分享。当前从源码构建，无 App Store／Google Play 预构建包；真机与真实账号业务端到端仍待验收 |
+| 独立桌面端 | `video-electron` **0.1.0 内部测试版已实现**。提供本地 MP4／剧本导入、媒体库与播放、链接解析／下载任务、取消与恢复、模型配置、5 种分析方法、Markdown／DOCX 报告；本机 macOS arm64 DMG 的安装态导入、播放、文档读取与重启持久化已验证 |
+
+手机不运行媒体提取器、转码器或离线 AI；这些工作由部署者的服务端执行。Web 与手机的状态和文件以同一后端为准，App 当前使用受控轮询更新活动任务。
+
+桌面端独立运行，安装包包含 Python 引擎、FFmpeg／ffprobe、yt-dlp 与 Deno，数据保存在本机 SQLite 和文件系统，无需部署本服务。已产出内部未签名 `FrameFetch-0.1.0-mac-arm64.dmg`；本地导入、播放、历史和已有报告可离线使用。其 5 种方法为综合分析、分镜、高光、视频转文章与剧本分析；真实平台下载、自备模型真实调用、Windows／Intel Mac 安装及正式签名公证仍待独立验收，不能沿用服务端证据。
+
+**部署与费用**：MIT 许可证开放源代码；需要自行准备服务器、基础服务、存储和网络，外部模型也可能计费，不包含免费托管或模型额度。具体前置条件及命令见[快速开始](#快速开始)。
+
+**数据流**：Web／App 的原件、规范化文本和报告保存在部署者配置的服务端基础设施中；独立桌面端保存在本机。启用外部 AI 时，分析所需文本或画面会发送到选定服务；自托管或本地工作区不代表所有处理均离线。
+
+## 解析引擎
+
+当前引擎通过 Registry 阶梯统一调用 HTTP 提取、证明准备与浏览器，使用受控出口和 Chrome 扩展身份来源。解析由单 Activity Temporal 工作流执行，下载由 RabbitMQ Worker 处理，最终制品经过完整性校验。yt-dlp 与 FFmpeg 是媒体适配和处理工具，帧取在其上提供输入、任务、隔离执行、存储、文档与分析工作流；提取器存在不保证当前部署可以下载。
+
+项目只处理用户有权获取的 HTTP(S) 非 DRM 内容。Registry 独立声明 identity 与 content_scope，账号材料不扩张内容范围；不解密媒体或取得内容密钥。组件接线、元数据成功与完整文件交付是不同状态，实现状态、平台限制与真实证据只在[设计 17](docs/design/17-解析引擎重建.md)维护。
 
 ## 界面预览
 
-![帧取 FrameFetch 登录后的公开媒体解析、视频格式选择与异步下载工作区](docs/images/home.png)
+### Web
 
-<p align="center"><strong>登录后的媒体解析与真实格式选择工作区</strong></p>
+页首与以下截图均采集于 **2026-10-02 当前源码的本地预览页面**，通过 `agent-browser` 配合隔离演示响应展示工作区、任务历史、AI 报告和剧本阅读；不包含真实用户数据、凭据或第三方图片热链。
 
-<table>
-  <tr>
-    <td width="50%"><img src="docs/images/providers.png" alt="帧取 FrameFetch 平台 Provider 能力与最近验证状态页面" /></td>
-    <td width="50%"><img src="docs/images/login.png" alt="帧取 FrameFetch 账户登录与安全会话页面" /></td>
-  </tr>
-  <tr>
-    <td align="center"><strong>Provider 能力与验证状态</strong></td>
-    <td align="center"><strong>账户登录与安全会话</strong></td>
-  </tr>
-</table>
+![FrameFetch 当前 Web：任务历史与处理状态](docs/images/current-web-history.png)
 
-主要 Web 路由包括媒体解析与下载、任务历史与详情、剧本文档阅读与分析、Provider 状态、账户设置，以及管理员用户、文件、分析和 AI Provider 管理。实际可用平台和状态以部署实例的 `/providers` 页面及真实完整文件验收为准。
+**任务历史与处理状态。**
+
+![FrameFetch 当前 Web：结构化 AI 报告与分镜时间证据展示](docs/images/current-web-ai-report.png)
+
+**结构化 AI 报告。** 报告内容来自演示响应，本组截图没有执行真实模型分析，也不替代 AI 产品验收。
+
+![FrameFetch 当前 Web：剧本文档阅读、场景与分析入口](docs/images/current-web-screenplay.png)
+
+**剧本文档阅读与分析入口。**
+
+实际可用平台和状态以部署实例的 `/providers` 页面及真实完整文件验收为准。Web 还提供 `/guide/`、`/self-hosting/`、`/about/` 与 `/llms.txt`；完整设计见[文档索引](docs/design/README.md)。
+
+### 独立桌面端
+
+以下为 **0.1.0 内部未签名 macOS arm64 安装版**的真实截图（2026-10-02），来自 `video-electron/.artifacts/packaged-*.png` 原图，展示设置与本地媒体库。截图中的视频为第一方验证素材。
+
+![FrameFetch Desktop 0.1.0 macOS arm64 安装版：本地目录、模型服务与系统设置](docs/images/current-desktop-settings.png)
+
+**本地目录与模型设置。**
+
+![FrameFetch Desktop 0.1.0 macOS arm64 安装版：本地媒体库与导入文件](docs/images/current-desktop-library.png)
+
+**安装版的本地媒体库。**
 
 ## 快速开始
 
@@ -257,10 +270,13 @@ uv run python -m app.workers.analysis.agent_cli install --env-file ../.env.prod
 
 ## 架构
 
+下图描述 Web／App 共用的服务端架构；独立 Electron 桌面端使用自己的本地引擎，不依赖这套服务。
+
 ```mermaid
 flowchart LR
-  Browser[Web / Mobile Client] --> Frontend[Next.js :8101]
+  Browser[Web 浏览器] --> Frontend[Next.js :8101]
   Frontend --> API[FastAPI :8111]
+  App[Flutter App] -->|Bearer API| API
   API --> DB[(PostgreSQL)]
   DB --> Outbox[Transactional Outbox]
   Outbox --> Temporal[Temporal]
@@ -278,14 +294,18 @@ flowchart LR
   API -. WebSocket events .-> Browser
 ```
 
-| 层 | 技术 |
+| 技术 | 职责与用户价值 |
 | --- | --- |
-| Frontend | Next.js 16、React 19、TypeScript、Tailwind CSS、Radix UI |
-| Backend | Python 3.12、FastAPI、SQLAlchemy、PostgreSQL |
-| Async | Transactional Outbox、Temporal、RabbitMQ、Redis、幂等 Worker 与 lease/heartbeat |
-| Media | FFmpeg、ffprobe、yt-dlp 适配层、隔离 Runner、Squid egress proxy |
-| Storage | MinIO 对象存储与短时预签名访问地址 |
-| Contract | OpenAPI 是 Web、Flutter 与服务端之间的唯一接口契约 |
+| Next.js、React、TypeScript、Tailwind CSS、Radix／shadcn | 提供浏览器工作区、可访问控件、任务跟踪与结构化结果阅读 |
+| Python、FastAPI、Pydantic、OpenAPI | API 负责提交、查询与取消，生成统一 REST 契约，供 Web、App 和二次开发使用 |
+| PostgreSQL、SQLAlchemy、Transactional Outbox | 持久保存任务事实，并在同一事务中记录投递意图；恢复不只依赖进程内存 |
+| Temporal、RabbitMQ | Temporal 编排解析与 Skill 分析；RabbitMQ 执行下载、导入、报告发布与实时事件，避免同一业务双调度 |
+| Redis | 保存限流计数、登录会话缓存与短期租约，不作为业务事实来源 |
+| yt-dlp、FFmpeg／ffprobe、隔离 Runner、Squid | 适配媒体来源，探测与处理格式，校验最终文件；不可信媒体处理与请求进程隔离，并限制出网 |
+| MinIO、受限分片上传、短时预签名 URL | 存储原件、制品和报告，支持大文件上传及按授权获取文件 |
+| Flutter、Riverpod、Dio、media_kit／libmpv | iOS／Android 原生输入、状态展示和播放；系统安全存储保存刷新凭据，OpenAPI 生成客户端与服务端保持契约一致 |
+| Electron、React、本地 Python 引擎、SQLite | 独立桌面工作区、原生文件授权、本地任务与报告；随包运行时无需用户另装 Python／FFmpeg 或数据库服务 |
+| Docker Compose、独立宿主 AI Worker | 业务服务复用已有基础环境；宿主 AI 执行器与媒体任务按凭据、信任边界分离 |
 
 完整的系统设计收录在 [docs/design/README.md](docs/design/README.md)。
 
@@ -301,10 +321,11 @@ flowchart LR
 
 ## 当前限制
 
-- Chrome 扩展身份层已接线，登录平台完整文件与全平台矩阵仍须按设计 17 验收。
+- Chrome 扩展身份层已接线；登录平台专项与全量矩阵状态以设计 17 第 8 节为准，不能由身份接线或元数据成功推断完整文件可用。
 - 项目仍在持续演进，目前提供自托管源码和 Compose 运行方式，不承诺官方 SaaS、公共演示站或服务可用性 SLA。
 - Provider 能力受来源页面和平台变化影响；平台名称不代表对所有内容、地区或账户权益都可用。
 - AI 分析依赖独立宿主机 Agent 或部署方配置的模型服务，关闭 AI 不影响下载和文档导入。
+- 不提供直播录制、无限播放列表、OCR／图片型 PDF、批量文件输入或在线协作编辑；创作与平台发布领域尚未实施，见[设计 11](docs/design/11-内容创作与发布.md)。
 - 预签名 URL 会过期，但最终制品不会因此自动删除；管理员仍需规划 MinIO 容量、备份和显式清理策略。
 - 对外部署前必须检查 `.env.prod` 的实际配置，替换所有占位凭据，并完成网络、存储、Runner 和真实文件验收。
 
