@@ -11,6 +11,7 @@ from app.workers.runner.engine.browser.intercept import failure
 from app.workers.runner.engine.resolved import ResolvedMedia
 from app.workers.runner.engine.run_context import RunContext
 from app.workers.runner.plugins.yt_dlp_plugins.extractor.personal_video import (
+    encrypted_playlist,
     full_youku_streams,
     positive_duration,
 )
@@ -99,7 +100,7 @@ def parse_response(
 def clear_manifest(text: str, base_url: str, duration: float) -> tuple[str, str]:
     """Validate an entire media playlist before ffprobe/FFmpeg can see it."""
     lines = [line.strip() for line in text.splitlines() if line.strip()]
-    if any(line.startswith(("#EXT-X-KEY:", "#EXT-X-SESSION-KEY:")) for line in lines):
+    if encrypted_playlist(text):
         raise failure(FailureClass.CONTENT_PROTECTED, "encrypted_playlist", "none")
     if not lines or lines[0] != "#EXTM3U" or "#EXT-X-ENDLIST" not in lines:
         raise failure(FailureClass.CONTENT_PROTECTED, "full_playlist_unproven", "none")

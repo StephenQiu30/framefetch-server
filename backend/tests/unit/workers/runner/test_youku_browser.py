@@ -222,6 +222,45 @@ async def test_manifest_read_is_bounded_and_never_fetches_keys(monkeypatch, encr
     assert requested == [URL]
 
 
+@pytest.mark.parametrize(
+    "tag",
+    [
+        '#EXT-X-KEY=METHOD=AES-128,URI="https://cdn.youku.com/key"',
+        '#EXT-X-KEY METHOD=AES-128,URI="https://cdn.youku.com/key"',
+        '#ext-x-key:METHOD=AES-128,URI="https://cdn.youku.com/key"',
+        '#EXT-X-SESSION-KEY=METHOD=SAMPLE-AES,URI="https://cdn.youku.com/key"',
+    ],
+)
+async def test_malformed_key_rejected_before_segment_or_key_request(monkeypatch, tag):
+    import httpx
+
+    requested = []
+
+    def respond(request):
+        requested.append(str(request.url))
+        assert str(request.url) == URL
+        return httpx.Response(
+            200, text=MANIFEST.replace("#EXTINF:", tag + "\n#EXTINF:")
+        )
+
+    client_type = httpx.AsyncClient
+    monkeypatch.setattr(
+        youku.httpx,
+        "AsyncClient",
+        lambda **kwargs: client_type(transport=httpx.MockTransport(respond), **kwargs),
+    )
+    ctx = SimpleNamespace(
+        egress=SimpleNamespace(proxy_url=None),
+        user_agent="test",
+        referer="https://v.youku.com/",
+    )
+    with pytest.raises(RunnerFailure) as caught:
+        await youku.prepare_manifests(youku.parse_response(ups(), WORK), ctx)
+    assert caught.value.failure.failure_class is FailureClass.CONTENT_PROTECTED
+    assert caught.value.failure.evidence["cause_code"] == "encrypted_playlist"
+    assert requested == [URL]
+
+
 @pytest.mark.parametrize("mode", ["large", "redirect", "network"])
 async def test_manifest_size_redirect_and_network_limits(monkeypatch, mode):
     import httpx

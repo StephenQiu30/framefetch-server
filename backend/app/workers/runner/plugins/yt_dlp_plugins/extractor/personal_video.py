@@ -36,9 +36,10 @@ def same_duration(actual: Any, expected: float) -> None:
 
 def encrypted_playlist(text: str) -> bool:
     # AES-128 is also encrypted media even when yt-dlp does not call it DRM.
-    # Refuse the playlist before the downloader can request a content key.
+    # Native HlsFD recognizes the KEY prefix without checking its separator.
+    # Reject those prefixes before it can interpret even a malformed key tag.
     return any(
-        line.strip().startswith(("#EXT-X-KEY:", "#EXT-X-SESSION-KEY:"))
+        line.strip().upper().startswith(("#EXT-X-KEY", "#EXT-X-SESSION-KEY"))
         for line in text.splitlines()
     )
 

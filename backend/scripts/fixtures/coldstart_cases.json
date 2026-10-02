@@ -1566,7 +1566,7 @@
       "field": "unavailable",
       "checked_at": null,
       "status": "unverified",
-      "note": "上游 password-protected 测试链接；不提供密码、不解密。当前保护状态尚待核实。"
+      "note": "上游历史 password-protected 测试链接已在固定 yt-dlp 版本标记 skip=404；不能作为当前有效保护负例。负例无需完整时长，不提供密码、不解密。"
     },
     "availability_source": {
       "url": "https://v.youku.com/v_show/id_XNjA1NzA2Njgw.html",
@@ -1574,7 +1574,7 @@
       "field": "content_access_restriction",
       "checked_at": null,
       "status": "unverified",
-      "note": "当前保护状态尚未被独立官方来源证实；拒绝结果不能单独证明此负例有效。"
+      "note": "2026-10-02 独立匿名浏览器经既有 CN 出口进入优酷第一方验证页，未出现可核实的密码或媒体保护证据；保留未验证候选以阻止验收误通过，须用当前独立证明的限制作品替换。"
     },
     "minimum_spec": {
       "width": 320,

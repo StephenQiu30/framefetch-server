@@ -116,6 +116,79 @@ def test_youku_manifest_drm_is_removed_without_changing_source_duration(
         extractor._real_extract("https://v.youku.com/v_show/id_fixture.html")
 
 
+@pytest.mark.parametrize("separator", ["=", " "])
+def test_pinned_hls_recognizes_malformed_aes_key_before_fragment_download(
+    monkeypatch, separator
+) -> None:
+    from yt_dlp.downloader import hls
+
+    manifest = (
+        "#EXTM3U\n#EXT-X-TARGETDURATION:30\n"
+        f'#EXT-X-KEY{separator}METHOD=AES-128,URI="key"\n'
+        "#EXTINF:30,\npart.ts\n#EXT-X-ENDLIST\n"
+    )
+    downloader = hls.HlsFD(YoutubeDL({"quiet": True}), {"quiet": True})
+    fragments = []
+
+    def prepare(ctx, info):
+        ctx["fragment_index"] = 0
+
+    def capture(ctx, items, info):
+        fragments.extend(items)
+        return True
+
+    def unexpected_request(*args, **kwargs):
+        pytest.fail("synthetic native parsing must not request a segment or key")
+
+    monkeypatch.setattr(hls, "get_suitable_downloader", lambda *a, **k: None)
+    monkeypatch.setattr(downloader, "_prepare_and_start_frag_download", prepare)
+    monkeypatch.setattr(downloader, "download_and_append_fragments", capture)
+    monkeypatch.setattr(downloader.ydl, "urlopen", unexpected_request)
+    assert downloader.real_download(
+        "synthetic.mp4",
+        {
+            "id": "fixture",
+            "url": "https://media.example/full.m3u8",
+            "ext": "mp4",
+            "hls_media_playlist_data": manifest,
+        },
+    )
+    assert len(fragments) == 1
+    assert fragments[0]["decrypt_info"] == {
+        "METHOD": "AES-128",
+        "URI": "https://media.example/key",
+        "KEY": None,
+    }
+
+
+@pytest.mark.parametrize(
+    "tag",
+    [
+        '#EXT-X-KEY=METHOD=AES-128,URI="key"',
+        '#EXT-X-KEY METHOD=AES-128,URI="key"',
+        '#ext-x-key:METHOD=AES-128,URI="key"',
+        '#EXT-X-SESSION-KEY=METHOD=SAMPLE-AES,URI="key"',
+    ],
+)
+def test_youku_key_prefix_never_reaches_native_manifest_parser(
+    monkeypatch, tag
+) -> None:
+    extractor = _YoukuPersonalIE(YoutubeDL({"quiet": True}))
+    extractor._full_duration = 30
+
+    def unexpected(*args, **kwargs):
+        pytest.fail("key-bearing manifest reached native parser")
+
+    monkeypatch.setattr(InfoExtractor, "_parse_m3u8_formats_and_subtitles", unexpected)
+    with pytest.raises(ExtractorError, match="drm_protected"):
+        extractor._parse_m3u8_formats_and_subtitles(
+            "#EXTM3U\n#EXT-X-TARGETDURATION:30\n"
+            + tag
+            + "\n#EXTINF:30,\npart.ts\n#EXT-X-ENDLIST\n",
+            "https://media.example/full.m3u8",
+        )
+
+
 @pytest.mark.parametrize(
     "duration,vid,reason",
     [
