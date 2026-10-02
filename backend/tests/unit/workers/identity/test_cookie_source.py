@@ -112,6 +112,87 @@ async def test_qq_requires_both_account_fields(source):
 
 
 @pytest.mark.parametrize(
+    "marker", ["v1|synthetic-account|rest", "v1%7Csynthetic-account%7Crest"]
+)
+async def test_youku_persistent_account_pair_can_enter_native_validation(
+    source, marker
+):
+    service, state = source
+    state["cookies"] = [
+        {
+            **COOKIE,
+            "domain": ".youku.com",
+            "name": "P_pck_rm",
+            "value": "persistent-ticket",
+        },
+        {**COOKIE, "domain": ".youku.com", "name": "P_gck", "value": marker},
+    ]
+    first = await service.cookies(request("youku"))
+    assert b"P_pck_rm\tpersistent-ticket" in base64.b64decode(first["cookies"])
+    state["cookies"].append(
+        {**COOKIE, "domain": ".youku.com", "name": "cna", "value": "rotating-visitor"}
+    )
+    assert (await service.cookies(request("youku")))["digest"] == first["digest"]
+    state["cookies"][0]["value"] = "another-persistent-ticket"
+    second = await service.cookies(request("youku"))
+    assert second["digest"] != first["digest"]
+    state["cookies"][1]["value"] = "v1|another-synthetic-account|rest"
+    assert (await service.cookies(request("youku")))["digest"] != second["digest"]
+    assert not service._pending and service._requests == 0
+
+
+@pytest.mark.parametrize(
+    "cookies",
+    [
+        [("P_gck", "v1|synthetic-account|rest")],
+        [("P_pck_rm", "persistent-ticket")],
+        [("disrd", "remembered"), ("cna", "visitor"), ("_m_h5_tk", "proof")],
+        [("P_pck_rm", "persistent-ticket"), ("P_gck", "v1|NA|rest")],
+        [("P_pck_rm", "persistent-ticket"), ("P_gck", "v1%7CNA%7Crest")],
+        [("P_pck_rm", "persistent-ticket"), ("P_gck", "marker-without-account")],
+        [("P_pck_rm", "persistent-ticket"), ("P_gck", "v1||rest")],
+        [("P_pck_rm", "persistent-ticket"), ("P_gck", "v1%7C%20%7Crest")],
+        [("P_pck_rm", "persistent-ticket"), ("P_gck", "v1%7Caccount%ZZ%7Crest")],
+        [("P_pck_rm", "persistent-ticket"), ("P_gck", "v1%7C%FF%7Crest")],
+        [("P_pck_rm", "persistent-ticket"), ("P_gck", "v1%7Caccount%00%7Crest")],
+    ],
+)
+async def test_youku_visitor_partial_or_invalid_marker_is_not_account_material(
+    source, cookies
+):
+    service, state = source
+    state["cookies"] = [
+        {**COOKIE, "domain": ".youku.com", "name": name, "value": value}
+        for name, value in cookies
+    ]
+    with pytest.raises(m.IdentityUnavailable, match="credential_missing"):
+        await service.cookies(request("youku"))
+    assert not service._pending and service._requests == 0
+
+
+@pytest.mark.parametrize("expired", ["P_pck_rm", "P_gck"])
+async def test_youku_persistent_pair_requires_both_unexpired_fields(source, expired):
+    service, state = source
+    state["cookies"] = [
+        {
+            **COOKIE,
+            "domain": ".youku.com",
+            "name": name,
+            "value": value,
+            "expirationDate": 1
+            if name == expired
+            else datetime.now(UTC).timestamp() + 1000,
+        }
+        for name, value in (
+            ("P_pck_rm", "persistent-ticket"),
+            ("P_gck", "v1|synthetic-account|rest"),
+        )
+    ]
+    with pytest.raises(m.IdentityUnavailable, match="credential_missing"):
+        await service.cookies(request("youku"))
+
+
+@pytest.mark.parametrize(
     "cookie",
     [
         {**COOKIE, "domain": "evilinstagram.com"},

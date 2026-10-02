@@ -13,6 +13,7 @@ import time
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager, suppress
 from datetime import UTC, datetime
+from urllib.parse import unquote
 
 from app.core.config import CookieSourceSettings
 from app.workers.identity.extension import extension_origin
@@ -125,11 +126,14 @@ _ACCOUNT_COOKIES: dict[
             }
         ),
     ),
-    # Youku's official Cookie Policy identifies P_sck as login/account material:
+    # The official policy groups P_pck_rm/P_gck with login/account material;
+    # the current Chinese PC client uses P_gck's second field as account marker:
     # https://terms.alicdn.com/legal-agreement/terms/c_platform_service_agreement/20230407105056824/20230407105056824.html
+    # https://g.alicdn.com/youku-node/pc-pages-v2/4.1.871/v2/static/js/vendors.chunk.js
+    # A persistent ticket needs that non-visitor marker; neither alone proves login.
     # Current plugin personal_video.py passes the Cookie jar to the official UPS.
     "youku": (
-        (frozenset({"P_sck"}),),
+        (frozenset({"P_sck"}), frozenset({"P_pck_rm", "P_gck"})),
         frozenset({"P_sck", "P_pck", "P_pck_rm", "P_gck"}),
     ),
 }
@@ -192,6 +196,28 @@ class ExtensionCookie(BaseModel):
                 self.value,
             )
         )
+
+
+def _youku_has_account_marker(cookies: list[ExtensionCookie]) -> bool:
+    """Allow native account validation, never treat a visitor marker as login."""
+    for cookie in cookies:
+        if cookie.name != "P_gck" or re.search(r"%(?![0-9a-fA-F]{2})", cookie.value):
+            continue
+        try:
+            fields = unquote(cookie.value, errors="strict").split("|")
+        except UnicodeError:
+            continue
+        if len(fields) < 2:
+            continue
+        account = fields[1]
+        if (
+            account
+            and account == account.strip()
+            and account != "NA"
+            and not any(ord(char) < 32 or ord(char) == 127 for char in account)
+        ):
+            return True
+    return False
 
 
 def proof(key: str, role: str, peer: str, own: str) -> str:
@@ -484,6 +510,12 @@ class CookieSource:
                 alternatives, necessary = rule
                 names = {line.name for line in lines}
                 if not any(required <= names for required in alternatives):
+                    raise IdentityUnavailable("credential_missing")
+                if (
+                    request.site == "youku"
+                    and "P_sck" not in names
+                    and not _youku_has_account_marker(selected)
+                ):
                     raise IdentityUnavailable("credential_missing")
                 canonical = b"\n".join(
                     sorted(
