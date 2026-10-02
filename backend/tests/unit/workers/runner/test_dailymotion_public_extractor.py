@@ -16,6 +16,8 @@ from app.workers.runner.plugins.yt_dlp_plugins.extractor.dailymotion_public impo
 from yt_dlp import YoutubeDL
 from yt_dlp.extractor.common import InfoExtractor
 from yt_dlp.extractor.dailymotion import DailymotionBaseInfoExtractor
+from yt_dlp.networking.common import Response
+from yt_dlp.networking.exceptions import HTTPError
 from yt_dlp.utils import ExtractorError
 
 VIDEO_ID = "xsynthetic1"
@@ -285,6 +287,7 @@ def mocked_extractor(
     player: dict[str, object] | None = None,
     manifests: dict[str, str] | None = None,
     redirects: dict[str, str] | None = None,
+    manifest_errors: dict[str, list[ExtractorError]] | None = None,
 ) -> tuple[_DailymotionPublicIE, list[str], list[ManifestResponse]]:
     extractor = _DailymotionPublicIE(YoutubeDL({"quiet": True}))
     requests: list[str] = []
@@ -292,6 +295,7 @@ def mocked_extractor(
     access_data = public_metadata() if access is None else access
     player_data = player_metadata() if player is None else player
     documents = {MANIFEST_URL: VOD} if manifests is None else manifests
+    failures = {url: list(errors) for url, errors in (manifest_errors or {}).items()}
 
     def json_response(_self, url, *args, **kwargs):
         requests.append(url)
@@ -310,6 +314,8 @@ def mocked_extractor(
     def manifest_response(_self, url, *args, **kwargs):
         requests.append(url)
         assert url in documents, "Unexpected media, key, or license request"
+        if failures.get(url):
+            raise failures[url].pop(0)
         response = ManifestResponse(documents[url], (redirects or {}).get(url, url))
         responses.append(response)
         return response
@@ -348,6 +354,67 @@ def test_public_gate_stops_before_player_or_media_request(monkeypatch) -> None:
     with pytest.raises(ExtractorError, match="content_private"):
         extractor._real_extract(f"https://www.dailymotion.com/video/{VIDEO_ID}")
     assert requests == [f"https://api.dailymotion.com/video/{VIDEO_ID}"]
+
+
+def manifest_http_failure(url: str = MANIFEST_URL) -> ExtractorError:
+    cause = HTTPError(Response(BytesIO(b""), url, {}, status=403))
+    return ExtractorError(
+        "Unable to download m3u8 information: HTTP Error 403", cause=cause
+    )
+
+
+def test_http_failure_survives_native_empty_formats_without_content_reclassification(
+    monkeypatch,
+) -> None:
+    failures = [manifest_http_failure() for _ in range(3)]
+    extractor, requests, _ = mocked_extractor(
+        monkeypatch, manifest_errors={MANIFEST_URL: failures}
+    )
+    with pytest.raises(ExtractorError, match="HTTP Error 403") as error:
+        extractor._real_extract(f"https://www.dailymotion.com/video/{VIDEO_ID}")
+    assert error.value is failures[-1]
+    assert isinstance(error.value.cause, HTTPError)
+    assert error.value.cause.status == 403
+    assert "content_access_metadata_invalid" not in str(error.value)
+    assert requests[-3:] == [MANIFEST_URL] * 3
+
+
+def test_unavailable_impersonation_does_not_hide_observed_http_failure(monkeypatch):
+    http_failure = manifest_http_failure()
+    failures = [
+        http_failure,
+        ExtractorError(
+            "The extractor is attempting impersonation, but unavailable: chrome"
+        ),
+        ExtractorError(
+            "The extractor is attempting impersonation, but unavailable: firefox"
+        ),
+    ]
+    extractor, requests, _ = mocked_extractor(
+        monkeypatch, manifest_errors={MANIFEST_URL: failures}
+    )
+    with pytest.raises(ExtractorError, match="HTTP Error 403") as error:
+        extractor._real_extract(f"https://www.dailymotion.com/video/{VIDEO_ID}")
+    assert error.value is http_failure
+    assert requests[-3:] == [MANIFEST_URL] * 3
+
+
+def test_protected_manifest_after_network_retry_still_reports_content_protection(
+    monkeypatch,
+) -> None:
+    protected = VOD.replace(
+        "#EXTM3U\n", '#EXTM3U\n#EXT-X-KEY:METHOD=AES-128,URI="key.bin"\n'
+    )
+    extractor, requests, _ = mocked_extractor(
+        monkeypatch,
+        manifests={MANIFEST_URL: protected},
+        manifest_errors={MANIFEST_URL: [manifest_http_failure()]},
+    )
+    with pytest.raises(ExtractorError, match="drm_protected") as error:
+        extractor._real_extract(f"https://www.dailymotion.com/video/{VIDEO_ID}")
+    assert not isinstance(error.value.cause, HTTPError)
+    assert requests[-2:] == [MANIFEST_URL] * 2
+    assert all("key.bin" not in url for url in requests)
 
 
 @pytest.mark.parametrize(

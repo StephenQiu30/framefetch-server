@@ -16,6 +16,10 @@ from typing import Any, cast
 from urllib.parse import urljoin, urlsplit
 
 from yt_dlp.extractor.dailymotion import DailymotionIE  # type: ignore[import-untyped]
+from yt_dlp.networking.exceptions import (  # type: ignore[import-untyped]
+    network_exceptions,
+)
+from yt_dlp.utils import ExtractorError  # type: ignore[import-untyped]
 
 from ._content_access import reject
 
@@ -237,6 +241,7 @@ class _DailymotionPublicIE(DailymotionIE, plugin_name="public_access"):  # type:
     _reading_manifest = False
     _manifest_request: dict[str, Any]
     _manifest_response_urls: dict[str, str]
+    _manifest_error: ExtractorError | None = None
 
     def _real_extract(self, url: str) -> dict[str, Any]:
         matched = self._match_valid_url(url)
@@ -326,11 +331,16 @@ class _DailymotionPublicIE(DailymotionIE, plugin_name="public_access"):  # type:
             reject("content_access_metadata_invalid")
         public_media_url(media_url)
         self._reading_manifest = True
+        self._manifest_error = None
         try:
             # Keep the pinned extractor's TLS/header retry behavior.
-            return super()._extract_dailymotion_m3u8_formats_and_subtitles(
+            result = super()._extract_dailymotion_m3u8_formats_and_subtitles(
                 media_url, video_id, live=False
             )
+            if not result[0] and self._manifest_error is not None:
+                # Upstream returns [] after HTTP failures; preserve their cause.
+                raise self._manifest_error
+            return result
         finally:
             self._reading_manifest = False
 
@@ -349,9 +359,17 @@ class _DailymotionPublicIE(DailymotionIE, plugin_name="public_access"):  # type:
         request_kwargs = {
             key: value for key, value in kwargs.items() if key != "encoding"
         }
-        response = self._request_webpage(
-            url_or_request, video_id, *args, **request_kwargs
-        )
+        try:
+            response = self._request_webpage(
+                url_or_request, video_id, *args, **request_kwargs
+            )
+        except ExtractorError as error:
+            if (
+                isinstance(error.cause, network_exceptions)
+                or self._manifest_error is None
+            ):
+                self._manifest_error = error
+            raise
         if response is False:
             return False
         with closing(response):
