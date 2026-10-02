@@ -110,7 +110,7 @@ test('worker wires the fixed page reader only after HMAC and preserves Cookie co
   assert.equal(calls[0].url, 'https://yuanbao.tencent.com/*');
   assert.deepEqual(ws.sent.at(-1), { type: 'yuanbao_account', request_id: request.request_id, cause: 'identity_page_unavailable' });
   assert.equal(ws.readyState, 1);
-  ws.onmessage({ data: JSON.stringify({ type: 'cookies', request_id: 'e'.repeat(32), domains: ['instagram.com'] }) }); await w.flush();
+  ws.onmessage({ data: JSON.stringify({ type: 'cookies', deadline: new Date(60000).toISOString(), request_id: 'e'.repeat(32), domains: ['instagram.com'] }) }); await w.flush();
   assert.deepEqual(ws.sent.at(-1), { type: 'cookies', request_id: 'e'.repeat(32), cookies: [] });
 });
 test('stalled page reads release the worker chain and late results or rejection cannot send account material', async () => {
@@ -130,7 +130,7 @@ test('stalled page reads release the worker chain and late results or rejection 
       for (let i = 0; i < 20 && !w.intervals.length; i++) await w.flush();
       const request = { type: 'yuanbao_account', request_id: 'c'.repeat(32), site: 'wechat_channels', deadline: new Date(10).toISOString() };
       ws.onmessage({ data: JSON.stringify(request) });
-      ws.onmessage({ data: JSON.stringify({ type: 'cookies', request_id: 'e'.repeat(32), domains: ['instagram.com'] }) });
+      ws.onmessage({ data: JSON.stringify({ type: 'cookies', deadline: new Date(60000).toISOString(), request_id: 'e'.repeat(32), domains: ['instagram.com'] }) });
       ws.onmessage({ data: JSON.stringify({ type: 'ping' }) });
       await w.flush();
       const deadlineTimer = w.timers.find(timer => timer.active && timer.ms === 10);
@@ -149,6 +149,43 @@ test('stalled page reads release the worker chain and late results or rejection 
       await w.flush();
       assert.equal(ws.sent.length, count);
       assert.equal(executions, phase === 'query' ? 0 : 1);
+    }
+  }
+});
+test('stalled Cookie APIs return a bounded failure and keep the worker chain usable without late exports', async () => {
+  for (const limit of [10, 5000]) {
+    for (const lateFailure of [false, true]) {
+      let release, reject, reads = 0;
+      const pending = new Promise((done, fail) => { release = done; reject = fail; });
+      const w = worker({ cookies: { getAll: () => ++reads === 1 ? pending : Promise.resolve([]) } });
+      await w.flush();
+      const ws = w.sockets[0], server = 'd'.repeat(64);
+      ws.onmessage({ data: JSON.stringify({ type: 'challenge', nonce: server }) }); await w.flush();
+      ws.onmessage({ data: JSON.stringify({ type: 'proof', proof: await proof(KEY, 'server', ws.sent[0].nonce, server) }) });
+      for (let i = 0; i < 20 && !w.intervals.length; i++) await w.flush();
+      ws.onmessage({ data: JSON.stringify({
+        type: 'cookies', request_id: 'c'.repeat(32), domains: ['instagram.com'],
+        deadline: new Date(limit === 5000 ? 60000 : limit).toISOString(),
+      }) });
+      ws.onmessage({ data: JSON.stringify({ type: 'cookies', request_id: 'e'.repeat(32), domains: ['instagram.com'], deadline: new Date(60000).toISOString() }) });
+      ws.onmessage({ data: JSON.stringify({ type: 'ping' }) });
+      await w.flush();
+      const timer = w.timers.find(item => item.active && item.ms === limit);
+      assert.ok(timer, 'Cookie API calls must have a shared deadline timer');
+      w.advance(limit); timer.fn(); await w.flush();
+      assert.deepEqual(ws.sent.slice(-3), [
+        { type: 'cookies', request_id: 'c'.repeat(32), cause: 'extension_timeout' },
+        { type: 'cookies', request_id: 'e'.repeat(32), cookies: [] },
+        { type: 'pong' },
+      ]);
+      assert.equal(ws.readyState, 1);
+      assert.equal(timer.active, false);
+      assert.equal(reads, 2);
+      const count = ws.sent.length;
+      if (lateFailure) reject(new Error('synthetic-private-error'));
+      else release([{ domain: 'instagram.com', name: 'sessionid', value: 'synthetic-late-cookie', path: '/' }]);
+      await w.flush();
+      assert.equal(ws.sent.length, count);
     }
   }
 });

@@ -2,6 +2,7 @@
 
 import asyncio
 import base64
+import json
 from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, datetime, timedelta
 from unittest.mock import AsyncMock
@@ -66,7 +67,8 @@ def source():
     state = {"cookies": [COOKIE.copy()]}
 
     async def send(ws, message):
-        assert set(message) == {"type", "request_id", "domains"}
+        assert set(message) == {"type", "request_id", "domains", "deadline"}
+        assert datetime.fromisoformat(message["deadline"]).tzinfo == UTC
         service._pending[message["request_id"]].set_result(state["cookies"])
 
     service.send = AsyncMock(side_effect=send)
@@ -256,6 +258,54 @@ async def test_disconnected_deadline_timeout_cancellation_and_concurrency(
         await task
 
 
+@pytest.mark.parametrize("expire_at", [2, 3])
+async def test_cookie_response_or_export_at_deadline_is_rejected(
+    source, monkeypatch, expire_at
+):
+    service, state = source
+    operation = request()
+    real_now = datetime.now(UTC)
+
+    class Clock:
+        calls = 0
+
+        @classmethod
+        def now(cls, zone):
+            cls.calls += 1
+            return operation.deadline if cls.calls >= expire_at else real_now
+
+    monkeypatch.setattr(m, "datetime", Clock)
+    with pytest.raises(m.IdentityUnavailable, match="identity_deadline_invalid"):
+        await service.cookies(operation)
+    assert not service._pending and not service._pending_kinds
+    assert service._requests == 0
+
+    monkeypatch.undo()
+    state["cookies"] = [COOKIE.copy()]
+    assert (await service.cookies(request()))["digest"]
+
+
+async def test_late_empty_cookie_payload_keeps_deadline_cause(source, monkeypatch):
+    service, state = source
+    operation = request()
+    real_now = datetime.now(UTC)
+    state["cookies"] = []
+
+    class Clock:
+        calls = 0
+
+        @classmethod
+        def now(cls, zone):
+            cls.calls += 1
+            return operation.deadline if cls.calls > 1 else real_now
+
+    monkeypatch.setattr(m, "datetime", Clock)
+    with pytest.raises(m.IdentityUnavailable, match="identity_deadline_invalid"):
+        await service.cookies(operation)
+    assert not service._pending and not service._pending_kinds
+    assert service._requests == 0
+
+
 @pytest.mark.parametrize("authorization", [None, "Bearer wrong", "Basic arbitrary"])
 @pytest.mark.parametrize("path", ["/cookies", "/yuanbao-account"])
 async def test_bearer_required_before_parsing(authorization, path):
@@ -361,6 +411,145 @@ def test_single_profile_request_id_and_status():
         assert client.get(
             "/status", headers={"Authorization": f"Bearer {TOKEN}"}
         ).json() == {"connected": False, "version": None}
+
+
+def test_cookie_timeout_response_keeps_connection_and_next_read_available():
+    with TestClient(m.create_app(settings())) as client:
+        with client.websocket_connect(
+            "/extension", headers={"Origin": extension_origin()}
+        ) as ws:
+            assert authenticate(ws) == {"type": "ready"}
+            with ThreadPoolExecutor() as pool:
+
+                def submit():
+                    return pool.submit(
+                        client.post,
+                        "/cookies",
+                        json=request().model_dump(mode="json"),
+                        headers={"Authorization": f"Bearer {TOKEN}"},
+                    )
+
+                first = submit()
+                message = ws.receive_json()
+                ws.send_json(
+                    {
+                        "type": "cookies",
+                        "request_id": message["request_id"],
+                        "cause": "extension_timeout",
+                    }
+                )
+                result = first.result(timeout=2)
+                assert result.status_code == 503
+                assert result.json() == {"cause": "extension_timeout"}
+                ws.send_json({"type": "ping"})
+                assert ws.receive_json() == {"type": "pong"}
+                second = submit()
+                current = ws.receive_json()
+                assert current["request_id"] != message["request_id"]
+                ws.send_json(
+                    {
+                        "type": "cookies",
+                        "request_id": current["request_id"],
+                        "cookies": [COOKIE],
+                    }
+                )
+                assert second.result(timeout=2).status_code == 200
+                source = client.app.state.cookie_source
+                assert not source._pending and not source._pending_kinds
+                assert source._requests == 0
+
+
+@pytest.mark.parametrize(
+    "invalid", ["wrong_kind", "unsafe_cause", "invalid_id", "extra_field"]
+)
+def test_cookie_timeout_wire_rejects_untrusted_or_mismatched_response(invalid):
+    with TestClient(m.create_app(settings())) as client:
+        with client.websocket_connect(
+            "/extension", headers={"Origin": extension_origin()}
+        ) as ws:
+            assert authenticate(ws) == {"type": "ready"}
+            with ThreadPoolExecutor() as pool:
+                page_request = invalid == "wrong_kind"
+                future = pool.submit(
+                    client.post,
+                    "/yuanbao-account" if page_request else "/cookies",
+                    json=request(
+                        "wechat_channels" if page_request else "instagram"
+                    ).model_dump(mode="json"),
+                    headers={"Authorization": f"Bearer {TOKEN}"},
+                )
+                message = ws.receive_json()
+                response = {
+                    "type": "cookies",
+                    "request_id": message["request_id"],
+                    "cause": "extension_timeout",
+                }
+                if invalid == "unsafe_cause":
+                    response["cause"] = "synthetic-private-secret"
+                elif invalid == "invalid_id":
+                    response["request_id"] = "synthetic-private-secret"
+                elif invalid == "extra_field":
+                    response["cookies"] = []
+                ws.send_json(response)
+                with pytest.raises(WebSocketDisconnect):
+                    ws.receive_json()
+                result = future.result(timeout=2)
+                assert result.json() == {"cause": "extension_disconnected"}
+                assert "synthetic-private-secret" not in result.text
+
+
+@pytest.mark.parametrize("expired_by", ["cancel", "timeout"])
+async def test_late_cookie_timeout_cannot_complete_next_request(
+    source, monkeypatch, expired_by
+):
+    service, _ = source
+    service.send = AsyncMock()
+    monkeypatch.setattr(m, "REQUEST_TIMEOUT", 0.01 if expired_by == "timeout" else 5)
+    expired = asyncio.create_task(service.cookies(request()))
+    await asyncio.sleep(0)
+    old_id = next(iter(service._pending))
+    if expired_by == "cancel":
+        expired.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await expired
+    else:
+        with pytest.raises(m.IdentityUnavailable, match="extension_timeout"):
+            await expired
+    assert not service._pending and not service._pending_kinds
+    assert service._requests == 0
+    monkeypatch.setattr(m, "REQUEST_TIMEOUT", 5)
+    active = asyncio.create_task(service.cookies(request()))
+    await asyncio.sleep(0)
+    new_id = next(iter(service._pending))
+    assert new_id != old_id
+    incoming = asyncio.Queue()
+    received = asyncio.Event()
+
+    async def receive_text():
+        message = await incoming.get()
+        received.set()
+        return json.dumps(message)
+
+    socket = AsyncMock()
+    socket.receive_text.side_effect = receive_text
+    responses = asyncio.create_task(service._responses(socket))
+    try:
+        await incoming.put(
+            {"type": "cookies", "request_id": old_id, "cause": "extension_timeout"}
+        )
+        await received.wait()
+        assert not active.done()
+        assert set(service._pending) == {new_id}
+        await incoming.put(
+            {"type": "cookies", "request_id": new_id, "cookies": [COOKIE]}
+        )
+        assert (await active)["digest"]
+        assert not service._pending and not service._pending_kinds
+        assert service._requests == 0
+    finally:
+        responses.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await responses
 
 
 def test_connection_count_and_message_size_bounded():

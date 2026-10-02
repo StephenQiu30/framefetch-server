@@ -285,7 +285,7 @@ test('real timer releases protocol busy and late script rejection sends no mater
   await request;
   assert.equal(p.busy, false);
   assert.deepEqual(sent.at(-1), { type: 'yuanbao_account', request_id: ID, cause: 'extension_timeout' });
-  await p.receive({ type: 'cookies', request_id: 'e'.repeat(32), domains: ['instagram.com'] });
+  await p.receive({ type: 'cookies', request_id: 'e'.repeat(32), domains: ['instagram.com'], deadline: futureDeadline() });
   assert.deepEqual(sent.at(-1), { type: 'cookies', request_id: 'e'.repeat(32), cookies: [] });
   const count = sent.length;
   reject(new Error('synthetic-private-error'));

@@ -29,6 +29,13 @@
       expirationDate: c.expirationDate,
     }));
   }
+  function requestDeadline(value) {
+    if (typeof value !== 'string' ||
+        !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,6})?(?:Z|\+00:00)$/.test(value)) throw new Error('invalid_deadline');
+    const deadline = Date.parse(value);
+    if (!Number.isFinite(deadline)) throw new Error('invalid_deadline');
+    return deadline;
+  }
   class Protocol {
     constructor(config, getAll, send, version, readAccount) {
       this.config = config;
@@ -63,10 +70,7 @@
         if (Object.keys(message).sort().join(',') !== 'deadline,request_id,site,type' ||
             message.site !== 'wechat_channels' || this.config.yuanbaoAccount !== true ||
             typeof this.readAccount !== 'function') throw new Error('undeclared_source');
-        if (typeof message.deadline !== 'string' ||
-            !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,6})?(?:Z|\+00:00)$/.test(message.deadline)) throw new Error('invalid_deadline');
-        const deadlineMs = Date.parse(message.deadline);
-        if (!Number.isFinite(deadlineMs)) throw new Error('invalid_deadline');
+        const deadlineMs = requestDeadline(message.deadline);
         if (Date.now() >= deadlineMs) {
           this.send({ type: 'yuanbao_account', request_id: message.request_id, cause: 'extension_timeout' });
           return;
@@ -84,17 +88,44 @@
       }
       if (message.type !== 'cookies') throw new Error('invalid_request');
       const domains = message.domains;
-      if (!Array.isArray(domains) || !domains.length || domains.length > this.config.domains.length ||
+      if (Object.keys(message).sort().join(',') !== 'deadline,domains,request_id,type' ||
+          !Array.isArray(domains) || !domains.length || domains.length > this.config.domains.length ||
           new Set(domains).size !== domains.length || !domains.every(d => this.config.domains.includes(d))) throw new Error('undeclared_domain');
+      const deadlineMs = Math.min(requestDeadline(message.deadline), Date.now() + 5000);
+      const checkDeadline = () => { if (Date.now() >= deadlineMs) throw new Error('extension_timeout'); };
+      const timeoutResponse = () => this.send({ type: 'cookies', request_id: message.request_id, cause: 'extension_timeout' });
+      if (Date.now() >= deadlineMs) { timeoutResponse(); return; }
       this.busy = true;
+      let timer;
+      const operation = { closed: false, results: [] };
       try {
-        const results = await Promise.all(domains.map(domain => this.getAll({ domain })));
-        const selected = filterCookies(results.flat(), domains);
+        await Promise.race([
+          Promise.resolve().then(() => {
+            checkDeadline();
+            return Promise.all(domains.map((domain, index) => Promise.resolve().then(() => {
+              checkDeadline();
+              return Promise.resolve(this.getAll({ domain })).then(cookies => {
+                if (operation.closed) return;
+                checkDeadline();
+                operation.results[index] = cookies;
+              });
+            })));
+          }),
+          new Promise((_, reject) => {
+            timer = setTimeout(() => reject(new Error('extension_timeout')), deadlineMs - Date.now());
+          }),
+        ]);
+        checkDeadline();
+        const selected = filterCookies(operation.results.flat(), domains);
         const unique = [...new Map(selected.map(c => [JSON.stringify([c.domain, c.path, c.name]), c])).values()];
         const response = { type: 'cookies', request_id: message.request_id, cookies: unique };
         if (encoder.encode(JSON.stringify(response)).length > MAX_MESSAGE_BYTES) throw new Error('message_too_large');
+        checkDeadline();
         this.send(response);
-      } finally { this.busy = false; }
+      } catch (error) {
+        if (error?.message !== 'extension_timeout') throw error;
+        timeoutResponse();
+      } finally { operation.closed = true; operation.results.length = 0; clearTimeout(timer); this.busy = false; }
     }
   }
   class Backoff {

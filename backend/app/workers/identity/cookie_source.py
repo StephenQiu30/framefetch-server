@@ -340,24 +340,32 @@ class CookieSource:
                 await self.send(websocket, {"type": "pong"})
             elif message == {"type": "pong"}:
                 continue
-            elif (
-                set(message) == {"type", "request_id", "cookies"}
-                and message["type"] == "cookies"
-            ):
-                request_id = message["request_id"]
-                cookies = message["cookies"]
-                if (
-                    not isinstance(request_id, str)
-                    or not re.fullmatch(r"[a-f0-9]{32}", request_id)
-                    or not isinstance(cookies, list)
+            elif message.get("type") == "cookies":
+                request_id = message.get("request_id")
+                if not isinstance(request_id, str) or not re.fullmatch(
+                    r"[a-f0-9]{32}", request_id
                 ):
+                    raise ValueError("invalid_response")
+                if set(message) == {"type", "request_id", "cookies"}:
+                    cookies = message["cookies"]
+                    if not isinstance(cookies, list):
+                        raise ValueError("invalid_response")
+                elif (
+                    set(message) == {"type", "request_id", "cause"}
+                    and message["cause"] == "extension_timeout"
+                ):
+                    cookies = IdentityUnavailable("extension_timeout")
+                else:
                     raise ValueError("invalid_response")
                 future = self._pending.get(request_id)
                 # Ignore only late responses to expired/cancelled requests.
                 if future is not None and not future.done():
                     if self._pending_kinds.get(request_id) != "cookies":
                         raise ValueError("invalid_response")
-                    future.set_result(cookies)
+                    if isinstance(cookies, IdentityUnavailable):
+                        future.set_exception(cookies)
+                    else:
+                        future.set_result(cookies)
             elif message.get("type") == "yuanbao_account":
                 request_id = message.get("request_id")
                 if not isinstance(request_id, str) or not re.fullmatch(
@@ -428,11 +436,14 @@ class CookieSource:
                             "type": "cookies",
                             "request_id": request_id,
                             "domains": sorted(profile.cookie_domain_allowlist),
+                            "deadline": request.deadline.astimezone(UTC).isoformat(),
                         },
                     )
                 except (WebSocketDisconnect, RuntimeError):
                     raise IdentityUnavailable("extension_disconnected") from None
                 items = await future
+                if datetime.now(UTC) >= request.deadline:
+                    raise IdentityUnavailable("identity_deadline_invalid")
                 if not isinstance(items, list):
                     raise IdentityUnavailable("identity_cookie_structure_invalid")
                 now = time.time()
@@ -531,10 +542,13 @@ class CookieSource:
                     request.site.encode() + b"\x00" + canonical,
                     hashlib.sha256,
                 ).hexdigest()
-                return {
+                result = {
                     "cookies": base64.b64encode(payload).decode("ascii"),
                     "digest": digest,
                 }
+                if datetime.now(UTC) >= request.deadline:
+                    raise IdentityUnavailable("identity_deadline_invalid")
+                return result
         except TimeoutError:
             raise IdentityUnavailable("extension_timeout") from None
         finally:
