@@ -588,6 +588,113 @@ async def test_account_bootstrap_failure_destroys_private_profile(
     await runtime.close()
 
 
+@pytest.mark.parametrize("authenticated", [False, True])
+async def test_repeated_cancellation_waits_for_native_context_close(
+    tmp_path, chromium, authenticated
+):
+    settings = configured(tmp_path)
+    runtime = BrowserRuntime(settings)
+    key = "wechat_channels" if authenticated else "douyin"
+    ctx = account_context(settings) if authenticated else run_context(settings)
+    acquired = asyncio.Event()
+    cleanup_requested = asyncio.Event()
+
+    async def execute():
+        operation = await runtime.acquire(profile(key), ctx=ctx)
+        acquired.set()
+        await cleanup_requested.wait()
+        if authenticated:
+            await operation.close()
+        else:
+            await operation.abort()
+
+    chromium.cleanup_allowed.clear()
+    owner = asyncio.create_task(execute())
+    try:
+        await asyncio.wait_for(acquired.wait(), 1)
+        cleanup_requested.set()
+        await asyncio.wait_for(chromium.cleanup_started.wait(), 1)
+        owner.cancel()
+        await asyncio.sleep(0)
+        owner.cancel()
+        await asyncio.sleep(0)
+        directory = Path(chromium.calls[0][0])
+        assert not owner.done()
+        assert directory.exists()
+        assert not chromium.contexts[0].closed
+        chromium.cleanup_allowed.set()
+        with pytest.raises(asyncio.CancelledError):
+            await asyncio.wait_for(owner, 1)
+        assert chromium.contexts[0].closed
+        if authenticated:
+            assert not directory.exists()
+        assert not runtime._releases and not runtime._owners
+    finally:
+        cleanup_requested.set()
+        chromium.cleanup_allowed.set()
+        await asyncio.wait_for(asyncio.gather(owner, return_exceptions=True), 1)
+        await runtime.close()
+
+
+@pytest.mark.parametrize("authenticated", [False, True])
+async def test_launch_close_error_still_releases_private_state_and_os_lock(
+    tmp_path, chromium, monkeypatch, authenticated
+):
+    settings = configured(tmp_path)
+    runtime = BrowserRuntime(settings)
+    key = "wechat_channels" if authenticated else "douyin"
+    ctx = account_context(settings) if authenticated else run_context(settings)
+    original_close = FakeContext.close
+    original_script = FakeContext.add_init_script
+    original_launch = chromium.launch_persistent_context
+
+    async def fail_script(context, script):
+        raise browser_runtime.Error("synthetic initialization error: synthetic-token")
+
+    async def fail_close(context):
+        raise browser_runtime.Error("synthetic close error: synthetic-token")
+
+    async def invalid_runtime(directory, **options):
+        context = await original_launch(directory, **options)
+        context.browser.version = "synthetic-incompatible-runtime"
+        return context
+
+    monkeypatch.setattr(FakeContext, "close", fail_close)
+    if authenticated:
+        monkeypatch.setattr(FakeContext, "add_init_script", fail_script)
+    else:
+        monkeypatch.setattr(chromium, "launch_persistent_context", invalid_runtime)
+    try:
+        with pytest.raises(RunnerFailure) as caught:
+            await asyncio.wait_for(runtime.acquire(profile(key), ctx=ctx), 1)
+        assert "synthetic-token" not in str(caught.value)
+        assert not runtime._releases and not runtime._owners
+        if authenticated:
+            assert not list(settings.runner_browser_temp_root.iterdir())
+        monkeypatch.setattr(FakeContext, "close", original_close)
+        monkeypatch.setattr(FakeContext, "add_init_script", original_script)
+        monkeypatch.setattr(chromium, "launch_persistent_context", original_launch)
+        # A second runtime must be able to obtain the released process lock.
+        fresh_runtime = BrowserRuntime(settings)
+        try:
+            operation = await asyncio.wait_for(
+                fresh_runtime.acquire(profile(key), ctx=ctx), 1
+            )
+            await operation.close()
+        finally:
+            await fresh_runtime.close()
+    finally:
+        await runtime.close()
+
+
+async def test_cleanup_cancellation_itself_propagates_without_retry_loop():
+    async def cancelled_cleanup():
+        raise asyncio.CancelledError
+
+    with pytest.raises(asyncio.CancelledError):
+        await asyncio.wait_for(browser_runtime._finish(cancelled_cleanup()), 1)
+
+
 async def test_runner_lifespan_clears_browser_state_before_accepting_requests(
     tmp_path, monkeypatch
 ):

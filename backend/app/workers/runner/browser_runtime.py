@@ -467,12 +467,21 @@ class BrowserRuntime:
                 descriptor,
             )
         except BaseException as error:
-            if context is not None:
-                await _finish(context.close())
-            if descriptor is not None:
-                os.close(descriptor)
-            if authenticated:
-                shutil.rmtree(directory)
+            try:
+                if context is not None:
+                    try:
+                        await _finish(context.close())
+                    except (Error, OSError):
+                        # Preserve the safe primary failure when cleanup hits
+                        # a disconnected driver; release storage and locks below.
+                        pass
+            finally:
+                try:
+                    if descriptor is not None:
+                        os.close(descriptor)
+                finally:
+                    if authenticated:
+                        shutil.rmtree(directory)
             if isinstance(error, (Error, OSError)):
                 raise _failure() from None
             raise
@@ -517,8 +526,20 @@ class BrowserRuntime:
 
 async def _finish(operation: Awaitable[None]) -> None:
     cleanup = asyncio.ensure_future(operation)
-    try:
-        await asyncio.shield(cleanup)
-    except asyncio.CancelledError:
-        await cleanup
-        raise
+    cancellation: asyncio.CancelledError | None = None
+    while True:
+        try:
+            await asyncio.shield(cleanup)
+            break
+        except asyncio.CancelledError as error:
+            if cleanup.done():
+                # The cleanup itself may have been cancelled. Inspect it once
+                # rather than repeatedly shielding a terminal cancelled task.
+                cleanup.result()
+                cancellation = error
+                break
+            # More than one caller can cancel an operation during shutdown.
+            # Each external cancellation must leave native cleanup shielded.
+            cancellation = error
+    if cancellation is not None:
+        raise cancellation
