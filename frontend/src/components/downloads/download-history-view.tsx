@@ -16,7 +16,7 @@ import { useDownloadActions } from '@/components/downloads/use-download-actions'
 import { useDownloadHistory } from '@/components/downloads/use-download-history';
 import { BulkSelectionBar } from '@/components/layout/bulk-selection-bar';
 import { FeedbackNotice } from '@/components/layout/feedback-notice';
-import { markNavigationPush } from '@/components/layout/navigation-history';
+import { markNavigationPush } from '@/components/layout/navigation-state';
 import { PageErrorNotice } from '@/components/layout/page-error-notice';
 import { PageHeader } from '@/components/layout/page-header';
 import { PageNavigation } from '@/components/layout/page-navigation';

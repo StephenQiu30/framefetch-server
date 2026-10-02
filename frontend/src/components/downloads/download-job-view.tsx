@@ -14,7 +14,7 @@ import {
 import DownloadVideoPreview from '@/components/downloads/download-video-preview';
 import { useDownloadJob } from '@/components/downloads/use-download-job';
 import { FeedbackNotice } from '@/components/layout/feedback-notice';
-import { markNavigationPush } from '@/components/layout/navigation-history';
+import { markNavigationPush } from '@/components/layout/navigation-state';
 import { PageEmptyNotice } from '@/components/layout/page-empty-notice';
 import { PageErrorNotice } from '@/components/layout/page-error-notice';
 import { PageNavigation } from '@/components/layout/page-navigation';

@@ -35,7 +35,7 @@ import {
   hasPublicInput,
   PUBLIC_INPUT_REQUIRED,
 } from '@/components/intake/public-input';
-import { markNavigationPush } from '@/components/layout/navigation-history';
+import { markNavigationPush } from '@/components/layout/navigation-state';
 import { Button } from '@/components/ui/button';
 import {
   Command,

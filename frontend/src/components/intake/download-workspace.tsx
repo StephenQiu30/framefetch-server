@@ -30,7 +30,7 @@ import { useDocumentImport } from '@/components/intake/use-document-import';
 import { useDownloadIntent } from '@/components/intake/use-download-intent';
 import { useMediaImport } from '@/components/intake/use-media-import';
 import { FeedbackNotice } from '@/components/layout/feedback-notice';
-import { markNavigationPush } from '@/components/layout/navigation-history';
+import { markNavigationPush } from '@/components/layout/navigation-state';
 import { ScreenplayUploadForm } from '@/components/screenplay/screenplay-upload-form';
 import { Button } from '@/components/ui/button';
 import { privateQueryKey } from '@/lib/query-keys';

@@ -16,7 +16,7 @@ import {
 } from '@/components/intake/source-discovery-workspace';
 import { rememberDownloadIntent } from '@/components/intake/use-download-intent';
 import { FeedbackNotice } from '@/components/layout/feedback-notice';
-import { markNavigationPush } from '@/components/layout/navigation-history';
+import { markNavigationPush } from '@/components/layout/navigation-state';
 import { PageErrorNotice } from '@/components/layout/page-error-notice';
 import { PageNavigation } from '@/components/layout/page-navigation';
 import { MediaResultSkeleton } from '@/components/media/media-result';

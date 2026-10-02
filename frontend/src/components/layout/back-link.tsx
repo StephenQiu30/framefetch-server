@@ -3,10 +3,8 @@
 import { ArrowLeftIcon } from '@phosphor-icons/react';
 import Link from 'next/link';
 import type { MouseEvent } from 'react';
-import {
-  markNavigationPush,
-  useCanNavigateBack,
-} from '@/components/layout/navigation-history';
+import { useCanNavigateBack } from '@/components/layout/navigation-history';
+import { markNavigationPush } from '@/components/layout/navigation-state';
 import { Button } from '@/components/ui/button';
 
 type BackLinkProps = {

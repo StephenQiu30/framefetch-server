@@ -8,10 +8,8 @@ import {
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { BackLink } from '@/components/layout/back-link';
-import {
-  markNavigationPush,
-  NavigationHistoryProvider,
-} from '@/components/layout/navigation-history';
+import { NavigationHistoryProvider } from '@/components/layout/navigation-history';
+import { markNavigationPush } from '@/components/layout/navigation-state';
 
 const STORAGE_KEY = 'video-server:navigation-history';
 const HISTORY_ENTRY_KEY = '__videoServerNavigationEntryId';

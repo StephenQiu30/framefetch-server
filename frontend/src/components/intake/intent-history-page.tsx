@@ -2,7 +2,7 @@
 
 import { useRouter } from 'next/navigation';
 import { IntentHistory } from '@/components/intake/intent-history';
-import { markNavigationPush } from '@/components/layout/navigation-history';
+import { markNavigationPush } from '@/components/layout/navigation-state';
 
 export function IntentHistoryPage() {
   const router = useRouter();

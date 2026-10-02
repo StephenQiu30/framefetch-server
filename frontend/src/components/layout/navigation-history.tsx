@@ -154,8 +154,6 @@ export function useCanNavigateBack() {
   return useContext(NavigationHistoryContext);
 }
 
-export { markNavigationPush } from '@/components/layout/navigation-state';
-
 function isPlainPrimaryClick(event: MouseEvent) {
   return !(
     event.defaultPrevented ||
