@@ -7,21 +7,18 @@ from typing import Any, TypeGuard
 from urllib.parse import urlsplit
 
 from app.workers.runner.url_policy import UrlPolicyError, validate_media_url
+from app.workers.runner.wechat_channels_response import successful_response_data
 
 
 def feed_info(payload: object) -> Mapping[str, Any] | None:
-    if not isinstance(payload, Mapping) or payload.get("errCode") not in (0, "0"):
-        return None
-    data = payload.get("data")
-    feed = data.get("feedInfo") if isinstance(data, Mapping) else None
+    data = successful_response_data(payload, "errCode")
+    feed = data.get("feedInfo")
     return feed if isinstance(feed, Mapping) and feed else None
 
 
 def author_info(payload: object) -> Mapping[str, Any]:
-    if not isinstance(payload, Mapping):
-        return {}
-    data = payload.get("data")
-    author = data.get("authorInfo") if isinstance(data, Mapping) else None
+    data = successful_response_data(payload, "errCode")
+    author = data.get("authorInfo")
     return author if isinstance(author, Mapping) else {}
 
 
@@ -91,7 +88,7 @@ def _format(
         "url": url,
         "ext": "mp4",
         "vcodec": codec,
-        "acodec": "aac",
+        "acodec": None,
         "width": info.get("width"),
         "height": info.get("height"),
     }

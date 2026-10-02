@@ -11,7 +11,10 @@ from app.workers.runner.plugins.yt_dlp_plugins.extractor.wechat_channels_public 
 )
 from app.workers.runner.wechat_channels_policy import (
     allowed_media_url,
+    author_info,
+    feed_info,
     has_protection_material,
+    video_formats,
 )
 from yt_dlp.utils import ExtractorError
 
@@ -125,6 +128,72 @@ def test_parser_helpers_fail_closed() -> None:
     assert not allowed_media_url("http://finder.video.qq.com/251/1/stodownload")
     assert has_protection_material({"data": {"decodeKey": "secret"}})
     assert not has_protection_material({"data": {"decodeKey": ""}})
+
+
+@pytest.mark.parametrize("code", [None, False, True, 0.0, "00", "", -1, [], {}])
+def test_feed_response_requires_an_explicit_integer_or_string_success_code(
+    code: object,
+) -> None:
+    payload = feed_payload(video_url=MEDIA_URL)
+    payload["errCode"] = code
+
+    assert feed_info(payload) is None
+    assert author_info(payload) == {}
+
+
+@pytest.mark.parametrize("code", [0, "0"])
+def test_feed_response_preserves_known_metadata_on_explicit_success(
+    code: object,
+) -> None:
+    payload = feed_payload(video_url=MEDIA_URL)
+    payload["errCode"] = code
+
+    assert feed_info(payload) == payload["data"]["feedInfo"]
+    assert author_info(payload) == {"nickname": "Public creator"}
+
+
+def test_feed_candidates_do_not_invent_an_audio_codec() -> None:
+    feed = {
+        "h264VideoInfo": {"videoUrl": MEDIA_URL, "width": 1080, "height": 1920},
+        "h265VideoInfo": {
+            "videoUrl": MEDIA_URL + "-h265",
+            "width": 1080,
+            "height": 1920,
+        },
+        "videoUrl": MEDIA_URL + "-source",
+    }
+
+    candidates = video_formats(feed)
+
+    assert len(candidates) == 3
+    assert [candidate["vcodec"] for candidate in candidates] == ["h264", "hevc", None]
+    assert all(candidate["acodec"] is None for candidate in candidates)
+
+
+@pytest.mark.parametrize("audio_codec", ["aac", "opus", None])
+def test_unknown_audio_is_filled_only_from_the_existing_media_probe(
+    audio_codec: str | None,
+) -> None:
+    from app.workers.runner.metadata import enrich_format_metadata
+
+    candidate = video_formats({"videoUrl": MEDIA_URL})[0]
+    assert candidate["acodec"] is None
+    streams: list[dict[str, Any]] = [
+        {
+            "codec_type": "video",
+            "codec_name": "h264",
+            "width": 1080,
+            "height": 1920,
+            "avg_frame_rate": "30/1",
+        }
+    ]
+    if audio_codec is not None:
+        streams.append({"codec_type": "audio", "codec_name": audio_codec})
+
+    enriched = enrich_format_metadata(candidate, {"streams": streams})
+
+    assert enriched["acodec"] == (audio_codec or "none")
+    assert candidate["acodec"] is None
 
 
 @pytest.mark.parametrize(
