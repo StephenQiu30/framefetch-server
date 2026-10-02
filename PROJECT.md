@@ -1,6 +1,6 @@
 # 项目工程规范
 
-本文规定 `video-server` 的目标工程标准，自 2026-09-18 起生效。标准依据框架官方约定和本项目已明确的需求制定，禁止依据现有目录反推规范。新增与重构代码必须遵守；现有代码仅作为迁移和验收对象。Flutter App 为独立项目，单独维护规范。
+本文规定 `video-server` 的目标工程标准，适用于本仓库。标准依据框架官方约定和本项目已明确的需求制定，禁止依据现有目录反推规范。新增与重构代码必须遵守；现有代码仅作为迁移和验收对象。Flutter App 为独立项目，单独维护规范。
 
 本文负责技术、目录和依赖规则；AGENTS.md 负责协作与交付；README.md 负责运行方式；design.md 是界面视觉设计的唯一标准来源。发生架构冲突时，以本文和用户最新要求为准。
 
@@ -26,9 +26,7 @@ ExecutionContext 按设计 17 第 3.7 节保存十二字段非敏感摘要，贯
 
 ## 2. FastAPI 工程结构
 
-### 2.1 官方基线与项目边界
-
-以 FastAPI 官方多文件应用和 Full Stack Template 的 APIRouter、Depends、应用入口为基线，并参考 fastapi-best-practices 的业务聚合原则。官方模板的单文件 `crud.py` 是小型示例，不是本项目所有持久化文件的统一容器，也不存在 FastAPI 强制要求的 Java 式分层。
+### 2.1 职责边界
 
 本项目采用 api/core/models/schemas/services/repositories/integrations/workers 的职责边界，较大的业务在职责内部聚合；不创建无用途的空目录或统一基类。该目录是本项目的选择，不宣称是 FastAPI 唯一官方架构。
 
@@ -202,20 +200,3 @@ frontend/
 - 推送 main 前核对暂存内容和远端状态；推送后检查同一提交的 CI，并报告失败或尚未完成的检查。
 
 后端源码按第 2 节完整结构组织。目录调整必须同步所有导入、资源路径、测试、Compose 进程入口和文档；验收包括 OpenAPI 不变、配置定位、技能资源、HTTP/WebSocket、Worker 导入与镜像构建。
-
-## 7. 官方依据
-
-- [FastAPI 官方完整模板](https://github.com/fastapi/full-stack-fastapi-template/tree/master/backend/app)
-- [FastAPI 多文件应用与 APIRouter](https://fastapi.tiangolo.com/tutorial/bigger-applications/)
-- [FastAPI 依赖注入](https://fastapi.tiangolo.com/tutorial/dependencies/)
-- [FastAPI 请求/响应模型](https://fastapi.tiangolo.com/tutorial/response-model/)
-- [FastAPI 数据库会话示例](https://fastapi.tiangolo.com/tutorial/sql-databases/)
-- [FastAPI lifespan](https://fastapi.tiangolo.com/advanced/events/)
-- [Next.js 工程结构](https://nextjs.org/docs/app/getting-started/project-structure)
-- [shadcn Next.js 安装](https://ui.shadcn.com/docs/installation/next)
-
-官方基线与项目扩展分别标明；目录规范不以现有实现为依据。
-
-架构参考：[官方模板](https://github.com/fastapi/full-stack-fastapi-template/tree/master/backend/app)、[多业务组织参考](https://github.com/zhanymkanov/fastapi-best-practices)、[官方异常处理](https://github.com/fastapi/fastapi/blob/master/docs/en/docs/tutorial/handling-errors.md)。
-
-容器构建：backend 与 frontend 各自维护 Dockerfile/.dockerignore，以各自目录为上下文；根 Compose 管理组合部署。后端镜像 video-server 用于 API/Worker/Runner，前端镜像 video-frontend 仅运行 Next.js；不再维护根 Dockerfile。
