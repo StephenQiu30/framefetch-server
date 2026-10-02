@@ -6,12 +6,10 @@ from dataclasses import replace
 from pathlib import Path
 
 import pytest
-from app.integrations.ai_cli import (
-    AnalysisCliError,
-    ClaudeCliVideoAnalyzer,
-    CliAdapterConfig,
-    CodexAppServerVideoAnalyzer,
-)
+from app.integrations.ai_cli.claude import ClaudeCliVideoAnalyzer
+from app.integrations.ai_cli.codex import CodexAppServerVideoAnalyzer
+from app.integrations.ai_cli.config import CliAdapterConfig
+from app.integrations.ai_cli.errors import AnalysisCliError
 from tests.unit.integrations.ai_cli.helpers import (
     FakeCodexAppServer,
     FakeSupervisor,

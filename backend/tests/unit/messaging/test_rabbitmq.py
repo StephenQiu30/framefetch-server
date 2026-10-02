@@ -6,13 +6,10 @@ from uuid import uuid4
 
 import pytest
 from aio_pika import DeliveryMode
-from app.integrations.messaging import (
-    EventEnvelope,
-    PublishNotConfirmed,
-    RabbitMqPublisher,
-    RabbitMqTopology,
-    configured_rabbitmq_url,
-)
+from app.integrations.messaging.connection import configured_rabbitmq_url
+from app.integrations.messaging.envelope import EventEnvelope
+from app.integrations.messaging.rabbitmq import PublishNotConfirmed, RabbitMqPublisher
+from app.integrations.messaging.topology import RabbitMqTopology
 from pamqp.commands import Basic
 
 

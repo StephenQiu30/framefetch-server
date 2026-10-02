@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from uuid import UUID
 
-from app.integrations.messaging import EventEnvelope, EventEnvelopeError
+from app.integrations.messaging.envelope import EventEnvelope, EventEnvelopeError
 from app.services.identifiers import AnalysisReportRenderer
 
 _FIELDS = {"job_id", "run_id", "report_id", "renderer_version", "version"}

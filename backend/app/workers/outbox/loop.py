@@ -10,7 +10,11 @@ from datetime import datetime, timedelta
 from typing import Protocol, cast
 from uuid import UUID
 
-from app.integrations.messaging import EventEnvelope, EventEnvelopeError, JsonValue
+from app.integrations.messaging.envelope import (
+    EventEnvelope,
+    EventEnvelopeError,
+    JsonValue,
+)
 from app.repositories.contracts import OutboxSnapshot
 
 

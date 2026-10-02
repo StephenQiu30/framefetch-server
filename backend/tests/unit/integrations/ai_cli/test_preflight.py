@@ -6,7 +6,8 @@ from collections.abc import Mapping, Sequence
 from pathlib import Path
 
 import pytest
-from app.integrations.ai_cli import AnalysisCliError, preflight
+from app.integrations.ai_cli.errors import AnalysisCliError
+from app.integrations.ai_cli.preflight import preflight
 
 
 def executable(tmp_path: Path, name: str) -> Path:

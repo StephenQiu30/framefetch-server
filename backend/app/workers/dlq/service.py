@@ -5,7 +5,7 @@ from datetime import datetime
 from typing import Protocol
 from uuid import UUID
 
-from app.integrations.messaging import EventEnvelope, EventEnvelopeError
+from app.integrations.messaging.envelope import EventEnvelope, EventEnvelopeError
 from app.workers.dlq.repository import ReplayAudit
 
 ALLOWED_EVENTS = {

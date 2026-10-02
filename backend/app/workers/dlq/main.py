@@ -8,11 +8,9 @@ from datetime import UTC, datetime
 import aio_pika
 from app.core.config import Settings
 from app.core.db import create_engine, create_session_factory
-from app.integrations.messaging import (
-    RabbitMqPublisher,
-    RabbitMqTopology,
-    configured_rabbitmq_url,
-)
+from app.integrations.messaging.connection import configured_rabbitmq_url
+from app.integrations.messaging.rabbitmq import RabbitMqPublisher
+from app.integrations.messaging.topology import RabbitMqTopology
 from app.workers.dlq.repository import DlqReplayRepository
 from app.workers.dlq.service import ALLOWED_EVENTS, DlqReplayService
 

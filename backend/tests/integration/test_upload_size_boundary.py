@@ -8,7 +8,8 @@ from uuid import uuid4
 import httpx
 import pytest
 from app.core.config import Settings
-from app.integrations.object_storage import MinioObjectStorage, MultipartUploadPart
+from app.integrations.object_storage import MinioObjectStorage
+from app.services.imports.models import CompletedUploadPart
 from minio import Minio
 
 
@@ -61,7 +62,7 @@ async def test_upload_signature_rejects_larger_and_smaller_parts():
                 accepted = await client.put(target, content=b"x" * 32, headers=headers)
                 assert accepted.status_code == 200
         await storage.complete_multipart_upload(
-            key, upload_id, (MultipartUploadPart(1, accepted.headers["etag"]),)
+            key, upload_id, (CompletedUploadPart(1, accepted.headers["etag"]),)
         )
         upload_id = None
         assert (await storage.stat(key)).size_bytes == 32

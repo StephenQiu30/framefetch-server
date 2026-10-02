@@ -20,9 +20,9 @@ from app.core.security.ai_provider_cipher import FernetAiProviderSecretCipher
 from app.core.security.url_cipher import URLCipher
 from app.integrations.ai_api.catalog import OpenRouterModelCatalog
 from app.integrations.analysis_skill_catalog import BuiltinAnalysisSkillCatalog
-from app.integrations.article_discovery import WeChatArticleDiscoveryAdapter
+from app.integrations.article_discovery.adapter import WeChatArticleDiscoveryAdapter
 from app.integrations.jwt_tokens import JwtTokenService
-from app.integrations.media_runner_factory import media_runner_router
+from app.integrations.media_runner_factory import session_media_runner
 from app.integrations.object_storage import MinioObjectStorage
 from app.integrations.passwords import Argon2PasswordHasher
 from app.integrations.provider_status import configured_provider_statuses
@@ -86,7 +86,6 @@ from app.services.analysis.get_latest_analysis import (
     GetLatestDocumentAnalysis,
     GetLatestDownloadAnalysis,
 )
-from app.services.analysis.list_skills import ListAnalysisSkills
 from app.services.analysis.retry_analysis import RetryAnalysis
 from app.services.auth.email_verification import EmailVerification
 from app.services.auth.service import AuthService
@@ -183,9 +182,8 @@ def build_api_runtime(settings: Settings) -> ApiRuntime:
     provider_catalog_repository = SqlAlchemyProviderCatalogRepository(sessions)
     ai_provider_repository = SqlAlchemyAiProviderRepository(sessions)
     store = repository
-    runner = media_runner_router(settings)
+    runner = session_media_runner(settings)
     storage = MinioObjectStorage(settings, enable_public_signing=True)
-    import_storage = MinioObjectStorage.for_imports(settings)
     thumbnail_storage = MinioThumbnailStorage(storage)
     persist_thumbnail = PersistThumbnail(store, thumbnail_storage)
     rate_limiter = (
@@ -299,7 +297,7 @@ def build_api_runtime(settings: Settings) -> ApiRuntime:
     )
     cancel_import = CancelImport(
         media_import_repository,
-        import_storage,
+        storage,
         now=clock,
     )
     media_import_use_cases = MediaImportUseCases(
@@ -316,18 +314,18 @@ def build_api_runtime(settings: Settings) -> ApiRuntime:
         ),
         create_upload_session=CreateUploadSession(
             media_import_repository,
-            import_storage,
+            storage,
             now=clock,
             limits=upload_limits,
         ),
         complete_upload=CompleteImportUpload(
             media_import_repository,
-            import_storage,
+            storage,
             now=clock,
         ),
         get_import=GetImport(
             media_import_repository,
-            import_storage,
+            storage,
             now=clock,
         ),
         cancel_import=cancel_import,
@@ -346,35 +344,35 @@ def build_api_runtime(settings: Settings) -> ApiRuntime:
         ),
         create_upload_session=CreateUploadSession(
             document_import_repository,
-            import_storage,
+            storage,
             now=clock,
             limits=upload_limits,
         ),
         complete_upload=CompleteImportUpload(
             document_import_repository,
-            import_storage,
+            storage,
             now=clock,
         ),
         get_import=GetImport(
             document_import_repository,
-            import_storage,
+            storage,
             now=clock,
         ),
         cancel_import=CancelImport(
             document_import_repository,
-            import_storage,
+            storage,
             now=clock,
         ),
         get_document=GetDocument(
             document_catalog_repository,
-            import_storage,
+            storage,
             max_preview_bytes=settings.document_preview_max_bytes,
             max_preview_characters=settings.document_preview_max_characters,
         ),
         list_documents=ListDocuments(document_catalog_repository),
         delete_document=DeleteDocument(
             document_delete_repository,
-            import_storage,
+            storage,
             now=clock,
         ),
     )
@@ -425,7 +423,7 @@ def build_api_runtime(settings: Settings) -> ApiRuntime:
     skill_catalog = BuiltinAnalysisSkillCatalog()
     analysis_use_cases = AnalysisUseCases(
         get_analysis_analytics=GetAnalysisAnalytics(analysis_repository, now=clock),
-        list_analysis_skills=ListAnalysisSkills(skill_catalog),
+        list_analysis_skills=skill_catalog.list,
         create_analysis=CreateAnalysis(
             repository=analysis_repository,
             fingerprinter=fingerprinter,

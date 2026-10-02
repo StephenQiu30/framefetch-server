@@ -8,7 +8,7 @@ from dataclasses import dataclass
 
 from sqlalchemy.ext.asyncio import AsyncEngine
 
-from app.integrations.media_runner import MediaRunnerRouter
+from app.integrations.media_runner import MediaRunnerHttpClient
 from app.integrations.rate_limiter import RedisRateLimiter
 from app.integrations.readiness import (
     RuntimeReadiness,
@@ -35,8 +35,9 @@ from app.services.analysis.get_latest_analysis import (
     GetLatestDocumentAnalysis,
     GetLatestDownloadAnalysis,
 )
-from app.services.analysis.list_skills import ListAnalysisSkills
+from app.services.analysis.models import AnalysisSkillView
 from app.services.analysis.retry_analysis import RetryAnalysis
+from app.services.analysis.rules.enums import AnalysisInputKind
 from app.services.auth.service import AuthService
 from app.services.auth.user_service import UserService
 from app.services.auth.web_sessions import WebSessionService
@@ -105,7 +106,7 @@ class SourceDiscoveryUseCases:
 @dataclass(frozen=True, slots=True)
 class AnalysisUseCases:
     get_analysis_analytics: GetAnalysisAnalytics
-    list_analysis_skills: ListAnalysisSkills
+    list_analysis_skills: Callable[[AnalysisInputKind], tuple[AnalysisSkillView, ...]]
     create_analysis: CreateAnalysis
     create_document_analysis: CreateDocumentAnalysis
     delete_analysis: DeleteAnalysis
@@ -169,7 +170,7 @@ class ApiServices:
 class ApiRuntime:
     services: ApiServices
     engine: AsyncEngine
-    runner: MediaRunnerRouter
+    runner: MediaRunnerHttpClient
     auth_session_store: RedisAuthSessionStore
     realtime_consumer: RabbitMqRealtimeConsumer
 

@@ -2,10 +2,8 @@ from __future__ import annotations
 
 import httpx
 import pytest
-from app.integrations.article_discovery import (
-    WeChatArticleDiscoveryAdapter,
-    parse_article_html,
-)
+from app.integrations.article_discovery.adapter import WeChatArticleDiscoveryAdapter
+from app.integrations.article_discovery.parser import parse_article_html
 from app.services.source_discoveries.ports import (
     ArticleAccessRestricted,
     ArticleDiscoveryFailure,

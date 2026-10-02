@@ -15,7 +15,7 @@ from temporalio.common import WorkflowIDConflictPolicy, WorkflowIDReusePolicy
 from temporalio.exceptions import WorkflowAlreadyStartedError
 from temporalio.service import RPCError, RPCStatusCode
 
-from app.integrations.messaging import EventEnvelope, EventEnvelopeError
+from app.integrations.messaging.envelope import EventEnvelope, EventEnvelopeError
 from app.repositories.downloads.intent_repository import IntentRepository
 from app.services.analysis.models import AnalysisJobSnapshot
 from app.services.downloads.intent_models import IntentStatus

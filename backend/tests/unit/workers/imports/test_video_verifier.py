@@ -5,14 +5,14 @@ from dataclasses import replace
 from pathlib import Path
 
 import pytest
-from app.services.imports.rules.enums import ImportErrorCode
-from app.workers.imports import (
+from app.integrations.imports.video import (
     VideoProbeResult,
     VideoProbeStream,
     VideoVerificationError,
     VideoVerificationSettings,
     verify_video,
 )
+from app.services.imports.rules.enums import ImportErrorCode
 
 
 def box(kind: bytes, payload: bytes = b"") -> bytes:

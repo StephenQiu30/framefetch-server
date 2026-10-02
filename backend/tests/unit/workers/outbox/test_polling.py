@@ -4,7 +4,7 @@ import asyncio
 from datetime import UTC, datetime
 
 import pytest
-from app.workers.outbox import OutboxLoopSettings, OutboxPublisherLoop
+from app.workers.outbox.loop import OutboxLoopSettings, OutboxPublisherLoop
 
 
 class EmptyRepository:

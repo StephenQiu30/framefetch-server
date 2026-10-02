@@ -38,25 +38,12 @@ class StoredObject:
     last_modified: datetime
 
 
-@dataclass(frozen=True, slots=True)
-class MultipartUploadPart:
-    part_number: int
-    etag: str
-
-
 class MultipartUploadPartLike(Protocol):
     @property
     def part_number(self) -> int: ...
 
     @property
     def etag(self) -> str: ...
-
-
-@dataclass(frozen=True, slots=True)
-class IncompleteMultipartUpload:
-    object_key: str
-    upload_id: str
-    initiated_at: datetime
 
 
 class MinioObjectStorage:
@@ -120,33 +107,9 @@ class MinioObjectStorage:
                 region=settings.minio_region,
             )
 
-    @classmethod
-    def for_imports(
-        cls,
-        settings: Settings,
-        *,
-        private: Minio | None = None,
-        public: Minio | None = None,
-        local_browser: Minio | None = None,
-        enable_public_signing: bool = True,
-    ) -> MinioObjectStorage:
-        """Build object storage for the import workflow."""
-        return cls(
-            settings,
-            private=private,
-            public=public,
-            local_browser=local_browser,
-            enable_public_signing=enable_public_signing,
-        )
-
     @property
     def bucket(self) -> str:
         return self._bucket
-
-    async def ensure_bucket(self) -> None:
-        exists = await asyncio.to_thread(self._private.bucket_exists, self._bucket)
-        if not exists:
-            await asyncio.to_thread(self._private.make_bucket, self._bucket)
 
     async def upload(self, object_key: str, source: Path, content_type: str) -> int:
         _validate_key(object_key)
@@ -303,37 +266,6 @@ class MinioObjectStorage:
             if getattr(error, "code", None) == "NoSuchUpload":
                 return
             raise ImportObjectStorageError("multipart abort failed") from error
-
-    async def list_incomplete_multipart_uploads(
-        self, prefix: str, *, limit: int = 1000
-    ) -> tuple[IncompleteMultipartUpload, ...]:
-        """Return one bounded reconciliation page of incomplete uploads."""
-        _validate_key(prefix)
-        if isinstance(limit, bool) or not 1 <= limit <= 1000:
-            raise ValueError("multipart list limit must be between 1 and 1000")
-        try:
-            result = await asyncio.to_thread(
-                self._private._list_multipart_uploads,
-                self._bucket,
-                prefix=prefix,
-                max_uploads=limit,
-            )
-        except Exception as error:
-            raise ImportObjectStorageError(
-                "multipart reconciliation list failed"
-            ) from error
-        uploads: list[IncompleteMultipartUpload] = []
-        for item in result.uploads:
-            if item.upload_id is None or item.initiated_time is None:
-                raise RuntimeError("object storage returned incomplete upload metadata")
-            uploads.append(
-                IncompleteMultipartUpload(
-                    object_key=item.object_name,
-                    upload_id=item.upload_id,
-                    initiated_at=item.initiated_time,
-                )
-            )
-        return tuple(uploads)
 
     async def promote(
         self,

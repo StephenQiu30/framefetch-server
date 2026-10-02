@@ -7,8 +7,9 @@ from pathlib import Path
 
 import pytest
 from app.core.config import Settings
-from app.integrations.ai_api import ApiAnalyzer
-from app.integrations.ai_cli import CliCapabilities, CodexAppServerVideoAnalyzer
+from app.integrations.ai_api.analyzer import ApiAnalyzer
+from app.integrations.ai_cli.codex import CodexAppServerVideoAnalyzer
+from app.integrations.ai_cli.preflight import CliCapabilities
 from app.services.ai_providers import (
     AiProviderAuthMode,
     AiProviderEngine,

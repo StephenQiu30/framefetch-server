@@ -3,11 +3,9 @@ from __future__ import annotations
 import asyncio
 import logging
 import re
-from collections.abc import Callable, Coroutine
 from contextlib import suppress
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Any, TypeVar
 from uuid import UUID
 
 from app.services.import_execution.errors import (
@@ -19,6 +17,7 @@ from app.services.import_execution.models import (
     ImportExecutionSettings,
     ImportVerificationClaim,
 )
+from app.services.import_execution.monitor import monitored
 from app.services.import_execution.ports import (
     Clock,
     ImportExecutionRepository,
@@ -34,7 +33,6 @@ from app.services.imports.rules.enums import (
     ImportSourceFormat,
 )
 
-ResultT = TypeVar("ResultT")
 _log = logging.getLogger(__name__)
 _ARTIFACT_KEY = re.compile(
     r"downloads/[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-"
@@ -96,19 +94,17 @@ class ImportExecution:
             try:
                 workspace = await self._workspace.create(task_id)
                 workspace_path = workspace.path
-                await self._monitored(
-                    claim,
+                await monitored(
                     lambda: self._storage.download(
                         claim.object_key, workspace.input_path
                     ),
-                    stage="verifying",
-                    progress=60,
+                    lambda: self._heartbeat(claim, stage="verifying", progress=60),
+                    interval=self._settings.heartbeat_interval,
                 )
-                artifact = await self._monitored(
-                    claim,
+                artifact = await monitored(
                     lambda: self._video_verifier(workspace.input_path, claim),
-                    stage="verifying",
-                    progress=75,
+                    lambda: self._heartbeat(claim, stage="verifying", progress=75),
+                    interval=self._settings.heartbeat_interval,
                 )
                 if self._thumbnail_recovery is not None and claim.owner_hash:
                     await self._thumbnail_recovery.recover(
@@ -117,8 +113,7 @@ class ImportExecution:
                         workspace.input_path,
                     )
                 final_key = _artifact_object_key(claim)
-                await self._monitored(
-                    claim,
+                await monitored(
                     lambda: self._storage.promote(
                         claim.object_key,
                         final_key,
@@ -126,8 +121,8 @@ class ImportExecution:
                         sha256=artifact.sha256,
                         content_type=artifact.content_type,
                     ),
-                    stage="uploading",
-                    progress=95,
+                    lambda: self._heartbeat(claim, stage="uploading", progress=95),
+                    interval=self._settings.heartbeat_interval,
                 )
                 now = self._clock()
                 await self._repository.complete_verification(
@@ -164,30 +159,6 @@ class ImportExecution:
         finally:
             with suppress(Exception):
                 await self._workspace.cleanup(task_id, workspace_path)
-
-    async def _monitored(
-        self,
-        claim: ImportVerificationClaim,
-        operation: Callable[[], Coroutine[Any, Any, ResultT]],
-        *,
-        stage: str,
-        progress: int,
-    ) -> ResultT:
-        await self._heartbeat(claim, stage=stage, progress=progress)
-        task: asyncio.Task[ResultT] = asyncio.create_task(operation())
-        try:
-            while True:
-                done, _ = await asyncio.wait(
-                    {task}, timeout=self._settings.heartbeat_interval
-                )
-                if done:
-                    return await task
-                await self._heartbeat(claim, stage=stage, progress=progress)
-        except (ImportLeaseLost, ImportExecutionUnavailable, asyncio.CancelledError):
-            if not task.done():
-                task.cancel()
-            await asyncio.gather(task, return_exceptions=True)
-            raise
 
     async def _heartbeat(
         self, claim: ImportVerificationClaim, *, stage: str, progress: int

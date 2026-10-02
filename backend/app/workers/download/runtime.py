@@ -13,9 +13,9 @@ from uuid import uuid4
 from app.core.config import Settings
 from app.core.db import create_session_factory
 from app.core.security.url_cipher import URLCipher
-from app.integrations.media_runner import MediaRunnerRouter
-from app.integrations.media_runner_factory import media_runner_router
-from app.integrations.messaging import RabbitMqTopology
+from app.integrations.media_runner import MediaRunnerHttpClient
+from app.integrations.media_runner_factory import session_media_runner
+from app.integrations.messaging.topology import RabbitMqTopology
 from app.integrations.object_storage import MinioObjectStorage
 from app.integrations.readiness import assert_download_execution_schema
 from app.integrations.temporal_client import connect_temporal
@@ -45,7 +45,7 @@ class DownloadWorkerRuntime:
     consumer: RabbitMqDownloadConsumer
     sweeper: DownloadRecoverySweeper
     storage: MinioObjectStorage
-    runner: MediaRunnerRouter
+    runner: MediaRunnerHttpClient
     engine: AsyncEngine
     inspection_activities: InspectionActivities
     temporal_address: str
@@ -67,7 +67,7 @@ def build_runtime(settings: Settings, engine: AsyncEngine) -> DownloadWorkerRunt
     raw_repository = SqlAlchemyDownloadRepository(sessions)
     repository = DownloadExecutionRepository(raw_repository)
     workspace_cleaner = SharedWorkspaceCleaner(settings.runner_workspace_root)
-    runner = media_runner_router(settings)
+    runner = session_media_runner(settings)
     storage = MinioObjectStorage(settings)
     thumbnail_recovery = ArtifactThumbnailRecovery(
         PersistThumbnail(

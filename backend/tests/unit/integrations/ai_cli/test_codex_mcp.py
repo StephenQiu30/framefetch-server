@@ -4,11 +4,11 @@ import json
 import sys
 from pathlib import Path
 
-from app.integrations.ai_cli import CliAdapterConfig
 from app.integrations.ai_cli.codex_mcp import (
     observation_image_limit,
     video_observer_arguments,
 )
+from app.integrations.ai_cli.config import CliAdapterConfig
 from app.integrations.ai_cli.media_mcp_tools import TOOLS
 
 

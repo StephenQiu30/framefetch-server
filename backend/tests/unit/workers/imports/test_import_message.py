@@ -2,13 +2,16 @@ from datetime import UTC, datetime
 from uuid import UUID, uuid4
 
 import pytest
-from app.integrations.messaging import EventEnvelope
+from app.integrations.messaging.envelope import EventEnvelope
 from app.services.imports.events import (
     CONTENT_IMPORT_VERIFY_REQUESTED,
     import_verify_requested_payload,
 )
 from app.services.imports.rules.enums import ContentKind
-from app.workers.imports import ImportMessageError, parse_import_verify_requested
+from app.workers.imports.message import (
+    ImportMessageError,
+    parse_import_verify_requested,
+)
 
 NOW = datetime(2026, 8, 14, tzinfo=UTC)
 RESOURCE_ID = UUID("11111111-1111-4111-8111-111111111111")

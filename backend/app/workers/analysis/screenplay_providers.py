@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import cast
 
-from app.integrations.ai_cli import AnalysisCliError
+from app.integrations.ai_cli.errors import AnalysisCliError
 from app.services.analysis_execution.ports import (
     AnalyzerResolver,
     ScreenplayAnalyzer,

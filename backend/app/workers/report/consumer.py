@@ -11,7 +11,8 @@ from aio_pika.abc import (
     AbstractQueue,
     AbstractRobustConnection,
 )
-from app.integrations.messaging import RabbitMqTopology, configured_rabbitmq_url
+from app.integrations.messaging.connection import configured_rabbitmq_url
+from app.integrations.messaging.topology import RabbitMqTopology
 from app.workers.report.message import ReportMessageError, parse_report_requested
 from app.workers.report.publisher import ReportPublisher
 

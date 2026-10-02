@@ -1,5 +1,5 @@
 import pytest
-from app.integrations.article_discovery import parse_article_html
+from app.integrations.article_discovery.parser import parse_article_html
 from app.services.source_discoveries.ports import ArticleAccessRestricted
 
 

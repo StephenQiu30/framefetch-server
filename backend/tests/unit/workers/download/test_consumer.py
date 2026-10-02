@@ -5,7 +5,8 @@ from datetime import UTC, datetime
 from uuid import uuid4
 
 import pytest
-from app.integrations.messaging import EventEnvelope, RabbitMqTopology
+from app.integrations.messaging.envelope import EventEnvelope
+from app.integrations.messaging.topology import RabbitMqTopology
 from app.services.download_execution.models import ExecutionDisposition
 from app.workers.download.consumer import _declare_download_topology, process_delivery
 

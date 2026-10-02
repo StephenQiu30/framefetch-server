@@ -7,6 +7,7 @@ import httpx
 import pytest
 from app.integrations.media_runner import MediaRunnerHttpClient
 from app.integrations.media_runner_models import MediaRunnerClientError
+from app.services.downloads.errors import MediaInspectionFailure
 from app.services.provider_failures import (
     FailureClass,
     FailureEvidenceKind,
@@ -44,7 +45,7 @@ async def test_signed_failure_preserves_category_layer_stage_and_summary(
             download_timeout_seconds=5,
             client=http,
         )
-        with pytest.raises(MediaRunnerClientError) as caught:
+        with pytest.raises(MediaInspectionFailure) as caught:
             await client.inspect("https://vimeo.com/1")
     assert caught.value.failure == error.failure
     assert caught.value.failure.failure_class is category
@@ -86,7 +87,7 @@ async def test_invalid_failure_facts_are_rejected(mutation):
             download_timeout_seconds=1,
             client=http,
         )
-        with pytest.raises(MediaRunnerClientError, match="invalid_runner_response"):
+        with pytest.raises(MediaInspectionFailure, match="invalid_runner_response"):
             await client.inspect("https://vimeo.com/1")
 
 
@@ -130,9 +131,9 @@ async def test_public_media_failure_code_is_a_category(
             download_timeout_seconds=5,
             client=http,
         )
-        with pytest.raises(MediaRunnerClientError) as caught:
+        with pytest.raises(MediaInspectionFailure) as caught:
             await client.inspect("https://vimeo.com/1")
-    assert caught.value.code == category
+    assert str(caught.value) == category
     assert caught.value.failure.code == category
     assert caught.value.failure.failure_class.value == category
 
@@ -165,11 +166,12 @@ async def test_signed_429_preserves_retry_after_and_safe_evidence(tmp_path):
             download_timeout_seconds=5,
             client=http,
         )
-        with pytest.raises(MediaRunnerClientError) as caught:
+        with pytest.raises(MediaInspectionFailure) as caught:
             await client.inspect("https://vimeo.com/1")
-    assert caught.value.code == "rate_limited"
-    assert caught.value.status == 429
-    assert caught.value.retry_at == retry_after
+    assert str(caught.value) == "rate_limited"
+    assert isinstance(caught.value.__cause__, MediaRunnerClientError)
+    assert caught.value.__cause__.status == 429
+    assert caught.value.failure.retry_after == retry_after
     assert caught.value.failure.evidence == {
         "kind": "upstream_response",
         "http_status": 429,

@@ -1,5 +1,5 @@
 import pytest
-from app.integrations.ai_cli import AnalysisCliError
+from app.integrations.ai_cli.errors import AnalysisCliError
 from app.services.analysis_execution.models import (
     ScreenplayAnalysisRequest,
     VideoAnalysisRequest,

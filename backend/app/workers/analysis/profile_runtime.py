@@ -8,21 +8,16 @@ from pathlib import Path
 
 from app.core.config import Settings
 from app.core.security.ai_provider_cipher import FernetAiProviderSecretCipher
-from app.integrations.ai_api import (
-    ApiAdapterConfig,
-    ApiAnalyzer,
-)
+from app.integrations.ai_api.analyzer import ApiAnalyzer
 from app.integrations.ai_api.catalog import OpenRouterModelCatalog
 from app.integrations.ai_api.chat import ChatCompletionsModel
 from app.integrations.ai_api.client import build_model
-from app.integrations.ai_cli import (
-    AnalysisCliError,
-    ClaudeCliVideoAnalyzer,
-    CliAdapterConfig,
-    CodexAppServerVideoAnalyzer,
-    media_preflight,
-    preflight,
-)
+from app.integrations.ai_api.config import ApiAdapterConfig
+from app.integrations.ai_cli.claude import ClaudeCliVideoAnalyzer
+from app.integrations.ai_cli.codex import CodexAppServerVideoAnalyzer
+from app.integrations.ai_cli.config import CliAdapterConfig
+from app.integrations.ai_cli.errors import AnalysisCliError
+from app.integrations.ai_cli.preflight import media_preflight, preflight
 from app.services.ai_providers import (
     AiProviderAuthMode,
     AiProviderEngine,

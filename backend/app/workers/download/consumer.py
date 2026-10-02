@@ -13,7 +13,8 @@ from aio_pika.abc import (
     AbstractQueue,
     AbstractRobustConnection,
 )
-from app.integrations.messaging import RabbitMqTopology, configured_rabbitmq_url
+from app.integrations.messaging.connection import configured_rabbitmq_url
+from app.integrations.messaging.topology import RabbitMqTopology
 from app.services.download_execution.models import ExecutionDisposition
 from app.workers.download.message import (
     DownloadMessageError,

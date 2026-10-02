@@ -5,6 +5,10 @@ from pathlib import Path
 from uuid import UUID
 
 import pytest
+from app.integrations.imports.text import (
+    TextScreenplayVerifier,
+    TextVerificationSettings,
+)
 from app.services.documents.rules.structure import ScreenplayElementKind
 from app.services.import_execution.errors import ImportVerificationRejected
 from app.services.import_execution.models import ImportVerificationClaim
@@ -13,7 +17,6 @@ from app.services.imports.rules.enums import (
     ImportErrorCode,
     ImportSourceFormat,
 )
-from app.workers.imports import TextScreenplayVerifier, TextVerificationSettings
 
 RESOURCE_ID = UUID("11111111-1111-4111-8111-111111111111")
 

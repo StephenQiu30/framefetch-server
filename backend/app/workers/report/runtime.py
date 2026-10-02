@@ -9,7 +9,7 @@ from datetime import UTC, datetime, timedelta
 from app.core.config import Settings
 from app.core.db import create_session_factory
 from app.integrations.analysis_report_docx import PythonDocxAnalysisReportRenderer
-from app.integrations.messaging import RabbitMqTopology
+from app.integrations.messaging.topology import RabbitMqTopology
 from app.integrations.object_storage import MinioObjectStorage
 from app.repositories.analysis.report_repository import (
     SqlAlchemyAnalysisReportRepository,

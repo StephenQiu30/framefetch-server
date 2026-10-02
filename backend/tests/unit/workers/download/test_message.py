@@ -2,7 +2,7 @@ from datetime import UTC, datetime
 from uuid import uuid4
 
 import pytest
-from app.integrations.messaging import EventEnvelope
+from app.integrations.messaging.envelope import EventEnvelope
 from app.workers.download.message import DownloadMessageError, parse_download_requested
 
 

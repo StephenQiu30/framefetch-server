@@ -8,9 +8,10 @@ from datetime import UTC, datetime, timedelta
 
 from app.core.config import Settings
 from app.core.db import create_session_factory
-from app.integrations.media_runner import MediaRunnerRouter
-from app.integrations.media_runner_factory import media_runner_router
-from app.integrations.messaging import RabbitMqPublisher, RabbitMqTopology
+from app.integrations.media_runner import MediaRunnerHttpClient
+from app.integrations.media_runner_factory import session_media_runner
+from app.integrations.messaging.rabbitmq import RabbitMqPublisher
+from app.integrations.messaging.topology import RabbitMqTopology
 from app.integrations.temporal_client import CommandPublisher
 from app.repositories.analysis.repository import SqlAlchemyAnalysisRepository
 from app.repositories.downloads.intent_repository import IntentRepository
@@ -23,7 +24,7 @@ from sqlalchemy.ext.asyncio import AsyncEngine
 
 @dataclass(slots=True)
 class OutboxRuntime:
-    runner: MediaRunnerRouter
+    runner: MediaRunnerHttpClient
     publisher: RabbitMqPublisher
     loop: OutboxPublisherLoop
     retention: OperationLogRetention
@@ -46,7 +47,7 @@ def build_runtime(
     settings: Settings, engine: AsyncEngine, *, publisher_id: str
 ) -> OutboxRuntime:
     sessions = create_session_factory(engine)
-    runner = media_runner_router(settings)
+    runner = session_media_runner(settings)
     publisher = RabbitMqPublisher(
         settings.rabbitmq_url,
         RabbitMqTopology(

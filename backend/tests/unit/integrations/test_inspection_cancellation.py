@@ -7,7 +7,7 @@ from unittest.mock import AsyncMock
 from uuid import uuid4
 
 import pytest
-from app.integrations.messaging import EventEnvelope
+from app.integrations.messaging.envelope import EventEnvelope
 from app.integrations.temporal_client import CommandPublisher
 from app.services.downloads.intent_models import IntentSnapshot, IntentStatus
 from app.workers.download.workflows import InspectionCommand

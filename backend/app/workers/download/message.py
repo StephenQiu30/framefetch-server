@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from uuid import UUID
 
-from app.integrations.messaging import EventEnvelope, EventEnvelopeError
+from app.integrations.messaging.envelope import EventEnvelope, EventEnvelopeError
 
 
 class DownloadMessageError(ValueError):

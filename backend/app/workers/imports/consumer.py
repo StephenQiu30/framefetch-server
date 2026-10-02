@@ -11,7 +11,8 @@ from aio_pika.abc import (
     AbstractQueue,
     AbstractRobustConnection,
 )
-from app.integrations.messaging import RabbitMqTopology, configured_rabbitmq_url
+from app.integrations.messaging.connection import configured_rabbitmq_url
+from app.integrations.messaging.topology import RabbitMqTopology
 from app.services.imports.models import ImportDisposition
 from app.services.imports.rules.enums import ContentKind
 from app.workers.imports.message import (

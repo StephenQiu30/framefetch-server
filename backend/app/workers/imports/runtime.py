@@ -11,7 +11,7 @@ from app.core.db import create_session_factory
 from app.integrations.imports.verifier_factory import build_screenplay_verifier
 from app.integrations.imports.video import Mp4ImportVerifier, VideoVerificationSettings
 from app.integrations.imports.workspace import PrivateImportWorkspace
-from app.integrations.messaging import RabbitMqTopology
+from app.integrations.messaging.topology import RabbitMqTopology
 from app.integrations.object_storage import MinioObjectStorage
 from app.integrations.thumbnail_storage import MinioThumbnailStorage
 from app.repositories.documents.import_execution_repository import (
@@ -53,7 +53,7 @@ def build_runtime(settings: Settings, engine: AsyncEngine) -> ImportWorkerRuntim
     repository = SqlAlchemyMediaImportRepository(sessions)
     download_repository = SqlAlchemyDownloadRepository(sessions)
     document_repository = SqlAlchemyDocumentImportExecutionRepository(sessions)
-    storage = MinioObjectStorage.for_imports(settings, enable_public_signing=False)
+    storage = MinioObjectStorage(settings)
     workspace = PrivateImportWorkspace(settings.import_workspace_root)
     thumbnail_recovery = ArtifactThumbnailRecovery(
         PersistDownloadThumbnail(

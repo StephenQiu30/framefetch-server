@@ -1,4 +1,4 @@
-"""HMAC-authenticated client for the isolated anonymous L1 Media Runner."""
+"""HMAC-authenticated client for the isolated Media Runner."""
 
 from __future__ import annotations
 
@@ -12,7 +12,7 @@ from collections.abc import Callable
 from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
-from typing import Protocol, TypeVar
+from typing import TypeVar
 from uuid import uuid4
 
 import httpx
@@ -55,28 +55,6 @@ _TASK_ID = re.compile(r"[A-Za-z0-9_-]{1,64}")
 ResponseModel = TypeVar("ResponseModel", bound=BaseModel)
 
 
-class MediaRunnerClient(Protocol):
-    async def engine_catalog(self) -> EngineCatalogResponse: ...
-    async def inspect(
-        self, url: str, *, task_id: str | None = None, deadline: datetime | None = None
-    ) -> RunnerInspection: ...
-    async def download(
-        self,
-        task_id: str,
-        url: str,
-        plan: DownloadPlan | None,
-        *,
-        expected_provider_media_id: str,
-        expected_extractor_key: str,
-        execution_context: ExecutionContext,
-        media_kind: MediaKind = MediaKind.VIDEO,
-        asset_count: int = 0,
-    ) -> RunnerArtifact: ...
-    async def status(self, task_id: str) -> RunnerProgress: ...
-    async def cancel(self, task_id: str) -> None: ...
-    async def close(self) -> None: ...
-
-
 class MediaRunnerHttpClient:
     def __init__(
         self,
@@ -113,6 +91,14 @@ class MediaRunnerHttpClient:
         )
 
     async def inspect(
+        self, url: str, *, task_id: str | None = None, deadline: datetime | None = None
+    ) -> RunnerInspection:
+        try:
+            return await self._inspect(url, task_id=task_id, deadline=deadline)
+        except MediaRunnerClientError as exc:
+            raise MediaInspectionFailure(exc.code, failure=exc.failure) from exc
+
+    async def _inspect(
         self, url: str, *, task_id: str | None = None, deadline: datetime | None = None
     ) -> RunnerInspection:
         requested_at = datetime.now(UTC)
@@ -410,56 +396,6 @@ def _inspection_result(response: InspectResponse) -> RunnerInspection:
         media_kind=response.media.media_kind,
         asset_count=response.media.asset_count,
     )
-
-
-class MediaRunnerRouter:
-    """Own the single configured Runner and project inspection failures."""
-
-    def __init__(self, runner: MediaRunnerClient) -> None:
-        self._runner = runner
-
-    async def engine_catalog(self) -> EngineCatalogResponse:
-        return await self._runner.engine_catalog()
-
-    async def inspect(
-        self, url: str, *, task_id: str | None = None, deadline: datetime | None = None
-    ) -> RunnerInspection:
-        try:
-            return await self._runner.inspect(url, task_id=task_id, deadline=deadline)
-        except MediaRunnerClientError as exc:
-            raise MediaInspectionFailure(exc.code, failure=exc.failure) from exc
-
-    async def download(
-        self,
-        task_id: str,
-        url: str,
-        plan: DownloadPlan | None,
-        *,
-        expected_provider_media_id: str,
-        expected_extractor_key: str,
-        execution_context: ExecutionContext,
-        media_kind: MediaKind = MediaKind.VIDEO,
-        asset_count: int = 0,
-    ) -> RunnerArtifact:
-        return await self._runner.download(
-            task_id,
-            url,
-            plan,
-            expected_provider_media_id=expected_provider_media_id,
-            expected_extractor_key=expected_extractor_key,
-            execution_context=execution_context,
-            media_kind=media_kind,
-            asset_count=asset_count,
-        )
-
-    async def status(self, task_id: str) -> RunnerProgress:
-        return await self._runner.status(task_id)
-
-    async def cancel(self, task_id: str) -> None:
-        await self._runner.cancel(task_id)
-
-    async def close(self) -> None:
-        await self._runner.close()
 
 
 def _error_code(response: httpx.Response) -> str:

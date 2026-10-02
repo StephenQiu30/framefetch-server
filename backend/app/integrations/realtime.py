@@ -13,11 +13,8 @@ from aio_pika.abc import (
     AbstractRobustConnection,
 )
 
-from app.integrations.messaging import (
-    EventEnvelope,
-    EventEnvelopeError,
-    configured_rabbitmq_url,
-)
+from app.integrations.messaging.connection import configured_rabbitmq_url
+from app.integrations.messaging.envelope import EventEnvelope, EventEnvelopeError
 
 
 @dataclass(slots=True, eq=False)

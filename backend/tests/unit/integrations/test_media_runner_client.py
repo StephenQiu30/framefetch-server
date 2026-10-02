@@ -12,6 +12,7 @@ import httpx
 import pytest
 from app.integrations.media_runner import MediaRunnerHttpClient, _retry_after
 from app.integrations.media_runner_models import MediaRunnerClientError
+from app.services.downloads.errors import MediaInspectionFailure
 from app.services.provider_types import ExecutionContext
 from app.workers.runner.contracts import ProviderFailureContract, RunnerErrorContract
 from app.workers.runner.errors import RunnerFailure
@@ -110,7 +111,7 @@ async def test_invalid_runner_response_is_rejected(tmp_path, broken):
     async with httpx.AsyncClient(
         base_url="http://runner", transport=httpx.MockTransport(respond)
     ) as http:
-        with pytest.raises(MediaRunnerClientError, match="invalid_runner_response"):
+        with pytest.raises(MediaInspectionFailure, match="invalid_runner_response"):
             await client(http, tmp_path).inspect("https://media.example.com/video")
 
 
@@ -132,9 +133,9 @@ async def test_transport_failures_keep_bounded_stable_codes(
     async with httpx.AsyncClient(
         base_url="http://runner", transport=httpx.MockTransport(respond)
     ) as http:
-        with pytest.raises(MediaRunnerClientError) as caught:
+        with pytest.raises(MediaInspectionFailure) as caught:
             await client(http, tmp_path).inspect("https://media.example.com/video")
-    assert caught.value.code == expected
+    assert str(caught.value) == expected
     assert "private" not in str(caught.value)
 
 
@@ -156,11 +157,11 @@ async def test_failure_facts_and_retry_after_survive_http_projection(tmp_path):
     async with httpx.AsyncClient(
         base_url="http://runner", transport=httpx.MockTransport(respond)
     ) as http:
-        with pytest.raises(MediaRunnerClientError) as caught:
+        with pytest.raises(MediaInspectionFailure) as caught:
             await client(http, tmp_path).inspect("https://media.example.com/video")
     assert caught.value.failure.layer == "L1"
     assert caught.value.failure.stage == "resolve"
-    assert caught.value.retry_at is not None
+    assert caught.value.failure.retry_after is not None
 
 
 @pytest.mark.parametrize(
@@ -292,7 +293,7 @@ async def test_inspection_cancel_without_ack_surfaces_failure(tmp_path):
         )
         await started.wait()
         task.cancel()
-        with pytest.raises(MediaRunnerClientError, match="runtime_unavailable"):
+        with pytest.raises(MediaInspectionFailure, match="runtime_unavailable"):
             await asyncio.wait_for(task, 1)
     assert attempts == 3
 

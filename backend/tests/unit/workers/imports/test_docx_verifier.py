@@ -10,6 +10,11 @@ from uuid import UUID
 from zipfile import ZIP_DEFLATED, ZipFile, ZipInfo
 
 import pytest
+from app.integrations.imports.docx import (
+    DocxScreenplayVerifier,
+    DocxVerificationSettings,
+)
+from app.integrations.imports.text import TextVerificationSettings
 from app.services.documents.rules.structure import ScreenplayElementKind
 from app.services.import_execution.errors import ImportVerificationRejected
 from app.services.import_execution.models import ImportVerificationClaim
@@ -17,11 +22,6 @@ from app.services.imports.rules.enums import (
     ContentKind,
     ImportErrorCode,
     ImportSourceFormat,
-)
-from app.workers.imports import (
-    DocxScreenplayVerifier,
-    DocxVerificationSettings,
-    TextVerificationSettings,
 )
 from docx import Document
 

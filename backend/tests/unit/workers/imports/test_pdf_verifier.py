@@ -6,6 +6,8 @@ from pathlib import Path
 from uuid import UUID
 
 import pytest
+from app.integrations.imports.pdf import PdfScreenplayVerifier, PdfVerificationSettings
+from app.integrations.imports.text import TextVerificationSettings
 from app.services.documents.rules.structure import ScreenplayElementKind
 from app.services.import_execution.errors import ImportVerificationRejected
 from app.services.import_execution.models import ImportVerificationClaim
@@ -13,11 +15,6 @@ from app.services.imports.rules.enums import (
     ContentKind,
     ImportErrorCode,
     ImportSourceFormat,
-)
-from app.workers.imports import (
-    PdfScreenplayVerifier,
-    PdfVerificationSettings,
-    TextVerificationSettings,
 )
 from pypdf import PdfWriter
 from pypdf.generic import (

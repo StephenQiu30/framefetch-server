@@ -4,8 +4,8 @@ import os
 
 from app.core.config import Settings
 from app.core.security.ai_provider_cipher import FernetAiProviderSecretCipher
-from app.integrations.ai_cli import AnalysisCliError
 from app.integrations.ai_cli.environment import minimum_host_environment
+from app.integrations.ai_cli.errors import AnalysisCliError
 from app.services.ai_providers import AiProviderRepository
 from app.services.analysis_execution.ports import AnalyzerSelection
 from app.workers.analysis.profile_runtime import build_profile_runtime

@@ -5,7 +5,7 @@ from datetime import UTC, datetime
 from uuid import UUID, uuid4
 
 import pytest
-from app.integrations.messaging import EventEnvelope
+from app.integrations.messaging.envelope import EventEnvelope
 from app.services.imports.events import (
     CONTENT_IMPORT_VERIFY_REQUESTED,
     import_verify_requested_payload,

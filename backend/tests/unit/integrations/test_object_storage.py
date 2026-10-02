@@ -1,18 +1,18 @@
 from __future__ import annotations
 
-from datetime import UTC, datetime
 from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
 from app.core.config import Settings
-from app.integrations.object_storage import MinioObjectStorage, MultipartUploadPart
+from app.integrations.object_storage import MinioObjectStorage
 from app.services.downloads.file_delivery import download_filename
 from app.services.imports.errors import (
     ImportObjectStorageError,
     MultipartUploadNotFound,
     MultipartUploadRejected,
 )
+from app.services.imports.models import CompletedUploadPart
 from minio.commonconfig import CopySource
 from pydantic import SecretStr
 
@@ -26,13 +26,6 @@ class FakeMinio:
         self.calls.append(("read", *args, kwargs))
         length = int(kwargs.get("length", len(self.content)))
         return FakeResponse(self.content[:length])
-
-    def bucket_exists(self, bucket: str) -> bool:
-        self.calls.append(("bucket_exists", bucket))
-        return False
-
-    def make_bucket(self, bucket: str) -> None:
-        self.calls.append(("make_bucket", bucket))
 
     def fput_object(self, *args: object, **kwargs: object) -> None:
         self.calls.append(("put", *args, kwargs))
@@ -62,7 +55,7 @@ class FakeMinio:
         bucket: str,
         object_key: str,
         upload_id: str,
-        parts: list[MultipartUploadPart],
+        parts: list[CompletedUploadPart],
     ) -> SimpleNamespace:
         normalized = tuple((part.part_number, part.etag) for part in parts)
         self.calls.append(
@@ -74,18 +67,6 @@ class FakeMinio:
         self, bucket: str, object_key: str, upload_id: str
     ) -> None:
         self.calls.append(("abort_multipart", bucket, object_key, upload_id))
-
-    def _list_multipart_uploads(self, bucket: str, **kwargs: object) -> SimpleNamespace:
-        self.calls.append(("list_multipart", bucket, kwargs))
-        return SimpleNamespace(
-            uploads=[
-                SimpleNamespace(
-                    object_name="quarantine/video/resource/1/source",
-                    upload_id="stale-upload",
-                    initiated_time=datetime(2026, 8, 14, tzinfo=UTC),
-                )
-            ]
-        )
 
 
 class FakeResponse:
@@ -120,7 +101,6 @@ async def test_storage_uses_private_and_public_clients(tmp_path: Path) -> None:
     source.write_bytes(b"video")
     target = tmp_path / "download.mp4"
 
-    await storage.ensure_bucket()
     await storage.upload("jobs/one/video.mp4", source, "video/mp4")
     await storage.download("jobs/one/video.mp4", target)
     url = await storage.presigned_download(
@@ -128,7 +108,6 @@ async def test_storage_uses_private_and_public_clients(tmp_path: Path) -> None:
     )
     await storage.delete("jobs/one/video.mp4")
 
-    assert ("make_bucket", "video-artifacts") in private.calls
     assert any(call[0] == "put" for call in private.calls)
     assert any(call[0] == "get" for call in private.calls)
     assert any(call[0] == "remove" for call in private.calls)
@@ -249,15 +228,6 @@ async def test_private_storage_cannot_sign_public_downloads() -> None:
         await storage.presigned_download("jobs/one/video.mp4", ttl_seconds=60)
 
 
-async def test_import_worker_can_disable_public_signing_client() -> None:
-    storage = MinioObjectStorage.for_imports(
-        settings(), private=FakeMinio(), enable_public_signing=False
-    )
-
-    with pytest.raises(RuntimeError, match="public download signing is not enabled"):
-        await storage.presigned_download("downloads/job-1/1/video.mp4", ttl_seconds=60)
-
-
 async def test_storage_controls_one_deterministic_multipart_upload() -> None:
     private = FakeMinio()
     public = FakeMinio()
@@ -365,23 +335,6 @@ async def test_storage_can_sign_downloads_for_local_web_clients() -> None:
     assert next(call for call in local_browser.calls if call[0] == "presign")
 
 
-async def test_storage_lists_bounded_incomplete_uploads_for_reconciliation() -> None:
-    private = FakeMinio()
-    storage = MinioObjectStorage(settings(), private=private)
-
-    uploads = await storage.list_incomplete_multipart_uploads("quarantine/", limit=20)
-
-    assert len(uploads) == 1
-    assert uploads[0].object_key == "quarantine/video/resource/1/source"
-    assert uploads[0].upload_id == "stale-upload"
-    assert uploads[0].initiated_at == datetime(2026, 8, 14, tzinfo=UTC)
-    assert (
-        "list_multipart",
-        "video-artifacts",
-        {"prefix": "quarantine/", "max_uploads": 20},
-    ) in private.calls
-
-
 @pytest.mark.parametrize(
     ("part_number", "etag"),
     ((0, "1" * 32), (1, "not-an-etag")),
@@ -462,7 +415,7 @@ class ErrorMinio(FakeMinio):
         bucket: str,
         object_key: str,
         upload_id: str,
-        parts: list[MultipartUploadPart],
+        parts: list[CompletedUploadPart],
     ) -> SimpleNamespace:
         raise SimpleStorageError(self.code)
 
@@ -575,5 +528,5 @@ async def test_storage_uploads_generated_verified_object_idempotently(
     assert len([call for call in private.calls if call[0] == "verified-put"]) == 1
 
 
-def _multipart_part(part_number: int, etag: str) -> MultipartUploadPart:
-    return MultipartUploadPart(part_number=part_number, etag=etag)
+def _multipart_part(part_number: int, etag: str) -> CompletedUploadPart:
+    return CompletedUploadPart(part_number=part_number, etag=etag)
