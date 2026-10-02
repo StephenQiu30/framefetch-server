@@ -124,6 +124,16 @@ def verify_probe(
         raise RunnerFailure("invalid_artifact", status=422)
     if abs(duration - expected_duration) > tolerance:
         raise RunnerFailure("invalid_artifact", status=422)
+    for stream in (*video, *audio):
+        if "duration" not in stream:
+            continue
+        stream_duration = _duration(stream["duration"])
+        if (
+            stream_duration is None
+            or stream_duration > max_duration
+            or abs(stream_duration - expected_duration) > tolerance
+        ):
+            raise RunnerFailure("invalid_artifact", status=422)
     return VerifiedProbe(duration, len(video), len(audio))
 
 
@@ -144,8 +154,10 @@ def _container_matches(value: object, expected: Container) -> bool:
 
 
 def _duration(value: object) -> float | None:
+    if isinstance(value, bool):
+        return None
     try:
         duration = float(value)  # type: ignore[arg-type]
-    except (TypeError, ValueError):
+    except (TypeError, ValueError, OverflowError):
         return None
     return duration if math.isfinite(duration) and duration > 0 else None

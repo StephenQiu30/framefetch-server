@@ -27,12 +27,12 @@ def probe() -> dict[str, object]:
     }
 
 
-def verify(payload: dict[str, object]) -> None:
+def verify(payload: dict[str, object], *, expected_duration: float = 30) -> None:
     verify_probe(
         payload,
         plan=download_request().plan.to_domain(),
         expected_container=Container.MP4,
-        expected_duration=30,
+        expected_duration=expected_duration,
         max_duration=7200,
         tolerance_seconds=3,
     )
@@ -127,3 +127,100 @@ def test_exactly_one_video_stream_and_real_ntsc_rate_are_required():
     payload["streams"].append(dict(payload["streams"][0]))
     with pytest.raises(RunnerFailure, match="invalid artifact"):
         verify(payload)
+
+
+@pytest.mark.parametrize("short_stream", [0, 1])
+def test_long_container_cannot_hide_a_short_selected_media_stream(
+    short_stream: int,
+) -> None:
+    payload = probe()
+    payload["format"]["duration"] = "1800"
+    for stream in payload["streams"]:
+        stream["duration"] = "1800"
+    payload["streams"][short_stream]["duration"] = "30"
+
+    with pytest.raises(RunnerFailure, match="invalid artifact"):
+        verify(payload, expected_duration=1800)
+
+
+@pytest.mark.parametrize("stream_index", [0, 1])
+@pytest.mark.parametrize(
+    "duration",
+    [
+        None,
+        "",
+        "nan",
+        "inf",
+        "-inf",
+        "0",
+        "-1",
+        "garbage",
+        True,
+        pytest.param(10**1000, id="overflow"),
+    ],
+)
+def test_declared_stream_duration_must_be_finite_and_positive(
+    stream_index: int, duration: object
+) -> None:
+    payload = probe()
+    payload["streams"][stream_index]["duration"] = duration
+
+    with pytest.raises(RunnerFailure, match="invalid artifact"):
+        verify(payload)
+
+
+@pytest.mark.parametrize("stream_index", [0, 1])
+def test_declared_stream_duration_cannot_exceed_original_length(
+    stream_index: int,
+) -> None:
+    payload = probe()
+    payload["streams"][stream_index]["duration"] = "40"
+
+    with pytest.raises(RunnerFailure, match="invalid artifact"):
+        verify(payload)
+
+
+def test_each_present_audio_stream_duration_is_checked() -> None:
+    payload = probe()
+    payload["streams"].append(
+        {"codec_type": "audio", "codec_name": "aac", "duration": "5"}
+    )
+
+    with pytest.raises(RunnerFailure, match="invalid artifact"):
+        verify(payload)
+
+
+def test_declared_stream_duration_respects_maximum_within_expected_tolerance() -> None:
+    payload = probe()
+    payload["format"]["duration"] = "7200"
+    payload["streams"][0]["duration"] = "7201"
+
+    with pytest.raises(RunnerFailure, match="invalid artifact"):
+        verify(payload, expected_duration=7200)
+
+
+@pytest.mark.parametrize("video_duration,audio_duration", [("27", "33"), (None, None)])
+def test_stream_durations_use_existing_tolerance_and_can_be_absent(
+    video_duration: str | None, audio_duration: str | None
+) -> None:
+    payload = probe()
+    if video_duration is not None:
+        payload["streams"][0]["duration"] = video_duration
+    if audio_duration is not None:
+        payload["streams"][1]["duration"] = audio_duration
+    verify(payload)
+
+
+def test_absent_webm_stream_durations_keep_the_container_duration_check() -> None:
+    payload = probe()
+    payload["format"]["format_name"] = "matroska,webm"
+    verified = verify_probe(
+        payload,
+        plan=download_request().plan.to_domain(),
+        expected_container=Container.WEBM,
+        expected_duration=30,
+        max_duration=7200,
+        tolerance_seconds=3,
+    )
+
+    assert verified.duration_seconds == 30
