@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import subprocess
 import sys
 from pathlib import Path
@@ -130,6 +131,29 @@ def test_parser_helpers_fail_closed() -> None:
     assert not has_protection_material({"data": {"decodeKey": ""}})
 
 
+@pytest.mark.parametrize("decode_key, protected", [("synthetic", True), ("", False)])
+def test_protection_scan_handles_deep_valid_json_without_recursion(
+    decode_key: str, protected: bool
+) -> None:
+    payload = json.loads("[" * 600 + json.dumps({"decodeKey": decode_key}) + "]" * 600)
+
+    assert has_protection_material(payload) is protected
+
+
+def test_response_structure_limit_is_a_declared_failure_not_drm(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    payload = feed_payload(video_url=MEDIA_URL)
+    payload["data"]["extra"] = [None] * 10_001
+    extractor, _ = configured_extractor(monkeypatch, [payload])
+
+    with pytest.raises(ExtractorError, match="response structure limit") as error:
+        extractor._real_extract(SHARE_URL)
+
+    assert error.value.expected
+    assert "DRM" not in str(error.value)
+
+
 @pytest.mark.parametrize("code", [None, False, True, 0.0, "00", "", -1, [], {}])
 def test_feed_response_requires_an_explicit_integer_or_string_success_code(
     code: object,
@@ -226,6 +250,9 @@ def test_media_url_allows_only_the_official_standard_https_origin(
         "https://finder.video.qq.com/251/1/sto\u00a0download",
         "https://finder.video.qq.com/251/1/stodownload?file=synthetic\x00",
         "https://finder.video.qq.com/251/1/stodownload?file=synthetic\x7f",
+        "https://finder.video.qq.com/251/1/stodownload?file=synthetic\u0080",
+        "https://finder.video.qq.com/251/1/stodownload?file=synthetic\u200b",
+        "https://finder.video.qq.com/251/1/stodownload?file=synthetic\ud800",
         " https://finder.video.qq.com/251/1/stodownload",
         "https://finder.video.qq.com/251/1/stodownload ",
         "https://finder.video.qq.com./251/1/stodownload",

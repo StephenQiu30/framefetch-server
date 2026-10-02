@@ -5,6 +5,7 @@ from collections.abc import Mapping
 from typing import Any
 
 from app.workers.runner.wechat_channels_policy import (
+    ProtectionScanLimitError,
     author_info,
     feed_info,
     has_protection_material,
@@ -111,7 +112,15 @@ def _with_media_headers(
 
 
 def _reject_protected(value: object) -> None:
-    if has_protection_material(value):
+    try:
+        protected = has_protection_material(value)
+    except ProtectionScanLimitError as error:
+        raise ExtractorError(
+            "WeChat Channels public media is not downloadable: "
+            "response structure limit exceeded",
+            expected=True,
+        ) from error
+    if protected:
         raise ExtractorError("This video is DRM protected", expected=True)
 
 
