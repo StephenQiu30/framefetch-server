@@ -25,7 +25,12 @@ def installation(tmp_path, monkeypatch):
         tmp_path / "repo/browser-extension",
     )
     home.mkdir(parents=True)
-    for name in ("background.js", "protocol.js", "manifest.template.json"):
+    for name in (
+        "background.js",
+        "protocol.js",
+        "yuanbao-account.js",
+        "manifest.template.json",
+    ):
         shutil.copyfile(extension.EXTENSION_SOURCE / name, home / name)
     (home.parent / ".gitignore").write_text(
         "/browser-extension/config.local.json\n/browser-extension/manifest.json\n"
@@ -70,6 +75,9 @@ def test_install_private_config_separate_keys_and_no_secrets_in_plist(installati
         settings.cookie_source_pairing_key.get_secret_value()
         in (home / "config.local.json").read_text()
     )
+    config = json.loads((home / "config.local.json").read_text())
+    assert config["yuanbaoAccount"] is True
+    assert "yuanbao.tencent.com" not in config["domains"]
     assert run.call_args_list[0].args[0][2] == f"gui/{os.getuid()}"
     cli.uninstall()
     assert not target.exists()
@@ -190,15 +198,19 @@ def test_manifest_registry_permissions_and_stable_id():
     )
     manifest = extension.manifest(19101)
     assert "host_permissions" not in template
-    assert manifest["permissions"] == ["cookies", "alarms"]
+    assert manifest["permissions"] == ["cookies", "alarms", "scripting"]
     assert manifest["minimum_chrome_version"] == "120"
     assert set(manifest["host_permissions"]) == {
         *(f"*://*.{domain}/*" for domain in extension.cookie_domains()),
+        "https://yuanbao.tencent.com/*",
         "ws://127.0.0.1:19101/",
     }
     assert "web_accessible_resources" not in manifest
     assert len(extension.extension_origin().removeprefix("chrome-extension://")) == 32
     assert extension.manifest(19102)["key"] == manifest["key"]
+    assert extension.page_origins() == ["https://yuanbao.tencent.com"]
+    assert "channels.weixin.qq.com" not in extension.cookie_domains()
+    assert "yuanbao.tencent.com" not in extension.cookie_domains()
 
 
 @pytest.mark.parametrize("token", ["short", "x" * 32 + "\n", "x" * 32 + " ", "界" * 32])
@@ -269,16 +281,26 @@ def test_registry_permissions_cover_every_identity_platform():
     domains = set(extension.cookie_domains())
     for profile in current_provider_registry().profiles:
         if profile.identity is not ProviderIdentity.NONE:
-            assert profile.cookie_domain_allowlist
-            assert set(profile.cookie_domain_allowlist) <= domains
+            if profile.identity_source == "cookies":
+                assert profile.cookie_domain_allowlist
+                assert set(profile.cookie_domain_allowlist) <= domains
+            else:
+                assert profile.key == "wechat_channels"
+                assert profile.identity_origin in extension.page_origins()
+                assert not profile.cookie_domain_allowlist
     assert {
         "kuaishou.com",
         "weibo.com",
-        "channels.weixin.qq.com",
         "reddit.com",
     } <= domains
     assert (
-        not {"hongguoduanju.com", "novelquickapp.com", "yuanbao.tencent.com"} & domains
+        not {
+            "hongguoduanju.com",
+            "novelquickapp.com",
+            "yuanbao.tencent.com",
+            "channels.weixin.qq.com",
+        }
+        & domains
     )
     permissions = extension.manifest(19101)["host_permissions"]
     assert all(f"*://*.{domain}/*" in permissions for domain in domains)

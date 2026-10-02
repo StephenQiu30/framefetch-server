@@ -11,6 +11,11 @@ import httpx
 import pytest
 from app.services.provider_failures import FailureClass
 from app.services.provider_types import Layer
+from app.workers.identity.yuanbao_account import (
+    YUANBAO_ORIGIN,
+    stable_yuanbao_account_digest,
+    validate_yuanbao_account_payload,
+)
 from app.workers.runner.commands import MediaCommands
 from app.workers.runner.engine import identity
 from app.workers.runner.engine.egress import EgressBinding
@@ -49,11 +54,11 @@ def transport(tmp_path, monkeypatch):
     monkeypatch.setattr(identity, "_is_tmpfs", lambda _: True)
     requests = []
     reply = {"cookies": base64.b64encode(COOKIES).decode(), "digest": "a" * 64}
-    state = SimpleNamespace(status=200, reply=reply, block=False)
+    state = SimpleNamespace(status=200, reply=reply, block=False, route="/cookies")
 
     async def respond(request):
         requests.append(request)
-        assert request.url == "http://host.docker.internal:19101/cookies"
+        assert request.url == f"http://host.docker.internal:19101{state.route}"
         assert request.headers["Authorization"] == f"Bearer {TOKEN}"
         if state.block:
             await asyncio.Future()
@@ -68,6 +73,193 @@ def transport(tmp_path, monkeypatch):
 
     monkeypatch.setattr(identity.httpx, "AsyncClient", factory)
     return root, settings, state, requests
+
+
+@pytest.fixture
+def account_transport(transport):
+    _, _, state, _ = transport
+    state.route = "/yuanbao-account"
+    payload = {
+        "origin": YUANBAO_ORIGIN,
+        "account_id": "synthetic-account-only",
+        "auth_token": "synthetic-auth-only",
+    }
+    account = validate_yuanbao_account_payload(payload)
+    state.reply = {
+        **payload,
+        "kind": "yuanbao_account",
+        "digest": stable_yuanbao_account_digest(
+            account, site="wechat_channels", key=TOKEN
+        ),
+        "local_use_deadline": deadline().isoformat(),
+    }
+    return transport
+
+
+async def test_account_fetch_validates_full_private_transport_without_a_file(
+    account_transport, monkeypatch
+):
+    root, _, state, requests = account_transport
+    monkeypatch.setattr(
+        identity, "_private_root", lambda _: pytest.fail("account file created")
+    )
+    end = deadline()
+    async with identity.operation_identity(
+        "wechat_channels", "same-task", end
+    ) as material:
+        assert isinstance(material, identity.YuanbaoAccountMaterial)
+        assert material.account_id.get_secret_value() == state.reply["account_id"]
+        assert material.auth_token.get_secret_value() == state.reply["auth_token"]
+        assert material.digest == state.reply["digest"]
+        assert not hasattr(material, "cookie_file")
+        assert state.reply["account_id"] not in repr(material)
+        assert state.reply["auth_token"] not in str(material)
+    assert not root.exists()
+    assert json.loads(requests[0].content) == {
+        "site": "wechat_channels",
+        "task_id": "same-task",
+        "deadline": end.isoformat(),
+    }
+
+
+async def test_account_operations_reacquire_and_never_share_cached_material(
+    account_transport,
+):
+    root, _, _, requests = account_transport
+    first = await identity.fetch_identity("wechat_channels", "same-task", deadline())
+    second = await identity.fetch_identity("wechat_channels", "same-task", deadline())
+    assert first is not second and len(requests) == 2
+    first.cleanup()
+    second.cleanup()
+    assert not root.exists()
+
+
+@pytest.mark.parametrize(
+    "change",
+    [
+        {"kind": "cookies"},
+        {"origin": "https://other.invalid"},
+        {"auth_token": "synthetic-changed-without-digest"},
+        {"digest": "b" * 64},
+        {"local_use_deadline": datetime.now(UTC).isoformat()},
+        {"local_use_deadline": (datetime.now(UTC) + timedelta(days=1)).isoformat()},
+        {"headers": {}},
+        {"cookies": "synthetic-cookie"},
+    ],
+)
+async def test_invalid_account_material_is_rejected_without_retention_or_leaks(
+    account_transport, change
+):
+    root, _, state, _ = account_transport
+    state.reply.update(change)
+    with pytest.raises(LayerFailure) as error:
+        await identity.fetch_identity("wechat_channels", "task", deadline())
+    assert error.value.failure.evidence["cause_code"] == "identity_material_invalid"
+    assert state.reply["auth_token"] not in str(error.value)
+    assert not root.exists()
+
+
+@pytest.mark.parametrize("status", [401, 503, 302])
+async def test_account_transport_refusal_does_not_create_files(
+    account_transport, status
+):
+    root, _, state, _ = account_transport
+    state.status = status
+    with pytest.raises(LayerFailure):
+        await identity.fetch_identity("wechat_channels", "task", deadline())
+    assert not root.exists()
+
+
+async def test_account_fetch_cancellation_drops_operation_without_files(
+    account_transport,
+):
+    root, _, state, requests = account_transport
+    state.block = True
+    task = asyncio.create_task(
+        identity.fetch_identity("wechat_channels", "task", deadline())
+    )
+    while not requests:
+        await asyncio.sleep(0)
+    task.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await task
+    assert not root.exists()
+
+
+@pytest.mark.parametrize(
+    "cause",
+    [
+        "identity_source_mismatch",
+        "identity_origin_invalid",
+        "identity_navigation_changed",
+        "identity_account_conflict",
+        "identity_tab_ambiguous",
+        "identity_page_unavailable",
+        "identity_storage_unavailable",
+    ],
+)
+async def test_account_source_returns_only_fixed_failure_causes(
+    account_transport, cause
+):
+    root, _, state, _ = account_transport
+    state.status, state.reply = 503, {"cause": cause}
+    with pytest.raises(LayerFailure) as error:
+        await identity.fetch_identity("wechat_channels", "task", deadline())
+    assert error.value.failure.evidence["cause_code"] == cause
+    assert not root.exists()
+
+
+async def test_account_material_remains_typed_in_run_context(
+    account_transport, tmp_path
+):
+    material = await identity.fetch_identity("wechat_channels", "task", deadline())
+    service = MediaRunnerService(runner_settings(tmp_path))
+    ctx = source_for(service, tmp_path).run_context.with_material(identity=material)
+    assert ctx.identity is material and ctx.cookie_file is None
+    assert "synthetic-account-only" not in repr(ctx)
+    with pytest.raises(
+        ValueError, match="page account material cannot have a cookie file"
+    ):
+        ctx.with_material(identity=material, cookie_file=tmp_path / "synthetic-cookie")
+
+
+async def test_foreign_provider_cannot_use_account_transport(
+    account_transport, monkeypatch
+):
+    from app.workers.runner.provider_registry import provider_profile_for_key
+
+    _, _, _, requests = account_transport
+    profile = replace(
+        provider_profile_for_key("instagram"),
+        identity_source="yuanbao_account",
+        identity_origin=YUANBAO_ORIGIN,
+        cookie_domain_allowlist=frozenset(),
+    )
+    monkeypatch.setattr(identity, "provider_profile_for_key", lambda _: profile)
+    with pytest.raises(LayerFailure) as error:
+        await identity.fetch_identity("instagram", "task", deadline())
+    assert error.value.failure.evidence["cause_code"] == "identity_source_mismatch"
+    assert not requests
+
+
+async def test_account_and_cookie_responses_are_not_interchangeable(
+    transport, account_transport
+):
+    root, _, state, _ = account_transport
+    account = state.reply
+    state.route, state.reply = "/cookies", account
+    with pytest.raises(LayerFailure) as error:
+        await identity.fetch_identity("instagram", "task", deadline())
+    assert error.value.failure.evidence["cause_code"] == "identity_material_invalid"
+    assert list(root.iterdir()) == []
+    state.route, state.reply = (
+        "/yuanbao-account",
+        {"cookies": base64.b64encode(COOKIES).decode(), "digest": "a" * 64},
+    )
+    with pytest.raises(LayerFailure) as error:
+        await identity.fetch_identity("wechat_channels", "task", deadline())
+    assert error.value.failure.evidence["cause_code"] == "identity_material_invalid"
+    assert list(root.iterdir()) == []
 
 
 async def test_material_private_operation_file_and_cleanup(transport):

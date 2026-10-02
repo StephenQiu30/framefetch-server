@@ -26,8 +26,14 @@ from app.services.provider_failures import (
     FailureScope,
     parse_retry_after,
 )
+from app.workers.identity.yuanbao_account import validate_yuanbao_account_material
 from app.workers.runner._secure_file import no_follow_flag
 from app.workers.runner.engine.egress import EgressBinding
+from app.workers.runner.engine.identity import (
+    IdentityMaterial,
+    YuanbaoAccountMaterial,
+    _is_tmpfs,
+)
 from app.workers.runner.engine.run_context import RunContext
 from app.workers.runner.errors import RunnerFailure
 from app.workers.runner.netscape_cookie import parse_cookie_payload
@@ -91,6 +97,54 @@ def _private_root(path: Path) -> None:
     if path.is_symlink() or not stat.S_ISDIR(path.lstat().st_mode):
         raise _failure()
     path.chmod(0o700)
+
+
+def _private_temp_root(path: Path) -> Path:
+    """Account state must never reach the anonymous persistent volume."""
+    if not path.is_absolute() or path == Path("/"):
+        raise _failure()
+    if any(parent.is_symlink() for parent in (path, *path.parents)):
+        raise _failure()
+    path.mkdir(parents=True, mode=0o700, exist_ok=True)
+    metadata = path.stat()
+    if (
+        not stat.S_ISDIR(metadata.st_mode)
+        or metadata.st_uid != os.getuid()
+        or stat.S_IMODE(metadata.st_mode) != 0o700
+        or not _is_tmpfs(path)
+    ):
+        raise _failure()
+    return path
+
+
+def initialize_browser_tmpfs(path: Path) -> None:
+    """Before accepting operations, remove state left by a crashed Runner."""
+    root = _private_temp_root(path)
+    for item in root.iterdir():
+        if item.is_dir() and not item.is_symlink():
+            shutil.rmtree(item)
+        else:
+            item.unlink()
+
+
+def _yuanbao_bootstrap(material: YuanbaoAccountMaterial) -> str:
+    # add_init_script runs again after navigation and inside frames. Both checks
+    # belong in the script itself, before any account value is written.
+    values = json.dumps(
+        {
+            "account": material.account_id.get_secret_value(),
+            "token": material.auth_token.get_secret_value(),
+        },
+        ensure_ascii=True,
+        separators=(",", ":"),
+    )
+    return (
+        "(() => { if (top !== self || location.origin !== "
+        "'https://yuanbao.tencent.com') return; const material = "
+        + values
+        + "; localStorage.setItem('yb_user_id', material.account); "
+        "localStorage.setItem('yb_token', material.token); })();"
+    )
 
 
 def _profile_bytes(root: Path) -> int:
@@ -239,12 +293,28 @@ class BrowserRuntime:
         authenticated = ctx.identity is not None
         if ctx.cookie_file is not None and not authenticated:
             raise _failure("invalid_input", status=422)
-        # Browser acquisition accepts account material only as IdentityMaterial.
         if authenticated:
-            from app.workers.runner.engine.identity import validate_cookie_file
-
             assert ctx.identity is not None
-            validate_cookie_file(ctx.identity.cookie_file)
+            if isinstance(ctx.identity, IdentityMaterial):
+                from app.workers.runner.engine.identity import validate_cookie_file
+
+                if profile.identity_source != "cookies":
+                    raise _failure("invalid_input", status=422)
+                validate_cookie_file(ctx.identity.cookie_file)
+            else:
+                if (
+                    profile.key != "wechat_channels"
+                    or profile.identity_source != "yuanbao_account"
+                    or profile.identity_origin != "https://yuanbao.tencent.com"
+                    or ctx.cookie_file is not None
+                ):
+                    raise _failure("invalid_input", status=422)
+                try:
+                    validate_yuanbao_account_material(
+                        ctx.identity, deadline=ctx.deadline
+                    )
+                except ValueError:
+                    raise _failure("invalid_input", status=422) from None
         lock = (
             asyncio.Lock()
             if authenticated
@@ -336,10 +406,11 @@ class BrowserRuntime:
             if authenticated
             else self._settings.runner_browser_profile_root / "anonymous"
         )
-        _private_root(root)
         if authenticated:
+            _private_temp_root(root)
             directory = Path(tempfile.mkdtemp(prefix=f"{profile.key}-", dir=root))
         else:
+            _private_root(root)
             descriptor = os.open(
                 root / f"{profile.key}.lock",
                 os.O_CREAT | os.O_RDWR | no_follow_flag(),
@@ -378,9 +449,12 @@ class BrowserRuntime:
                 raise _failure("runtime_unavailable", status=409)
             if authenticated:
                 assert ctx.identity is not None
-                await context.add_cookies(
-                    leased_browser_cookies(ctx.identity.cookie_file, profile)
-                )
+                if isinstance(ctx.identity, IdentityMaterial):
+                    await context.add_cookies(
+                        leased_browser_cookies(ctx.identity.cookie_file, profile)
+                    )
+                else:
+                    await context.add_init_script(_yuanbao_bootstrap(ctx.identity))
             context.set_default_timeout(
                 self._settings.runner_browser_page_timeout_seconds * 1000
             )

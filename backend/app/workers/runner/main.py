@@ -135,6 +135,10 @@ def create_app(
     async def lifespan(_: FastAPI) -> AsyncIterator[None]:
         try:
             initialize_identity_tmpfs(configured.runner_identity_tmpfs_root)
+            if configured.runner_browser_enabled:
+                from app.workers.runner.browser_runtime import initialize_browser_tmpfs
+
+                initialize_browser_tmpfs(configured.runner_browser_temp_root)
             yield
         finally:
             if service is None:

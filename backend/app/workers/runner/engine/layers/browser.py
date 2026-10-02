@@ -181,6 +181,10 @@ class BrowserLayer:
             )
         if profile.identity is ProviderIdentity.NONE and ctx.identity is not None:
             raise failure(FailureClass.INVALID_INPUT, "unexpected_identity", "none")
+        if isinstance(ctx.identity, identity.YuanbaoAccountMaterial):
+            # Registered generic parsers consume Cookie identity. A page account
+            # requires its own verified parser and cannot become a Cookie jar.
+            raise failure(FailureClass.INVALID_INPUT, "unexpected_identity", "none")
         if profile.identity is ProviderIdentity.REQUIRED and (
             ctx.identity is None or profile.key == "youku"
         ):
@@ -193,13 +197,16 @@ class BrowserLayer:
                     profile.key, source.workspace.path.name, ctx.deadline
                 )
             finally:
-                if previous is not None:
+                if isinstance(previous, identity.IdentityMaterial):
                     await _remove_identity(previous.cookie_file)
+            if not isinstance(fetched, identity.IdentityMaterial):
+                fetched.cleanup()
+                raise failure(FailureClass.INVALID_INPUT, "unexpected_identity", "none")
             ctx = ctx.with_material(identity=fetched)
         try:
             operation = await runtime.acquire(profile, ctx=ctx)
         except BaseException:
-            if ctx.identity is not None:
+            if isinstance(ctx.identity, identity.IdentityMaterial):
                 await _remove_identity(ctx.identity.cookie_file)
             raise
         collector = PageResponses(
@@ -261,11 +268,15 @@ class BrowserLayer:
             jar = await _cookie_jar(operation, directory)
             material = (
                 identity.IdentityMaterial(jar, ctx.identity.digest)
-                if ctx.identity
+                if isinstance(ctx.identity, identity.IdentityMaterial)
                 else None
             )
             handoff = _Handoff(
-                operation, directory, ctx.identity.cookie_file if ctx.identity else None
+                operation,
+                directory,
+                ctx.identity.cookie_file
+                if isinstance(ctx.identity, identity.IdentityMaterial)
+                else None,
             )
             updated = replace(
                 ctx,
@@ -317,7 +328,7 @@ class BrowserLayer:
             await _finish(operation.abort())
             if directory is not None:
                 await asyncio.to_thread(shutil.rmtree, directory)
-            if ctx.identity is not None:
+            if isinstance(ctx.identity, identity.IdentityMaterial):
                 await _remove_identity(ctx.identity.cookie_file)
             if isinstance(error, Error):
                 raise failure(

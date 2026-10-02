@@ -8,6 +8,7 @@ from app.services.provider_types import (
     ProviderProfileVersion,
     ProviderSupportStatus,
 )
+from app.workers.identity.yuanbao_account import YUANBAO_ORIGIN
 from app.workers.runner.provider_factories import (
     CHROME_IMPERSONATION,
     standard_provider,
@@ -16,19 +17,19 @@ from app.workers.runner.provider_normalizers import vimeo_url, wechat_channels_u
 from app.workers.runner.provider_registry import ProviderProfile
 
 SOCIAL_PROVIDER_PROFILES: tuple[ProviderProfile, ...] = (
-    standard_provider(
+    ProviderProfile(
         ProviderKey.WECHAT_CHANNELS,
         "微信视频号",
-        ("weixin.qq.com",),
+        frozenset({"weixin.qq.com"}),
         version=ProviderProfileVersion.WECHAT_CHANNELS,
         normalize_url=wechat_channels_url,
         capabilities=frozenset(
             {ProviderCapability.SINGLE_VIDEO, ProviderCapability.SHORT_VIDEO}
         ),
-        status=ProviderSupportStatus.UNKNOWN,
-        # Current first-party preview entry, not the retired Yuanbao header route.
-        # The necessary-account rule remains unverified and required fails closed.
-        cookie_domain_allowlist=frozenset({"channels.weixin.qq.com"}),
+        support_status=ProviderSupportStatus.UNKNOWN,
+        # Material transport is declared separately; the L3 parser is still absent.
+        identity_source="yuanbao_account",
+        identity_origin=YUANBAO_ORIGIN,
         command_args=CHROME_IMPERSONATION,
         client_profile="chrome-136-macos-15",
         probe_authenticated_media=True,

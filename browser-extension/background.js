@@ -1,5 +1,6 @@
 /* Listeners are registered synchronously before configuration/connection work. */
 importScripts('protocol.js');
+importScripts('yuanbao-account.js');
 const ALARM = 'framefetch-identity-connect';
 let socket = null;
 let retryTimer = null;
@@ -35,7 +36,8 @@ async function initialize() {
     let heartbeat = null;
     let lastSeen = Date.now();
     const send = message => { if (!closed && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(message)); };
-    const protocol = new FrameFetchIdentity.Protocol(config, details => chrome.cookies.getAll(details), send, chrome.runtime.getManifest().version);
+    const protocol = new FrameFetchIdentity.Protocol(config, details => chrome.cookies.getAll(details), send, chrome.runtime.getManifest().version,
+      deadlineMs => FrameFetchYuanbaoAccount.readExistingAccount(chrome, deadlineMs));
     const authTimer = setTimeout(() => ws.close(), 5000);
     let chain = Promise.resolve();
     ws.onmessage = event => {

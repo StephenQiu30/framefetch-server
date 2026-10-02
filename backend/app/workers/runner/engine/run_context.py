@@ -13,7 +13,7 @@ from app.workers.runner.provider_registry import ProviderRequest
 from app.workers.runner.workspace import TaskWorkspace
 
 if TYPE_CHECKING:
-    from app.workers.runner.engine.identity import IdentityMaterial
+    from app.workers.runner.engine.identity import Identity
     from app.workers.runner.inspection_pipeline import RunnerInspectionPipeline
 
 
@@ -36,17 +36,29 @@ class RunContext:
     user_agent: str
     referer: str
     cookie_file: Path | None = field(repr=False)
-    identity: IdentityMaterial | None = field(repr=False)
+    identity: Identity | None = field(repr=False)
     browser: BrowserHandle | None = field(repr=False)
     deadline: datetime
 
     def __post_init__(self) -> None:
-        from app.workers.runner.engine.identity import validate_cookie_file
+        from app.workers.runner.engine.identity import (
+            IdentityMaterial,
+            validate_cookie_file,
+        )
 
         if self.cookie_file is not None:
             validate_cookie_file(self.cookie_file)
-        if self.identity is not None and self.identity.cookie_file != self.cookie_file:
+        if (
+            isinstance(self.identity, IdentityMaterial)
+            and self.identity.cookie_file != self.cookie_file
+        ):
             raise ValueError("identity does not match its cookie file")
+        if (
+            self.identity is not None
+            and not isinstance(self.identity, IdentityMaterial)
+            and self.cookie_file is not None
+        ):
+            raise ValueError("page account material cannot have a cookie file")
 
     def with_material(
         self,
@@ -54,15 +66,25 @@ class RunContext:
         user_agent: str | None = None,
         referer: str | None = None,
         cookie_file: Path | None = None,
-        identity: IdentityMaterial | None = None,
+        identity: Identity | None = None,
         browser: BrowserHandle | None = None,
     ) -> RunContext:
+        from app.workers.runner.engine.identity import IdentityMaterial
+
+        if (
+            identity is not None
+            and not isinstance(identity, IdentityMaterial)
+            and cookie_file is not None
+        ):
+            raise ValueError("page account material cannot have a cookie file")
         return replace(
             self,
             user_agent=self.user_agent if user_agent is None else user_agent,
             referer=self.referer if referer is None else referer,
             cookie_file=(
                 identity.cookie_file
+                if isinstance(identity, IdentityMaterial)
+                else None
                 if identity is not None
                 else self.cookie_file
                 if cookie_file is None

@@ -30,11 +30,12 @@
     }));
   }
   class Protocol {
-    constructor(config, getAll, send, version) {
+    constructor(config, getAll, send, version, readAccount) {
       this.config = config;
       this.getAll = getAll;
       this.send = send;
       this.version = version;
+      this.readAccount = readAccount;
       this.own = nonce();
       this.peer = null;
       this.authenticated = false;
@@ -57,7 +58,31 @@
       if (!this.authenticated) throw new Error('unauthenticated_request');
       if (message.type === 'ping') { this.send({ type: 'pong' }); return; }
       if (message.type === 'pong' || message.type === 'ready') return;
-      if (message.type !== 'cookies' || this.busy || !/^[a-f0-9]{32}$/.test(message.request_id)) throw new Error('invalid_request');
+      if (this.busy || !/^[a-f0-9]{32}$/.test(message.request_id)) throw new Error('invalid_request');
+      if (message.type === 'yuanbao_account') {
+        if (Object.keys(message).sort().join(',') !== 'deadline,request_id,site,type' ||
+            message.site !== 'wechat_channels' || this.config.yuanbaoAccount !== true ||
+            typeof this.readAccount !== 'function') throw new Error('undeclared_source');
+        if (typeof message.deadline !== 'string' ||
+            !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,6})?(?:Z|\+00:00)$/.test(message.deadline)) throw new Error('invalid_deadline');
+        const deadlineMs = Date.parse(message.deadline);
+        if (!Number.isFinite(deadlineMs)) throw new Error('invalid_deadline');
+        if (Date.now() >= deadlineMs) {
+          this.send({ type: 'yuanbao_account', request_id: message.request_id, cause: 'extension_timeout' });
+          return;
+        }
+        this.busy = true;
+        try {
+          const account = await this.readAccount(deadlineMs);
+          if (Date.now() >= deadlineMs) {
+            this.send({ type: 'yuanbao_account', request_id: message.request_id, cause: 'extension_timeout' });
+            return;
+          }
+          this.send({ type: 'yuanbao_account', request_id: message.request_id, ...account });
+        } finally { this.busy = false; }
+        return;
+      }
+      if (message.type !== 'cookies') throw new Error('invalid_request');
       const domains = message.domains;
       if (!Array.isArray(domains) || !domains.length || domains.length > this.config.domains.length ||
           new Set(domains).size !== domains.length || !domains.every(d => this.config.domains.includes(d))) throw new Error('undeclared_domain');

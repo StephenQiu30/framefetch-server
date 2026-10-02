@@ -5,7 +5,7 @@ const fs = require('node:fs');
 const { webcrypto } = require('node:crypto');
 const { proof } = require('./protocol.js');
 const KEY = 'synthetic-test-only-pairing-key-32-bytes';
-function worker() {
+function worker(pageApi = {}) {
   const listeners = {}, sockets = [], timers = [], intervals = [], alarms = new Map();
   let now = 0;
   const listener = key => ({ addListener: callback => { listeners[key] = callback; } });
@@ -16,17 +16,20 @@ function worker() {
     close() { if (this.readyState !== 3) { this.readyState = 3; this.onclose?.(); } }
   }
   const context = vm.createContext({
-    TextEncoder, crypto: webcrypto, WebSocket, Date: { now: () => now },
-    fetch: async url => { assert.equal(url, 'chrome-extension://test/config.local.json'); return { ok: true, json: async () => ({ pairingKey: KEY, port: 19101, domains: ['instagram.com'] }) }; },
+    TextEncoder, URL, crypto: webcrypto, WebSocket, Date: { now: () => now, parse: Date.parse },
+    fetch: async url => { assert.equal(url, 'chrome-extension://test/config.local.json'); return { ok: true, json: async () => ({ pairingKey: KEY, port: 19101, domains: ['instagram.com'], yuanbaoAccount: true }) }; },
     chrome: { alarms: { onAlarm: listener('alarm'), get: async name => alarms.get(name), create: async (name, spec) => { alarms.set(name, spec); } },
       runtime: { onStartup: listener('startup'), onInstalled: listener('installed'), getManifest: () => ({ version: '1.0.0' }), getURL: name => 'chrome-extension://test/' + name },
-      cookies: { getAll: async () => [] } },
+      cookies: { getAll: async () => [] }, ...pageApi },
     setTimeout: (fn, ms) => { const timer = { fn, ms, active: true }; timers.push(timer); return timer; },
     clearTimeout: timer => { if (timer) timer.active = false; },
     setInterval: (fn, ms) => { const timer = { fn, ms, active: true }; intervals.push(timer); return timer; },
     clearInterval: timer => { if (timer) timer.active = false; },
   });
-  context.importScripts = name => { if (name === 'protocol.js') vm.runInContext(fs.readFileSync(__dirname + '/protocol.js', 'utf8'), context); };
+  context.importScripts = name => {
+    assert.ok(['protocol.js', 'yuanbao-account.js'].includes(name));
+    vm.runInContext(fs.readFileSync(__dirname + '/' + name, 'utf8'), context);
+  };
   vm.runInContext(fs.readFileSync(__dirname + '/background.js', 'utf8'), context);
   const flush = async () => { await new Promise(resolve => setImmediate(resolve)); await new Promise(resolve => setImmediate(resolve)); };
   return { context, listeners, sockets, timers, intervals, alarms, flush, advance: ms => { now += ms; } };
@@ -88,4 +91,25 @@ test('pairing JSON is local only and never declared web accessible', () => {
   for (const name of ['config.local.json', 'manifest.json']) {
     assert.equal(spawnSync('git', ['check-ignore', '--quiet', '--', name], { cwd: __dirname }).status, 0);
   }
+});
+test('worker wires the fixed page reader only after HMAC and preserves Cookie connection after safe read failure', async () => {
+  const calls = [];
+  const w = worker({ tabs: { query: async details => { calls.push(details); throw new Error('synthetic-private-secret'); } } });
+  await w.flush();
+  const request = { type: 'yuanbao_account', request_id: 'c'.repeat(32), site: 'wechat_channels', deadline: new Date(60000).toISOString() };
+  w.sockets[0].onmessage({ data: JSON.stringify(request) }); await w.flush();
+  assert.deepEqual(calls, []);
+  assert.equal(w.sockets[0].readyState, 3);
+  w.timers.at(-1).fn(); await w.flush();
+  const ws = w.sockets[1], server = 'd'.repeat(64);
+  ws.onmessage({ data: JSON.stringify({ type: 'challenge', nonce: server }) }); await w.flush();
+  ws.onmessage({ data: JSON.stringify({ type: 'proof', proof: await proof(KEY, 'server', ws.sent[0].nonce, server) }) });
+  for (let i = 0; i < 20 && !w.intervals.length; i++) await w.flush();
+  ws.onmessage({ data: JSON.stringify(request) }); await w.flush();
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].url, 'https://yuanbao.tencent.com/*');
+  assert.deepEqual(ws.sent.at(-1), { type: 'yuanbao_account', request_id: request.request_id, cause: 'identity_page_unavailable' });
+  assert.equal(ws.readyState, 1);
+  ws.onmessage({ data: JSON.stringify({ type: 'cookies', request_id: 'e'.repeat(32), domains: ['instagram.com'] }) }); await w.flush();
+  assert.deepEqual(ws.sent.at(-1), { type: 'cookies', request_id: 'e'.repeat(32), cookies: [] });
 });

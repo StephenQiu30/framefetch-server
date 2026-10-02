@@ -1,4 +1,4 @@
-"""Authenticated live Chrome bridge. Cookie material is operation-local only."""
+"""Authenticated Chrome bridge. Identity material is operation-local only."""
 
 from __future__ import annotations
 
@@ -16,6 +16,12 @@ from datetime import UTC, datetime
 
 from app.core.config import CookieSourceSettings
 from app.workers.identity.extension import extension_origin
+from app.workers.identity.yuanbao_account import (
+    YUANBAO_ORIGIN,
+    YuanbaoAccountMaterial,
+    stable_yuanbao_account_digest,
+    validate_yuanbao_account_payload,
+)
 from app.workers.runner.netscape_cookie import (
     MAX_COOKIE_BYTES,
     is_allowed_domain,
@@ -126,17 +132,25 @@ _ACCOUNT_COOKIES: dict[
         (frozenset({"P_sck"}),),
         frozenset({"P_sck", "P_pck", "P_pck_rm", "P_gck"}),
     ),
-    # R6-G4: finder-preview returns public metadata (HTTP 201, errCode=0),
-    # but no media/duration/account cookies for the observed sample. Yuanbao's page
-    # auth headers cannot be reconstructed from this bridge's chrome.cookies.
-    # Leave required identity fail-closed until those materials are proven.
-    "wechat_channels": None,
 }
 AUTH_TIMEOUT = 5.0
 REQUEST_TIMEOUT = 5.0
 HEARTBEAT_SECONDS = 20.0
 MAX_CONNECTIONS = 2  # includes the active connection and one bounded handshake
 MAX_REQUESTS = 1
+YUANBAO_READ_CAUSES = frozenset(
+    {
+        "credential_missing",
+        "identity_material_invalid",
+        "identity_origin_invalid",
+        "identity_navigation_changed",
+        "identity_account_conflict",
+        "identity_tab_ambiguous",
+        "identity_page_unavailable",
+        "identity_storage_unavailable",
+        "extension_timeout",
+    }
+)
 
 
 class IdentityUnavailable(Exception):
@@ -202,7 +216,8 @@ class CookieSource:
         self.connection: WebSocket | None = None
         self.version: str | None = None
         self._connections = 0
-        self._pending: dict[str, asyncio.Future[list[object]]] = {}
+        self._pending: dict[str, asyncio.Future[object]] = {}
+        self._pending_kinds: dict[str, str] = {}
         self._requests = 0
         self._send_lock = asyncio.Lock()
 
@@ -220,6 +235,7 @@ class CookieSource:
             if not future.done():
                 future.set_exception(IdentityUnavailable("extension_disconnected"))
         self._pending.clear()
+        self._pending_kinds.clear()
 
     async def send(self, websocket: WebSocket, message: dict[str, object]) -> None:
         async with self._send_lock:
@@ -304,20 +320,65 @@ class CookieSource:
             ):
                 request_id = message["request_id"]
                 cookies = message["cookies"]
-                if not isinstance(request_id, str) or not isinstance(cookies, list):
+                if (
+                    not isinstance(request_id, str)
+                    or not re.fullmatch(r"[a-f0-9]{32}", request_id)
+                    or not isinstance(cookies, list)
+                ):
                     raise ValueError("invalid_response")
                 future = self._pending.get(request_id)
                 # Ignore only late responses to expired/cancelled requests.
                 if future is not None and not future.done():
+                    if self._pending_kinds.get(request_id) != "cookies":
+                        raise ValueError("invalid_response")
                     future.set_result(cookies)
+            elif message.get("type") == "yuanbao_account":
+                request_id = message.get("request_id")
+                if not isinstance(request_id, str) or not re.fullmatch(
+                    r"[a-f0-9]{32}", request_id
+                ):
+                    raise ValueError("invalid_response")
+                if set(message) == {"type", "request_id", "cause"}:
+                    cause = message["cause"]
+                    if not isinstance(cause, str) or cause not in YUANBAO_READ_CAUSES:
+                        raise ValueError("invalid_response")
+                    result: object = IdentityUnavailable(cause)
+                elif set(message) == {
+                    "type",
+                    "request_id",
+                    "origin",
+                    "account_id",
+                    "auth_token",
+                }:
+                    result = {
+                        name: message[name]
+                        for name in ("origin", "account_id", "auth_token")
+                    }
+                else:
+                    raise ValueError("invalid_response")
+                future = self._pending.get(request_id)
+                if future is not None and not future.done():
+                    if self._pending_kinds.get(request_id) != "yuanbao_account":
+                        raise ValueError("invalid_response")
+                    if isinstance(result, IdentityUnavailable):
+                        future.set_exception(result)
+                    else:
+                        future.set_result(result)
             else:
                 raise ValueError("invalid_response")
+            # Do not keep a delivered account payload in the idle receive loop.
+            message = {}
+            future = None
+            result = None
+            cookies = None
 
     async def cookies(self, request: CookieRequest) -> dict[str, str]:
         remaining = (request.deadline - datetime.now(UTC)).total_seconds()
         if remaining <= 0:
             raise IdentityUnavailable("identity_deadline_invalid")
         profile = provider_profile_for_key(request.site)
+        if profile.identity_source != "cookies":
+            raise IdentityUnavailable("identity_source_mismatch")
         if not profile.cookie_domain_allowlist or profile.identity == "none":
             raise IdentityUnavailable("identity_not_declared")
         if self.connection is None:
@@ -329,10 +390,9 @@ class CookieSource:
             raise IdentityUnavailable("extension_timeout")
         self._requests += 1
         request_id = secrets.token_hex(16)
-        future: asyncio.Future[list[object]] = (
-            asyncio.get_running_loop().create_future()
-        )
+        future: asyncio.Future[object] = asyncio.get_running_loop().create_future()
         self._pending[request_id] = future
+        self._pending_kinds[request_id] = "cookies"
         try:
             async with asyncio.timeout(min(REQUEST_TIMEOUT, remaining)):
                 try:
@@ -347,6 +407,8 @@ class CookieSource:
                 except (WebSocketDisconnect, RuntimeError):
                     raise IdentityUnavailable("extension_disconnected") from None
                 items = await future
+                if not isinstance(items, list):
+                    raise IdentityUnavailable("identity_cookie_structure_invalid")
                 now = time.time()
                 try:
                     selected = [ExtensionCookie.model_validate(item) for item in items]
@@ -445,6 +507,82 @@ class CookieSource:
             raise IdentityUnavailable("extension_timeout") from None
         finally:
             self._pending.pop(request_id, None)
+            self._pending_kinds.pop(request_id, None)
+            future.cancel()
+            self._requests -= 1
+
+    async def yuanbao_account(self, request: CookieRequest) -> dict[str, str]:
+        remaining = (request.deadline - datetime.now(UTC)).total_seconds()
+        if remaining <= 0:
+            raise IdentityUnavailable("identity_deadline_invalid")
+        if request.site != "wechat_channels":
+            raise IdentityUnavailable("identity_source_mismatch")
+        profile = provider_profile_for_key(request.site)
+        if (
+            profile.identity_source != "yuanbao_account"
+            or profile.identity_origin != YUANBAO_ORIGIN
+            or profile.identity == "none"
+        ):
+            raise IdentityUnavailable("identity_source_mismatch")
+        if self.connection is None:
+            raise IdentityUnavailable("extension_disconnected")
+        if self._requests >= MAX_REQUESTS:
+            raise IdentityUnavailable("extension_timeout")
+        self._requests += 1
+        request_id = secrets.token_hex(16)
+        future: asyncio.Future[object] = asyncio.get_running_loop().create_future()
+        self._pending[request_id] = future
+        self._pending_kinds[request_id] = "yuanbao_account"
+        try:
+            async with asyncio.timeout(min(REQUEST_TIMEOUT, remaining)):
+                try:
+                    await self.send(
+                        self.connection,
+                        {
+                            "type": "yuanbao_account",
+                            "request_id": request_id,
+                            "site": "wechat_channels",
+                            "deadline": request.deadline.astimezone(UTC).isoformat(),
+                        },
+                    )
+                except (WebSocketDisconnect, RuntimeError):
+                    raise IdentityUnavailable("extension_disconnected") from None
+                raw = await future
+                if datetime.now(UTC) >= request.deadline:
+                    raise IdentityUnavailable("identity_deadline_invalid")
+                try:
+                    payload = validate_yuanbao_account_payload(raw)
+                except (ValidationError, ValueError, TypeError):
+                    raise IdentityUnavailable("identity_material_invalid") from None
+                material = YuanbaoAccountMaterial(
+                    kind="yuanbao_account",
+                    origin=payload.origin,
+                    account_id=payload.account_id,
+                    auth_token=payload.auth_token,
+                    digest=stable_yuanbao_account_digest(
+                        payload,
+                        site=request.site,
+                        key=self.settings.cookie_source_token.get_secret_value(),
+                    ),
+                    local_use_deadline=request.deadline.astimezone(UTC),
+                )
+                if datetime.now(UTC) >= request.deadline:
+                    raise IdentityUnavailable("identity_deadline_invalid")
+                # This authenticated private response is the sole wire export.
+                # SecretStr.model_dump intentionally masks the two secret fields.
+                return {
+                    "kind": material.kind,
+                    "origin": material.origin,
+                    "account_id": material.account_id.get_secret_value(),
+                    "auth_token": material.auth_token.get_secret_value(),
+                    "digest": material.digest,
+                    "local_use_deadline": material.local_use_deadline.isoformat(),
+                }
+        except TimeoutError:
+            raise IdentityUnavailable("extension_timeout") from None
+        finally:
+            self._pending.pop(request_id, None)
+            self._pending_kinds.pop(request_id, None)
             future.cancel()
             self._requests -= 1
 
@@ -489,7 +627,10 @@ def create_app(settings: CookieSourceSettings) -> FastAPI:
                 {"connected": source.connection is not None, "version": source.version},
                 headers={"Cache-Control": "no-store"},
             )
-        if request.url.path != "/cookies" or request.method != "POST":
+        if (
+            request.url.path not in {"/cookies", "/yuanbao-account"}
+            or request.method != "POST"
+        ):
             return JSONResponse({"cause": "not_found"}, status_code=404)
         try:
             body = bytearray()
@@ -515,6 +656,16 @@ def create_app(settings: CookieSourceSettings) -> FastAPI:
     async def cookies(request: CookieRequest) -> JSONResponse:
         try:
             result = await source.cookies(request)
+        except IdentityUnavailable as error:
+            return JSONResponse({"cause": error.cause}, status_code=503)
+        except Exception:
+            return JSONResponse({"cause": "identity_material_invalid"}, status_code=503)
+        return JSONResponse(result)
+
+    @app.post("/yuanbao-account")
+    async def yuanbao_account(request: CookieRequest) -> JSONResponse:
+        try:
+            result = await source.yuanbao_account(request)
         except IdentityUnavailable as error:
             return JSONResponse({"cause": error.cause}, status_code=503)
         except Exception:

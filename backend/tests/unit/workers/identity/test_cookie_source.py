@@ -133,7 +133,7 @@ async def test_bad_material_refused(source, cookie):
     [
         ("tiktok", "identity_not_declared"),
         ("hongguo_web", "identity_not_declared"),
-        ("wechat_channels", "identity_cookie_rules_unverified"),
+        ("wechat_channels", "identity_source_mismatch"),
     ],
 )
 async def test_undeclared_or_unverified_rules_never_read(source, site, cause):
@@ -176,13 +176,14 @@ async def test_disconnected_deadline_timeout_cancellation_and_concurrency(
 
 
 @pytest.mark.parametrize("authorization", [None, "Bearer wrong", "Basic arbitrary"])
-async def test_bearer_required_before_parsing(authorization):
+@pytest.mark.parametrize("path", ["/cookies", "/yuanbao-account"])
+async def test_bearer_required_before_parsing(authorization, path):
     async with httpx.AsyncClient(
         transport=httpx.ASGITransport(app=m.create_app(settings())),
         base_url="http://host",
     ) as client:
         response = await client.post(
-            "/cookies",
+            path,
             content=b"not-json",
             headers={"Authorization": authorization} if authorization else {},
         )

@@ -1,10 +1,11 @@
-"""Runner-only identity transport and operation-owned Cookie tmpfs lifecycle."""
+"""Runner-only identity transport and operation-owned material lifecycle."""
 
 from __future__ import annotations
 
 import asyncio
 import base64
 import binascii
+import hmac
 import json
 import os
 import re
@@ -21,6 +22,16 @@ from uuid import uuid4
 import httpx
 from app.services.provider_failures import FailureClass
 from app.services.provider_types import ProviderIdentity
+from app.workers.identity.yuanbao_account import (
+    YUANBAO_ACCOUNT_ID_MAX_BYTES,
+    YUANBAO_AUTH_TOKEN_MAX_BYTES,
+    YUANBAO_ORIGIN,
+    stable_yuanbao_account_digest,
+    validate_yuanbao_account_material,
+)
+from app.workers.identity.yuanbao_account import (
+    YuanbaoAccountMaterial as AccountTransportMaterial,
+)
 from app.workers.runner.engine.layers.base import LayerFailure
 from app.workers.runner.netscape_cookie import MAX_COOKIE_BYTES, parse_cookie_payload
 from app.workers.runner.provider_registry import provider_profile_for_key
@@ -35,6 +46,14 @@ class IdentityMaterial:
     def cleanup(self) -> None:
         self.cookie_file.unlink(missing_ok=True)
         self.cookie_file.parent.rmdir()
+
+
+class YuanbaoAccountMaterial(AccountTransportMaterial):
+    def cleanup(self) -> None:
+        """No file is created; ownership ends with the operation's references."""
+
+
+type Identity = IdentityMaterial | YuanbaoAccountMaterial
 
 
 def _unavailable(cause: str) -> LayerFailure:
@@ -91,9 +110,7 @@ def initialize_identity_tmpfs(root: Path | None = None) -> None:
             item.unlink()
 
 
-async def fetch_identity(
-    site: str, task_id: str, deadline: datetime
-) -> IdentityMaterial:
+async def fetch_identity(site: str, task_id: str, deadline: datetime) -> Identity:
     """Design 17 interface: no persistence, retries, redirects or ambient proxies."""
     operation: Path | None = None
     try:
@@ -105,20 +122,33 @@ async def fetch_identity(
         ):
             raise _unavailable("identity_deadline_invalid")
         profile = provider_profile_for_key(site)
-        if (
-            profile.identity is ProviderIdentity.NONE
-            or not profile.cookie_domain_allowlist
+        account_source = profile.identity_source == "yuanbao_account"
+        if profile.identity is ProviderIdentity.NONE or (
+            not account_source and not profile.cookie_domain_allowlist
         ):
             raise _unavailable("identity_not_declared")
+        if account_source and (
+            site != "wechat_channels"
+            or profile.identity_origin != YUANBAO_ORIGIN
+            or profile.cookie_domain_allowlist
+        ):
+            raise _unavailable("identity_source_mismatch")
         settings = get_runner_settings()
         if settings.cookie_source_token is None:
             raise _unavailable("identity_not_configured")
-        root = _private_root(settings.runner_identity_tmpfs_root)
         token = settings.cookie_source_token.get_secret_value()
-        # Inspect and download never share operation directories.
-        operation = root / uuid4().hex
-        operation.mkdir(mode=0o700)
-        endpoint = f"http://host.docker.internal:{settings.cookie_source_port}/cookies"
+        if not account_source:
+            root = _private_root(settings.runner_identity_tmpfs_root)
+            # Inspect and download never share operation directories.
+            operation = root / uuid4().hex
+            operation.mkdir(mode=0o700)
+        route = "/yuanbao-account" if account_source else "/cookies"
+        endpoint = f"http://host.docker.internal:{settings.cookie_source_port}{route}"
+        response_limit = (
+            2 * (YUANBAO_ACCOUNT_ID_MAX_BYTES + YUANBAO_AUTH_TOKEN_MAX_BYTES) + 4096
+            if account_source
+            else 2 * MAX_COOKIE_BYTES
+        )
         async with asyncio.timeout(remaining):
             async with httpx.AsyncClient(
                 # Design 17 §3.4 identity exception: the fixed host route uses
@@ -141,7 +171,7 @@ async def fetch_identity(
                     payload = bytearray()
                     async for chunk in response.aiter_bytes():
                         payload.extend(chunk)
-                        if len(payload) > 2 * MAX_COOKIE_BYTES:
+                        if len(payload) > response_limit:
                             raise _unavailable("identity_material_invalid")
         result = json.loads(payload)
         if response.status_code != 200:
@@ -163,9 +193,27 @@ async def fetch_identity(
                 "identity_cookie_rules_unverified",
                 "identity_not_declared",
                 "identity_deadline_invalid",
+                "identity_source_mismatch",
+                "identity_origin_invalid",
+                "identity_navigation_changed",
+                "identity_account_conflict",
+                "identity_tab_ambiguous",
+                "identity_page_unavailable",
+                "identity_storage_unavailable",
             }:
                 cause = "cookie_source_rejected"
             raise _unavailable(cause)
+        if account_source:
+            try:
+                material = validate_yuanbao_account_material(result, deadline=deadline)
+                expected_digest = stable_yuanbao_account_digest(
+                    material, site=site, key=token
+                )
+                if not hmac.compare_digest(expected_digest, material.digest):
+                    raise ValueError("invalid account digest")
+                return YuanbaoAccountMaterial.model_validate(material.model_dump())
+            except ValueError:
+                raise _unavailable("identity_material_invalid") from None
         if (
             not isinstance(result, dict)
             or set(result) != {"cookies", "digest"}
@@ -190,6 +238,7 @@ async def fetch_identity(
             raise _unavailable("identity_material_invalid")
         if datetime.now(UTC) >= deadline:
             raise _unavailable("identity_deadline_invalid")
+        assert operation is not None
         cookie_file = operation / "cookies.txt"
         flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_NOFOLLOW", 0)
         with os.fdopen(os.open(cookie_file, flags, 0o600), "wb") as stream:
@@ -210,8 +259,8 @@ async def fetch_identity(
 @asynccontextmanager
 async def operation_identity(
     site: str, task_id: str, deadline: datetime
-) -> AsyncIterator[IdentityMaterial]:
-    """Caller owns the full resolve/download operation; finally deletes its material."""
+) -> AsyncIterator[Identity]:
+    """Caller owns the resolve/download operation and its material cleanup."""
     material = await fetch_identity(site, task_id, deadline)
     try:
         yield material

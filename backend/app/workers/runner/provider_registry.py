@@ -18,6 +18,7 @@ from app.services.provider_types import (
     ProviderProfileVersion,
     ProviderSupportStatus,
 )
+from app.workers.identity.yuanbao_account import YUANBAO_ORIGIN
 from app.workers.runner.errors import RunnerFailure
 
 UNSUPPORTED_PROVIDER_DOMAINS = frozenset(
@@ -69,6 +70,8 @@ class ProviderProfile:
     l2_prepare: PrepareSpec | None = None
     l3_rules: BrowserRules | None = None
     identity: ProviderIdentity = ProviderIdentity.NONE
+    identity_source: Literal["cookies", "yuanbao_account"] = "cookies"
+    identity_origin: str | None = None
     content_scope: Literal["public", "personal_full"] = "public"
     cookie_domain_allowlist: frozenset[str] = frozenset()
     client_profile: str = "yt-dlp-default"
@@ -148,6 +151,24 @@ class ProviderRegistry:
                 raise ValueError(
                     f"provider {profile.key} declares unused identity domains"
                 )
+            if profile.identity_source == "cookies":
+                if profile.identity_origin is not None:
+                    raise ValueError(
+                        f"provider {profile.key} has invalid identity origin"
+                    )
+            elif profile.identity_source == "yuanbao_account":
+                if (
+                    profile.key != ProviderKey.WECHAT_CHANNELS
+                    or profile.identity is not ProviderIdentity.REQUIRED
+                    or profile.identity_origin != YUANBAO_ORIGIN
+                    or profile.cookie_domain_allowlist
+                    or profile.content_scope != "public"
+                ):
+                    raise ValueError(
+                        f"provider {profile.key} has invalid page identity"
+                    )
+            else:
+                raise ValueError(f"provider {profile.key} has invalid identity source")
             for host in profile.hosts:
                 if host in by_host:
                     raise ValueError(f"provider host is registered twice: {host}")

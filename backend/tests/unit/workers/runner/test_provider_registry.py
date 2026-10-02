@@ -1,3 +1,5 @@
+from dataclasses import replace
+
 import pytest
 from app.services.provider_types import (
     ProviderCapability,
@@ -521,7 +523,47 @@ def test_hongguo_public_web_share_does_not_request_account_cookies() -> None:
     assert not profile.cookie_domain_allowlist
 
 
-def test_channels_identity_domains_match_first_party_preview_entry() -> None:
+def test_channels_declares_page_identity_without_claiming_parser_availability() -> None:
+    from app.services.provider_types import Layer
+    from app.workers.identity.yuanbao_account import YUANBAO_ORIGIN
+    from app.workers.runner.engine.layers.browser import BrowserLayer
+
     profile = provider_profile("https://weixin.qq.com/sph/A9znfitafp")
-    assert profile.cookie_domain_allowlist == frozenset({"channels.weixin.qq.com"})
+    assert profile.identity_source == "yuanbao_account"
+    assert profile.identity_origin == YUANBAO_ORIGIN
+    assert not profile.cookie_domain_allowlist
     assert profile.content_scope == "public"
+    assert profile.support_status is ProviderSupportStatus.UNKNOWN
+    assert profile.ladder == (Layer.L3,)
+    assert not BrowserLayer.has_parser(profile.key)
+
+
+@pytest.mark.parametrize(
+    "change",
+    [
+        {"key": "instagram"},
+        {"identity_origin": "https://other.invalid"},
+        {"identity_origin": None},
+        {"cookie_domain_allowlist": frozenset({"yuanbao.tencent.com"})},
+        {"content_scope": "personal_full"},
+    ],
+)
+def test_page_identity_cannot_expand_source_or_content_scope(change) -> None:
+    profile = provider_profile("https://weixin.qq.com/sph/A9znfitafp")
+    if "key" in change:
+        assert profile.l3_rules is not None
+        change = {
+            **change,
+            "l3_rules": replace(profile.l3_rules, platform=change["key"]),
+        }
+    with pytest.raises(ValueError, match="invalid page identity"):
+        ProviderRegistry((replace(profile, **change),))
+
+
+def test_cookie_profile_rejects_page_origin_declaration() -> None:
+    from app.workers.identity.yuanbao_account import YUANBAO_ORIGIN
+
+    profile = provider_profile("https://www.instagram.com/p/example/")
+    assert profile.identity_source == "cookies" and profile.identity_origin is None
+    with pytest.raises(ValueError, match="invalid identity origin"):
+        ProviderRegistry((replace(profile, identity_origin=YUANBAO_ORIGIN),))

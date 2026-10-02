@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import asyncio
+import json
+import subprocess
 from contextlib import asynccontextmanager
 from dataclasses import replace
 from datetime import UTC, datetime, timedelta
@@ -61,6 +63,7 @@ class FakeContext:
         self.pages = []
         self.closed = False
         self.injected = []
+        self.scripts = []
 
     async def new_page(self):
         page = FakePage(self)
@@ -72,6 +75,9 @@ class FakeContext:
 
     async def add_cookies(self, cookies):
         self.injected.extend(cookies)
+
+    async def add_init_script(self, script):
+        self.scripts.append(script)
 
     async def cookies(self):
         return self.injected
@@ -106,6 +112,7 @@ class FakeChromium:
 def chromium(monkeypatch):
     fake = FakeChromium()
     monkeypatch.setattr(browser_runtime, "async_playwright", fake.driver)
+    monkeypatch.setattr(browser_runtime, "_is_tmpfs", lambda _: True)
     return fake
 
 
@@ -445,3 +452,215 @@ async def test_route_upstream_revision_replaces_resident_browser(tmp_path, chrom
     assert chromium.calls[-1][1]["proxy"] == {"server": new_ctx.egress.proxy_url}
     await next_operation.close()
     await runtime.close()
+
+
+def account_context(settings):
+    ctx = run_context(settings, "wechat_channels")
+    material = identity.YuanbaoAccountMaterial(
+        kind="yuanbao_account",
+        origin="https://yuanbao.tencent.com",
+        account_id="synthetic-user",
+        auth_token="synthetic-token",
+        digest="a" * 64,
+        local_use_deadline=ctx.deadline,
+    )
+    return ctx.with_material(identity=material)
+
+
+@pytest.mark.parametrize("terminal", ["success", "failure", "cancel"])
+async def test_page_account_uses_private_tmpfs_and_terminal_destruction(
+    tmp_path, chromium, terminal
+):
+    settings = configured(tmp_path)
+    runtime = BrowserRuntime(settings)
+    ctx = account_context(settings)
+    ready = asyncio.Event()
+    operation = None
+
+    async def execute():
+        nonlocal operation
+        operation = await runtime.acquire(profile("wechat_channels"), ctx=ctx)
+        try:
+            ready.set()
+            if terminal == "cancel":
+                await asyncio.Event().wait()
+            if terminal == "failure":
+                raise ValueError("synthetic failure")
+        finally:
+            await operation.close()
+
+    owner = asyncio.create_task(execute())
+    await ready.wait()
+    directory = Path(chromium.calls[0][0])
+    assert directory.is_relative_to(settings.runner_browser_temp_root)
+    assert directory.stat().st_mode & 0o777 == 0o700
+    assert not settings.runner_browser_profile_root.exists()
+    assert ctx.cookie_file is None and not chromium.contexts[0].injected
+    assert len(chromium.contexts[0].scripts) == 1
+    if terminal == "cancel":
+        chromium.cleanup_allowed.clear()
+        owner.cancel()
+        await chromium.cleanup_started.wait()
+        assert not owner.done() and directory.exists()
+        chromium.cleanup_allowed.set()
+        with pytest.raises(asyncio.CancelledError):
+            await owner
+    elif terminal == "failure":
+        with pytest.raises(ValueError, match="synthetic failure"):
+            await owner
+    else:
+        await owner
+    assert operation.context.closed and not directory.exists()
+    assert not runtime._residents
+    await runtime.close()
+
+
+async def test_page_account_rejects_non_tmpfs_before_browser_launch(
+    tmp_path, chromium, monkeypatch
+):
+    settings = configured(tmp_path)
+    monkeypatch.setattr(browser_runtime, "_is_tmpfs", lambda _: False)
+    runtime = BrowserRuntime(settings)
+    with pytest.raises(RunnerFailure):
+        await runtime.acquire(profile("wechat_channels"), ctx=account_context(settings))
+    assert not chromium.calls
+    assert list(settings.runner_browser_temp_root.iterdir()) == []
+    assert not settings.runner_browser_profile_root.exists()
+    await runtime.close()
+
+
+async def test_page_account_cannot_be_used_for_cookie_platform(tmp_path, chromium):
+    settings = configured(tmp_path)
+    runtime = BrowserRuntime(settings)
+    with pytest.raises(RunnerFailure):
+        await runtime.acquire(profile("douyin"), ctx=account_context(settings))
+    assert not chromium.calls
+    await runtime.close()
+
+
+async def test_cookie_identity_cannot_be_used_for_page_account_platform(
+    tmp_path, chromium, monkeypatch
+):
+    monkeypatch.setattr(identity, "validate_cookie_file", lambda _: None)
+    settings = configured(tmp_path)
+    ctx = run_context(settings).with_material(
+        identity=identity.IdentityMaterial(tmp_path / "synthetic-cookie", "mock-digest")
+    )
+    runtime = BrowserRuntime(settings)
+    with pytest.raises(RunnerFailure):
+        await runtime.acquire(profile("wechat_channels"), ctx=ctx)
+    assert not chromium.calls
+    await runtime.close()
+
+
+@pytest.mark.parametrize("offset", [-1, 120])
+async def test_runtime_rechecks_page_account_operation_deadline(
+    tmp_path, chromium, offset
+):
+    settings = configured(tmp_path)
+    ctx = account_context(settings)
+    invalid = ctx.identity.model_copy(
+        update={"local_use_deadline": datetime.now(UTC) + timedelta(seconds=offset)}
+    )
+    runtime = BrowserRuntime(settings)
+    with pytest.raises(RunnerFailure):
+        await runtime.acquire(
+            profile("wechat_channels"), ctx=replace(ctx, identity=invalid)
+        )
+    assert not chromium.calls
+    await runtime.close()
+
+
+async def test_account_bootstrap_failure_destroys_private_profile(
+    tmp_path, chromium, monkeypatch
+):
+    async def fail(context, script):
+        raise browser_runtime.Error("synthetic script failure")
+
+    monkeypatch.setattr(FakeContext, "add_init_script", fail)
+    settings = configured(tmp_path)
+    runtime = BrowserRuntime(settings)
+    with pytest.raises(RunnerFailure):
+        await runtime.acquire(profile("wechat_channels"), ctx=account_context(settings))
+    assert chromium.contexts[0].closed
+    assert list(settings.runner_browser_temp_root.iterdir()) == []
+    assert not runtime._releases
+    await runtime.close()
+
+
+async def test_runner_lifespan_clears_browser_state_before_accepting_requests(
+    tmp_path, monkeypatch
+):
+    from app.workers.runner import main
+
+    calls = []
+    monkeypatch.setattr(
+        main, "initialize_identity_tmpfs", lambda _: calls.append("identity")
+    )
+    monkeypatch.setattr(
+        browser_runtime, "initialize_browser_tmpfs", lambda _: calls.append("browser")
+    )
+    app = main.create_app(configured(tmp_path), service=SimpleNamespace())
+    async with app.router.lifespan_context(app):
+        assert calls == ["identity", "browser"]
+
+
+def test_browser_startup_removes_only_private_crash_state(tmp_path, monkeypatch):
+    root = tmp_path / "temporary"
+    root.mkdir(mode=0o700)
+    stale = root / "wechat_channels-stale"
+    stale.mkdir()
+    (stale / "Local Storage").write_text("synthetic stale account")
+    outside = tmp_path / "outside"
+    outside.write_text("keep")
+    (root / "symlink").symlink_to(outside)
+    monkeypatch.setattr(browser_runtime, "_is_tmpfs", lambda _: True)
+    browser_runtime.initialize_browser_tmpfs(root)
+    assert not list(root.iterdir()) and outside.read_text() == "keep"
+
+
+@pytest.mark.parametrize("kind", ["non_tmpfs", "ancestor_symlink", "public_mode"])
+def test_private_browser_root_rejects_untrusted_storage(tmp_path, monkeypatch, kind):
+    root = tmp_path / "temporary"
+    root.mkdir(mode=0o700)
+    monkeypatch.setattr(browser_runtime, "_is_tmpfs", lambda _: kind != "non_tmpfs")
+    if kind == "ancestor_symlink":
+        alias = tmp_path / "alias"
+        alias.symlink_to(tmp_path, target_is_directory=True)
+        root = alias / "temporary"
+    elif kind == "public_mode":
+        root.chmod(0o755)
+    with pytest.raises(RunnerFailure):
+        browser_runtime.initialize_browser_tmpfs(root)
+
+
+def test_bootstrap_never_injects_on_other_origins_or_frames(tmp_path):
+    ctx = account_context(configured(tmp_path))
+    script = browser_runtime._yuanbao_bootstrap(ctx.identity)
+    # Execute only against in-memory JS objects: no browser, page or network.
+    result = subprocess.run(
+        [
+            "node",
+            "-e",
+            "const vm = require('node:vm'); const script = JSON.parse(process.argv[1]);"
+            "const output = []; for (const origin of "
+            "['https://yuanbao.tencent.com', 'https://channels.weixin.qq.com', "
+            "'https://yuanbao.tencent.com.evil.example']) {"
+            "for (const frame of [false, true]) { const self = {}; const calls = [];"
+            "vm.runInNewContext(script, {self, top: frame ? {} : self, "
+            "location: {origin}, localStorage: {setItem: (k,v) => calls.push([k,v])}});"
+            "output.push({origin, frame, calls}); }} "
+            "console.log(JSON.stringify(output));",
+            json.dumps(script),
+        ],
+        check=True,
+        capture_output=True,
+        text=True,
+        timeout=5,
+    )
+    cases = json.loads(result.stdout)
+    assert cases[0]["calls"] == [
+        ["yb_user_id", "synthetic-user"],
+        ["yb_token", "synthetic-token"],
+    ]
+    assert all(not case["calls"] for case in cases[1:])
