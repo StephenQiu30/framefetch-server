@@ -580,10 +580,12 @@ def test_reports_json_and_markdown_preserve_evidence(tmp_path):
 
 
 def test_fixture_positive_candidates_have_distinct_identity_and_honest_gaps():
+    from app.workers.runner.provider_registry import default_provider_registry
+
     cases = matrix.load_cases(SCRIPT.parent / "fixtures/coldstart_cases.json")
-    registry = {c.platform for c in cases}
+    registry = {str(profile.key) for profile in default_provider_registry().profiles}
+    assert len(registry) == 25
     matrix.select_cases(cases, registry, None)
-    assert len(registry) == 24
     assert all(
         c.needs_identity
         for c in cases

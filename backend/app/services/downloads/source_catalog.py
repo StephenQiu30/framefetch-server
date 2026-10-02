@@ -22,6 +22,7 @@ DOWNLOAD_SOURCES: tuple[DownloadSource, ...] = (
     DownloadSource(ProviderKey.XIAOHONGSHU, "小红书", ("xiaohongshu",)),
     DownloadSource(ProviderKey.KUAISHOU, "快手", ("kuaishou",)),
     DownloadSource(ProviderKey.VIMEO, "Vimeo", ("vimeo",)),
+    DownloadSource(ProviderKey.DAILYMOTION, "Dailymotion", ("dailymotion",)),
     DownloadSource(ProviderKey.X, "X / Twitter", ("twitter",)),
     DownloadSource(ProviderKey.INSTAGRAM, "Instagram", ("instagram",)),
     DownloadSource(ProviderKey.FACEBOOK, "Facebook", ("facebook",)),

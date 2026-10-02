@@ -6,8 +6,11 @@ import re
 from urllib.parse import SplitResult, parse_qs
 
 from app.workers.runner.errors import RunnerFailure
+from app.workers.runner.url_policy import UrlPolicyError, validate_media_url
 
 _VIMEO_ID = re.compile(r"/([0-9]+)/?$")
+_DAILYMOTION_VIDEO = re.compile(r"/video/(?P<id>[A-Za-z0-9]+)/?$")
+_DAILYMOTION_SHORT = re.compile(r"/(?P<id>[A-Za-z0-9]+)/?$")
 _DOUYIN_VIDEO = re.compile(r"/video/(?P<id>[0-9]+)/?$")
 _DOUYIN_SHARE = re.compile(r"/share/video/(?P<id>[0-9]+)/?$")
 _TIKTOK_VIDEO = re.compile(r"/@(?P<user>[A-Za-z0-9_.-]+)/video/(?P<id>[0-9]+)/?$")
@@ -41,6 +44,25 @@ _DIGITS = re.compile(r"[0-9]+$")
 def vimeo_url(url: str, parsed: SplitResult) -> str:
     match = _VIMEO_ID.fullmatch(parsed.path)
     return url if match is None else f"https://player.vimeo.com/video/{match.group(1)}"
+
+
+def dailymotion_url(url: str, parsed: SplitResult) -> str:
+    """Bind long/short shares to one video, without playlist or tracking context."""
+    try:
+        validate_media_url(url)
+    except UrlPolicyError:
+        raise RunnerFailure("provider_unsupported", status=422) from None
+    hostname = (parsed.hostname or "").casefold()
+    match = (
+        _DAILYMOTION_VIDEO.fullmatch(parsed.path)
+        if hostname in {"dailymotion.com", "www.dailymotion.com"}
+        else _DAILYMOTION_SHORT.fullmatch(parsed.path)
+        if hostname == "dai.ly"
+        else None
+    )
+    if match is None:
+        raise RunnerFailure("provider_unsupported", status=422)
+    return f"https://www.dailymotion.com/video/{match.group('id')}"
 
 
 def douyin_url(url: str, parsed: SplitResult) -> str:

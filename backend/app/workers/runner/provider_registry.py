@@ -28,12 +28,11 @@ UNSUPPORTED_PROVIDER_DOMAINS = frozenset(
         "vk.com",
         "vk.ru",
         "vkvideo.ru",
-        "dailymotion.com",
-        "dai.ly",
         "nicovideo.jp",
         "nico.ms",
     }
 )
+_DAILYMOTION_DOMAINS = frozenset({"dailymotion.com", "dai.ly"})
 
 UrlNormalizer = Callable[[str, SplitResult], str]
 
@@ -197,14 +196,23 @@ class ProviderRegistry:
 
     def resolve(self, url: str) -> ProviderProfile:
         hostname = urlsplit(url).hostname
+        domain = (hostname or "").rstrip(".")
         if hostname is not None and any(
-            hostname == domain or hostname.endswith(f".{domain}")
-            for domain in UNSUPPORTED_PROVIDER_DOMAINS
+            domain == blocked or domain.endswith(f".{blocked}")
+            for blocked in UNSUPPORTED_PROVIDER_DOMAINS
         ):
             raise RunnerFailure("provider_unsupported", status=422)
         if hostname is None:
             return self._fallback
         exact = self._by_host.get(hostname)
+        if any(
+            domain == root or domain.endswith(f".{root}")
+            for root in _DAILYMOTION_DOMAINS
+        ) and (exact is None or exact.key != ProviderKey.DAILYMOTION):
+            # These aliases belong to an approved platform, but only its exact
+            # declared hosts may resolve. Neither Generic nor a PeerTube host
+            # entry may expand the supported Dailymotion input boundary.
+            raise RunnerFailure("provider_unsupported", status=422)
         if exact is not None:
             return exact
         suffix_matches = (

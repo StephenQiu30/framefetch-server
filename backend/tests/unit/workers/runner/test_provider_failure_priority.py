@@ -86,3 +86,23 @@ def test_clear_candidate_only_overrides_the_drm_rule(other, expected):
     context = ProviderFailureContext("youtube", "https://youtu.be/sample", False)
     message = b"This format is DRM protected\n" + other
     assert classify_provider_failure(context, message, has_clear_media=True) == expected
+
+
+@pytest.mark.parametrize(
+    "marker,expected",
+    [
+        ("content_private", "content_unavailable"),
+        ("provider_geo_restricted", "network_blocked"),
+        ("content_access_metadata_invalid", "content_protected"),
+        ("content_preview_only", "content_protected"),
+        ("drm_protected", "content_protected"),
+    ],
+)
+def test_dailymotion_restriction_markers(marker, expected):
+    context = ProviderFailureContext(
+        "dailymotion", "https://www.dailymotion.com/video/x123", False
+    )
+    assert classify_provider_failure(context, f"framefetch {marker}".encode()) == (
+        expected,
+        422,
+    )

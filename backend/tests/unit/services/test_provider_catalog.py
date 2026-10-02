@@ -1,9 +1,12 @@
 from __future__ import annotations
 
+import re
 from datetime import UTC, datetime
+from pathlib import Path
 from uuid import UUID
 
 import pytest
+from app.integrations.provider_status import configured_provider_statuses
 from app.services.auth.models import CurrentUser, UserRole
 from app.services.provider_catalog import (
     DuplicateProviderCatalogKeyError,
@@ -12,6 +15,7 @@ from app.services.provider_catalog import (
     ProviderCatalogErrorCode,
     ProviderCatalogService,
 )
+from app.services.provider_status import ProviderStatusService
 from app.services.provider_types import ProviderIdentity, ProviderSupportStatus
 from app.services.providers import ProviderStatusView
 
@@ -173,3 +177,41 @@ async def test_catalog_rejects_non_admin_duplicates_and_missing_entries() -> Non
     with pytest.raises(ProviderCatalogError) as missing:
         await catalog.delete_entry(ADMIN, "missing")
     assert missing.value.code is ProviderCatalogErrorCode.NOT_FOUND
+
+
+def test_catalog_sql_seeds_all_registered_platforms_without_new_schema() -> None:
+    sql = (Path(__file__).resolve().parents[3] / "sql/schema.sql").read_text()
+    seed = sql.split("INSERT INTO provider_catalog_entries (", 1)[1].split(
+        "ON CONFLICT (key) DO NOTHING;", 1
+    )[0]
+    entries = re.findall(r"\('([^']+)', '([^']+)', ([0-9]+), TRUE, FALSE\)", seed)
+    keys = [key for key, _name, _order in entries]
+    assert len(keys) == len(set(keys)) == 25
+    assert set(keys) == {item.key for item in configured_provider_statuses()}
+    assert ("dailymotion", "Dailymotion", "240") in entries
+
+
+@pytest.mark.asyncio
+async def test_dailymotion_catalog_visibility_keeps_unknown_status() -> None:
+    repository = Repository()
+    baselines = configured_provider_statuses()
+    statuses = ProviderStatusService(baselines, catalog=repository)
+    assert await statuses.list() == ()
+    entry = await ProviderCatalogService(
+        repository, baselines, now=lambda: NOW
+    ).create_entry(
+        ADMIN,
+        key="dailymotion",
+        display_name="Dailymotion 视频",
+        sort_order=240,
+        is_visible=True,
+    )
+    assert entry.system_registered
+    assert entry.system_status is ProviderSupportStatus.UNKNOWN
+    visible = await statuses.list()
+    assert len(visible) == 1
+    assert visible[0].key == "dailymotion"
+    assert visible[0].display_name == "Dailymotion 视频"
+    assert visible[0].download_supported
+    assert visible[0].identity is ProviderIdentity.NONE
+    assert visible[0].status is ProviderSupportStatus.UNKNOWN

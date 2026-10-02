@@ -87,10 +87,23 @@ PROVIDER_FAILURE_RULES: tuple[FailureRule, ...] = (
                     ProviderKey.DOUYIN,
                     ProviderKey.YOUKU,
                     ProviderKey.QQVIDEO,
+                    ProviderKey.DAILYMOTION,
                 }
             ),
         )
         for reason in ContentRestriction
+    ),
+    FailureRule(
+        "content_unavailable",
+        422,
+        any_stderr=(b"framefetch content_private",),
+        providers=frozenset({ProviderKey.DAILYMOTION}),
+    ),
+    FailureRule(
+        "network_blocked",
+        422,
+        any_stderr=(b"framefetch provider_geo_restricted",),
+        providers=frozenset({ProviderKey.DAILYMOTION}),
     ),
     FailureRule(
         "content_protected",

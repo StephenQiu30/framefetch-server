@@ -212,7 +212,8 @@ INSERT INTO provider_catalog_entries (
     ('telegram', 'Telegram', 200, TRUE, FALSE),
     ('kick', 'Kick', 210, TRUE, FALSE),
     ('tumblr', 'Tumblr', 220, TRUE, FALSE),
-    ('hongguo_web', '红果短剧官方分享', 230, TRUE, FALSE)
+    ('hongguo_web', '红果短剧官方分享', 230, TRUE, FALSE),
+    ('dailymotion', 'Dailymotion', 240, TRUE, FALSE)
 ON CONFLICT (key) DO NOTHING;
 
 CREATE TABLE IF NOT EXISTS media_inspections (

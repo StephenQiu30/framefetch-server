@@ -2,7 +2,10 @@ from dataclasses import replace
 
 import pytest
 from app.services.provider_types import (
+    EgressRoute,
+    Layer,
     ProviderCapability,
+    ProviderIdentity,
     ProviderKey,
     ProviderProfileVersion,
     ProviderSupportStatus,
@@ -35,6 +38,109 @@ def test_uses_public_vimeo_player_endpoint_for_canonical_video() -> None:
         provider_request_url("https://www.vimeo.com/76979871/")
         == "https://player.vimeo.com/video/76979871"
     )
+
+
+@pytest.mark.parametrize(
+    "url",
+    (
+        "https://www.dailymotion.com/video/xAb123",
+        "https://dailymotion.com/video/xAb123/",
+        "http://www.dailymotion.com:80/video/xAb123?playlist=xList&autoPlay=1",
+        "https://www.dailymotion.com:443/video/xAb123?utm_source=share#player",
+        "https://dai.ly/xAb123",
+        "http://dai.ly/xAb123/?playlist=xList&start=30#share",
+    ),
+)
+def test_dailymotion_shares_bind_one_video_without_playlist_context(url: str) -> None:
+    request = provider_request(url)
+    assert request.source_url == url
+    assert request.request_url == "https://www.dailymotion.com/video/xAb123"
+    assert request.profile.key == ProviderKey.DAILYMOTION
+
+
+def test_dailymotion_declares_only_anonymous_public_single_video() -> None:
+    profile = default_provider_registry().profile_for_key(ProviderKey.DAILYMOTION)
+    assert profile.version == ProviderProfileVersion.DAILYMOTION
+    assert profile.hosts == frozenset(
+        {"dailymotion.com", "www.dailymotion.com", "dai.ly"}
+    )
+    assert not profile.host_suffixes
+    assert profile.capabilities == frozenset({ProviderCapability.SINGLE_VIDEO})
+    assert profile.ladder == (Layer.L1,)
+    assert profile.egress_route is EgressRoute.GLOBAL
+    assert profile.identity is ProviderIdentity.NONE
+    assert not profile.cookie_domain_allowlist
+    assert profile.identity_origin is None
+    assert profile.content_scope == "public"
+    assert profile.support_status is ProviderSupportStatus.UNKNOWN
+
+
+@pytest.mark.parametrize(
+    "url",
+    (
+        "https://www.dailymotion.com/",
+        "https://www.dailymotion.com/playlist/xList",
+        "https://www.dailymotion.com/user/creator",
+        "https://www.dailymotion.com/channel/news",
+        "https://www.dailymotion.com/search/video",
+        "https://www.dailymotion.com/live/xAb123",
+        "https://www.dailymotion.com/video/",
+        "https://www.dailymotion.com/video/xAb123/extra",
+        "https://www.dailymotion.com/video/xAb123_title",
+        "https://www.dailymotion.com/video/xAb%31%32%33",
+        "https://www.dailymotion.com/embed/video/xAb123",
+        "https://www.dailymotion.com/player.html?video=xAb123",
+        "https://dai.ly/playlist/xList",
+        "https://dai.ly/xAb123/extra",
+        "https://www.dailymotion.com:8443/video/xAb123",
+        "https://www.dailymotion.com:bad/video/xAb123",
+        "https://www.dailymotion.com:/video/xAb123",
+        "https://user:password@www.dailymotion.com/video/xAb123",
+        "ftp://www.dailymotion.com/video/xAb123",
+        "https://www.dailymotion.com/video/xAb123\n",
+        "https://www.dailymotion.com/video/xAb123?tracking=a b",
+    ),
+)
+def test_dailymotion_rejects_non_single_video_or_invalid_urls(url: str) -> None:
+    with pytest.raises(RunnerFailure) as captured:
+        provider_request_url(url)
+    assert captured.value.code == "provider_unsupported"
+
+
+@pytest.mark.parametrize(
+    "url",
+    (
+        "https://geo.dailymotion.com/video/xAb123",
+        "https://touch.dailymotion.com/video/xAb123",
+        "https://media.dailymotion.com/video/xAb123",
+        "https://www.dai.ly/xAb123",
+        "https://media.dai.ly/xAb123",
+        "https://www.dailymotion.com./video/xAb123",
+        "https://dai.ly./xAb123",
+    ),
+)
+def test_dailymotion_unapproved_hosts_cannot_enter_generic(url: str) -> None:
+    with pytest.raises(RunnerFailure) as captured:
+        provider_profile(url)
+    assert captured.value.code == "provider_unsupported"
+    with pytest.raises(RunnerFailure) as captured:
+        provider_request_url(url)
+    assert captured.value.code == "provider_unsupported"
+
+
+@pytest.mark.parametrize(
+    "host",
+    ("acfun.cn", "vk.com", "geo.dailymotion.com", "media.dai.ly"),
+)
+def test_registered_other_profiles_do_not_override_closed_platform_domains(
+    host: str,
+) -> None:
+    registry = ProviderRegistry(
+        (ProviderProfile("peertube", "PeerTube", frozenset({host})),)
+    )
+    with pytest.raises(RunnerFailure) as captured:
+        registry.resolve(f"https://{host}/w/AbCdEfGhIjKlMnOpQrStUv")
+    assert captured.value.code == "provider_unsupported"
 
 
 def test_youtube_uses_the_managed_mweb_pot_route() -> None:
@@ -398,6 +504,9 @@ def test_registry_classifies_mainstream_platform_hosts() -> None:
         "v.m.chenzhongtech.com": "kuaishou",
         "m.gifshow.com": "kuaishou",
         "player.vimeo.com": "vimeo",
+        "dailymotion.com": "dailymotion",
+        "www.dailymotion.com": "dailymotion",
+        "dai.ly": "dailymotion",
         "x.com": "x",
         "www.instagram.com": "instagram",
         "fb.watch": "facebook",

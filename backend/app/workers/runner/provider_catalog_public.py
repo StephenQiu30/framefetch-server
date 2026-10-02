@@ -13,6 +13,7 @@ from app.workers.runner.provider_factories import (
     standard_provider,
 )
 from app.workers.runner.provider_normalizers import (
+    dailymotion_url,
     hongguo_url,
     kick_url,
     linkedin_url,
@@ -27,6 +28,16 @@ from app.workers.runner.provider_registry import ProviderProfile
 SINGLE_VIDEO = frozenset({ProviderCapability.SINGLE_VIDEO})
 
 PUBLIC_PROVIDER_PROFILES: tuple[ProviderProfile, ...] = (
+    standard_provider(
+        ProviderKey.DAILYMOTION,
+        "Dailymotion",
+        ("dailymotion.com", "www.dailymotion.com", "dai.ly"),
+        version=ProviderProfileVersion.DAILYMOTION,
+        normalize_url=dailymotion_url,
+        capabilities=SINGLE_VIDEO,
+        status=ProviderSupportStatus.UNKNOWN,
+        command_args=("--abort-on-unavailable-fragments",),
+    ),
     standard_provider(
         ProviderKey.PINTEREST,
         "Pinterest",

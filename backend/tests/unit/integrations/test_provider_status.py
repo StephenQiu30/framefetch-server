@@ -24,6 +24,23 @@ def test_registry_capabilities_are_not_download_acceptance_evidence():
     assert bilibili.identity is ProviderIdentity.PREFER
 
 
+def test_dailymotion_unknown_status_exposes_anonymous_entry_not_verification():
+    item = next(
+        item
+        for item in configured_provider_statuses()
+        if item.key == ProviderKey.DAILYMOTION
+    )
+    public = ProviderStatusResponse.from_view(item)
+    assert public.registered and public.extractor_exists and public.download_supported
+    assert public.status is ProviderSupportStatus.UNKNOWN
+    assert public.identity is ProviderIdentity.NONE
+    assert public.capabilities == (ProviderCapability.SINGLE_VIDEO,)
+    assert set(public.hosts) == {"dailymotion.com", "www.dailymotion.com", "dai.ly"}
+    assert not public.host_suffixes
+    assert public.user_action is None
+    assert "last_verified_at" not in public.model_dump()
+
+
 def test_required_identity_action_explains_login_requirement_for_extractors():
     required = [
         item

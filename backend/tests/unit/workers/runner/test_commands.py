@@ -251,6 +251,35 @@ def test_probe_download_can_disable_ytdlp_cache(tmp_path: Path) -> None:
     assert command.count("--no-cache-dir") == 1
 
 
+@pytest.mark.parametrize("load_info", [False, True])
+def test_dailymotion_download_aborts_missing_fragments_with_either_handoff(
+    tmp_path: Path, load_info: bool
+) -> None:
+    builder = YtDlpCommandBuilder(settings(tmp_path), tmp_path)
+    info_json = tmp_path / "resolved.info.json" if load_info else None
+    command = builder.download(
+        "https://dai.ly/xsynthetic1",
+        "hls-720",
+        tmp_path / "video.input",
+        max_bytes=1024,
+        cookie_jar=None,
+        info_json=info_json,
+    ).argv
+    assert command.count("--abort-on-unavailable-fragments") == 1
+    assert "--skip-unavailable-fragments" not in command
+    assert ("--load-info-json" in command) is load_info
+    assert "--cookies" not in command
+    other = builder.download(
+        "https://vimeo.com/123",
+        "http-540p",
+        tmp_path / "other.input",
+        max_bytes=1024,
+        cookie_jar=None,
+        info_json=info_json,
+    ).argv
+    assert "--abort-on-unavailable-fragments" not in other
+
+
 def test_collection_download_enables_playlist_with_bounded_output(
     tmp_path: Path,
 ) -> None:

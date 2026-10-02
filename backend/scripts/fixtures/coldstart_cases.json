@@ -1643,5 +1643,67 @@
       "height": 360,
       "audio": true
     }
+  },
+  {
+    "id": "dailymotion-positive-1",
+    "platform": "dailymotion",
+    "url": "https://www.dailymotion.com/video/x5kesuj",
+    "expected_media_id": "x5kesuj",
+    "kind": "positive",
+    "content_scope": "public",
+    "needs_identity": false,
+    "duration_seconds": 187,
+    "duration_source": {
+      "url": "https://api.dailymotion.com/video/x5kesuj?fields=id,private,password_protected,published,status,duration,geoblocking",
+      "kind": "platform_api",
+      "field": "id / duration",
+      "checked_at": "2026-10-02T07:31:02.799949+00:00",
+      "status": "verified",
+      "note": "匿名官方作品 API HTTP200，作品ID精确匹配，原始时长 187 秒；独立于媒体流。"
+    },
+    "availability_source": {
+      "url": "https://www.dailymotion.com/player/metadata/video/x5kesuj?app=com.dailymotion.neon",
+      "kind": "official_player_metadata",
+      "field": "public API publication/password/geo + player recorded/private/protected_delivery + full HLS",
+      "checked_at": "2026-10-02T07:31:02.799949+00:00",
+      "status": "unverified",
+      "note": "匿名作品 API private=false/password_protected=false/published=true/status=published/geoblocking=[allow]；同出口 player ID与完整时长吻合，private/is_password_protected/protected_delivery=false，mode=vod/stream_type=recorded/media_type=video。独立清单 HTTP403，尚未证明完整 clear 可交付；待正式 Runner POC 与实际清单检查。"
+    },
+    "minimum_spec": {
+      "width": 320,
+      "height": 180,
+      "audio": true
+    }
+  },
+  {
+    "id": "dailymotion-positive-2",
+    "platform": "dailymotion",
+    "url": "https://dai.ly/x93blhi",
+    "expected_media_id": "x93blhi",
+    "kind": "positive",
+    "content_scope": "public",
+    "needs_identity": false,
+    "duration_seconds": 217,
+    "duration_source": {
+      "url": "https://api.dailymotion.com/video/x93blhi?fields=id,private,password_protected,published,status,duration,geoblocking",
+      "kind": "platform_api",
+      "field": "id / duration",
+      "checked_at": "2026-10-02T07:31:02.799949+00:00",
+      "status": "verified",
+      "note": "匿名官方作品 API HTTP200，作品ID精确匹配，原始时长 217 秒；独立于媒体流。"
+    },
+    "availability_source": {
+      "url": "https://www.dailymotion.com/player/metadata/video/x93blhi?app=com.dailymotion.neon",
+      "kind": "official_player_metadata",
+      "field": "public API publication/password/geo + player recorded/private/protected_delivery + full HLS",
+      "checked_at": "2026-10-02T07:31:02.799949+00:00",
+      "status": "unverified",
+      "note": "匿名作品 API private=false/password_protected=false/published=true/status=published/geoblocking=[allow]；同出口 player ID与完整时长吻合，private/is_password_protected/protected_delivery=false，mode=vod/stream_type=recorded/media_type=video。独立清单 HTTP403，尚未证明完整 clear 可交付；待正式 Runner POC 与实际清单检查。"
+    },
+    "minimum_spec": {
+      "width": 320,
+      "height": 180,
+      "audio": true
+    }
   }
 ]

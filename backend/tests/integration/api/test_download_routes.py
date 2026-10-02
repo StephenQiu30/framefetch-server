@@ -350,7 +350,7 @@ def test_download_history_route_supports_filters_and_returns_public_fields(
     }
 
 
-def test_provider_status_distinguishes_registered_verified_and_unsupported(
+def test_provider_status_distinguishes_registered_and_unsupported(
     tmp_path: Path,
 ) -> None:
     test_client, _ = client(tmp_path)
@@ -373,7 +373,11 @@ def test_provider_status_distinguishes_registered_verified_and_unsupported(
             assert item["identity"] == declared[key].identity.value
             assert item["status"] == declared[key].support_status.value
     assert items["wechat_official_account_article"]["status"] == "unknown"
-    assert not {"acfun", "rutube", "vk", "dailymotion", "niconico"} & items.keys()
+    assert not {"acfun", "rutube", "vk", "niconico"} & items.keys()
+    assert items["dailymotion"]["status"] == "unknown"
+    assert items["dailymotion"]["download_supported"] is True
+    assert items["dailymotion"]["identity"] == "none"
+    assert items["dailymotion"]["capabilities"] == ["single_video"]
     assert "peertube" not in items
     assert all(
         sensitive not in response.text.casefold()
