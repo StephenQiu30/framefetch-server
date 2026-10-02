@@ -6,6 +6,8 @@ from collections.abc import Mapping
 from typing import Any, TypeGuard
 from urllib.parse import urlsplit
 
+from app.workers.runner.url_policy import UrlPolicyError, validate_media_url
+
 
 def feed_info(payload: object) -> Mapping[str, Any] | None:
     if not isinstance(payload, Mapping) or payload.get("errCode") not in (0, "0"):
@@ -44,13 +46,16 @@ def video_formats(feed: Mapping[str, Any]) -> list[dict[str, Any]]:
 
 
 def allowed_media_url(value: object) -> TypeGuard[str]:
-    if not isinstance(value, str):
+    if not isinstance(value, str) or any(character.isspace() for character in value):
         return False
-    parsed = urlsplit(value)
+    try:
+        validated = validate_media_url(value)
+    except UrlPolicyError:
+        return False
+    parsed = urlsplit(validated.value)
     return (
-        parsed.scheme == "https"
+        validated.scheme == "https"
         and parsed.hostname == "finder.video.qq.com"
-        and parsed.port in (None, 443)
         and parsed.path.startswith("/251/")
         and parsed.path.endswith("/stodownload")
     )

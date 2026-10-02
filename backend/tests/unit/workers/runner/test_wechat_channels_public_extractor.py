@@ -127,6 +127,65 @@ def test_parser_helpers_fail_closed() -> None:
     assert not has_protection_material({"data": {"decodeKey": ""}})
 
 
+@pytest.mark.parametrize(
+    "media_url",
+    [
+        MEDIA_URL,
+        "https://finder.video.qq.com:443/251/1/stodownload?file=synthetic",
+    ],
+)
+def test_media_url_allows_only_the_official_standard_https_origin(
+    media_url: str,
+) -> None:
+    assert allowed_media_url(media_url)
+
+
+@pytest.mark.parametrize(
+    "media_url",
+    [
+        None,
+        "https://finder.video.qq.com:invalid/251/1/stodownload",
+        "https://finder.video.qq.com:65536/251/1/stodownload",
+        "https://finder.video.qq.com:/251/1/stodownload",
+        "https://finder.video.qq.com:444/251/1/stodownload",
+        "https://synthetic@finder.video.qq.com/251/1/stodownload",
+        "https://synthetic:password@finder.video.qq.com/251/1/stodownload",
+        "https://@finder.video.qq.com/251/1/stodownload",
+        "https://finder.video.qq.com/251/1/sto\ndownload",
+        "https://finder.video.qq.com/251/1/sto\tdownload",
+        "https://finder.video.qq.com/251/1/sto download",
+        "https://finder.video.qq.com/251/1/sto\u00a0download",
+        "https://finder.video.qq.com/251/1/stodownload?file=synthetic\x00",
+        "https://finder.video.qq.com/251/1/stodownload?file=synthetic\x7f",
+        " https://finder.video.qq.com/251/1/stodownload",
+        "https://finder.video.qq.com/251/1/stodownload ",
+        "https://finder.video.qq.com./251/1/stodownload",
+        "https://finder.video.qq.com/251/1/stodownload?file=synthetic\\suffix",
+        "https://[finder.video.qq.com/251/1/stodownload",
+    ],
+)
+def test_media_url_rejects_ambiguous_or_malformed_values_without_raising(
+    media_url: object,
+) -> None:
+    assert not allowed_media_url(media_url)
+
+
+def test_malformed_media_url_stays_a_declared_extractor_failure(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    extractor, _ = configured_extractor(
+        monkeypatch,
+        [
+            feed_payload(
+                video_url="https://finder.video.qq.com:invalid/251/1/stodownload"
+            )
+        ],
+    )
+
+    with pytest.raises(ExtractorError, match="login_required"):
+        extractor._real_extract(SHARE_URL)
+
+
 def test_plugin_registers_with_ytdlp_offline() -> None:
     backend_root = Path(__file__).resolve().parents[4]
     # The CLI lists extractors before its normal plugin loading. Use yt-dlp's
