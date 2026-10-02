@@ -528,12 +528,14 @@ class MediaRunnerService:
         ):
             raise RunnerFailure("context_changed", status=409)
 
-        info_json = workspace.path / "resolved.info.json"
-        await asyncio.to_thread(
-            write_resolved_info,
-            info_json,
-            inspection.download_info,
-        )
+        info_json: Path | None = None
+        if inspection.handoff == "http":
+            info_json = workspace.path / "resolved.info.json"
+            await asyncio.to_thread(
+                write_resolved_info,
+                info_json,
+                inspection.download_info,
+            )
 
         inputs = [workspace.path / "video.input"]
         total_streams = 1 if selection.audio is None else 2
@@ -663,7 +665,7 @@ class MediaRunnerService:
         end_progress: int,
         duration_seconds: float,
         cookie_jar: Path | None,
-        info_json: Path,
+        info_json: Path | None,
         resolution: Resolution,
     ) -> None:
         assert resolution.run_context is not None

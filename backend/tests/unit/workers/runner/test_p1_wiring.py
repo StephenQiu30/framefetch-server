@@ -171,13 +171,19 @@ async def test_browser_handoff_retains_handle_until_transfer_completes(
     class Success:
         async def resolve(self, source, ctx):
             material = ctx.with_material(browser=browser, user_agent=browser.user_agent)
-            return resolved(
+            media = resolved(
                 material,
                 client="stub:changed"
                 if outcome == "context_changed"
                 else "stub:actual",
                 browser=True,
             )
+            media.download_info["http_headers"] = {
+                "X-Session-Token": "fixture-header-value"
+            }
+            for raw in media.download_info["formats"]:
+                raw["url"] += "?signature=fixture-signature-value"
+            return media
 
     monkeypatch.setitem(LAYER_TABLE, Layer.L3, Success)
 
@@ -185,6 +191,13 @@ async def test_browser_handoff_retains_handle_until_transfer_completes(
         pytest.fail("browser handoff used yt-dlp transfer")
 
     monkeypatch.setattr(service._commands, "download_stream", unexpected)
+
+    def unexpected_info(*args, **kwargs):
+        pytest.fail("browser handoff persisted resolution metadata")
+
+    monkeypatch.setattr(
+        "app.workers.runner.service.write_resolved_info", unexpected_info
+    )
     task = asyncio.create_task(service.download(request))
     if outcome == "cancel":
         await browser.started.wait()
@@ -200,6 +213,17 @@ async def test_browser_handoff_retains_handle_until_transfer_completes(
             "saved",
             "close",
         ]
+        assert [event[1] for event in browser.events if event[0] == "start"] == [
+            "https://media.example.com/video?signature=fixture-signature-value",
+            "https://media.example.com/audio?signature=fixture-signature-value",
+        ]
+        workspace = Path(result.workspace_path)
+        assert not (workspace / "resolved.info.json").exists()
+        for path in workspace.rglob("*"):
+            if path.is_file():
+                content = path.read_bytes()
+                assert b"fixture-signature-value" not in content
+                assert b"fixture-header-value" not in content
         from shutil import rmtree
 
         rmtree(result.workspace_path)

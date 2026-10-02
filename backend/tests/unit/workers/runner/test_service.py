@@ -464,7 +464,14 @@ class TransientFailureSupervisor(FixtureSupervisor):
 async def test_download_reinspects_selects_semantics_and_verifies_artifact(
     tmp_path: Path,
 ) -> None:
-    supervisor = FixtureSupervisor(split_media_info())
+    payload = split_media_info()
+    payload["http_headers"] = {"X-Session-Token": "fixture-header-value"}
+    for stream in payload["formats"]:
+        stream["url"] = (
+            f"https://media.example.com/{stream['format_id']}"
+            "?signature=fixture-signature-value"
+        )
+    supervisor = FixtureSupervisor(payload)
     service = MediaRunnerService(settings(tmp_path), supervisor=supervisor)
 
     response = await service.download(download_request())
@@ -485,7 +492,12 @@ async def test_download_reinspects_selects_semantics_and_verifies_artifact(
     info_path = Path(downloads[0][downloads[0].index("--load-info-json") + 1])
     assert info_path.stat().st_mode & 0o777 == 0o600
 
-    assert json.loads(info_path.read_text())["id"] == "controlled"
+    stored = json.loads(info_path.read_text())
+    assert stored["id"] == "controlled"
+    assert stored["http_headers"] == payload["http_headers"]
+    assert [stream["url"] for stream in stored["formats"]] == [
+        stream["url"] for stream in payload["formats"]
+    ]
     assert all(
         command[command.index("--js-runtimes") + 1] == "node" for command in ytdlp
     )
