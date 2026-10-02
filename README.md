@@ -191,7 +191,7 @@ listeners:
 
 ### 平台身份与升级
 
-宿主身份服务位于 `backend/app/workers/identity/`，扩展源码位于 `browser-extension/`，遵循[设计 17 第 3.4 节](docs/design/17-解析引擎重建.md#34-身份层)。普通用户 LaunchAgent 只监听 `127.0.0.1:19101`；WebSocket `/extension` 校验固定扩展 Origin 与双向 HMAC，`POST /cookies` 和固定 `POST /yuanbao-account` 只接受 Runner Bearer。扩展先认证服务端，再按声明来源读取当前普通 Profile 的非分区 Cookie，或限定元宝顶层页的必要账号材料；服务端每次请求实时取材料，5 秒上限并受操作截止时间约束，不建立材料库。无扩展连接、超时、无必要账号材料分别返回 `extension_disconnected`、`extension_timeout`、`credential_missing`，Runner 保留这些子因。元宝材料路径目前只有离线验证，视频号仍缺真实账号恢复、响应绑定与完整文件验收，详见[第 8.5 节](docs/design/17-解析引擎重建.md#85-元宝页面身份实施方案与未验收边界)。
+宿主身份服务位于 `backend/app/workers/identity/`，扩展源码位于 `browser-extension/`，遵循[设计 17 第 3.4 节](docs/design/17-解析引擎重建.md#34-身份层)。普通用户 LaunchAgent 只监听 `127.0.0.1:19101`；WebSocket `/extension` 校验固定扩展 Origin 与双向 HMAC，`POST /cookies` 和固定 `POST /yuanbao-account` 只接受 Runner Bearer。扩展先认证服务端，再按声明来源读取当前普通 Profile 的非分区 Cookie，或限定元宝顶层页的必要账号材料；服务端每次请求实时取材料，5 秒上限并受操作截止时间约束，不建立材料库。无扩展连接、超时、无必要账号材料分别返回 `extension_disconnected`、`extension_timeout`、`credential_missing`，Runner 保留这些子因。视频号按历史元宝解析与微信官方 feed 链路恢复，当前只完成元宝材料路径的离线接线，真实账号恢复、解析请求与完整文件仍未验收，详见[第 8.5 节](docs/design/17-解析引擎重建.md#85-视频号元宝解析链路与实施边界)。
 
 从 `backend/` 执行一次安装：
 
