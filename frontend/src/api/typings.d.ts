@@ -138,9 +138,11 @@ declare namespace API {
     | "analysis_report_unavailable"
     | "internal_error"
     | "worker_lost"
-    | "analysis_outcome_unknown";
+    | "analysis_outcome_unknown"
+    | "analysis_needs_material"
+    | "analysis_configuration_changed";
 
-  type AnalysisInputKind = "video" | "screenplay";
+  type AnalysisInputKind = "video" | "screenplay" | "content";
 
   type AnalysisMediaResponse = {
     /** Duration Ms */
@@ -225,6 +227,7 @@ declare namespace API {
     finished_at: string | null;
     /** Result */
     result:
+      | ContentDocumentResult
       | VideoAnalysisResultResponse
       | VideoArticleResultResponse
       | ScreenplayAnalysisResultResponse
@@ -243,7 +246,8 @@ declare namespace API {
     | "video-article"
     | "screenplay-analysis"
     | "screenplay-rewrite"
-    | "structured-report";
+    | "structured-report"
+    | "content-document";
 
   type AnalysisRunHistoryPageResponse = {
     /** Items */
@@ -283,7 +287,14 @@ declare namespace API {
     result_contract: AnalysisResultContract;
   };
 
-  type AnalysisStage = "preparing" | "analyzing" | "validating" | "publishing";
+  type AnalysisStage =
+    | "preparing"
+    | "analyzing"
+    | "drafting"
+    | "reviewing"
+    | "revising"
+    | "validating"
+    | "publishing";
 
   type AnalysisStatus =
     | "queued"
@@ -345,6 +356,15 @@ declare namespace API {
     message: string;
     /** 成功时为业务数据，错误时为 null。 */
     data: AnalysisRunHistoryPageResponse;
+  };
+
+  type ApiResponseContentSourceSet_ = {
+    /** 稳定的业务结果码。 */
+    code: ErrorCode;
+    /** Message 安全的结果说明。 */
+    message: string;
+    /** 成功时为业务数据，错误时为 null。 */
+    data: ContentSourceSet;
   };
 
   type ApiResponseDocumentDetailResponse_ = {
@@ -590,6 +610,15 @@ declare namespace API {
     data: AnalysisSkillResponse[];
   };
 
+  type ApiResponseTupleContentVersion_____ = {
+    /** 稳定的业务结果码。 */
+    code: ErrorCode;
+    /** Message 安全的结果说明。 */
+    message: string;
+    /** Data 成功时为业务数据，错误时为 null。 */
+    data: ContentVersion[];
+  };
+
   type ApiResponseUnionAnalysisResponse_NoneType_ = {
     /** 稳定的业务结果码。 */
     code: ErrorCode;
@@ -599,7 +628,7 @@ declare namespace API {
     data: AnalysisResponse | null;
   };
 
-  type ApiResponseUnionVideoAnalysisHistoryRecordResponse_ScreenplayAnalysisHistoryRecordResponse_ =
+  type ApiResponseUnionVideoAnalysisHistoryRecordResponse_ScreenplayAnalysisHistoryRecordResponse_ContentCreationHistoryRecordResponse_ =
     {
       /** 稳定的业务结果码。 */
       code: ErrorCode;
@@ -608,7 +637,8 @@ declare namespace API {
       /** Data 成功时为业务数据，错误时为 null。 */
       data:
         | VideoAnalysisHistoryRecordResponse
-        | ScreenplayAnalysisHistoryRecordResponse;
+        | ScreenplayAnalysisHistoryRecordResponse
+        | ContentCreationHistoryRecordResponse;
     };
 
   type ApiResponseUserResponse_ = {
@@ -666,6 +696,172 @@ declare namespace API {
   };
 
   type ContainerPreference = "mp4" | "webm" | "source";
+
+  type ContentAnalysisRequest = {
+    source: ContentSourceSet;
+    /** Output Language */
+    output_language?: "zh-CN" | "en-US";
+  };
+
+  type ContentBrief = {
+    /** Document Type */
+    document_type: "article" | "post" | "guide";
+    /** Audience */
+    audience?: string;
+    /** Purpose */
+    purpose: string;
+    /** Voice */
+    voice?: string;
+  };
+
+  type ContentCitation = {
+    /** Block Id */
+    block_id: string;
+    /** Material Id */
+    material_id: string;
+    /** Segment Id */
+    segment_id: string;
+    /** Quote */
+    quote: string;
+  };
+
+  type ContentCreationHistoryRecordResponse = {
+    /** Updated At */
+    updated_at: string;
+    status_group: HistoryStatusGroup;
+    source_availability: HistoryAvailability;
+    result_availability: HistoryAvailability;
+    /** Record Type */
+    record_type: "content_creation";
+    /** Document Id */
+    document_id: string | null;
+    /** Artifact Id */
+    artifact_id: string | null;
+    /** Output Language */
+    output_language: string;
+    result_contract: AnalysisResultContract;
+    /** Current Run No */
+    current_run_no: number;
+    /** Cancel Requested At */
+    cancel_requested_at: string | null;
+    /** Version */
+    version: number;
+    /** Allowed Actions */
+    allowed_actions: ("view" | "retry" | "cancel" | "delete")[];
+    /** Action Unavailable Reason */
+    action_unavailable_reason: string | null;
+    /** Id */
+    id: string;
+    /** Download Id */
+    download_id: string | null;
+    /** Title */
+    title: string;
+    /** Skill Id */
+    skill_id: string;
+    /** Created At */
+    created_at: string;
+    status: AnalysisStatus;
+    /** Progress */
+    progress: number;
+    stage: AnalysisStage | null;
+    error_code: AnalysisErrorCode | null;
+  };
+
+  type ContentDocumentResult = {
+    /** Document Type */
+    document_type: "article" | "post" | "guide";
+    /** Language */
+    language: "zh-CN" | "en-US";
+    /** Title */
+    title: string | null;
+    /** Blocks */
+    blocks: (ParagraphBlock | HeadingBlock | ListBlock | QuoteBlock)[];
+    /** Evidence Index */
+    evidence_index: ContentCitation[];
+    /** Kind */
+    kind: "content_document";
+    /** Source Set Ref */
+    source_set_ref: string;
+    /** Review Status */
+    review_status: "passed" | "needs_review" | "needs_material";
+    /** Review History */
+    review_history: ContentReview[];
+  };
+
+  type ContentDraft = {
+    /** Document Type */
+    document_type: "article" | "post" | "guide";
+    /** Language */
+    language: "zh-CN" | "en-US";
+    /** Title */
+    title: string | null;
+    /** Blocks */
+    blocks: (ParagraphBlock | HeadingBlock | ListBlock | QuoteBlock)[];
+    /** Evidence Index */
+    evidence_index: ContentCitation[];
+  };
+
+  type ContentFinding = {
+    /** Block Id */
+    block_id: string;
+    /** Severity */
+    severity: "blocking" | "major" | "minor";
+    /** Category */
+    category:
+      | "fact"
+      | "purpose"
+      | "structure"
+      | "expression"
+      | "missing_material";
+    /** Problem */
+    problem: string;
+    /** Correction */
+    correction: string;
+  };
+
+  type ContentMaterial = {
+    /** Id */
+    id: string;
+    /** Title */
+    title: string;
+    /** Text */
+    text: string;
+    /** Role */
+    role?: "source" | "author_style";
+  };
+
+  type ContentReview = {
+    /** Needs Material */
+    needs_material: boolean;
+    /** Findings */
+    findings: ContentFinding[];
+  };
+
+  type ContentRevisionRequest = {
+    /** Base Report Id */
+    base_report_id: string;
+    draft: ContentDraft;
+  };
+
+  type ContentSourceSet = {
+    /** Materials */
+    materials: ContentMaterial[];
+    brief: ContentBrief;
+  };
+
+  type ContentVersion = {
+    /** Id */
+    id: string;
+    /** Run No */
+    run_no: number;
+    /** Created At */
+    created_at: string;
+    result: ContentDocumentResult;
+    /** Markdown */
+    markdown: string;
+    /** Content Sha256 */
+    content_sha256: string;
+  };
 
   type CreateAiProviderProfileRequest = {
     /** Key */
@@ -1345,6 +1541,10 @@ declare namespace API {
     analysis_id: string;
   };
 
+  type exportContentHtmlParams = {
+    analysis_id: string;
+  };
+
   type FailureClass =
     | "network_blocked"
     | "challenge"
@@ -1383,6 +1583,10 @@ declare namespace API {
   };
 
   type getAnalysisParams = {
+    analysis_id: string;
+  };
+
+  type getContentSourceParams = {
     analysis_id: string;
   };
 
@@ -1437,6 +1641,17 @@ declare namespace API {
     discovery_id: string;
   };
 
+  type HeadingBlock = {
+    /** Id */
+    id: string;
+    /** Type */
+    type: "heading";
+    /** Level */
+    level: 2 | 3;
+    /** Text */
+    text: string;
+  };
+
   type HighlightResponse = {
     /** Id */
     id: string;
@@ -1474,7 +1689,8 @@ declare namespace API {
     | "parse"
     | "video_analysis"
     | "document_parse"
-    | "screenplay_analysis";
+    | "screenplay_analysis"
+    | "content_creation";
 
   type HistoryRecordPageResponse = {
     /** Items */
@@ -1482,6 +1698,7 @@ declare namespace API {
       | ParseHistoryRecordResponse
       | VideoAnalysisHistoryRecordResponse
       | ScreenplayAnalysisHistoryRecordResponse
+      | ContentCreationHistoryRecordResponse
       | DocumentParseHistoryRecordResponse
     )[];
     next_cursor: HistoryRecordCursorResponse | null;
@@ -1658,6 +1875,21 @@ declare namespace API {
 
   type listAnalysisSkillsParams = {
     input_kind: AnalysisInputKind;
+  };
+
+  type ListBlock = {
+    /** Id */
+    id: string;
+    /** Type */
+    type: "list";
+    /** Ordered */
+    ordered: boolean;
+    /** Items */
+    items: string[];
+  };
+
+  type listContentVersionsParams = {
+    analysis_id: string;
   };
 
   type listDocumentsParams = {
@@ -1870,6 +2102,15 @@ declare namespace API {
     error_code: string | null;
   };
 
+  type ParagraphBlock = {
+    /** Id */
+    id: string;
+    /** Type */
+    type: "paragraph";
+    /** Text */
+    text: string;
+  };
+
   type ParseHistoryRecordResponse = {
     /** Updated At */
     updated_at: string;
@@ -1998,6 +2239,15 @@ declare namespace API {
     url: string;
   };
 
+  type QuoteBlock = {
+    /** Id */
+    id: string;
+    /** Type */
+    type: "quote";
+    /** Text */
+    text: string;
+  };
+
   type ReadinessResponse = {
     status: ReadinessStatus;
     /** Service */
@@ -2053,6 +2303,10 @@ declare namespace API {
 
   type retryDownloadParams = {
     job_id: string;
+  };
+
+  type reviseContentParams = {
+    analysis_id: string;
   };
 
   type RightsBasis =

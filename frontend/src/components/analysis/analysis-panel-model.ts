@@ -117,6 +117,9 @@ export function analysisReportStatusLabel(
 
 export const stageLabels: Record<API.AnalysisStage, string> = {
   [AnalysisStageCode.Preparing]: '准备输入',
+  drafting: '写作',
+  reviewing: '审阅',
+  revising: '修订',
   [AnalysisStageCode.Analyzing]: '执行 AI 分析',
   [AnalysisStageCode.Validating]: '校验结构化结果',
   [AnalysisStageCode.Publishing]: '生成报告文件',

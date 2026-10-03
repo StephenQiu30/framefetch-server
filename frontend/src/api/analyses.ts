@@ -54,7 +54,7 @@ export async function getAnalysisHistoryRecord(
   options?: RequestOptions
 ) {
   const { analysis_id: param0, ...queryParams } = params;
-  return request<API.ApiResponseUnionVideoAnalysisHistoryRecordResponse_ScreenplayAnalysisHistoryRecordResponse_>(
+  return request<API.ApiResponseUnionVideoAnalysisHistoryRecordResponse_ScreenplayAnalysisHistoryRecordResponse_ContentCreationHistoryRecordResponse_>(
     `/api/analyses/${param0}/history-record`,
     {
       method: "GET",
@@ -145,6 +145,91 @@ export async function listAnalysisSkills(
       params: {
         ...params,
       },
+      ...(options || {}),
+    }
+  );
+}
+
+/** 从文字材料创作文章、帖子或说明文档 POST /api/content/analyses */
+export async function createContentAnalysis(
+  body: API.ContentAnalysisRequest,
+  options?: RequestOptions
+) {
+  return request<API.ApiResponseAnalysisResponse_>("/api/content/analyses", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    data: body,
+    ...(options || {}),
+  });
+}
+
+/** 导出文章正文 HTML GET /api/content/analyses/${param0}/report.html */
+export async function exportContentHtml(
+  // 叠加生成的Param类型 (非body参数swagger默认没有生成对象)
+  params: API.exportContentHtmlParams,
+  options?: RequestOptions
+) {
+  const { analysis_id: param0, ...queryParams } = params;
+  return request<Blob>(`/api/content/analyses/${param0}/report.html`, {
+    method: "GET",
+    params: { ...queryParams },
+    ...(options || {}),
+  });
+}
+
+/** 保存人工修订稿，保留原版本 POST /api/content/analyses/${param0}/revisions */
+export async function reviseContent(
+  // 叠加生成的Param类型 (非body参数swagger默认没有生成对象)
+  params: API.reviseContentParams,
+  body: API.ContentRevisionRequest,
+  options?: RequestOptions
+) {
+  const { analysis_id: param0, ...queryParams } = params;
+  return request<API.ApiResponseAnalysisResponse_>(
+    `/api/content/analyses/${param0}/revisions`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      params: { ...queryParams },
+      data: body,
+      ...(options || {}),
+    }
+  );
+}
+
+/** 回看本次创作的原始材料 GET /api/content/analyses/${param0}/source */
+export async function getContentSource(
+  // 叠加生成的Param类型 (非body参数swagger默认没有生成对象)
+  params: API.getContentSourceParams,
+  options?: RequestOptions
+) {
+  const { analysis_id: param0, ...queryParams } = params;
+  return request<API.ApiResponseContentSourceSet_>(
+    `/api/content/analyses/${param0}/source`,
+    {
+      method: "GET",
+      params: { ...queryParams },
+      ...(options || {}),
+    }
+  );
+}
+
+/** 回看已保存的正文版本 GET /api/content/analyses/${param0}/versions */
+export async function listContentVersions(
+  // 叠加生成的Param类型 (非body参数swagger默认没有生成对象)
+  params: API.listContentVersionsParams,
+  options?: RequestOptions
+) {
+  const { analysis_id: param0, ...queryParams } = params;
+  return request<API.ApiResponseTupleContentVersion_____>(
+    `/api/content/analyses/${param0}/versions`,
+    {
+      method: "GET",
+      params: { ...queryParams },
       ...(options || {}),
     }
   );

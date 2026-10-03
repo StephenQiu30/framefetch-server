@@ -39,7 +39,9 @@ export function useHistoryRecordFilters() {
             : subkind === 'all'
               ? ['document_parse', 'screenplay_analysis']
               : ['screenplay_analysis']
-          : [];
+          : category === 'content'
+            ? ['content_creation']
+            : [];
   const filters: API.listHistoryRecordsParams = {
     record_type: recordTypes.length ? recordTypes : undefined,
     status_group: (search.get('status') || undefined) as

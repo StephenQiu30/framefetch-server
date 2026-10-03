@@ -1,7 +1,11 @@
 'use client';
 
 import { type ComponentProps, useState } from 'react';
-import { exportAnalysisMarkdown, exportAnalysisReport } from '@/api/analyses';
+import {
+  exportAnalysisMarkdown,
+  exportAnalysisReport,
+  exportContentHtml,
+} from '@/api/analyses';
 import { FeedbackNotice } from '@/components/layout/feedback-notice';
 import { displayError } from '@/lib/request-error';
 
@@ -13,7 +17,7 @@ export default function AnalysisReportDownloadLink({
   ...props
 }: Omit<ComponentProps<'a'>, 'href'> & {
   analysisId: string;
-  format: 'md' | 'docx';
+  format: 'md' | 'docx' | 'html';
 }) {
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string>();
@@ -36,9 +40,11 @@ export default function AnalysisReportDownloadLink({
             const params = { analysis_id: encodeURIComponent(analysisId) };
             const options = { responseType: 'blob' as const };
             const blob: Blob =
-              format === 'md'
-                ? await exportAnalysisMarkdown(params, options)
-                : await exportAnalysisReport(params, options);
+              format === 'html'
+                ? await exportContentHtml(params, options)
+                : format === 'md'
+                  ? await exportAnalysisMarkdown(params, options)
+                  : await exportAnalysisReport(params, options);
             const url = URL.createObjectURL(blob);
             const link = document.createElement('a');
             link.href = url;
