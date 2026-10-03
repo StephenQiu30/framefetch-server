@@ -54,13 +54,14 @@ def test_editorial_examples_parse_and_render_with_source_boundaries(name: str) -
         assert "第 1 场" in markdown and "第 2 场" in markdown
         assert "尚未呈现结果" in markdown
         assert "scene-opening" not in markdown
+    elif name == "video-article":
+        assert "还需要更完整的测试" in markdown
+        assert markdown.endswith(f"{payload['closing']}\n")
+        for metadata in ("00:07.000", "编辑摘要", "编辑附录", "事实边界与待核验项"):
+            assert metadata not in markdown
     else:
         assert "长期不漏水" in markdown or "长时间携带" in markdown
         assert "00:07.000–00:10.000" in markdown
-        if name == "video-article":
-            appendix = markdown.index("## 编辑附录")
-            assert "还需要更完整的测试" in markdown[:appendix]
-            assert "00:07.000" not in markdown[:appendix]
 
 
 def test_comprehensive_example_rejects_an_unobserved_shot_reference() -> None:

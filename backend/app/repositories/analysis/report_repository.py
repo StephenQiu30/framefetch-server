@@ -23,6 +23,7 @@ from app.services.analysis.rules.enums import (
     AnalysisErrorCode,
     AnalysisReportArtifactStatus,
     AnalysisReportStatus,
+    AnalysisResultKind,
     AnalysisStage,
 )
 
@@ -36,6 +37,7 @@ class ReportPublication:
     markdown: str
     markdown_sha256: str
     renderer_version: str
+    result_kind: AnalysisResultKind
 
 
 @dataclass(frozen=True, slots=True)
@@ -112,6 +114,7 @@ class SqlAlchemyAnalysisReportRepository(AnalysisReportLifecycleRepository):
                 markdown=report.report_markdown,
                 markdown_sha256=report.content_sha256,
                 renderer_version=report.renderer_version,
+                result_kind=AnalysisResultKind(report.result_json["kind"]),
             )
 
     async def complete(

@@ -18,6 +18,8 @@ from docx.text.run import Run
 from markdown_it import MarkdownIt
 from markdown_it.token import Token
 
+from app.services.analysis.rules.enums import AnalysisResultKind
+
 _BLUE = RGBColor(0x2E, 0x74, 0xB5)
 _DARK_BLUE = RGBColor(0x1F, 0x4D, 0x78)
 _BLACK = RGBColor(0x0A, 0x0A, 0x0A)
@@ -30,18 +32,21 @@ _TABLE_INDENT_DXA = 120
 class PythonDocxAnalysisReportRenderer:
     """Render the canonical Markdown report as a Word document."""
 
-    def render(self, markdown: str) -> bytes:
+    def render(self, markdown: str, *, result_kind: AnalysisResultKind) -> bytes:
         if not markdown.strip() or len(markdown) > 1_000_000:
             raise ValueError("markdown report must be non-blank and bounded")
         document = Document()
         title = _add_markdown(document, markdown)
-        _configure_document(document, title)
+        _configure_document(document, title, result_kind)
         output = BytesIO()
         document.save(output)
         return output.getvalue()
 
 
-def _configure_document(document: DocumentObject, title: str) -> None:
+def _configure_document(
+    document: DocumentObject, title: str, result_kind: AnalysisResultKind
+) -> None:
+    is_article = result_kind is AnalysisResultKind.VIDEO_ARTICLE
     section = document.sections[0]
     section.start_type = WD_SECTION.NEW_PAGE
     section.page_width = Inches(8.5)
@@ -62,9 +67,9 @@ def _configure_document(document: DocumentObject, title: str) -> None:
     for name, size, color, before, after in (
         ("Title", 21, _BLACK, 0, 4),
         ("Subtitle", 13, _MUTED, 0, 12),
-        ("Heading 1", 16, _BLUE, 12, 6),
-        ("Heading 2", 13, _BLUE, 10, 4),
-        ("Heading 3", 12, _DARK_BLUE, 8, 4),
+        ("Heading 1", 16, _BLACK if is_article else _BLUE, 12, 6),
+        ("Heading 2", 13, _BLACK if is_article else _BLUE, 10, 4),
+        ("Heading 3", 12, _BLACK if is_article else _DARK_BLUE, 8, 4),
     ):
         style = styles[name]
         _set_style_font(style, "Calibri", size, color)
@@ -81,10 +86,13 @@ def _configure_document(document: DocumentObject, title: str) -> None:
         style.paragraph_format.line_spacing = 1.167
 
     document.core_properties.title = title
-    document.core_properties.subject = "Editorial analysis report"
-    document.core_properties.author = "Video Server"
-    _configure_header(section)
-    _configure_footer(section)
+    document.core_properties.subject = (
+        "Article" if is_article else "Editorial analysis report"
+    )
+    document.core_properties.author = "" if is_article else "Video Server"
+    if not is_article:
+        _configure_header(section)
+        _configure_footer(section)
 
 
 def _configure_header(section: Section) -> None:

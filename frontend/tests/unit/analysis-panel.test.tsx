@@ -131,6 +131,13 @@ describe('AnalysisPanel', () => {
       });
       const seek = vi.fn();
       render(<AnalysisPanel downloadId={job().id} onSelectTime={seek} />);
+      fireEvent.mouseDown(
+        await screen.findByRole('tab', { name: '回查依据' }),
+        {
+          button: 0,
+          ctrlKey: false,
+        },
+      );
       fireEvent.click(
         await screen.findByRole('button', { name: '查看视频依据 0:30–1:02' }),
       );
@@ -150,6 +157,10 @@ describe('AnalysisPanel', () => {
         playbackUnavailableReason="原视频文件已清理"
       />,
     );
+    fireEvent.mouseDown(await screen.findByRole('tab', { name: '回查依据' }), {
+      button: 0,
+      ctrlKey: false,
+    });
     expect(
       await screen.findByRole('button', { name: '查看视频依据 0:30–1:02' }),
     ).toBeDisabled();

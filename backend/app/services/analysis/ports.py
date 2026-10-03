@@ -18,7 +18,7 @@ from app.services.analysis.models import (
     AnalysisSkillView,
     AnalysisStoredReportFile,
 )
-from app.services.analysis.rules.enums import AnalysisInputKind
+from app.services.analysis.rules.enums import AnalysisInputKind, AnalysisResultKind
 from app.services.analysis.rules.result_types import AnalysisResult
 
 
@@ -79,7 +79,7 @@ class AnalysisRepository(Protocol):
 
 
 class AnalysisReportRenderer(Protocol):
-    def render(self, markdown: str) -> bytes: ...
+    def render(self, markdown: str, *, result_kind: AnalysisResultKind) -> bytes: ...
 
 
 class AnalysisReportObjectReader(Protocol):

@@ -1,9 +1,11 @@
 from dataclasses import replace
 from datetime import timedelta
+from io import BytesIO
 from uuid import uuid4
 
 import pytest
 from app.integrations.analysis_report_docx import PythonDocxAnalysisReportRenderer
+from app.integrations.object_storage import StoredObjectStat
 from app.models import ArtifactRow
 from app.repositories.analysis.report_repository import (
     ReportObject,
@@ -11,12 +13,15 @@ from app.repositories.analysis.report_repository import (
 )
 from app.repositories.analysis.repository import SqlAlchemyAnalysisRepository
 from app.services.analysis.models import AnalysisPublish
+from app.services.analysis.rules.enums import AnalysisResultContract
 from app.services.quotas import QuotaExceeded, QuotaPolicy
 from app.workers.report.message import ReportRequested
 from app.workers.report.publisher import ReportPublisher
+from docx import Document
 from sqlalchemy import func, select
 from tests.unit.repositories.analysis.factories import analysis_result
 from tests.unit.repositories.analysis.test_publish import NOW, validating_job
+from tests.unit.services.analysis.test_editorial_examples import _parse, _read
 
 
 async def publishing(analysis_db):
@@ -138,3 +143,66 @@ async def test_report_size_rejection_is_terminal_and_cleanup_releases_reservatio
     assert result.failed == 0
     assert len(deleted) == 2
     assert (await reports.get_latest_report(command.id)).status == "deleted"
+
+
+async def test_article_publication_exports_clean_copy_and_keeps_review_data(
+    analysis_db,
+):
+    command, job = await validating_job(
+        analysis_db, result_contract=AnalysisResultContract.VIDEO_ARTICLE
+    )
+    article = _parse("video-article", _read("video-article"))
+    snapshot = await analysis_db.repository.publish_result(
+        AnalysisPublish(
+            job_id=command.id,
+            run_id=command.run_id,
+            result=article,
+            lease_owner="worker-a",
+            expected_version=job.version,
+            provider="codex",
+            model="controlled-model",
+            cli_version="controlled",
+            now=NOW + timedelta(seconds=3),
+        )
+    )
+    reports = SqlAlchemyAnalysisReportRepository(analysis_db.sessions)
+    report = await reports.get_latest_report(command.id)
+    content_by_key = {}
+    stats_by_key = {}
+
+    class Storage:
+        async def stat(self, key):
+            return stats_by_key.get(key)
+
+        async def upload_bytes(self, key, content, media_type, digest):
+            content_by_key[key] = content
+            stats_by_key[key] = StoredObjectStat(len(content), digest, media_type)
+
+    publisher = ReportPublisher(
+        reports,
+        Storage(),
+        PythonDocxAnalysisReportRenderer(),
+        bucket="video-artifacts",
+        worker_id="publisher",
+        clock=lambda: NOW + timedelta(seconds=4),
+    )
+    requested = ReportRequested(
+        command.id, command.run_id, report.id, report.renderer_version, snapshot.version
+    )
+    assert await publisher.execute(requested) is True
+    completed = await analysis_db.repository.get_job(command.id)
+    assert completed.status == "succeeded"
+    assert await analysis_db.repository.get_result(command.id) == article
+    assert len(content_by_key) == 2
+    for key, content in content_by_key.items():
+        if key.endswith(".md"):
+            text = content.decode("utf-8")
+        else:
+            document = Document(BytesIO(content))
+            assert document.core_properties.subject == "Article"
+            assert not document.sections[0].header.tables
+            text = "\n".join(p.text for p in document.paragraphs)
+        assert text.rstrip().endswith(article.closing)
+        assert "还需要更完整的测试" in text
+        for metadata in ("编辑摘要", "编辑附录", "00:07.000", "未使用可靠音频"):
+            assert metadata not in text

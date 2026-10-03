@@ -63,7 +63,9 @@ class ReportPublisher:
             markdown = publication.markdown.encode("utf-8")
             if hashlib.sha256(markdown).hexdigest() != publication.markdown_sha256:
                 raise RuntimeError("canonical Markdown hash mismatch")
-            docx = self._renderer.render(publication.markdown)
+            docx = self._renderer.render(
+                publication.markdown, result_kind=publication.result_kind
+            )
             if len(markdown) + len(docx) > self._max_bytes:
                 raise ReportSizeExceeded("report exceeds publication byte budget")
             prefix = (

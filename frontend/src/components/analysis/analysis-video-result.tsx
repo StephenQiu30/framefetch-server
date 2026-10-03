@@ -41,7 +41,6 @@ export default function AnalysisVideoResult({
       return (
         <AnalysisArticleResultView
           onSelectTime={onSelectTime}
-          reportMarkdown={reportMarkdown}
           result={result}
         />
       );

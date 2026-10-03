@@ -105,11 +105,13 @@ export default function AnalysisPanel({
           />
         ) : null}
         <div className="flex flex-col gap-6">
-          <div className="min-w-0 w-full">
-            <h2 className="w-full text-xl font-semibold tracking-tight">
-              {state.job.result.title}
-            </h2>
-          </div>
+          {state.job.result.kind !== 'video_article' ? (
+            <div className="min-w-0 w-full">
+              <h2 className="w-full text-xl font-semibold tracking-tight">
+                {state.job.result.title}
+              </h2>
+            </div>
+          ) : null}
           <div className="flex flex-wrap items-center gap-3">
             <Badge variant="default">已完成</Badge>
             <span className="text-sm text-muted-foreground tabular-nums">
