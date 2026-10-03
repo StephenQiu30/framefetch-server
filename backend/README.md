@@ -136,7 +136,7 @@ backend/.venv/bin/python backend/scripts/coldstart_matrix.py --all
 
 `--platforms a,b` 只运行指定 registered 平台，要求每个平台至少两部不同作品；`--all` 要求样本平台集合与正式 `GET /api/providers` 的 registered 集合严格相等，缺少或多出平台都报错。当前该 API 暴露 25 个 Registry profiles；Generic fallback 和未配置的 PeerTube 不在该集合中。启用新的 registered 平台后必须补充样本，否则全量模式不能运行。脚本不导入 Runner，也不从静态平台状态推断通过。
 
-样本在 `scripts/fixtures/coldstart_cases.json`，每条包含作品 ID、范围、正例/受保护负例、needs_identity、独立时长来源、可访问/公开/免费/非 DRM 证据和最低规格。`verified` 证据须有核实日期；时长不得来自被测流或历史 yt-dlp 测试预期。当前 fixture 包含待核实候选：空时长与 `unverified` 会在 JSON/Markdown 明确保留，即使完整文件交付也只能记为阻塞。这些候选不满足第 7 节的有效正例要求，需要在平台可访问后替换或补齐证据。受保护负例只有独立保护证据成立且 API 返回 content_protected 才记为 `protected_negative`，不参与平台通过判定。平台通过要求全部正例完整通过，至少两部不同作品。
+样本在 `scripts/fixtures/coldstart_cases.json`，每条包含作品 ID、范围、正例/受保护负例、needs_identity、时长来源、可访问性证据和最低规格。视频号 `official_share` 只要求注明日期的匿名分享／元宝／微信官方 feed 元数据对应证据；候选文件时长用于交付一致性校验，报告明确公开免费标签、独立原长与原作品完整性未证实，规则见设计 17 第 8.5 节。其他范围仍要求独立原长与原有内容范围证据。`verified` 证据须有核实日期；其他范围的独立时长不得来自被测流或历史 yt-dlp 测试预期。当前 fixture 包含待核实候选：缺失该范围要求的证据会在 JSON/Markdown 明确保留，即使文件交付也只能记为阻塞。视频号不把候选文件时长写成独立原长。缺少必需证据的候选不满足第 7 节的有效正例要求，需要在平台可访问后替换或补齐证据。受保护负例只有独立保护证据成立且 API 返回 content_protected 才记为 `protected_negative`，不参与平台通过判定。平台通过要求全部正例完整通过，至少两部不同作品。
 
 结果、文件、ffprobe、完整解码日志及构建/恢复日志存到 `artifacts/coldstart/<UTC 时间>/`，可用 `--output artifacts/coldstart/<唯一名称>` 指定；目录必须不存在，避免覆盖旧证据。`matrix.json` 与 `matrix.md` 每条完成后更新，保存实际上下文、时长、大小、SHA-256、耗时和安全的失败证据。退出码：0 为选中平台全部通过，1 为完成矩阵但有失败/阻塞，2 为配置、启动或恢复错误。平台通过只依据有效样本的完整交付；阶段运行不能代替全平台验收。
 

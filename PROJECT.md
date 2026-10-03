@@ -22,7 +22,7 @@
 
 媒体获取面向单人自部署使用。解析引擎的唯一架构与实施状态见[设计 17](docs/design/17-解析引擎重建.md)。Registry 声明阶梯、出口、identity 与 content_scope；引擎使用 yt-dlp、可信插件、bgutil、browser_runtime、受控出口和完整文件校验。实现状态与平台验收仅在设计 17 第 8 节维护。
 
-ExecutionContext 按设计 17 第 3.7 节保存十二字段非敏感摘要，贯穿 Runner、检查结果、意图、下载 Job 与制品元数据。解析由单 resolve Activity 在 120 秒期限内执行，不维护策略计划、操作级尝试账本、预算账本、会话代或运营准入；意图的业务 generation/fence、持久截止时间与取消确认保留。下载保留 RabbitMQ lease/heartbeat，Skill 分析保留模型步骤日志与未知调用保护；PostgreSQL 是业务事实来源。Chrome 扩展按来源读取 Cookie 或在限定元宝页面执行固定原生解析请求，双向 HMAC 认证、Runner 独占 Bearer 鉴权的 `POST /cookies`／`POST /yuanbao-parse`、操作私有 tmpfs 清理及真实验收统一遵循设计 17 第 3.4／8.5 节，不在工程规范另定义协议；视频号按该设计恢复历史元宝解析链路，复用现有 L3 与下载接口。
+ExecutionContext 按设计 17 第 3.7 节保存十二字段非敏感摘要，贯穿 Runner、检查结果、意图、下载 Job 与制品元数据。解析由单 resolve Activity 在 120 秒期限内执行，不维护策略计划、操作级尝试账本、预算账本、会话代或运营准入；意图的业务 generation/fence、持久截止时间与取消确认保留。下载保留 RabbitMQ lease/heartbeat，Skill 分析保留模型步骤日志与未知调用保护；PostgreSQL 是业务事实来源。Chrome 扩展按来源读取 Cookie 或在限定元宝页面执行固定原生解析请求，双向 HMAC 认证、Runner 独占 Bearer 鉴权的 `POST /cookies`／`POST /yuanbao-parse`、操作私有 tmpfs 清理及真实验收统一遵循设计 17 第 3.4／8.5 节，不在工程规范另定义协议；视频号按该设计的 official_share 范围接通元宝原生解析与微信官方文件，复用现有 L3 与下载接口；候选时长不表示独立原作品完整性已证实。
 
 ## 2. FastAPI 工程结构
 
