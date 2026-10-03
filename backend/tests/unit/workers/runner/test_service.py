@@ -7,10 +7,11 @@ from collections.abc import Mapping, Sequence
 from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
+from unittest.mock import Mock
 
 import pytest
 from app.workers.runner.errors import RunnerFailure
-from app.workers.runner.process import ProcessResult
+from app.workers.runner.process import ProcessResult, ProcessTimeoutError
 from app.workers.runner.provider_registry import provider_request
 from app.workers.runner.service import MediaRunnerService
 from helpers import download_request, result, settings, split_media_info
@@ -516,6 +517,220 @@ async def test_download_reinspects_selects_semantics_and_verifies_artifact(
     status = await service.status("job_123")
     assert status.stage.value == "ready"
     assert status.progress == 100
+
+
+class ClearDecodeSupervisor(FixtureSupervisor):
+    def __init__(self, *, mode="success"):
+        super().__init__(split_media_info())
+        self.mode = mode
+        self.decode_started = asyncio.Event()
+        self.decode_cancelled = asyncio.Event()
+
+    async def run(self, argv, *, cwd, timeout_seconds, env=None):
+        command = tuple(argv)
+        if command[0] == "ffmpeg" and command[-2:] == ("null", "-"):
+            self.calls.append((command, env))
+            self.decode_started.set()
+            artifact = Path(command[command.index("-i") + 1])
+            assert artifact.read_bytes() == b"final-media"
+            if self.mode == "returncode":
+                return ProcessResult(1, b"", b"synthetic-corrupt-frame", False, False)
+            if self.mode == "stderr":
+                return ProcessResult(0, b"", b"synthetic-corrupt-frame", False, False)
+            if self.mode == "timeout":
+                raise ProcessTimeoutError(ProcessResult(-9, b"", b"", False, False))
+            if self.mode == "block":
+                try:
+                    await asyncio.Event().wait()
+                finally:
+                    self.decode_cancelled.set()
+            return result()
+        return await super().run(
+            argv, cwd=cwd, timeout_seconds=timeout_seconds, env=env
+        )
+
+
+def delivery_profile(
+    service,
+    monkeypatch,
+    *,
+    key="wechat_channels",
+    scope="official_share",
+    media_kind=None,
+):
+    from app.services.downloads.rules.enums import MediaKind
+    from app.workers.runner.engine.identity import NativePageIdentity
+
+    original = service._download_resolved
+
+    async def download(request, source, workspace, resolution):
+        # Reuse a controlled media resolution to exercise final delivery only.
+        # Native/feed identity and admission are verified in their own tests.
+        profile = replace(source.profile, key=key, content_scope=scope)
+        context = replace(resolution.execution_context, provider_key=key)
+        ctx = resolution.run_context
+        assert ctx is not None
+        if key == "wechat_channels" and scope == "official_share":
+            profile = provider_request(
+                "https://weixin.qq.com/sph/SyntheticShare"
+            ).profile
+            material = NativePageIdentity("a" * 64)
+            ctx = ctx.with_material(identity=material)
+            context = replace(
+                context,
+                registry_revision=profile.version,
+                resolved_layer="L3",
+                client="wechat_channels:browser",
+                identity_used=True,
+                identity_digest=material.digest,
+                browser_context_kind="authenticated",
+            )
+        media = replace(
+            resolution.media,
+            media_kind=media_kind or MediaKind.VIDEO,
+            run_context=ctx,
+        )
+        return await original(
+            request,
+            replace(source, profile=profile),
+            workspace,
+            replace(
+                resolution, media=media, execution_context=context, run_context=ctx
+            ),
+        )
+
+    monkeypatch.setattr(service, "_download_resolved", download)
+
+
+async def test_official_share_full_decode_precedes_sha_and_artifact(
+    tmp_path, monkeypatch
+):
+    supervisor = ClearDecodeSupervisor()
+    service = MediaRunnerService(settings(tmp_path), supervisor=supervisor)
+    delivery_profile(service, monkeypatch)
+    events = []
+
+    def sha(artifact):
+        assert supervisor.decode_started.is_set()
+        assert supervisor.calls[-1][0][-2:] == ("null", "-")
+        events.append("sha")
+        return hashlib.sha256(artifact.read_bytes()).hexdigest()
+
+    monkeypatch.setattr("app.workers.runner.service.file_sha256", sha)
+    response = await service.download(download_request())
+
+    commands = [command for command, _ in supervisor.calls]
+    probe_position = next(
+        i for i, command in enumerate(commands) if command[0] == "ffprobe"
+    )
+    decode_position = next(
+        i for i, command in enumerate(commands) if "-xerror" in command
+    )
+    assert probe_position < decode_position
+    decode = commands[decode_position]
+    assert "-c" not in decode
+    assert decode[decode.index("-protocol_whitelist") + 1] == "file"
+    assert decode[decode.index("-i") + 1] == str(
+        Path(response.workspace_path) / response.artifact.relative_path
+    )
+    assert events == ["sha"]
+    assert response.artifact.sha256 == hashlib.sha256(b"final-media").hexdigest()
+    assert response.artifact.size_bytes == len(b"final-media")
+    assert response.artifact.duration_seconds == 30
+    assert (await service.status("job_123")).stage.value == "ready"
+
+
+@pytest.mark.parametrize(
+    "mode,code",
+    [
+        ("returncode", "invalid_artifact"),
+        ("stderr", "invalid_artifact"),
+        ("timeout", "download_timeout"),
+    ],
+)
+async def test_official_share_decode_failure_never_builds_artifact_or_hash(
+    tmp_path, monkeypatch, mode, code
+):
+    supervisor = ClearDecodeSupervisor(mode=mode)
+    service = MediaRunnerService(settings(tmp_path), supervisor=supervisor)
+    delivery_profile(service, monkeypatch)
+    sha, artifact = Mock(), Mock()
+    monkeypatch.setattr("app.workers.runner.service.file_sha256", sha)
+    monkeypatch.setattr("app.workers.runner.service.ArtifactContract", artifact)
+
+    with pytest.raises(RunnerFailure) as caught:
+        await service.download(download_request())
+
+    assert caught.value.code == code
+    assert caught.value.failure.phase.value == "validate"
+    assert caught.value.failure.stage == "validate"
+    assert "synthetic-corrupt-frame" not in repr(caught.value.failure.evidence)
+    sha.assert_not_called()
+    artifact.assert_not_called()
+    assert supervisor.decode_started.is_set()
+    assert list(tmp_path.iterdir()) == []
+    assert service._active.status("job_123") is None
+
+
+async def test_official_share_decode_cancellation_stops_before_hash_and_delivery(
+    tmp_path, monkeypatch
+):
+    supervisor = ClearDecodeSupervisor(mode="block")
+    service = MediaRunnerService(settings(tmp_path), supervisor=supervisor)
+    delivery_profile(service, monkeypatch)
+    sha = Mock()
+    monkeypatch.setattr("app.workers.runner.service.file_sha256", sha)
+    operation = asyncio.create_task(service.download(download_request()))
+    await asyncio.wait_for(supervisor.decode_started.wait(), timeout=1)
+    assert (await service.status("job_123")).stage.value == "verifying"
+
+    operation.cancel()
+    with pytest.raises(RunnerFailure) as caught:
+        await operation
+
+    assert caught.value.code == "cancelled"
+    assert caught.value.failure.stage == "validate"
+    assert supervisor.decode_cancelled.is_set()
+    sha.assert_not_called()
+    assert list(tmp_path.iterdir()) == []
+    assert service._active.status("job_123") is None
+
+
+@pytest.mark.parametrize(
+    "key,scope",
+    [
+        ("generic", "public"),
+        ("qqvideo", "personal_full"),
+        ("wechat_channels", "public"),
+    ],
+)
+async def test_full_decode_gate_does_not_change_other_provider_scopes(
+    tmp_path, monkeypatch, key, scope
+):
+    supervisor = ClearDecodeSupervisor(mode="returncode")
+    service = MediaRunnerService(settings(tmp_path), supervisor=supervisor)
+    delivery_profile(service, monkeypatch, key=key, scope=scope)
+
+    response = await service.download(download_request())
+
+    assert response.artifact.sha256 == hashlib.sha256(b"final-media").hexdigest()
+    assert not supervisor.decode_started.is_set()
+
+
+@pytest.mark.parametrize("kind", ["image_gallery", "video_collection"])
+async def test_official_share_cannot_bypass_full_decode_as_a_nonvideo_artifact(
+    tmp_path, monkeypatch, kind
+):
+    from app.services.downloads.rules.enums import MediaKind
+
+    supervisor = ClearDecodeSupervisor()
+    service = MediaRunnerService(settings(tmp_path), supervisor=supervisor)
+    delivery_profile(service, monkeypatch, media_kind=MediaKind(kind))
+    with pytest.raises(RunnerFailure) as caught:
+        await service.download(download_request())
+    assert caught.value.code == "source_changed"
+    assert not supervisor.decode_started.is_set()
+    assert list(tmp_path.iterdir()) == []
 
 
 async def test_youku_normalization_contract_uses_final_file_size_and_sha(
@@ -1170,25 +1385,20 @@ async def test_inspect_retries_a_transient_thumbnail_response_once(
 
 
 @pytest.mark.parametrize(
-    ("url", "expected_code"),
+    "url",
     [
-        ("https://www.instagram.com/p/fixture/", "identity_unavailable"),
-        ("https://weixin.qq.com/sph/Az42YceBcb", "runtime_unavailable"),
-        ("https://v.qq.com/x/page/fixture.html", "identity_unavailable"),
-        ("https://v.youku.com/v_show/id_fixture.html", "identity_unavailable"),
+        "https://www.instagram.com/p/fixture/",
+        "https://v.qq.com/x/page/fixture.html",
+        "https://v.youku.com/v_show/id_fixture.html",
     ],
 )
-async def test_required_provider_fails_before_platform_io(tmp_path, url, expected_code):
+async def test_required_cookie_provider_fails_before_platform_io(tmp_path, url):
     supervisor = FixtureSupervisor(split_media_info())
     service = MediaRunnerService(settings(tmp_path), supervisor=supervisor)
+    assert provider_request(url).profile.identity_source == "cookies"
     with pytest.raises(RunnerFailure) as caught:
         await service.inspect(url)
-    assert caught.value.code == expected_code
-    if expected_code == "runtime_unavailable":
-        assert caught.value.failure.gate == "none"
-        assert caught.value.failure.evidence["kind"] == "runtime"
-        assert caught.value.failure.evidence["cause_code"] == "browser_parser_missing"
-        assert caught.value.failure.evidence["identity_used"] is False
+    assert caught.value.code == "identity_unavailable"
     assert (
         caught.value.failure.layer
         == service._context(provider_request(url)).resolved_layer

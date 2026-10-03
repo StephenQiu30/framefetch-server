@@ -441,6 +441,12 @@ class MediaRunnerService:
             source_url=source.source_url,
             authenticated=context.identity_used,
         )
+        requires_full_decode = (
+            source.profile.key == ProviderKey.WECHAT_CHANNELS
+            and source.profile.content_scope == "official_share"
+        )
+        if requires_full_decode and inspection.media_kind is not MediaKind.VIDEO:
+            raise RunnerFailure("source_changed", status=409)
         try:
             require_source_identity(
                 inspection,
@@ -631,6 +637,12 @@ class MediaRunnerService:
             max_duration=self._settings.runner_max_duration_seconds,
             tolerance_seconds=self._settings.runner_duration_tolerance_seconds,
         )
+        if requires_full_decode:
+            await commands.verify_full_decode(
+                artifact,
+                workspace.path,
+                failure_context=failure_context,
+            )
         digest = await asyncio.to_thread(file_sha256, artifact)
         return DownloadResponse(
             task_id=request.task_id,

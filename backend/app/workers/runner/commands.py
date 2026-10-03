@@ -558,6 +558,60 @@ class MediaCommands:
             error.during(phase)
             raise
 
+    async def verify_full_decode(
+        self,
+        artifact: Path,
+        cwd: Path,
+        *,
+        failure_context: ProviderFailureContext | None = None,
+    ) -> None:
+        """Decode every local video/audio frame without rewriting the artifact."""
+        timeout = self._settings.runner_download_timeout_seconds
+        if self._ctx is not None:
+            remaining = (self._ctx.deadline - datetime.now(UTC)).total_seconds()
+            if remaining <= 0:
+                raise RunnerFailure(
+                    "download_timeout",
+                    status=504,
+                    phase=FailurePhase.VALIDATE,
+                    evidence_kind=FailureEvidenceKind.RUNTIME,
+                )
+            timeout = min(timeout, remaining)
+        result = await self._run(
+            (
+                self._settings.runner_ffmpeg_bin,
+                "-nostdin",
+                "-v",
+                "error",
+                "-xerror",
+                "-protocol_whitelist",
+                "file",
+                "-i",
+                str(artifact),
+                "-map",
+                "0:v",
+                "-map",
+                "0:a?",
+                "-f",
+                "null",
+                "-",
+            ),
+            cwd,
+            timeout,
+            timeout_code="download_timeout",
+            failure_code="invalid_artifact",
+            phase=FailurePhase.VALIDATE,
+            monitor_workspace=True,
+            failure_context=failure_context,
+        )
+        if result.stderr.strip() or result.stderr_truncated:
+            raise RunnerFailure(
+                "invalid_artifact",
+                status=422,
+                phase=FailurePhase.VALIDATE,
+                cause_code="full_decode_failed",
+            )
+
     async def _run(
         self,
         command: Sequence[str],

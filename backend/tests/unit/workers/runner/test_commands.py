@@ -1,6 +1,9 @@
 from __future__ import annotations
 
+import asyncio
 from collections.abc import Mapping, Sequence
+from dataclasses import replace
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from unittest.mock import AsyncMock
 
@@ -10,7 +13,7 @@ from app.services.downloads.rules.enums import Container
 from app.services.provider_failures import FailurePhase
 from app.workers.runner import commands as commands_module
 from app.workers.runner.errors import RunnerFailure
-from app.workers.runner.process import ProcessResult
+from app.workers.runner.process import ProcessResult, ProcessTimeoutError
 from app.workers.runner.provider_errors import ProviderFailureContext
 from helpers import bound_builder as YtDlpCommandBuilder
 from helpers import bound_commands as MediaCommands
@@ -67,6 +70,166 @@ class SuccessfulWarningSupervisor:
     ) -> ProcessResult:
         del cwd, timeout_seconds, env
         return ProcessResult(0, self.stdout, self.stderr, False, False)
+
+
+async def test_verify_full_decode_is_fixed_local_and_deadline_bounded(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    artifact = tmp_path / "artifact.mp4"
+    artifact.write_bytes(b"unchanged-file")
+    commands = MediaCommands(settings(tmp_path), RecordingSupervisor())
+    commands = commands.with_context(
+        replace(
+            commands._run_context,
+            deadline=datetime.now(UTC) + timedelta(seconds=5),
+        )
+    )
+    run = AsyncMock(return_value=ProcessResult(0, b"", b"", False, False))
+    monkeypatch.setattr(commands, "_run", run)
+    context = ProviderFailureContext(
+        "wechat_channels", "https://weixin.qq.com/sph/SyntheticShare", True
+    )
+
+    await commands.verify_full_decode(artifact, tmp_path, failure_context=context)
+
+    argv, cwd, timeout = run.call_args.args
+    assert argv == (
+        "ffmpeg",
+        "-nostdin",
+        "-v",
+        "error",
+        "-xerror",
+        "-protocol_whitelist",
+        "file",
+        "-i",
+        str(artifact),
+        "-map",
+        "0:v",
+        "-map",
+        "0:a?",
+        "-f",
+        "null",
+        "-",
+    )
+    assert cwd == tmp_path
+    assert 0 < timeout <= 5
+    assert run.call_args.kwargs == {
+        "timeout_code": "download_timeout",
+        "failure_code": "invalid_artifact",
+        "phase": FailurePhase.VALIDATE,
+        "monitor_workspace": True,
+        "failure_context": context,
+    }
+    assert artifact.read_bytes() == b"unchanged-file"
+
+
+async def test_verify_full_decode_uses_the_existing_ffmpeg_time_limit(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    configured = settings(tmp_path).model_copy(
+        update={"runner_download_timeout_seconds": 3.0}
+    )
+    commands = MediaCommands(configured, RecordingSupervisor())
+    run = AsyncMock(return_value=ProcessResult(0, b"", b"", False, False))
+    monkeypatch.setattr(commands, "_run", run)
+
+    await commands.verify_full_decode(tmp_path / "artifact.mp4", tmp_path)
+
+    assert run.call_args.args[2] == 3.0
+
+
+async def test_verify_full_decode_expired_context_never_starts_ffmpeg(tmp_path) -> None:
+    supervisor = RecordingSupervisor()
+    commands = MediaCommands(settings(tmp_path), supervisor)
+    commands = commands.with_context(
+        replace(commands._run_context, deadline=datetime.now(UTC))
+    )
+    with pytest.raises(RunnerFailure) as caught:
+        await commands.verify_full_decode(tmp_path / "artifact.mp4", tmp_path)
+    assert caught.value.code == "download_timeout"
+    assert caught.value.failure.phase is FailurePhase.VALIDATE
+    assert supervisor.argv == ()
+
+
+async def test_verify_full_decode_nonzero_exit_rejects_without_raw_stderr(tmp_path):
+    private_error = b"synthetic-corrupt-packet"
+    commands = MediaCommands(settings(tmp_path), FailingSupervisor(private_error))
+    with pytest.raises(RunnerFailure) as caught:
+        await commands.verify_full_decode(tmp_path / "artifact.mp4", tmp_path)
+    assert caught.value.code == "invalid_artifact"
+    assert caught.value.failure.phase is FailurePhase.VALIDATE
+    assert caught.value.failure.stage == "validate"
+    assert "synthetic-corrupt-packet" not in str(caught.value)
+    assert "synthetic-corrupt-packet" not in repr(caught.value.failure.evidence)
+
+
+@pytest.mark.parametrize("stderr,truncated", [(b"decode error", False), (b"", True)])
+async def test_verify_full_decode_rejects_error_output_even_with_zero_exit(
+    tmp_path, monkeypatch, stderr, truncated
+):
+    commands = MediaCommands(settings(tmp_path), RecordingSupervisor())
+    monkeypatch.setattr(
+        commands,
+        "_run",
+        AsyncMock(return_value=ProcessResult(0, b"", stderr, False, truncated)),
+    )
+    with pytest.raises(RunnerFailure) as caught:
+        await commands.verify_full_decode(tmp_path / "artifact.mp4", tmp_path)
+    assert caught.value.code == "invalid_artifact"
+    assert caught.value.failure.phase is FailurePhase.VALIDATE
+    assert caught.value.failure.evidence["cause_code"] == "full_decode_failed"
+
+
+async def test_verify_full_decode_supervisor_timeout_is_a_validation_failure(tmp_path):
+    class TimeoutSupervisor:
+        async def run(self, *_args, **_kwargs):
+            raise ProcessTimeoutError(ProcessResult(-9, b"", b"", False, False))
+
+    commands = MediaCommands(settings(tmp_path), TimeoutSupervisor())
+    with pytest.raises(RunnerFailure) as caught:
+        await commands.verify_full_decode(tmp_path / "artifact.mp4", tmp_path)
+    assert caught.value.code == "download_timeout"
+    assert caught.value.failure.phase is FailurePhase.VALIDATE
+    assert caught.value.failure.stage == "validate"
+
+
+@pytest.mark.parametrize("workspace_exceeded", [False, True])
+async def test_verify_full_decode_cancellation_or_workspace_limit_stops_execution(
+    tmp_path, workspace_exceeded
+):
+    started, cancelled = asyncio.Event(), asyncio.Event()
+
+    class BlockingSupervisor:
+        async def run(self, *_args, **_kwargs):
+            started.set()
+            try:
+                if workspace_exceeded:
+                    (tmp_path / "oversized").write_bytes(b"x" * 1025)
+                await asyncio.Event().wait()
+            finally:
+                cancelled.set()
+
+    configured = settings(tmp_path).model_copy(
+        update={
+            "runner_max_workspace_bytes": 1024,
+            "runner_workspace_poll_interval_seconds": 0.01,
+        }
+    )
+    commands = MediaCommands(configured, BlockingSupervisor())
+    operation = asyncio.create_task(
+        commands.verify_full_decode(tmp_path / "artifact.mp4", tmp_path)
+    )
+    await asyncio.wait_for(started.wait(), timeout=1)
+    if workspace_exceeded:
+        with pytest.raises(RunnerFailure) as caught:
+            await asyncio.wait_for(operation, timeout=1)
+        assert caught.value.code == "workspace_limit_exceeded"
+        assert caught.value.failure.phase is FailurePhase.VALIDATE
+    else:
+        operation.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await operation
+    assert cancelled.is_set()
 
 
 @pytest.mark.asyncio
