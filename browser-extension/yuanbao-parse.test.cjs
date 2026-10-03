@@ -33,7 +33,9 @@ function nativePage(overrides = {}) {
   if (overrides.request) http.request = config => { calls.push(config); return overrides.request(config, http, location); };
   if (overrides.headers !== undefined) http.defaults.headers = overrides.headers;
   const exported = { instance: http, request() {} };
-  function nativeFactory() { return { instance: {}, request: function() {}, interceptors: {} }; }
+  // Verified first-party Web 2.87.2 factory export prefix. The module body is
+  // never executed by this fixture: the synthetic require returns exports.
+  const nativeFactory = (e,t,r)=>{"use strict";r.r(t),r.d(t,{JPRXAxios:()=>R,getNetworkErrorMsg:()=>w,instance:()=>I,request:()=>C});};
   const require = id => { required.push(id); return exported; };
   require.m = { syntheticNativeModule: nativeFactory };
   const chunks = [];
@@ -88,7 +90,7 @@ const request = extra => ({ type: 'yuanbao_parse', request_id: ID, site: 'wechat
 async function authenticated(readParse, config = {}) {
   const sent = [];
   const protocol = new Protocol({ pairingKey: KEY, domains: ['instagram.com'], yuanbaoParse: true, ...config },
-    async () => [], value => sent.push(value), '1.1.0', readParse);
+    async () => [], value => sent.push(value), '1.1.1', readParse);
   const peer = 'd'.repeat(64);
   await protocol.receive({ type: 'challenge', nonce: peer });
   await protocol.receive({ type: 'proof', proof: await proof(KEY, 'server', protocol.own, peer) });
@@ -136,6 +138,29 @@ test('only a unique native exports shape in the precise top frame can execute', 
     assert.deepEqual(await p.run(false, url), { cause: 'identity_material_invalid' });
     assert.equal(p.calls.length, 0);
   }
+});
+test('native factory discovery rejects whole-source and nested export matches in third-party bundles', async () => {
+  // Actual current 57396 wrapper shape, with unrelated nested request/client
+  // code that satisfied the former full-source instance/request/interceptors scan.
+  const thirdPartyFactory = module=>{!function(e,t){module.exports=t()}(window,function(){
+    return function(e){var t={};function n(r){if(t[r])return t[r].exports;
+      var o=t[r]={i:r,l:!1,exports:{}};return e[r].call(o.exports,o,o.exports,n),o.l=!0,o.exports}
+      return {instance:{interceptors:{}},request:()=>n(e)};
+    };
+  });};
+  const nestedNativeFactory = module => {
+    const nested = (e,t,r)=>{"use strict";r.r(t),r.d(t,{JPRXAxios:()=>R,getNetworkErrorMsg:()=>w,instance:()=>I,request:()=>C});};
+    return { instance: { interceptors: {} }, request: nested };
+  };
+  const p = nativePage();
+  p.require.m.thirdParty = thirdPartyFactory;
+  p.require.m.embeddedNative = nestedNativeFactory;
+  assert.deepEqual(await p.run(), { account_id: ACCOUNT, captured: captured() });
+  assert.deepEqual(p.required, ['syntheticNativeModule'], 'only the native factory own export declaration may be required');
+  delete p.require.m.syntheticNativeModule;
+  p.required.length = 0;
+  assert.deepEqual(await p.run(), { cause: 'native_api_unavailable' });
+  assert.deepEqual(p.required, [], 'embedded export maps never initialize a third-party module');
 });
 test('observed method, URL, redirect, body, status and payload are checked, rather than replaced by constants', async () => {
   const mutations = [
@@ -282,7 +307,7 @@ test('authenticated fixed protocol alone may call native parse and normal Cookie
     calls++; assert.equal(url, SHARE); assert.ok(deadline <= Date.now() + 30000);
     return { account_id: ACCOUNT, captured: captured() };
   };
-  const unauthenticated = new Protocol({ yuanbaoParse: true }, async () => [], () => {}, '1.1.0', reader);
+  const unauthenticated = new Protocol({ yuanbaoParse: true }, async () => [], () => {}, '1.1.1', reader);
   await assert.rejects(unauthenticated.receive(request()), /unauthenticated/);
   assert.equal(calls, 0);
   const { protocol, sent } = await authenticated(reader);

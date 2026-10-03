@@ -39,13 +39,23 @@
       let require;
       chunks.push([[`framefetch-native-${crypto.randomUUID()}`], {}, r => { require = r; }]);
       if (!require || !require.m || Object.keys(require.m).length > 20000) return fail('native_api_unavailable');
+      const isNativeFactory = source => {
+        // Match the factory's own export declaration, before its implementation.
+        // A third-party factory may contain embedded bundles with the same
+        // words, so searching its entire source cannot identify this client.
+        const declaration = /^\s*(?:function(?:\s+[A-Za-z_$][\w$]*)?\s*)?\(\s*([A-Za-z_$][\w$]*)\s*,\s*([A-Za-z_$][\w$]*)\s*,\s*([A-Za-z_$][\w$]*)\s*\)\s*(?:=>\s*)?\{\s*(?:(?:"use strict"|'use strict')\s*;\s*)?\3\.r\(\s*\2\s*\)\s*,\s*\3\.d\(\s*\2\s*,\s*\{([^{}]*)\}\s*\)\s*;/.exec(source);
+        if (!declaration) return false;
+        const exports = declaration[4].split(',').map(entry =>
+          /^\s*([A-Za-z_$][\w$]*)\s*:\s*\(\s*\)\s*=>\s*[A-Za-z_$][\w$]*\s*$/.exec(entry)?.[1]);
+        return exports.length === 4 && exports.every(Boolean) &&
+          exports.sort().join(',') === 'JPRXAxios,getNetworkErrorMsg,instance,request';
+      };
       const candidates = [];
       for (const [id, factory] of Object.entries(require.m)) {
         checkDeadline();
         if (typeof factory !== 'function') continue;
         const source = Function.prototype.toString.call(factory);
-        if (!/\binstance\s*:/.test(source) || !/\brequest\s*:/.test(source) ||
-            !/\binterceptors\b/.test(source)) continue;
+        if (!isNativeFactory(source)) continue;
         candidates.push(id);
       }
       // Establish uniqueness before requiring a factory. A scan must not
