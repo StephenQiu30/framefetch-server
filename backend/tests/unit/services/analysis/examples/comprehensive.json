@@ -1,0 +1,65 @@
+{
+  "language": "zh-CN",
+  "title": "倒置演示应保留，旋盖步骤可缩短",
+  "summary": {
+    "text": "杯盖旋紧后，杯子短暂倒置，桌面未见水滴，是全片最直接的使用演示。若要缩短展示过程，先压缩旋盖段，保留旋紧与倒置的动作关系。片中没有长时间测试，不能据此得出长期不漏水的结论。",
+    "evidence_shot_ids": ["shot-cup", "shot-lid", "shot-invert", "shot-end"]
+  },
+  "shots": [
+    {
+      "id": "shot-cup", "index": 1, "start_ms": 0, "end_ms": 3000,
+      "representative_frame_ms": 1500, "description": "手把杯子放到桌面，固定中景保留了杯子与桌面的关系。",
+      "transition_in": "none", "shot_size": "medium", "camera_motion": "static",
+      "narrative_function": "交代接下来要演示的对象。", "highlight_score": 1,
+      "visual_tags": ["subject:cup"]
+    },
+    {
+      "id": "shot-lid", "index": 2, "start_ms": 3000, "end_ms": 7000,
+      "representative_frame_ms": 5000, "description": "手旋紧杯盖，段末杯盖停止转动；特写让旋盖动作可见。",
+      "transition_in": "cut", "shot_size": "close_up", "camera_motion": "static",
+      "narrative_function": "给出随后倒置前的操作条件。", "highlight_score": 2,
+      "visual_tags": ["action:tighten-lid"]
+    },
+    {
+      "id": "shot-invert", "index": 3, "start_ms": 7000, "end_ms": 10000,
+      "representative_frame_ms": 8500, "description": "手倒置杯子，中景中桌面未见水滴。",
+      "transition_in": "cut", "shot_size": "medium", "camera_motion": "static",
+      "narrative_function": "呈现旋盖后的短暂倒置结果，不能代替长时间测试。", "highlight_score": 3,
+      "visual_tags": ["action:invert", "observation:no-visible-drops"]
+    },
+    {
+      "id": "shot-end", "index": 4, "start_ms": 10000, "end_ms": 12000,
+      "representative_frame_ms": 11000, "description": "杯子立在桌面，画面文字为“随身带走”。",
+      "transition_in": "cut", "shot_size": "medium", "camera_motion": "static",
+      "narrative_function": "从短暂演示转到携带用途的结束文字。", "highlight_score": 1,
+      "visual_tags": ["on-screen-text:随身带走"]
+    }
+  ],
+  "scenes": [
+    {
+      "id": "scene-demonstration", "index": 1,
+      "title": "旋紧后倒置，结束文字转向携带用途", "location": "桌面",
+      "description": "开头摆出杯子，随后用特写展示旋紧杯盖。倒置镜头呈现桌面未见水滴的短暂观察，结束文字再提出携带用途。演示与用途之间仍有长时间表现的证据缺口。",
+      "narrative_function": "用操作和观察支持一次短暂演示，而非完整携带测试。",
+      "visual_rules": ["旋紧杯盖的特写与倒置中景相邻，让操作条件可以回看。"],
+      "continuity_risks": [],
+      "evidence_shot_ids": ["shot-cup", "shot-lid", "shot-invert", "shot-end"]
+    }
+  ],
+  "highlights": [],
+  "assets": [
+    {
+      "id": "asset-cup", "type": "product", "label": "演示中的杯子",
+      "description": "杯子先立在桌面，旋紧杯盖后被倒置，结束画面恢复直立；不能从画面确认品牌或型号。",
+      "evidence_shot_ids": ["shot-cup", "shot-lid", "shot-invert", "shot-end"]
+    }
+  ],
+  "production_advice": {
+    "summary": "先处理旋盖段的长度，再检查结束文字的承诺。压缩应服务于缩短展示过程，同时保留倒置前已旋紧杯盖这一条件；不能为了快而删掉关键动作。",
+    "priority_shot_ids": ["shot-lid", "shot-invert", "shot-end"],
+    "recommended_extensions": [
+      "缩短分镜 002 的旋盖过程，保留杯盖停止转动的画面并紧接分镜 003；修改后检查能否看清倒置发生在旋紧之后。",
+      "保留分镜 003 的短暂倒置观察，检查结束文字及配套文案是否被扩写为长期不漏水；若要承诺长期表现，需要另有完整测试依据。"
+    ]
+  }
+}

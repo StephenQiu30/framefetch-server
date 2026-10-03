@@ -79,6 +79,7 @@ def test_video_article_prompt_requires_topic_rewrite_and_limitations(
     assert "适合移动端编辑的公众号文章初稿" in prompt
     assert "按主题重组" in prompt
     assert "写入 limitations" in prompt
-    assert "sections 建议 3 至 7 个" in prompt
+    assert "短素材可以只有 1 至 2 个" in prompt
+    assert "不为凑章节扩写" in prompt
     assert "集中渲染为编辑附录" in prompt
     assert "shot_count" not in prompt

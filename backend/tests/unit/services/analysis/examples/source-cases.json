@@ -1,0 +1,29 @@
+{
+  "provenance": "人工构造的产品校准与契约测试材料；没有真实视频、Provider 响应或用户作品。",
+  "video": {
+    "duration_ms": 12000,
+    "container": "mp4",
+    "size_bytes": 1024,
+    "metadata_note": "时长与大小为测试用权威元数据，不对应真实文件。",
+    "audio_available": false,
+    "observations": [
+      {"start_ms": 0, "end_ms": 3000, "description": "固定中景，手把无品牌文字的杯子放在桌上。"},
+      {"start_ms": 3000, "end_ms": 7000, "description": "切到固定特写，手旋紧杯盖；段末杯盖停止转动。"},
+      {"start_ms": 7000, "end_ms": 10000, "description": "切到固定中景，手倒置杯子，桌面未见水滴。"},
+      {"start_ms": 10000, "end_ms": 12000, "description": "切到静止结束画面，杯子立在桌面，文字为“随身带走”。"}
+    ],
+    "briefs": {
+      "comprehensive": "创作者希望缩短展示过程，同时保持观众看得清旋紧后才倒置。",
+      "video-article": "普通读者想了解这段演示观察到了什么，以及不能推出什么。"
+    },
+    "forbidden_claims": ["长时间携带不漏水", "品牌或人物真实身份", "用户反应或留存率", "对白与引语"],
+    "acceptance_note": "旋盖过程是否应缩短取决于用途；完整装配教程不能直接套用综合样例建议。"
+  },
+  "screenplay": {
+    "source_scene_ids": ["scene-opening", "scene-deadline"],
+    "text": "第一场 内景 剪辑室 夜\n林舟冲进剪辑室，打开电脑，翻找备份。\n\n第二场 内景 剪辑室 夜\n屏幕显示：今晚八点首映。林舟：结局文件丢了。她关掉消息，继续翻找。",
+    "brief": "作者希望开场就让读者理解翻找的紧迫性，希望收到修改目标而非代写对白。",
+    "counterexample": "如果作者有意先隐去危机原因，第二场的揭示可以成立；不能说全剧没有目标。",
+    "forbidden_claims": ["第一场已交代首映期限", "主角全剧没有目标", "必须增加某句指定对白", "市场、预算或拍摄结论"]
+  }
+}
