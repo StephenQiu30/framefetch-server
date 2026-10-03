@@ -307,7 +307,7 @@ async def test_late_empty_cookie_payload_keeps_deadline_cause(source, monkeypatc
 
 
 @pytest.mark.parametrize("authorization", [None, "Bearer wrong", "Basic arbitrary"])
-@pytest.mark.parametrize("path", ["/cookies", "/yuanbao-account"])
+@pytest.mark.parametrize("path", ["/cookies", "/yuanbao-parse"])
 async def test_bearer_required_before_parsing(authorization, path):
     async with httpx.AsyncClient(
         transport=httpx.ASGITransport(app=m.create_app(settings())),
@@ -472,9 +472,16 @@ def test_cookie_timeout_wire_rejects_untrusted_or_mismatched_response(invalid):
                 page_request = invalid == "wrong_kind"
                 future = pool.submit(
                     client.post,
-                    "/yuanbao-account" if page_request else "/cookies",
-                    json=request(
-                        "wechat_channels" if page_request else "instagram"
+                    "/yuanbao-parse" if page_request else "/cookies",
+                    json=(
+                        m.ShareParseRequest(
+                            site="wechat_channels",
+                            task_id="task",
+                            deadline=request().deadline,
+                            canonical_share_url="https://weixin.qq.com/sph/SyntheticShare",
+                        )
+                        if page_request
+                        else request("instagram")
                     ).model_dump(mode="json"),
                     headers={"Authorization": f"Bearer {TOKEN}"},
                 )

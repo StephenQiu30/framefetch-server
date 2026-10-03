@@ -634,11 +634,11 @@ def test_hongguo_public_web_share_does_not_request_account_cookies() -> None:
 
 def test_channels_declares_page_identity_without_claiming_parser_availability() -> None:
     from app.services.provider_types import Layer
-    from app.workers.identity.yuanbao_account import YUANBAO_ORIGIN
+    from app.workers.identity.yuanbao_parse import YUANBAO_ORIGIN
     from app.workers.runner.engine.layers.browser import BrowserLayer
 
     profile = provider_profile("https://weixin.qq.com/sph/A9znfitafp")
-    assert profile.identity_source == "yuanbao_account"
+    assert profile.identity_source == "yuanbao_native"
     assert profile.identity_origin == YUANBAO_ORIGIN
     assert not profile.cookie_domain_allowlist
     assert profile.content_scope == "public"
@@ -670,7 +670,7 @@ def test_page_identity_cannot_expand_source_or_content_scope(change) -> None:
 
 
 def test_cookie_profile_rejects_page_origin_declaration() -> None:
-    from app.workers.identity.yuanbao_account import YUANBAO_ORIGIN
+    from app.workers.identity.yuanbao_parse import YUANBAO_ORIGIN
 
     profile = provider_profile("https://www.instagram.com/p/example/")
     assert profile.identity_source == "cookies" and profile.identity_origin is None

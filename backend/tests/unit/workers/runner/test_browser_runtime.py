@@ -1,8 +1,6 @@
 from __future__ import annotations
 
 import asyncio
-import json
-import subprocess
 from contextlib import asynccontextmanager
 from dataclasses import replace
 from datetime import UTC, datetime, timedelta
@@ -63,7 +61,6 @@ class FakeContext:
         self.pages = []
         self.closed = False
         self.injected = []
-        self.scripts = []
 
     async def new_page(self):
         page = FakePage(self)
@@ -75,9 +72,6 @@ class FakeContext:
 
     async def add_cookies(self, cookies):
         self.injected.extend(cookies)
-
-    async def add_init_script(self, script):
-        self.scripts.append(script)
 
     async def cookies(self):
         return self.injected
@@ -454,32 +448,46 @@ async def test_route_upstream_revision_replaces_resident_browser(tmp_path, chrom
     await runtime.close()
 
 
-def account_context(settings):
-    ctx = run_context(settings, "wechat_channels")
-    material = identity.YuanbaoAccountMaterial(
-        kind="yuanbao_account",
-        origin="https://yuanbao.tencent.com",
-        account_id="synthetic-user",
-        auth_token="synthetic-token",
-        digest="a" * 64,
-        local_use_deadline=ctx.deadline,
+@pytest.fixture
+def cookie_identity(monkeypatch):
+    monkeypatch.setattr(identity, "validate_cookie_file", lambda _: None)
+    monkeypatch.setattr(
+        browser_runtime,
+        "leased_browser_cookies",
+        lambda _file, _profile: [
+            {
+                "domain": ".douyin.com",
+                "path": "/",
+                "name": "sessionid",
+                "value": "synthetic-cookie",
+                "secure": True,
+                "httpOnly": True,
+            }
+        ],
     )
-    return ctx.with_material(identity=material)
+
+
+def cookie_context(settings):
+    return run_context(settings, "douyin").with_material(
+        identity=identity.IdentityMaterial(
+            settings.runner_workspace_root.parent / "synthetic-cookie", "a" * 64
+        )
+    )
 
 
 @pytest.mark.parametrize("terminal", ["success", "failure", "cancel"])
-async def test_page_account_uses_private_tmpfs_and_terminal_destruction(
-    tmp_path, chromium, terminal
+async def test_cookie_identity_uses_private_tmpfs_and_terminal_destruction(
+    tmp_path, chromium, cookie_identity, terminal
 ):
     settings = configured(tmp_path)
     runtime = BrowserRuntime(settings)
-    ctx = account_context(settings)
+    ctx = cookie_context(settings)
     ready = asyncio.Event()
     operation = None
 
     async def execute():
         nonlocal operation
-        operation = await runtime.acquire(profile("wechat_channels"), ctx=ctx)
+        operation = await runtime.acquire(profile("douyin"), ctx=ctx)
         try:
             ready.set()
             if terminal == "cancel":
@@ -495,8 +503,8 @@ async def test_page_account_uses_private_tmpfs_and_terminal_destruction(
     assert directory.is_relative_to(settings.runner_browser_temp_root)
     assert directory.stat().st_mode & 0o777 == 0o700
     assert not settings.runner_browser_profile_root.exists()
-    assert ctx.cookie_file is None and not chromium.contexts[0].injected
-    assert len(chromium.contexts[0].scripts) == 1
+    assert ctx.cookie_file is not None
+    assert chromium.contexts[0].injected[0]["name"] == "sessionid"
     if terminal == "cancel":
         chromium.cleanup_allowed.clear()
         owner.cancel()
@@ -515,30 +523,36 @@ async def test_page_account_uses_private_tmpfs_and_terminal_destruction(
     await runtime.close()
 
 
-async def test_page_account_rejects_non_tmpfs_before_browser_launch(
-    tmp_path, chromium, monkeypatch
+async def test_cookie_identity_rejects_non_tmpfs_before_browser_launch(
+    tmp_path, chromium, cookie_identity, monkeypatch
 ):
     settings = configured(tmp_path)
     monkeypatch.setattr(browser_runtime, "_is_tmpfs", lambda _: False)
     runtime = BrowserRuntime(settings)
     with pytest.raises(RunnerFailure):
-        await runtime.acquire(profile("wechat_channels"), ctx=account_context(settings))
+        await runtime.acquire(profile("douyin"), ctx=cookie_context(settings))
     assert not chromium.calls
     assert list(settings.runner_browser_temp_root.iterdir()) == []
     assert not settings.runner_browser_profile_root.exists()
     await runtime.close()
 
 
-async def test_page_account_cannot_be_used_for_cookie_platform(tmp_path, chromium):
+@pytest.mark.parametrize("key", ["douyin", "wechat_channels"])
+async def test_native_page_identity_cannot_enter_owned_browser(tmp_path, chromium, key):
     settings = configured(tmp_path)
     runtime = BrowserRuntime(settings)
     with pytest.raises(RunnerFailure):
-        await runtime.acquire(profile("douyin"), ctx=account_context(settings))
+        await runtime.acquire(
+            profile(key),
+            ctx=run_context(settings, key).with_material(
+                identity=identity.NativePageIdentity("a" * 64)
+            ),
+        )
     assert not chromium.calls
     await runtime.close()
 
 
-async def test_cookie_identity_cannot_be_used_for_page_account_platform(
+async def test_cookie_identity_cannot_be_used_for_native_page_platform(
     tmp_path, chromium, monkeypatch
 ):
     monkeypatch.setattr(identity, "validate_cookie_file", lambda _: None)
@@ -553,49 +567,14 @@ async def test_cookie_identity_cannot_be_used_for_page_account_platform(
     await runtime.close()
 
 
-@pytest.mark.parametrize("offset", [-1, 120])
-async def test_runtime_rechecks_page_account_operation_deadline(
-    tmp_path, chromium, offset
-):
-    settings = configured(tmp_path)
-    ctx = account_context(settings)
-    invalid = ctx.identity.model_copy(
-        update={"local_use_deadline": datetime.now(UTC) + timedelta(seconds=offset)}
-    )
-    runtime = BrowserRuntime(settings)
-    with pytest.raises(RunnerFailure):
-        await runtime.acquire(
-            profile("wechat_channels"), ctx=replace(ctx, identity=invalid)
-        )
-    assert not chromium.calls
-    await runtime.close()
-
-
-async def test_account_bootstrap_failure_destroys_private_profile(
-    tmp_path, chromium, monkeypatch
-):
-    async def fail(context, script):
-        raise browser_runtime.Error("synthetic script failure")
-
-    monkeypatch.setattr(FakeContext, "add_init_script", fail)
-    settings = configured(tmp_path)
-    runtime = BrowserRuntime(settings)
-    with pytest.raises(RunnerFailure):
-        await runtime.acquire(profile("wechat_channels"), ctx=account_context(settings))
-    assert chromium.contexts[0].closed
-    assert list(settings.runner_browser_temp_root.iterdir()) == []
-    assert not runtime._releases
-    await runtime.close()
-
-
 @pytest.mark.parametrize("authenticated", [False, True])
 async def test_repeated_cancellation_waits_for_native_context_close(
-    tmp_path, chromium, authenticated
+    tmp_path, chromium, cookie_identity, authenticated
 ):
     settings = configured(tmp_path)
     runtime = BrowserRuntime(settings)
-    key = "wechat_channels" if authenticated else "douyin"
-    ctx = account_context(settings) if authenticated else run_context(settings)
+    key = "douyin"
+    ctx = cookie_context(settings) if authenticated else run_context(settings)
     acquired = asyncio.Event()
     cleanup_requested = asyncio.Event()
 
@@ -638,17 +617,17 @@ async def test_repeated_cancellation_waits_for_native_context_close(
 
 @pytest.mark.parametrize("authenticated", [False, True])
 async def test_launch_close_error_still_releases_private_state_and_os_lock(
-    tmp_path, chromium, monkeypatch, authenticated
+    tmp_path, chromium, cookie_identity, monkeypatch, authenticated
 ):
     settings = configured(tmp_path)
     runtime = BrowserRuntime(settings)
-    key = "wechat_channels" if authenticated else "douyin"
-    ctx = account_context(settings) if authenticated else run_context(settings)
+    key = "douyin"
+    ctx = cookie_context(settings) if authenticated else run_context(settings)
     original_close = FakeContext.close
-    original_script = FakeContext.add_init_script
+    original_inject = FakeContext.add_cookies
     original_launch = chromium.launch_persistent_context
 
-    async def fail_script(context, script):
+    async def fail_inject(context, cookies):
         raise browser_runtime.Error("synthetic initialization error: synthetic-token")
 
     async def fail_close(context):
@@ -661,7 +640,7 @@ async def test_launch_close_error_still_releases_private_state_and_os_lock(
 
     monkeypatch.setattr(FakeContext, "close", fail_close)
     if authenticated:
-        monkeypatch.setattr(FakeContext, "add_init_script", fail_script)
+        monkeypatch.setattr(FakeContext, "add_cookies", fail_inject)
     else:
         monkeypatch.setattr(chromium, "launch_persistent_context", invalid_runtime)
     try:
@@ -672,7 +651,7 @@ async def test_launch_close_error_still_releases_private_state_and_os_lock(
         if authenticated:
             assert not list(settings.runner_browser_temp_root.iterdir())
         monkeypatch.setattr(FakeContext, "close", original_close)
-        monkeypatch.setattr(FakeContext, "add_init_script", original_script)
+        monkeypatch.setattr(FakeContext, "add_cookies", original_inject)
         monkeypatch.setattr(chromium, "launch_persistent_context", original_launch)
         # A second runtime must be able to obtain the released process lock.
         fresh_runtime = BrowserRuntime(settings)
@@ -739,35 +718,3 @@ def test_private_browser_root_rejects_untrusted_storage(tmp_path, monkeypatch, k
         root.chmod(0o755)
     with pytest.raises(RunnerFailure):
         browser_runtime.initialize_browser_tmpfs(root)
-
-
-def test_bootstrap_never_injects_on_other_origins_or_frames(tmp_path):
-    ctx = account_context(configured(tmp_path))
-    script = browser_runtime._yuanbao_bootstrap(ctx.identity)
-    # Execute only against in-memory JS objects: no browser, page or network.
-    result = subprocess.run(
-        [
-            "node",
-            "-e",
-            "const vm = require('node:vm'); const script = JSON.parse(process.argv[1]);"
-            "const output = []; for (const origin of "
-            "['https://yuanbao.tencent.com', 'https://channels.weixin.qq.com', "
-            "'https://yuanbao.tencent.com.evil.example']) {"
-            "for (const frame of [false, true]) { const self = {}; const calls = [];"
-            "vm.runInNewContext(script, {self, top: frame ? {} : self, "
-            "location: {origin}, localStorage: {setItem: (k,v) => calls.push([k,v])}});"
-            "output.push({origin, frame, calls}); }} "
-            "console.log(JSON.stringify(output));",
-            json.dumps(script),
-        ],
-        check=True,
-        capture_output=True,
-        text=True,
-        timeout=5,
-    )
-    cases = json.loads(result.stdout)
-    assert cases[0]["calls"] == [
-        ["yb_user_id", "synthetic-user"],
-        ["yb_token", "synthetic-token"],
-    ]
-    assert all(not case["calls"] for case in cases[1:])

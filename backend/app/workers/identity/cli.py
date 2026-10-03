@@ -199,7 +199,9 @@ def main() -> int:
                 return asyncio.run(check(settings))
             import uvicorn
             from app.workers.identity.cookie_source import create_app
-            from app.workers.runner.netscape_cookie import MAX_COOKIE_BYTES
+            from app.workers.identity.yuanbao_parse import (
+                YUANBAO_PARSE_MAX_MESSAGE_BYTES,
+            )
 
             uvicorn.run(
                 create_app(settings),
@@ -208,7 +210,7 @@ def main() -> int:
                 access_log=False,
                 log_level="critical",
                 limit_concurrency=8,
-                ws_max_size=MAX_COOKIE_BYTES,
+                ws_max_size=YUANBAO_PARSE_MAX_MESSAGE_BYTES,
                 ws_max_queue=4,
             )
     except Exception:

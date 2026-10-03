@@ -1,6 +1,6 @@
 /* Listeners are registered synchronously before configuration/connection work. */
 importScripts('protocol.js');
-importScripts('yuanbao-account.js');
+importScripts('yuanbao-parse.js');
 const ALARM = 'framefetch-identity-connect';
 let socket = null;
 let retryTimer = null;
@@ -37,13 +37,26 @@ async function initialize() {
     let lastSeen = Date.now();
     const send = message => { if (!closed && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(message)); };
     const protocol = new FrameFetchIdentity.Protocol(config, details => chrome.cookies.getAll(details), send, chrome.runtime.getManifest().version,
-      deadlineMs => FrameFetchYuanbaoAccount.readExistingAccount(chrome, deadlineMs));
+      (canonicalUrl, deadlineMs) => FrameFetchYuanbaoParse.readExistingParse(chrome, canonicalUrl, deadlineMs));
     const authTimer = setTimeout(() => ws.close(), 5000);
     let chain = Promise.resolve();
     ws.onmessage = event => {
-      chain = chain.then(async () => {
+      let message;
+      try {
         if (closed || typeof event.data !== 'string' || new TextEncoder().encode(event.data).length > FrameFetchIdentity.MAX_MESSAGE_BYTES) throw new Error('invalid_message');
-        await protocol.receive(JSON.parse(event.data));
+        message = JSON.parse(event.data);
+        if (!message || typeof message !== 'object' || Array.isArray(message)) throw new Error('invalid_message');
+      } catch { ws.close(); return; }
+      // A native parse may occupy the serial request chain for 30 seconds.
+      // Authenticated heartbeat frames must still refresh the connection.
+      if (protocol.authenticated && Object.keys(message).join(',') === 'type' && ['ping', 'pong', 'ready'].includes(message.type)) {
+        lastSeen = Date.now();
+        void protocol.receive(message).catch(() => ws.close());
+        return;
+      }
+      chain = chain.then(async () => {
+        if (closed) return;
+        await protocol.receive(message);
         lastSeen = Date.now();
         if (protocol.authenticated && !heartbeat) {
           clearTimeout(authTimer);

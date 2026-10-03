@@ -181,7 +181,9 @@ class BrowserLayer:
             )
         if profile.identity is ProviderIdentity.NONE and ctx.identity is not None:
             raise failure(FailureClass.INVALID_INPUT, "unexpected_identity", "none")
-        if isinstance(ctx.identity, identity.YuanbaoAccountMaterial):
+        if ctx.identity is not None and not isinstance(
+            ctx.identity, identity.IdentityMaterial
+        ):
             # Registered generic parsers consume Cookie identity. A page account
             # requires its own verified parser and cannot become a Cookie jar.
             raise failure(FailureClass.INVALID_INPUT, "unexpected_identity", "none")

@@ -9,7 +9,8 @@ import pytest
 from app.services.provider_failures import FailureClass
 from app.services.provider_types import Layer, ProviderIdentity
 from app.workers.runner.engine import identity
-from app.workers.runner.engine.identity import IdentityMaterial
+from app.workers.runner.engine.egress import resolve_egress
+from app.workers.runner.engine.identity import IdentityMaterial, NativePageIdentity
 from app.workers.runner.engine.ladder import LAYER_TABLE, close_material, run_ladder
 from app.workers.runner.engine.layers.base import LayerFailure
 from app.workers.runner.engine.layers.browser import BrowserLayer
@@ -32,7 +33,35 @@ def source(tmp_path):
 def missing_browser_source(tmp_path):
     service = MediaRunnerService(settings(tmp_path))
     item = source_for(service, tmp_path)
-    request = provider_request("https://weixin.qq.com/sph/fixture")
+    request = provider_request("https://www.instagram.com/p/fixture/")
+    assert request.profile.l3_rules is not None
+    profile = replace(
+        request.profile,
+        key="missing_cookie_browser",
+        ladder=(Layer.L3,),
+        l3_rules=replace(request.profile.l3_rules, platform="missing_cookie_browser"),
+    )
+    assert profile.identity_source == "cookies"
+    request = replace(request, profile=profile)
+    item = replace(
+        item,
+        request=request,
+        execution_context=service._context(request),
+        run_context=replace(
+            item.run_context,
+            egress=resolve_egress(profile, settings=settings(tmp_path)),
+        ),
+    )
+    yield item
+    item.workspace.cleanup()
+
+
+@pytest.fixture
+def native_browser_source(tmp_path):
+    service = MediaRunnerService(settings(tmp_path))
+    item = source_for(service, tmp_path)
+    request = provider_request("https://weixin.qq.com/sph/SyntheticShare")
+    assert request.profile.identity_source == "yuanbao_native"
     item = replace(item, request=request, execution_context=service._context(request))
     yield item
     item.workspace.cleanup()
@@ -638,7 +667,7 @@ async def test_missing_only_browser_parser_fails_before_identity_io(
     assert failure.gate == "none" and failure.layer == "L3"
     assert failure.evidence["kind"] == "runtime"
     assert failure.evidence["cause_code"] == "browser_parser_missing"
-    assert failure.evidence["client"] == "wechat_channels:browser"
+    assert failure.evidence["client"] == "missing_cookie_browser:browser"
     assert not failure.evidence["identity_used"]
     assert len(caught.value.failures) == 1
     fetch.assert_not_awaited()
@@ -727,3 +756,156 @@ async def test_custom_browser_layer_is_not_rejected_by_production_parser_prechec
     assert calls == [identity_material]
     fetch.assert_awaited_once()
     await close_material(result.run_context)
+
+
+def native_browser(monkeypatch, digests, *, client="wechat_channels:browser"):
+    contexts = []
+
+    class NativeBrowser(BrowserLayer):
+        async def resolve(self, source, ctx):
+            contexts.append(ctx)
+            material = NativePageIdentity(digests.pop(0))
+            return resolved(ctx.with_material(identity=material), client=client)
+
+    monkeypatch.setitem(LAYER_TABLE, Layer.L3, NativeBrowser)
+    return contexts
+
+
+async def test_native_page_resolution_records_authenticated_identity_summary(
+    native_browser_source, monkeypatch
+):
+    source = native_browser_source
+    fetch = AsyncMock(
+        side_effect=AssertionError("native page requested Cookie identity")
+    )
+    monkeypatch.setattr(identity, "fetch_identity", fetch)
+    contexts = native_browser(monkeypatch, ["a" * 64])
+
+    result = await run_ladder(
+        source, source.request.profile, source.run_context.deadline
+    )
+
+    assert len(contexts) == 1 and contexts[0].identity is None
+    assert isinstance(result.run_context.identity, NativePageIdentity)
+    assert result.run_context.identity.digest == "a" * 64
+    assert result.run_context.cookie_file is None and result.run_context.browser is None
+    summary = result.execution_context
+    assert summary.resolved_layer == "L3"
+    assert summary.client == "wechat_channels:browser"
+    assert summary.identity_used is True
+    assert summary.identity_digest == "a" * 64
+    assert summary.browser_context_kind == "authenticated"
+    assert summary.egress_revision == source.run_context.egress.revision
+    assert len(summary.to_document()) == 12
+    assert set(summary.to_document()).isdisjoint(
+        {"account_id", "auth_token", "cookie_file"}
+    )
+    fetch.assert_not_awaited()
+    await close_material(result.run_context)
+
+
+async def test_native_download_reacquires_same_account_digest_and_preserves_context(
+    native_browser_source, monkeypatch
+):
+    source = native_browser_source
+    fetch = AsyncMock(
+        side_effect=AssertionError("native download requested Cookie identity")
+    )
+    monkeypatch.setattr(identity, "fetch_identity", fetch)
+    contexts = native_browser(monkeypatch, ["a" * 64, "a" * 64])
+    inspected = await run_ladder(
+        source, source.request.profile, source.run_context.deadline
+    )
+    download_source = replace(source, expected_context=inspected.execution_context)
+
+    downloaded = await run_ladder(
+        download_source, source.request.profile, source.run_context.deadline
+    )
+
+    assert len(contexts) == 2 and all(ctx.identity is None for ctx in contexts)
+    assert downloaded.execution_context == inspected.execution_context
+    assert downloaded.run_context.identity is not inspected.run_context.identity
+    assert downloaded.execution_context.browser_context_kind == "authenticated"
+    fetch.assert_not_awaited()
+    await close_material(inspected.run_context)
+    await close_material(downloaded.run_context)
+
+
+@pytest.mark.parametrize("changed", ["digest", "client"])
+async def test_native_download_cannot_reconfirm_account_or_client_drift(
+    native_browser_source, monkeypatch, changed
+):
+    source = native_browser_source
+    native_browser(monkeypatch, ["a" * 64])
+    inspected = await run_ladder(
+        source, source.request.profile, source.run_context.deadline
+    )
+    contexts = native_browser(
+        monkeypatch,
+        ["b" * 64 if changed == "digest" else "a" * 64],
+        client="wechat_channels:other"
+        if changed == "client"
+        else "wechat_channels:browser",
+    )
+    download_source = replace(source, expected_context=inspected.execution_context)
+
+    with pytest.raises(RunnerFailure) as caught:
+        await run_ladder(
+            download_source, source.request.profile, source.run_context.deadline
+        )
+
+    assert caught.value.code == "context_changed"
+    assert len(contexts) == 1
+    await close_material(inspected.run_context)
+
+
+async def test_native_download_binding_drift_stops_before_native_request(
+    native_browser_source, monkeypatch
+):
+    source = native_browser_source
+    native_browser(monkeypatch, ["a" * 64])
+    inspected = await run_ladder(
+        source, source.request.profile, source.run_context.deadline
+    )
+    contexts = native_browser(monkeypatch, ["a" * 64])
+    download_source = replace(
+        source,
+        expected_context=replace(inspected.execution_context, registry_revision="old"),
+    )
+
+    with pytest.raises(RunnerFailure) as caught:
+        await run_ladder(
+            download_source, source.request.profile, source.run_context.deadline
+        )
+
+    assert caught.value.code == "context_changed"
+    assert contexts == []
+    await close_material(inspected.run_context)
+
+
+@pytest.mark.parametrize("material", ["missing", "cookie"])
+async def test_native_page_custom_parser_cannot_succeed_without_native_identity(
+    native_browser_source, monkeypatch, identity_material, material
+):
+    source = native_browser_source
+    fetch = AsyncMock(
+        side_effect=AssertionError("native page requested Cookie identity")
+    )
+    monkeypatch.setattr(identity, "fetch_identity", fetch)
+
+    class ForgedNativeBrowser(BrowserLayer):
+        async def resolve(self, source, ctx):
+            if material == "cookie":
+                ctx = ctx.with_material(identity=identity_material)
+            return resolved(ctx, client="wechat_channels:browser")
+
+    monkeypatch.setitem(LAYER_TABLE, Layer.L3, ForgedNativeBrowser)
+
+    with pytest.raises(RunnerFailure) as caught:
+        await run_ladder(source, source.request.profile, source.run_context.deadline)
+
+    assert caught.value.failure.failure_class is FailureClass.IDENTITY_UNAVAILABLE
+    assert caught.value.failure.evidence["cause_code"] == "identity_source_mismatch"
+    fetch.assert_not_awaited()
+    if material == "cookie":
+        assert not identity_material.cookie_file.exists()

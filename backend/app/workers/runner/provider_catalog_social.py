@@ -8,7 +8,7 @@ from app.services.provider_types import (
     ProviderProfileVersion,
     ProviderSupportStatus,
 )
-from app.workers.identity.yuanbao_account import YUANBAO_ORIGIN
+from app.workers.identity.yuanbao_parse import YUANBAO_ORIGIN
 from app.workers.runner.provider_factories import (
     CHROME_IMPERSONATION,
     standard_provider,
@@ -27,8 +27,8 @@ SOCIAL_PROVIDER_PROFILES: tuple[ProviderProfile, ...] = (
             {ProviderCapability.SINGLE_VIDEO, ProviderCapability.SHORT_VIDEO}
         ),
         support_status=ProviderSupportStatus.UNKNOWN,
-        # Material transport is declared separately; the L3 parser is still absent.
-        identity_source="yuanbao_account",
+        # The existing Chrome page supplies its own native authenticated request.
+        identity_source="yuanbao_native",
         identity_origin=YUANBAO_ORIGIN,
         command_args=CHROME_IMPERSONATION,
         client_profile="chrome-136-macos-15",

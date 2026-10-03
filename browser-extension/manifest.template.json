@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "framefetch-identity",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "按任务读取当前 Chrome Profile 的必要平台身份材料",
   "minimum_chrome_version": "120",
   "permissions": [

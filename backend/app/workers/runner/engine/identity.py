@@ -5,7 +5,6 @@ from __future__ import annotations
 import asyncio
 import base64
 import binascii
-import hmac
 import json
 import os
 import re
@@ -22,16 +21,6 @@ from uuid import uuid4
 import httpx
 from app.services.provider_failures import FailureClass
 from app.services.provider_types import ProviderIdentity
-from app.workers.identity.yuanbao_account import (
-    YUANBAO_ACCOUNT_ID_MAX_BYTES,
-    YUANBAO_AUTH_TOKEN_MAX_BYTES,
-    YUANBAO_ORIGIN,
-    stable_yuanbao_account_digest,
-    validate_yuanbao_account_material,
-)
-from app.workers.identity.yuanbao_account import (
-    YuanbaoAccountMaterial as AccountTransportMaterial,
-)
 from app.workers.runner.engine.layers.base import LayerFailure
 from app.workers.runner.netscape_cookie import MAX_COOKIE_BYTES, parse_cookie_payload
 from app.workers.runner.provider_registry import provider_profile_for_key
@@ -48,12 +37,21 @@ class IdentityMaterial:
         self.cookie_file.parent.rmdir()
 
 
-class YuanbaoAccountMaterial(AccountTransportMaterial):
+@dataclass(frozen=True, slots=True)
+class NativePageIdentity:
+    """Account binding from a native page request; no credential is exported."""
+
+    digest: str
+
+    def __post_init__(self) -> None:
+        if re.fullmatch(r"[a-f0-9]{64}", self.digest) is None:
+            raise ValueError("invalid native identity digest")
+
     def cleanup(self) -> None:
-        """No file is created; ownership ends with the operation's references."""
+        """This identity owns no file, browser profile or account credential."""
 
 
-type Identity = IdentityMaterial | YuanbaoAccountMaterial
+type Identity = IdentityMaterial | NativePageIdentity
 
 
 def _unavailable(cause: str) -> LayerFailure:
@@ -110,7 +108,9 @@ def initialize_identity_tmpfs(root: Path | None = None) -> None:
             item.unlink()
 
 
-async def fetch_identity(site: str, task_id: str, deadline: datetime) -> Identity:
+async def fetch_identity(
+    site: str, task_id: str, deadline: datetime
+) -> IdentityMaterial:
     """Design 17 interface: no persistence, retries, redirects or ambient proxies."""
     operation: Path | None = None
     try:
@@ -122,33 +122,21 @@ async def fetch_identity(site: str, task_id: str, deadline: datetime) -> Identit
         ):
             raise _unavailable("identity_deadline_invalid")
         profile = provider_profile_for_key(site)
-        account_source = profile.identity_source == "yuanbao_account"
-        if profile.identity is ProviderIdentity.NONE or (
-            not account_source and not profile.cookie_domain_allowlist
+        if (
+            profile.identity is ProviderIdentity.NONE
+            or profile.identity_source != "cookies"
+            or not profile.cookie_domain_allowlist
         ):
             raise _unavailable("identity_not_declared")
-        if account_source and (
-            site != "wechat_channels"
-            or profile.identity_origin != YUANBAO_ORIGIN
-            or profile.cookie_domain_allowlist
-        ):
-            raise _unavailable("identity_source_mismatch")
         settings = get_runner_settings()
         if settings.cookie_source_token is None:
             raise _unavailable("identity_not_configured")
         token = settings.cookie_source_token.get_secret_value()
-        if not account_source:
-            root = _private_root(settings.runner_identity_tmpfs_root)
-            # Inspect and download never share operation directories.
-            operation = root / uuid4().hex
-            operation.mkdir(mode=0o700)
-        route = "/yuanbao-account" if account_source else "/cookies"
-        endpoint = f"http://host.docker.internal:{settings.cookie_source_port}{route}"
-        response_limit = (
-            2 * (YUANBAO_ACCOUNT_ID_MAX_BYTES + YUANBAO_AUTH_TOKEN_MAX_BYTES) + 4096
-            if account_source
-            else 2 * MAX_COOKIE_BYTES
-        )
+        root = _private_root(settings.runner_identity_tmpfs_root)
+        operation = root / uuid4().hex
+        operation.mkdir(mode=0o700)
+        endpoint = f"http://host.docker.internal:{settings.cookie_source_port}/cookies"
+        response_limit = 2 * MAX_COOKIE_BYTES
         async with asyncio.timeout(remaining):
             async with httpx.AsyncClient(
                 # Design 17 §3.4 identity exception: the fixed host route uses
@@ -199,21 +187,9 @@ async def fetch_identity(site: str, task_id: str, deadline: datetime) -> Identit
                 "identity_account_conflict",
                 "identity_tab_ambiguous",
                 "identity_page_unavailable",
-                "identity_storage_unavailable",
             }:
                 cause = "cookie_source_rejected"
             raise _unavailable(cause)
-        if account_source:
-            try:
-                material = validate_yuanbao_account_material(result, deadline=deadline)
-                expected_digest = stable_yuanbao_account_digest(
-                    material, site=site, key=token
-                )
-                if not hmac.compare_digest(expected_digest, material.digest):
-                    raise ValueError("invalid account digest")
-                return YuanbaoAccountMaterial.model_validate(material.model_dump())
-            except ValueError:
-                raise _unavailable("identity_material_invalid") from None
         if (
             not isinstance(result, dict)
             or set(result) != {"cookies", "digest"}
@@ -259,7 +235,7 @@ async def fetch_identity(site: str, task_id: str, deadline: datetime) -> Identit
 @asynccontextmanager
 async def operation_identity(
     site: str, task_id: str, deadline: datetime
-) -> AsyncIterator[Identity]:
+) -> AsyncIterator[IdentityMaterial]:
     """Caller owns the resolve/download operation and its material cleanup."""
     material = await fetch_identity(site, task_id, deadline)
     try:

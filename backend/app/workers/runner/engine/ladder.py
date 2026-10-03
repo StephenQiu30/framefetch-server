@@ -86,6 +86,7 @@ async def run_ladder(
     task_retries: set[FailureClass] = set()
     transferred = False
     active_layer: ResolverLayer | None = None
+    native_page_identity = profile.identity_source == "yuanbao_native"
 
     async def inject_identity() -> None:
         nonlocal ctx
@@ -135,9 +136,12 @@ async def run_ladder(
                     "none",
                     {"kind": "runtime", "cause_code": "browser_parser_missing"},
                 )
-            if profile.identity is ProviderIdentity.REQUIRED or (
-                profile.identity is ProviderIdentity.PREFER
-                and (expected is None or expected.identity_used)
+            if not native_page_identity and (
+                profile.identity is ProviderIdentity.REQUIRED
+                or (
+                    profile.identity is ProviderIdentity.PREFER
+                    and (expected is None or expected.identity_used)
+                )
             ):
                 try:
                     await inject_identity()
@@ -164,10 +168,14 @@ async def run_ladder(
                     failures.append(error.failure)
                     log_failure(source, error.failure)
                     ctx = replace(ctx, identity=None, cookie_file=None)
-            if expected is not None and (
-                expected.identity_used != (ctx.identity is not None)
-                or expected.identity_digest
-                != (ctx.identity.digest if ctx.identity else None)
+            if (
+                expected is not None
+                and not native_page_identity
+                and (
+                    expected.identity_used != (ctx.identity is not None)
+                    or expected.identity_digest
+                    != (ctx.identity.digest if ctx.identity else None)
+                )
             ):
                 raise RunnerFailure("context_changed", status=409)
             for layer_key in layers:
@@ -191,6 +199,17 @@ async def run_ladder(
                         # Prepared clients retain safe attempt facts within the layer.
                         failures.extend(getattr(layer, "failures", ()))
                         ctx = media.run_context or ctx
+                        if native_page_identity and not isinstance(
+                            ctx.identity, identity.NativePageIdentity
+                        ):
+                            raise LayerFailure(
+                                FailureClass.IDENTITY_UNAVAILABLE,
+                                "③",
+                                {
+                                    "kind": "runtime",
+                                    "cause_code": "identity_source_mismatch",
+                                },
+                            )
                         context = replace(
                             context,
                             client=media.client,
@@ -206,6 +225,7 @@ async def run_ladder(
                                 "authenticated" if ctx.identity else "anonymous"
                             )
                             if ctx.browser
+                            or isinstance(ctx.identity, identity.NativePageIdentity)
                             else "none",
                         )
                         if expected is not None and expected != context:

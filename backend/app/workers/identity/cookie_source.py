@@ -12,16 +12,18 @@ import secrets
 import time
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager, suppress
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
+from typing import Literal
 from urllib.parse import unquote
 
 from app.core.config import CookieSourceSettings
 from app.workers.identity.extension import extension_origin
-from app.workers.identity.yuanbao_account import (
+from app.workers.identity.yuanbao_parse import (
     YUANBAO_ORIGIN,
-    YuanbaoAccountMaterial,
-    stable_yuanbao_account_digest,
-    validate_yuanbao_account_payload,
+    YUANBAO_PARSE_MAX_MESSAGE_BYTES,
+    YUANBAO_PARSE_TIMEOUT,
+    validate_canonical_share_url,
+    validate_yuanbao_oracle_result,
 )
 from app.workers.runner.netscape_cookie import (
     MAX_COOKIE_BYTES,
@@ -39,6 +41,7 @@ from pydantic import (
     Field,
     StrictBool,
     ValidationError,
+    field_validator,
 )
 
 # Audited 2026-10-01. Each inner set is an AND group; groups are alternatives.
@@ -142,7 +145,7 @@ REQUEST_TIMEOUT = 5.0
 HEARTBEAT_SECONDS = 20.0
 MAX_CONNECTIONS = 2  # includes the active connection and one bounded handshake
 MAX_REQUESTS = 1
-YUANBAO_READ_CAUSES = frozenset(
+YUANBAO_PARSE_CAUSES = frozenset(
     {
         "credential_missing",
         "identity_material_invalid",
@@ -151,7 +154,9 @@ YUANBAO_READ_CAUSES = frozenset(
         "identity_account_conflict",
         "identity_tab_ambiguous",
         "identity_page_unavailable",
-        "identity_storage_unavailable",
+        "native_api_unavailable",
+        "parse_response_invalid",
+        "parse_request_failed",
         "extension_timeout",
     }
 )
@@ -168,6 +173,16 @@ class CookieRequest(BaseModel):
     site: str = Field(pattern=r"^[a-z][a-z0-9_]{0,31}$")
     task_id: str = Field(pattern=r"^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$")
     deadline: AwareDatetime
+
+
+class ShareParseRequest(CookieRequest):
+    site: Literal["wechat_channels"]
+    canonical_share_url: str = Field(strict=True, max_length=282)
+
+    @field_validator("canonical_share_url")
+    @classmethod
+    def canonical_share(cls, value: str) -> str:
+        return validate_canonical_share_url(value)
 
 
 class ExtensionCookie(BaseModel):
@@ -226,13 +241,34 @@ def proof(key: str, role: str, peer: str, own: str) -> str:
     ).hexdigest()
 
 
-async def receive(websocket: WebSocket) -> dict[str, object]:
+def _json_object(pairs: list[tuple[str, object]]) -> dict[str, object]:
+    result: dict[str, object] = {}
+    for name, value in pairs:
+        if name in result:
+            raise ValueError("invalid_message")
+        result[name] = value
+    return result
+
+
+def _invalid_json_constant(_: str) -> object:
+    raise ValueError("invalid_message")
+
+
+async def receive(
+    websocket: WebSocket, *, allow_yuanbao_parse: bool = False
+) -> dict[str, object]:
     text = await websocket.receive_text()
-    if len(text.encode()) > MAX_COOKIE_BYTES:
+    size = len(text.encode())
+    limit = YUANBAO_PARSE_MAX_MESSAGE_BYTES if allow_yuanbao_parse else MAX_COOKIE_BYTES
+    if size > limit:
         raise ValueError("message_too_large")
-    value = json.loads(text)
+    value = json.loads(
+        text, object_pairs_hook=_json_object, parse_constant=_invalid_json_constant
+    )
     if not isinstance(value, dict):
         raise ValueError("invalid_message")
+    if value.get("type") != "yuanbao_parse" and size > MAX_COOKIE_BYTES:
+        raise ValueError("message_too_large")
     return value
 
 
@@ -335,7 +371,7 @@ class CookieSource:
     async def _responses(self, websocket: WebSocket) -> None:
         while True:
             async with asyncio.timeout(45):
-                message = await receive(websocket)
+                message = await receive(websocket, allow_yuanbao_parse=True)
             if message == {"type": "ping"}:
                 await self.send(websocket, {"type": "pong"})
             elif message == {"type": "pong"}:
@@ -366,7 +402,7 @@ class CookieSource:
                         future.set_exception(cookies)
                     else:
                         future.set_result(cookies)
-            elif message.get("type") == "yuanbao_account":
+            elif message.get("type") == "yuanbao_parse":
                 request_id = message.get("request_id")
                 if not isinstance(request_id, str) or not re.fullmatch(
                     r"[a-f0-9]{32}", request_id
@@ -374,25 +410,18 @@ class CookieSource:
                     raise ValueError("invalid_response")
                 if set(message) == {"type", "request_id", "cause"}:
                     cause = message["cause"]
-                    if not isinstance(cause, str) or cause not in YUANBAO_READ_CAUSES:
+                    if not isinstance(cause, str) or cause not in YUANBAO_PARSE_CAUSES:
                         raise ValueError("invalid_response")
                     result: object = IdentityUnavailable(cause)
-                elif set(message) == {
-                    "type",
-                    "request_id",
-                    "origin",
-                    "account_id",
-                    "auth_token",
-                }:
+                elif set(message) == {"type", "request_id", "account_id", "captured"}:
                     result = {
-                        name: message[name]
-                        for name in ("origin", "account_id", "auth_token")
+                        name: message[name] for name in ("account_id", "captured")
                     }
                 else:
                     raise ValueError("invalid_response")
                 future = self._pending.get(request_id)
                 if future is not None and not future.done():
-                    if self._pending_kinds.get(request_id) != "yuanbao_account":
+                    if self._pending_kinds.get(request_id) != "yuanbao_parse":
                         raise ValueError("invalid_response")
                     if isinstance(result, IdentityUnavailable):
                         future.set_exception(result)
@@ -557,15 +586,17 @@ class CookieSource:
             future.cancel()
             self._requests -= 1
 
-    async def yuanbao_account(self, request: CookieRequest) -> dict[str, str]:
-        remaining = (request.deadline - datetime.now(UTC)).total_seconds()
+    async def yuanbao_parse(self, request: ShareParseRequest) -> dict[str, object]:
+        current = datetime.now(UTC)
+        effective_deadline = min(
+            request.deadline, current + timedelta(seconds=YUANBAO_PARSE_TIMEOUT)
+        )
+        remaining = (effective_deadline - current).total_seconds()
         if remaining <= 0:
             raise IdentityUnavailable("identity_deadline_invalid")
-        if request.site != "wechat_channels":
-            raise IdentityUnavailable("identity_source_mismatch")
         profile = provider_profile_for_key(request.site)
         if (
-            profile.identity_source != "yuanbao_account"
+            profile.identity_source != "yuanbao_native"
             or profile.identity_origin != YUANBAO_ORIGIN
             or profile.identity == "none"
         ):
@@ -578,52 +609,38 @@ class CookieSource:
         request_id = secrets.token_hex(16)
         future: asyncio.Future[object] = asyncio.get_running_loop().create_future()
         self._pending[request_id] = future
-        self._pending_kinds[request_id] = "yuanbao_account"
+        self._pending_kinds[request_id] = "yuanbao_parse"
         try:
-            async with asyncio.timeout(min(REQUEST_TIMEOUT, remaining)):
+            async with asyncio.timeout(remaining):
                 try:
                     await self.send(
                         self.connection,
                         {
-                            "type": "yuanbao_account",
+                            "type": "yuanbao_parse",
                             "request_id": request_id,
-                            "site": "wechat_channels",
-                            "deadline": request.deadline.astimezone(UTC).isoformat(),
+                            "site": request.site,
+                            "canonical_share_url": request.canonical_share_url,
+                            "deadline": effective_deadline.astimezone(UTC).isoformat(),
                         },
                     )
                 except (WebSocketDisconnect, RuntimeError):
                     raise IdentityUnavailable("extension_disconnected") from None
                 raw = await future
-                if datetime.now(UTC) >= request.deadline:
+                if datetime.now(UTC) >= effective_deadline:
                     raise IdentityUnavailable("identity_deadline_invalid")
                 try:
-                    payload = validate_yuanbao_account_payload(raw)
-                except (ValidationError, ValueError, TypeError):
-                    raise IdentityUnavailable("identity_material_invalid") from None
-                material = YuanbaoAccountMaterial(
-                    kind="yuanbao_account",
-                    origin=payload.origin,
-                    account_id=payload.account_id,
-                    auth_token=payload.auth_token,
-                    digest=stable_yuanbao_account_digest(
-                        payload,
-                        site=request.site,
+                    result = validate_yuanbao_oracle_result(
+                        raw,
+                        canonical_share_url=request.canonical_share_url,
                         key=self.settings.cookie_source_token.get_secret_value(),
-                    ),
-                    local_use_deadline=request.deadline.astimezone(UTC),
-                )
-                if datetime.now(UTC) >= request.deadline:
+                    )
+                except (ValidationError, ValueError, TypeError, RecursionError):
+                    raise IdentityUnavailable("parse_response_invalid") from None
+                if datetime.now(UTC) >= effective_deadline:
                     raise IdentityUnavailable("identity_deadline_invalid")
-                # This authenticated private response is the sole wire export.
-                # SecretStr.model_dump intentionally masks the two secret fields.
-                return {
-                    "kind": material.kind,
-                    "origin": material.origin,
-                    "account_id": material.account_id.get_secret_value(),
-                    "auth_token": material.auth_token.get_secret_value(),
-                    "digest": material.digest,
-                    "local_use_deadline": material.local_use_deadline.isoformat(),
-                }
+                # Credentials remain in Chrome. Only an account-bound digest and
+                # the fixed first-party parse result cross into the Runner.
+                return result.model_dump(mode="json")
         except TimeoutError:
             raise IdentityUnavailable("extension_timeout") from None
         finally:
@@ -674,7 +691,7 @@ def create_app(settings: CookieSourceSettings) -> FastAPI:
                 headers={"Cache-Control": "no-store"},
             )
         if (
-            request.url.path not in {"/cookies", "/yuanbao-account"}
+            request.url.path not in {"/cookies", "/yuanbao-parse"}
             or request.method != "POST"
         ):
             return JSONResponse({"cause": "not_found"}, status_code=404)
@@ -708,14 +725,14 @@ def create_app(settings: CookieSourceSettings) -> FastAPI:
             return JSONResponse({"cause": "identity_material_invalid"}, status_code=503)
         return JSONResponse(result)
 
-    @app.post("/yuanbao-account")
-    async def yuanbao_account(request: CookieRequest) -> JSONResponse:
+    @app.post("/yuanbao-parse")
+    async def yuanbao_parse(request: ShareParseRequest) -> JSONResponse:
         try:
-            result = await source.yuanbao_account(request)
+            result = await source.yuanbao_parse(request)
         except IdentityUnavailable as error:
             return JSONResponse({"cause": error.cause}, status_code=503)
         except Exception:
-            return JSONResponse({"cause": "identity_material_invalid"}, status_code=503)
+            return JSONResponse({"cause": "parse_response_invalid"}, status_code=503)
         return JSONResponse(result)
 
     return app

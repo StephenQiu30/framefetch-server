@@ -151,20 +151,20 @@ def test_cookie_source_exception_is_exact_direct_and_does_not_log_secrets():
     assert "acl cookie_source_host dstdomain host.docker.internal" in config
     assert "acl cookie_source_port port 19101" in config
     assert "acl cookie_source_method method POST" in config
-    path_acl = "acl cookie_source_path urlpath_regex ^/(cookies|yuanbao-account)$"
+    path_acl = "acl cookie_source_path urlpath_regex ^/(cookies|yuanbao-parse)$"
     assert path_acl in config
     import re
 
     pattern = path_acl.rsplit(" ", 1)[1]
-    assert all(re.fullmatch(pattern, path) for path in ("/cookies", "/yuanbao-account"))
+    assert all(re.fullmatch(pattern, path) for path in ("/cookies", "/yuanbao-parse"))
     assert not any(
         re.fullmatch(pattern, path)
         for path in (
             "/",
             "/extension",
             "/cookies/",
-            "/yuanbao-account/",
-            "/yuanbao-account?url=x",
+            "/yuanbao-parse/",
+            "/yuanbao-parse?url=x",
         )
     )
     assert config.index("http_access deny !docker_clients") < config.index(allow)

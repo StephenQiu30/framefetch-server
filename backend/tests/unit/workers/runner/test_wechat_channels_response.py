@@ -7,6 +7,7 @@ from typing import Literal
 import pytest
 from app.workers.runner.wechat_channels_response import (
     YuanbaoReference,
+    authenticated_feed_info,
     successful_response_data,
     yuanbao_reference,
 )
@@ -355,3 +356,166 @@ def test_reference_checks_the_export_field_against_the_decoded_eid() -> None:
 
     assert reference is not None
     assert reference.export_id == "synthetic/export"
+
+
+FEED_API_URL = "https://channels.weixin.qq.com/finder-preview/api/feed/get_feed_info"
+CAPTURED_FEED = {"description": "Synthetic public video", "objectId": "synthetic-work"}
+
+
+def captured_feed(**overrides: object) -> object:
+    arguments: dict[str, object] = {
+        "request_method": "POST",
+        "request_url": FEED_API_URL,
+        "response_url": FEED_API_URL,
+        "http_status": 200,
+        "request_body": {
+            "baseReq": {"generalToken": TOKEN},
+            "exportId": EXPORT_ID,
+        },
+        "reference": captured_reference(),
+        "payload": {"errCode": 0, "data": {"feedInfo": CAPTURED_FEED}},
+    }
+    arguments.update(overrides)
+    return authenticated_feed_info(**arguments)
+
+
+@pytest.mark.parametrize("code", [0, "0"])
+def test_authenticated_feed_preserves_metadata_for_the_bound_capture(
+    code: object,
+) -> None:
+    feed = deepcopy(CAPTURED_FEED)
+    payload = {"errCode": code, "data": {"feedInfo": feed}}
+    original = deepcopy(payload)
+
+    assert captured_feed(payload=payload) is feed
+    assert payload == original
+    assert "duration" not in feed
+    assert "availability" not in feed
+
+
+@pytest.mark.parametrize("method", [None, "", "GET", "PUT", "post", " POST", 1])
+def test_authenticated_feed_requires_the_captured_post_method(method: object) -> None:
+    assert captured_feed(request_method=method) is None
+
+
+@pytest.mark.parametrize("field", ["request_url", "response_url"])
+@pytest.mark.parametrize(
+    "url",
+    [
+        None,
+        FEED_API_URL.replace("https:", "http:"),
+        FEED_API_URL.replace("channels.weixin.qq.com", "yuanbao.tencent.com"),
+        FEED_API_URL.replace(
+            "channels.weixin.qq.com", "channels.weixin.qq.com.evil.test"
+        ),
+        FEED_API_URL.replace(
+            "channels.weixin.qq.com", "synthetic@channels.weixin.qq.com"
+        ),
+        FEED_API_URL.replace(
+            "channels.weixin.qq.com", "channels.weixin.qq.com:invalid"
+        ),
+        FEED_API_URL.replace("channels.weixin.qq.com", "channels.weixin.qq.com:444"),
+        FEED_API_URL.replace("channels.weixin.qq.com", "channels.weixin.qq.com."),
+        f"{FEED_API_URL}/",
+        f"{FEED_API_URL}?",
+        f"{FEED_API_URL}?exportId={EXPORT_ID}",
+        f"{FEED_API_URL}#",
+        FEED_API_URL.replace("get_feed_info", "get_feed_\ninfo"),
+    ],
+)
+def test_authenticated_feed_rejects_unbound_or_ambiguous_transport(
+    field: str, url: object
+) -> None:
+    assert captured_feed(**{field: url}) is None
+
+
+def test_authenticated_feed_accepts_the_standard_https_port() -> None:
+    url = FEED_API_URL.replace("channels.weixin.qq.com", "channels.weixin.qq.com:443")
+    assert captured_feed(request_url=url, response_url=url) is CAPTURED_FEED
+
+
+@pytest.mark.parametrize("status", [None, True, 200.0, "200", 199, 300, 401, 500])
+def test_authenticated_feed_requires_a_successful_integer_http_status(
+    status: object,
+) -> None:
+    assert captured_feed(http_status=status) is None
+
+
+@pytest.mark.parametrize(
+    "body",
+    [
+        None,
+        {},
+        {"exportId": EXPORT_ID},
+        {"baseReq": {"generalToken": TOKEN}},
+        {"baseReq": {"generalToken": TOKEN}, "exportId": "other-synthetic-export"},
+        {"baseReq": {"generalToken": "other-synthetic-token"}, "exportId": EXPORT_ID},
+        {"baseReq": {"generalToken": None}, "exportId": EXPORT_ID},
+        {"baseReq": None, "exportId": EXPORT_ID},
+        {"baseReq": {}, "exportId": EXPORT_ID},
+        {
+            "baseReq": {"generalToken": TOKEN, "other": "synthetic"},
+            "exportId": EXPORT_ID,
+        },
+        {
+            "baseReq": {"generalToken": TOKEN},
+            "exportId": EXPORT_ID,
+            "shortUri": "SyntheticShare",
+        },
+    ],
+)
+def test_authenticated_feed_requires_both_exact_reference_tickets(body: object) -> None:
+    assert captured_feed(request_body=body) is None
+
+
+@pytest.mark.parametrize(
+    "reference",
+    [
+        None,
+        {"canonical_share_url": SHARE_URL, "token": TOKEN, "export_id": EXPORT_ID},
+        YuanbaoReference(f"{SHARE_URL}?tracking=synthetic", TOKEN, EXPORT_ID),
+        YuanbaoReference(
+            "https://weixin.qq.com.evil.test/sph/SyntheticShare", TOKEN, EXPORT_ID
+        ),
+        YuanbaoReference(SHARE_URL, "", EXPORT_ID),
+        YuanbaoReference(SHARE_URL, "synthetic token", EXPORT_ID),
+        YuanbaoReference(SHARE_URL, TOKEN, ""),
+        YuanbaoReference(SHARE_URL, TOKEN, "synthetic\x00export"),
+    ],
+)
+def test_authenticated_feed_rejects_invalid_reference_objects(
+    reference: object,
+) -> None:
+    assert captured_feed(reference=reference) is None
+
+
+@pytest.mark.parametrize("code", [False, True, 0.0, None, "", "00", -1, "1"])
+def test_authenticated_feed_requires_its_own_explicit_success_code(
+    code: object,
+) -> None:
+    assert (
+        captured_feed(payload={"errCode": code, "data": {"feedInfo": CAPTURED_FEED}})
+        is None
+    )
+
+
+@pytest.mark.parametrize(
+    "payload",
+    [
+        None,
+        [],
+        {},
+        {"code": 0, "data": {"feedInfo": CAPTURED_FEED}},
+        {"errCode": 0},
+        {"errCode": 0, "data": []},
+        {"errCode": 0, "data": {"feedInfo": None}},
+        {"errCode": 0, "data": {"feedInfo": {}}},
+        {"errCode": 0, "data": {"feedInfo": [CAPTURED_FEED]}},
+        {"errCode": 0, "data": {"data": {"feedInfo": CAPTURED_FEED}}},
+        {"errCode": -1, "data": {"errCode": 0, "data": {"feedInfo": CAPTURED_FEED}}},
+    ],
+)
+def test_authenticated_feed_rejects_missing_or_nested_success_packages(
+    payload: object,
+) -> None:
+    assert captured_feed(payload=payload) is None

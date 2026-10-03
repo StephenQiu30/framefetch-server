@@ -18,7 +18,7 @@ from app.services.provider_types import (
     ProviderProfileVersion,
     ProviderSupportStatus,
 )
-from app.workers.identity.yuanbao_account import YUANBAO_ORIGIN
+from app.workers.identity.yuanbao_parse import YUANBAO_ORIGIN
 from app.workers.runner.errors import RunnerFailure
 
 UNSUPPORTED_PROVIDER_DOMAINS = frozenset(
@@ -69,7 +69,7 @@ class ProviderProfile:
     l2_prepare: PrepareSpec | None = None
     l3_rules: BrowserRules | None = None
     identity: ProviderIdentity = ProviderIdentity.NONE
-    identity_source: Literal["cookies", "yuanbao_account"] = "cookies"
+    identity_source: Literal["cookies", "yuanbao_native"] = "cookies"
     identity_origin: str | None = None
     content_scope: Literal["public", "personal_full"] = "public"
     cookie_domain_allowlist: frozenset[str] = frozenset()
@@ -155,7 +155,7 @@ class ProviderRegistry:
                     raise ValueError(
                         f"provider {profile.key} has invalid identity origin"
                     )
-            elif profile.identity_source == "yuanbao_account":
+            elif profile.identity_source == "yuanbao_native":
                 if (
                     profile.key != ProviderKey.WECHAT_CHANNELS
                     or profile.identity is not ProviderIdentity.REQUIRED

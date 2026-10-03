@@ -28,7 +28,7 @@ def installation(tmp_path, monkeypatch):
     for name in (
         "background.js",
         "protocol.js",
-        "yuanbao-account.js",
+        "yuanbao-parse.js",
         "manifest.template.json",
     ):
         shutil.copyfile(extension.EXTENSION_SOURCE / name, home / name)
@@ -76,7 +76,7 @@ def test_install_private_config_separate_keys_and_no_secrets_in_plist(installati
         in (home / "config.local.json").read_text()
     )
     config = json.loads((home / "config.local.json").read_text())
-    assert config["yuanbaoAccount"] is True
+    assert config["yuanbaoParse"] is True
     assert "yuanbao.tencent.com" not in config["domains"]
     assert run.call_args_list[0].args[0][2] == f"gui/{os.getuid()}"
     cli.uninstall()
@@ -315,3 +315,28 @@ def test_reddit_prefer_generates_cookie_permissions_without_install():
     assert profile.identity is ProviderIdentity.PREFER
     assert profile.cookie_domain_allowlist == frozenset({"reddit.com"})
     assert "*://*.reddit.com/*" in extension.manifest(19101)["host_permissions"]
+
+
+def test_host_websocket_limit_accepts_native_parse_envelope(monkeypatch, tmp_path):
+    import sys
+
+    import uvicorn
+    from app.workers.identity.yuanbao_parse import YUANBAO_PARSE_MAX_MESSAGE_BYTES
+
+    settings = CookieSourceSettings(
+        cookie_source_token=SecretStr(TOKEN),
+        cookie_source_pairing_key=SecretStr("synthetic-test-only-pairing-key-32-bytes"),
+    )
+    monkeypatch.setattr(cli.sys, "platform", "darwin")
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        ["cookie-source", "run", "--env-file", str(tmp_path / "identity.env")],
+    )
+    monkeypatch.setattr(cli, "configured", lambda env_file: settings)
+    run = Mock()
+    monkeypatch.setattr(uvicorn, "run", run)
+    assert cli.main() == 0
+    assert run.call_args.kwargs["ws_max_size"] == YUANBAO_PARSE_MAX_MESSAGE_BYTES
+    assert run.call_args.kwargs["host"] == "127.0.0.1"
+    assert run.call_args.kwargs["access_log"] is False

@@ -17,7 +17,7 @@ function worker(pageApi = {}) {
   }
   const context = vm.createContext({
     TextEncoder, URL, crypto: webcrypto, WebSocket, Date: { now: () => now, parse: Date.parse },
-    fetch: async url => { assert.equal(url, 'chrome-extension://test/config.local.json'); return { ok: true, json: async () => ({ pairingKey: KEY, port: 19101, domains: ['instagram.com'], yuanbaoAccount: true }) }; },
+    fetch: async url => { assert.equal(url, 'chrome-extension://test/config.local.json'); return { ok: true, json: async () => ({ pairingKey: KEY, port: 19101, domains: ['instagram.com'], yuanbaoParse: true }) }; },
     chrome: { alarms: { onAlarm: listener('alarm'), get: async name => alarms.get(name), create: async (name, spec) => { alarms.set(name, spec); } },
       runtime: { onStartup: listener('startup'), onInstalled: listener('installed'), getManifest: () => ({ version: '1.0.0' }), getURL: name => 'chrome-extension://test/' + name },
       cookies: { getAll: async () => [] }, ...pageApi },
@@ -27,7 +27,7 @@ function worker(pageApi = {}) {
     clearInterval: timer => { if (timer) timer.active = false; },
   });
   context.importScripts = name => {
-    assert.ok(['protocol.js', 'yuanbao-account.js'].includes(name));
+    assert.ok(['protocol.js', 'yuanbao-parse.js'].includes(name));
     vm.runInContext(fs.readFileSync(__dirname + '/' + name, 'utf8'), context);
   };
   vm.runInContext(fs.readFileSync(__dirname + '/background.js', 'utf8'), context);
@@ -81,6 +81,31 @@ test('20-second heartbeat only after server authentication, stale connection clo
   assert.equal(ws.readyState, 3);
   assert.equal(w.intervals[0].active, false);
 });
+test('authenticated heartbeat traffic remains responsive while a native parse occupies the request chain', async () => {
+  let release;
+  const pending = new Promise(done => { release = done; });
+  const w = worker({ tabs: { query: () => pending } });
+  await w.flush();
+  const ws = w.sockets[0], server = 'd'.repeat(64);
+  ws.onmessage({ data: JSON.stringify({ type: 'challenge', nonce: server }) }); await w.flush();
+  ws.onmessage({ data: JSON.stringify({ type: 'proof', proof: await proof(KEY, 'server', ws.sent[0].nonce, server) }) });
+  for (let i = 0; i < 20 && !w.intervals.length; i++) await w.flush();
+  ws.onmessage({ data: JSON.stringify({ type: 'yuanbao_parse', request_id: 'c'.repeat(32), site: 'wechat_channels',
+    canonical_share_url: 'https://weixin.qq.com/sph/Synthetic123', deadline: new Date(60000).toISOString() }) });
+  await w.flush();
+  w.advance(20000);
+  ws.onmessage({ data: JSON.stringify({ type: 'ping' }) }); await w.flush();
+  assert.deepEqual(ws.sent.at(-1), { type: 'pong' });
+  w.advance(26000); w.intervals[0].fn();
+  assert.equal(ws.readyState, 1, 'recent authenticated control traffic keeps the socket alive');
+  const timer = w.timers.find(t => t.active && t.ms === 30000);
+  assert.ok(timer);
+  timer.fn(); await w.flush();
+  assert.deepEqual(ws.sent.at(-1), { type: 'yuanbao_parse', request_id: 'c'.repeat(32), cause: 'extension_timeout' });
+  const count = ws.sent.length;
+  release([]); await w.flush();
+  assert.equal(ws.sent.length, count);
+});
 test('pairing JSON is local only and never declared web accessible', () => {
   const template = JSON.parse(fs.readFileSync(__dirname + '/manifest.template.json', 'utf8'));
   assert.equal('web_accessible_resources' in template, false);
@@ -96,7 +121,7 @@ test('worker wires the fixed page reader only after HMAC and preserves Cookie co
   const calls = [];
   const w = worker({ tabs: { query: async details => { calls.push(details); throw new Error('synthetic-private-secret'); } } });
   await w.flush();
-  const request = { type: 'yuanbao_account', request_id: 'c'.repeat(32), site: 'wechat_channels', deadline: new Date(60000).toISOString() };
+  const request = { type: 'yuanbao_parse', request_id: 'c'.repeat(32), site: 'wechat_channels', canonical_share_url: 'https://weixin.qq.com/sph/Synthetic123', deadline: new Date(60000).toISOString() };
   w.sockets[0].onmessage({ data: JSON.stringify(request) }); await w.flush();
   assert.deepEqual(calls, []);
   assert.equal(w.sockets[0].readyState, 3);
@@ -108,12 +133,12 @@ test('worker wires the fixed page reader only after HMAC and preserves Cookie co
   ws.onmessage({ data: JSON.stringify(request) }); await w.flush();
   assert.equal(calls.length, 1);
   assert.equal(calls[0].url, 'https://yuanbao.tencent.com/*');
-  assert.deepEqual(ws.sent.at(-1), { type: 'yuanbao_account', request_id: request.request_id, cause: 'identity_page_unavailable' });
+  assert.deepEqual(ws.sent.at(-1), { type: 'yuanbao_parse', request_id: request.request_id, cause: 'identity_page_unavailable' });
   assert.equal(ws.readyState, 1);
   ws.onmessage({ data: JSON.stringify({ type: 'cookies', deadline: new Date(60000).toISOString(), request_id: 'e'.repeat(32), domains: ['instagram.com'] }) }); await w.flush();
   assert.deepEqual(ws.sent.at(-1), { type: 'cookies', request_id: 'e'.repeat(32), cookies: [] });
 });
-test('stalled page reads release the worker chain and late results or rejection cannot send account material', async () => {
+test('stalled native page operations release the worker chain and late results or rejection cannot send parsed material', async () => {
   for (const phase of ['query', 'execution']) {
     for (const lateFailure of [false, true]) {
       let release, reject, executions = 0;
@@ -128,7 +153,7 @@ test('stalled page reads release the worker chain and late results or rejection 
       ws.onmessage({ data: JSON.stringify({ type: 'challenge', nonce: server }) }); await w.flush();
       ws.onmessage({ data: JSON.stringify({ type: 'proof', proof: await proof(KEY, 'server', ws.sent[0].nonce, server) }) });
       for (let i = 0; i < 20 && !w.intervals.length; i++) await w.flush();
-      const request = { type: 'yuanbao_account', request_id: 'c'.repeat(32), site: 'wechat_channels', deadline: new Date(10).toISOString() };
+      const request = { type: 'yuanbao_parse', request_id: 'c'.repeat(32), site: 'wechat_channels', canonical_share_url: 'https://weixin.qq.com/sph/Synthetic123', deadline: new Date(10).toISOString() };
       ws.onmessage({ data: JSON.stringify(request) });
       ws.onmessage({ data: JSON.stringify({ type: 'cookies', deadline: new Date(60000).toISOString(), request_id: 'e'.repeat(32), domains: ['instagram.com'] }) });
       ws.onmessage({ data: JSON.stringify({ type: 'ping' }) });
@@ -137,15 +162,15 @@ test('stalled page reads release the worker chain and late results or rejection 
       assert.ok(deadlineTimer, 'page reads must have an active operation timer');
       w.advance(10); deadlineTimer.fn(); await w.flush();
       assert.deepEqual(ws.sent.slice(-3), [
-        { type: 'yuanbao_account', request_id: request.request_id, cause: 'extension_timeout' },
-        { type: 'cookies', request_id: 'e'.repeat(32), cookies: [] },
         { type: 'pong' },
+        { type: 'yuanbao_parse', request_id: request.request_id, cause: 'extension_timeout' },
+        { type: 'cookies', request_id: 'e'.repeat(32), cookies: [] },
       ]);
       assert.equal(ws.readyState, 1);
       assert.equal(deadlineTimer.active, false);
       const count = ws.sent.length;
       if (lateFailure) reject(new Error('synthetic-private-error'));
-      else release(phase === 'query' ? [tab] : [{ frameId: 0, documentId: 'one', result: { origin: 'https://yuanbao.tencent.com', account_id: 'synthetic-account', auth_token: 'synthetic-token' } }]);
+      else release(phase === 'query' ? [tab] : [{ frameId: 0, documentId: 'one', result: { account_id: 'synthetic-account' } }]);
       await w.flush();
       assert.equal(ws.sent.length, count);
       assert.equal(executions, phase === 'query' ? 0 : 1);
@@ -174,9 +199,9 @@ test('stalled Cookie APIs return a bounded failure and keep the worker chain usa
       assert.ok(timer, 'Cookie API calls must have a shared deadline timer');
       w.advance(limit); timer.fn(); await w.flush();
       assert.deepEqual(ws.sent.slice(-3), [
+        { type: 'pong' },
         { type: 'cookies', request_id: 'c'.repeat(32), cause: 'extension_timeout' },
         { type: 'cookies', request_id: 'e'.repeat(32), cookies: [] },
-        { type: 'pong' },
       ]);
       assert.equal(ws.readyState, 1);
       assert.equal(timer.active, false);

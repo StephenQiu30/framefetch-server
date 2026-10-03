@@ -26,12 +26,10 @@ from app.services.provider_failures import (
     FailureScope,
     parse_retry_after,
 )
-from app.workers.identity.yuanbao_account import validate_yuanbao_account_material
 from app.workers.runner._secure_file import no_follow_flag
 from app.workers.runner.engine.egress import EgressBinding
 from app.workers.runner.engine.identity import (
     IdentityMaterial,
-    YuanbaoAccountMaterial,
     _is_tmpfs,
 )
 from app.workers.runner.engine.run_context import RunContext
@@ -125,26 +123,6 @@ def initialize_browser_tmpfs(path: Path) -> None:
             shutil.rmtree(item)
         else:
             item.unlink()
-
-
-def _yuanbao_bootstrap(material: YuanbaoAccountMaterial) -> str:
-    # add_init_script runs again after navigation and inside frames. Both checks
-    # belong in the script itself, before any account value is written.
-    values = json.dumps(
-        {
-            "account": material.account_id.get_secret_value(),
-            "token": material.auth_token.get_secret_value(),
-        },
-        ensure_ascii=True,
-        separators=(",", ":"),
-    )
-    return (
-        "(() => { if (top !== self || location.origin !== "
-        "'https://yuanbao.tencent.com') return; const material = "
-        + values
-        + "; localStorage.setItem('yb_user_id', material.account); "
-        "localStorage.setItem('yb_token', material.token); })();"
-    )
 
 
 def _profile_bytes(root: Path) -> int:
@@ -302,19 +280,8 @@ class BrowserRuntime:
                     raise _failure("invalid_input", status=422)
                 validate_cookie_file(ctx.identity.cookie_file)
             else:
-                if (
-                    profile.key != "wechat_channels"
-                    or profile.identity_source != "yuanbao_account"
-                    or profile.identity_origin != "https://yuanbao.tencent.com"
-                    or ctx.cookie_file is not None
-                ):
-                    raise _failure("invalid_input", status=422)
-                try:
-                    validate_yuanbao_account_material(
-                        ctx.identity, deadline=ctx.deadline
-                    )
-                except ValueError:
-                    raise _failure("invalid_input", status=422) from None
+                # Native page identity stays in ordinary Chrome, never this browser.
+                raise _failure("invalid_input", status=422)
         lock = (
             asyncio.Lock()
             if authenticated
@@ -449,12 +416,10 @@ class BrowserRuntime:
                 raise _failure("runtime_unavailable", status=409)
             if authenticated:
                 assert ctx.identity is not None
-                if isinstance(ctx.identity, IdentityMaterial):
-                    await context.add_cookies(
-                        leased_browser_cookies(ctx.identity.cookie_file, profile)
-                    )
-                else:
-                    await context.add_init_script(_yuanbao_bootstrap(ctx.identity))
+                assert isinstance(ctx.identity, IdentityMaterial)
+                await context.add_cookies(
+                    leased_browser_cookies(ctx.identity.cookie_file, profile)
+                )
             context.set_default_timeout(
                 self._settings.runner_browser_page_timeout_seconds * 1000
             )
