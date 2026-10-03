@@ -5,6 +5,7 @@ import json
 import sys
 from argparse import Namespace
 from datetime import datetime
+from hashlib import sha256
 from pathlib import Path
 from urllib.parse import urlsplit
 
@@ -44,6 +45,55 @@ def case(**overrides):
             **overrides,
         }
     )
+
+
+def official_share_case(**overrides):
+    return case(
+        **{
+            "platform": "wechat_channels",
+            "url": "https://weixin.qq.com/sph/A9znfitafp",
+            "expected_media_id": "A9znfitafp",
+            "content_scope": "official_share",
+            "needs_identity": True,
+            "duration_seconds": None,
+            "duration_source": {
+                "url": "https://weixin.qq.com/sph/A9znfitafp",
+                "kind": "platform_api",
+                "field": "unavailable",
+                "status": "unverified",
+                "note": "Independent publisher duration is unavailable",
+            },
+            "availability_source": {
+                "url": "https://channels.weixin.qq.com/finder-preview/api/feed/get_feed_info",
+                "kind": "official_share_metadata",
+                "field": "description/author/cover HTTPS origin/path",
+                "status": "verified",
+                "checked_at": "2026-10-03",
+                "metadata_match": {
+                    "description": True,
+                    "author": True,
+                    "cover_origin_path": True,
+                },
+                "note": "Anonymous, native and official feed metadata match",
+            },
+            **overrides,
+        }
+    )
+
+
+def native_context(**overrides):
+    return {
+        "provider_key": "wechat_channels",
+        "resolved_layer": "L3",
+        "client": "actual-native",
+        "egress_route": "cn_residential",
+        "egress_class": "unknown",
+        "egress_observed_ip": None,
+        "identity_used": True,
+        "identity_digest": "a" * 64,
+        "browser_context_kind": "authenticated",
+        **overrides,
+    }
 
 
 def plan():
@@ -344,10 +394,11 @@ def test_protected_negative_and_health_never_certify_platform():
 
 
 class FakeApi:
-    def __init__(self, *, failure=None, wrong_id=False, context=None):
+    def __init__(self, *, failure=None, wrong_id=False, context=None, media_id="1"):
         self.calls = []
         self.failure = failure
         self.wrong_id = wrong_id
+        self.media_id = media_id
         self.context = context or {
             "provider_key": "bilibili",
             "resolved_layer": "L1",
@@ -365,7 +416,7 @@ class FakeApi:
         if path == "/api/inspections/inspection":
             return {
                 "id": "inspection",
-                "provider_media_id": "wrong" if self.wrong_id else "1",
+                "provider_media_id": "wrong" if self.wrong_id else self.media_id,
                 "execution_context": self.context,
                 "protection_state": "clear",
                 "formats": [{"id": "format", "plan": plan()}],
@@ -399,7 +450,11 @@ class FakeApi:
     def file(self, job_id, path, max_bytes, timeout=900):
         self.calls.append(("FILE", job_id, {}))
         path.write_bytes(b"video")
-        return {"size_bytes": 5, "sha256": "hash", "file": path.name}
+        return {
+            "size_bytes": 5,
+            "sha256": sha256(b"video").hexdigest(),
+            "file": path.name,
+        }
 
 
 def fake_commands(monkeypatch):
@@ -454,6 +509,184 @@ def test_missing_independent_evidence_blocks_even_complete_delivery(
         row["result"] == "blocked" and row["failure_class"] == "sample_evidence_missing"
     )
     assert row["full_decode_exit_code"] == 0
+
+
+def test_official_share_only_waives_independent_duration_for_channels():
+    assert official_share_case().qualification_gaps() == []
+    public = official_share_case().model_dump()
+    public["content_scope"] = "public"
+    public["availability_source"] = case().availability_source.model_dump()
+    assert matrix.Case.model_validate(public).qualification_gaps() == [
+        "independent full duration missing"
+    ]
+    personal = case(
+        platform="youku",
+        content_scope="personal_full",
+        needs_identity=True,
+        duration_seconds=None,
+        duration_source=official_share_case().duration_source.model_dump(),
+    )
+    assert personal.qualification_gaps() == ["independent full duration missing"]
+
+
+@pytest.mark.parametrize(
+    "change",
+    [
+        {"platform": "youtube"},
+        {"platform": "qqvideo"},
+        {"needs_identity": False},
+        {"url": "https://example.com/sph/A9znfitafp"},
+        {"url": "https://weixin.qq.com/sph/A9znfitafp?extra=1"},
+        {"expected_media_id": "other-work"},
+    ],
+)
+def test_official_share_scope_cannot_expand_to_other_sources(change):
+    with pytest.raises(ValidationError):
+        official_share_case(**change)
+
+
+@pytest.mark.parametrize(
+    "change",
+    [
+        {"metadata_match": None},
+        {
+            "metadata_match": {
+                "description": False,
+                "author": True,
+                "cover_origin_path": True,
+            }
+        },
+        {
+            "metadata_match": {
+                "description": True,
+                "author": False,
+                "cover_origin_path": True,
+            }
+        },
+        {
+            "metadata_match": {
+                "description": True,
+                "author": True,
+                "cover_origin_path": False,
+            }
+        },
+        {
+            "metadata_match": {
+                "description": 1,
+                "author": True,
+                "cover_origin_path": True,
+            }
+        },
+        {"checked_at": None},
+        {"checked_at": "2026-10-03T09:00:00"},
+        {"url": "https://third-party.example.com/metadata"},
+        {"kind": "platform_api", "metadata_match": None},
+    ],
+)
+def test_official_share_requires_dated_three_way_metadata_match(change):
+    source = official_share_case().availability_source.model_dump()
+    with pytest.raises(ValidationError):
+        official_share_case(availability_source={**source, **change})
+
+
+def test_official_share_evidence_is_not_original_duration_or_public_proof():
+    source = official_share_case().availability_source.model_dump()
+    with pytest.raises(ValidationError):
+        official_share_case(duration_seconds=60, duration_source=source)
+    with pytest.raises(ValidationError):
+        case(availability_source=source)
+
+
+def test_official_share_complete_delivery_reports_candidate_file_scope(
+    monkeypatch, tmp_path
+):
+    commands = fake_commands(monkeypatch)
+    sample = official_share_case()
+    api = FakeApi(context=native_context(), media_id=sample.expected_media_id)
+    options = args()
+    options.cookie_source_label = "test-cookie-source"
+    row = matrix.run_case(api, sample, options, tmp_path)
+    assert row["result"] == "passed"
+    assert row["qualification_gaps"] == []
+    assert row["ffprobe"]["duration_origin"] == "candidate_file"
+    assert row["ffprobe"]["duration_seconds"] == 60
+    assert row["scope_verification"] == {
+        "content_scope": "official_share",
+        "duration_origin": "candidate_file",
+        "public": "not_verified",
+        "free": "not_verified",
+        "original_completeness": "not_verified",
+    }
+    assert row["sample"]["duration_source"]["status"] == "unverified"
+    assert row["artifact"]["sha256"] == sha256(b"video").hexdigest()
+    assert row["full_decode_exit_code"] == 0
+    assert [command[0] for command in commands] == ["ffprobe", "ffmpeg"]
+    assert "-xerror" in commands[1] and "-t" not in commands[1]
+    matrix.write_report({"results": [row]}, tmp_path)
+    persisted = json.loads((tmp_path / "matrix.json").read_text())["results"][0]
+    assert persisted["scope_verification"] == row["scope_verification"]
+    markdown = (tmp_path / "matrix.md").read_text()
+    assert "candidate_file" in markdown
+    assert markdown.count("not_verified") == 3
+
+
+def test_official_share_unverified_metadata_blocks_even_decodable_delivery(
+    monkeypatch, tmp_path
+):
+    fake_commands(monkeypatch)
+    source = official_share_case().availability_source.model_dump()
+    source.update(status="unverified", checked_at=None, metadata_match=None)
+    sample = official_share_case(availability_source=source)
+    api = FakeApi(context=native_context(), media_id=sample.expected_media_id)
+    options = args()
+    options.cookie_source_label = "test-cookie-source"
+    row = matrix.run_case(api, sample, options, tmp_path)
+    assert row["result"] == "blocked"
+    assert row["failure_class"] == "sample_evidence_missing"
+    assert row["qualification_gaps"] == ["official share metadata match not verified"]
+    assert row["full_decode_exit_code"] == 0
+
+
+@pytest.mark.parametrize(
+    "change",
+    [
+        {"identity_used": False, "identity_digest": None},
+        {"identity_digest": None},
+        {"identity_digest": "not-a-native-digest"},
+        {"resolved_layer": "L1"},
+        {"browser_context_kind": "anonymous"},
+    ],
+)
+def test_official_share_requires_actual_native_account_context(change, tmp_path):
+    sample = official_share_case()
+    api = FakeApi(context=native_context(**change), media_id=sample.expected_media_id)
+    row = matrix.run_case(api, sample, args(), tmp_path)
+    assert row["result"] == "blocked"
+    assert row["failure_class"] == "identity_unavailable"
+    assert not any(path == "/api/downloads" for _, path, _ in api.calls)
+
+
+@pytest.mark.parametrize("track_duration", [20, 120, "nan", True])
+def test_official_share_checks_candidate_audio_video_track_durations(track_duration):
+    payload = probe()
+    payload["streams"][0]["duration"] = track_duration
+    with pytest.raises(matrix.MatrixFailure, match="duration"):
+        matrix.verify_probe(payload, official_share_case(), plan(), 3)
+
+
+def test_official_share_still_requires_two_distinct_positive_works():
+    first = official_share_case()
+    second = official_share_case(
+        id="test-2",
+        url="https://weixin.qq.com/sph/AFWYoXF5Bw",
+        expected_media_id="AFWYoXF5Bw",
+    )
+    assert matrix.select_cases([first, second], {"wechat_channels"}, None) == [
+        first,
+        second,
+    ]
+    with pytest.raises(ValueError, match="independent"):
+        matrix.select_cases([first], {"wechat_channels"}, "wechat_channels")
 
 
 def test_id_mismatch_stops_before_download(tmp_path):
@@ -592,7 +825,10 @@ def test_fixture_positive_candidates_have_distinct_identity_and_honest_gaps():
         if c.platform in {"instagram", "qqvideo", "youku", "wechat_channels"}
     )
     assert all(not c.qualification_gaps() for c in cases if c.platform == "bilibili")
-    assert any(c.qualification_gaps() for c in cases if c.platform == "wechat_channels")
+    channels = [c for c in cases if c.platform == "wechat_channels"]
+    assert all(c.content_scope == "official_share" for c in channels)
+    assert all(c.duration_source.status == "unverified" for c in channels)
+    assert all(c.duration_seconds is None for c in channels)
 
 
 @pytest.mark.parametrize(
@@ -1239,12 +1475,40 @@ def test_g4_unverified_capabilities_and_protection_still_block():
     blocked = [
         c
         for c in samples
-        if c.platform in {"wechat_channels", "wechat_official_account_article"}
+        if c.platform == "wechat_official_account_article"
         or (c.platform in {"qqvideo", "youku"} and c.kind == "protected")
     ]
-    assert len(blocked) == 6
+    assert len(blocked) == 4
     assert all(c.qualification_gaps() for c in blocked)
     assert all(c.availability_source.status == "unverified" for c in blocked)
+
+
+def test_channels_fixture_records_scope_without_claiming_original_completion():
+    samples = matrix.load_cases(SCRIPT.parent / "fixtures/coldstart_cases.json")
+    channels = [sample for sample in samples if sample.platform == "wechat_channels"]
+    assert len(channels) == 2
+    assert len({sample.expected_media_id for sample in channels}) == 2
+    for sample in channels:
+        assert sample.content_scope == "official_share" and sample.needs_identity
+        assert sample.duration_seconds is None
+        assert sample.duration_source.status == "unverified"
+        assert sample.duration_source.checked_at is None
+        source = sample.availability_source
+        assert source.kind == "official_share_metadata"
+        assert source.status == "verified" and source.checked_at == "2026-10-03"
+        assert source.metadata_match.model_dump() == {
+            "description": True,
+            "author": True,
+            "cover_origin_path": True,
+        }
+        assert "公开、免费、原始完整性未验证" in source.note
+        if sample.expected_media_id == "A9znfitafp":
+            assert "Web 正式链路交付" in source.note
+            assert "不代表脚本矩阵通过" in source.note
+        else:
+            assert "正式文件交付尚未执行" in source.note
+        assert "wechat-metadata-20261003/metadata.json" in source.note
+        assert sample.qualification_gaps() == []
 
 
 def test_fixture_and_registry_agree_on_content_scope_and_anonymous_hongguo():

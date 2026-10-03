@@ -1,7 +1,9 @@
 """Design 17 cold-start matrix through the authenticated public HTTP API.
 
 The runtime lock covers rebuilding, cold start, every case, and restoration.
-Samples lacking independent metadata remain blocked even if a file is delivered.
+Samples lacking the metadata required by their declared scope remain blocked even
+if a file is delivered. WeChat official_share verifies the returned candidate
+file without asserting public/free access or the publisher's original duration.
 """
 
 from __future__ import annotations
@@ -11,6 +13,7 @@ import hashlib
 import json
 import math
 import os
+import re
 import signal
 import subprocess
 import time
@@ -24,12 +27,19 @@ from typing import Any
 from uuid import uuid4
 
 import httpx
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, StrictBool, model_validator
 
 ROOT = Path(__file__).resolve().parents[2]
 LOCK = Path("/tmp/framefetch-runtime.lock")
 SERVICES = ["api", "worker", "session-runner"]
 Json = dict[str, Any]
+
+
+class OfficialShareMetadataMatch(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    description: StrictBool
+    author: StrictBool
+    cover_origin_path: StrictBool
 
 
 class SourceEvidence(BaseModel):
@@ -40,6 +50,7 @@ class SourceEvidence(BaseModel):
     checked_at: str | None = None
     status: str = Field(pattern="^(verified|unverified)$")
     note: str
+    metadata_match: OfficialShareMetadataMatch | None = None
 
     @model_validator(mode="after")
     def verified_source(self) -> SourceEvidence:
@@ -54,6 +65,7 @@ class SourceEvidence(BaseModel):
                     "platform_api",
                     "public_page",
                     "official_player_metadata",
+                    "official_share_metadata",
                 }
                 or not self.checked_at
                 or (
@@ -65,6 +77,8 @@ class SourceEvidence(BaseModel):
                     "verified evidence needs dated independent platform source"
                 )
             datetime.fromisoformat(self.checked_at)
+        if self.metadata_match is not None and self.kind != "official_share_metadata":
+            raise ValueError("metadata_match only describes official_share evidence")
         return self
 
 
@@ -86,7 +100,7 @@ class Case(BaseModel):
         default="content_protected", pattern="^(content_protected|content_unavailable)$"
     )
     expected_gate: str | None = Field(default=None, pattern="^(①|②|③|none)$")
-    content_scope: str = Field(pattern="^(public|personal_full)$")
+    content_scope: str = Field(pattern="^(public|personal_full|official_share)$")
     needs_identity: bool = False
     duration_seconds: float | None = Field(default=None, gt=0, allow_inf_nan=False)
     duration_source: SourceEvidence
@@ -101,24 +115,75 @@ class Case(BaseModel):
             self.platform not in {"qqvideo", "youku"} or not self.needs_identity
         ):
             raise ValueError("personal_full requires qqvideo/youku and needs_identity")
+        if self.content_scope == "official_share" and (
+            self.platform != "wechat_channels" or not self.needs_identity
+        ):
+            raise ValueError(
+                "official_share requires wechat_channels and needs_identity"
+            )
+        if self.is_official_share and (
+            re.fullmatch(r"https://weixin\.qq\.com/sph/[A-Za-z0-9_-]{4,256}", self.url)
+            is None
+            or self.expected_media_id != self.url.rsplit("/", 1)[-1]
+        ):
+            raise ValueError("official_share needs its canonical share work reference")
+        if self.duration_source.kind == "official_share_metadata":
+            raise ValueError(
+                "official_share metadata cannot prove independent duration"
+            )
+        if (
+            self.availability_source.kind == "official_share_metadata"
+            and not self.is_official_share
+        ):
+            raise ValueError("official_share evidence requires its declared scope")
         if self.kind == "positive" and self.duration_source.status == "verified":
             if self.duration_seconds is None or not self.duration_source.checked_at:
                 raise ValueError("verified duration needs value and checked_at")
         if self.availability_source.status == "verified":
             if not self.availability_source.checked_at:
                 raise ValueError("verified availability needs checked_at")
+            if self.is_official_share and self.kind == "positive":
+                source = self.availability_source
+                if (
+                    source.kind != "official_share_metadata"
+                    or source.url
+                    not in {
+                        self.url,
+                        "https://channels.weixin.qq.com/finder-preview/api/feed/get_feed_info",
+                    }
+                    or not source.metadata_match
+                    or not all(source.metadata_match.model_dump().values())
+                ):
+                    raise ValueError(
+                        "verified official_share needs matched dated official metadata"
+                    )
         return self
+
+    @property
+    def is_official_share(self) -> bool:
+        return (
+            self.platform == "wechat_channels"
+            and self.content_scope == "official_share"
+        )
 
     def qualification_gaps(self) -> list[str]:
         gaps = []
         if self.availability_source.status != "verified":
-            gaps.append(
-                "protection not independently verified"
-                if self.kind == "protected"
-                else "public/free/non-DRM availability not independently verified"
+            if self.kind == "protected":
+                gaps.append("protection not independently verified")
+            elif self.is_official_share:
+                gaps.append("official share metadata match not verified")
+            else:
+                gaps.append(
+                    "public/free/non-DRM availability not independently verified"
+                )
+        if (
+            self.kind == "positive"
+            and not self.is_official_share
+            and (
+                self.duration_seconds is None
+                or self.duration_source.status != "verified"
             )
-        if self.kind == "positive" and (
-            self.duration_seconds is None or self.duration_source.status != "verified"
         ):
             gaps.append("independent full duration missing")
         return gaps
@@ -569,7 +634,32 @@ def verify_probe(probe: Json, case: Case, plan: Json, tolerance_seconds: float) 
                     "tolerance": tolerance,
                 },
             )
-    return {
+    if case.is_official_share:
+        tolerance = max(tolerance_seconds, duration * 0.02)
+        for stream in (*videos, *audios):
+            if "duration" not in stream:
+                continue
+            try:
+                track_duration = float(stream["duration"])
+            except (ValueError, TypeError, OverflowError) as exc:
+                raise MatrixFailure("invalid_track_duration") from exc
+            if (
+                isinstance(stream["duration"], bool)
+                or not math.isfinite(track_duration)
+                or track_duration <= 0
+            ):
+                raise MatrixFailure("invalid_track_duration")
+            if abs(track_duration - duration) > tolerance:
+                raise MatrixFailure(
+                    "candidate_track_duration_mismatch",
+                    {
+                        "codec_type": stream["codec_type"],
+                        "container_duration": duration,
+                        "track_duration": track_duration,
+                        "tolerance": tolerance,
+                    },
+                )
+    facts = {
         "duration_seconds": duration,
         "width": video["width"],
         "height": video["height"],
@@ -578,6 +668,9 @@ def verify_probe(probe: Json, case: Case, plan: Json, tolerance_seconds: float) 
         "avg_frame_rate": video.get("avg_frame_rate"),
         "color_transfer": video.get("color_transfer"),
     }
+    if case.is_official_share:
+        facts["duration_origin"] = "candidate_file"
+    return facts
 
 
 def failure_result(case: Case, category: str) -> str:
@@ -601,6 +694,14 @@ def run_case(api: Api, case: Case, args: argparse.Namespace, output: Path) -> Js
         "execution_context": None,
         "qualification_gaps": case.qualification_gaps(),
     }
+    if case.is_official_share:
+        result["scope_verification"] = {
+            "content_scope": "official_share",
+            "duration_origin": "candidate_file",
+            "public": "not_verified",
+            "free": "not_verified",
+            "original_completeness": "not_verified",
+        }
     try:
         if case.platform == "wechat_official_account_article":
             # SourceAdmission deliberately returns an opaque source-* inspection
@@ -682,6 +783,16 @@ def run_case(api: Api, case: Case, args: argparse.Namespace, output: Path) -> Js
             raise MatrixFailure("execution_context_missing_or_mismatched")
         if case.needs_identity and not context["identity_used"]:
             raise MatrixFailure("identity_unavailable", {"identity_used": False})
+        if case.is_official_share and (
+            context.get("identity_used") is not True
+            or re.fullmatch(r"[a-f0-9]{64}", str(context.get("identity_digest", "")))
+            is None
+            or context.get("resolved_layer") != "L3"
+            or context.get("browser_context_kind") != "authenticated"
+        ):
+            raise MatrixFailure(
+                "identity_unavailable", {"cause": "native_identity_missing"}
+            )
         if case.kind == "protected":
             raise MatrixFailure("protected_content_not_rejected")
         if inspection["protection_state"] != "clear":
@@ -886,6 +997,23 @@ def write_report(report: Json, output: Path) -> None:
             f"{','.join(probe.get('audio_codecs', []))} "
             f"| {row.get('full_decode_exit_code', '未完成')} |"
         )
+    official_rows = [row for row in report["results"] if row.get("scope_verification")]
+    if official_rows:
+        lines += [
+            "",
+            "视频号 official_share 按分享元数据对应及候选实文件验收；"
+            "候选文件时长不能证明发布者原始完整时长。",
+            "",
+            "| 样本 | 时长来源 | public | free | 原始完整性 |",
+            "| --- | --- | --- | --- | --- |",
+        ]
+        for row in official_rows:
+            scope = row["scope_verification"]
+            lines.append(
+                f"| {row['sample']['id']} | {scope['duration_origin']} "
+                f"| {scope['public']} | {scope['free']} "
+                f"| {scope['original_completeness']} |"
+            )
     if report.get("setup_failure"):
         lines += [
             "",

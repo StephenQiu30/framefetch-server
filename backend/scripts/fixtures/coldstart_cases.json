@@ -1307,7 +1307,7 @@
     "url": "https://weixin.qq.com/sph/A9znfitafp",
     "expected_media_id": "A9znfitafp",
     "kind": "positive",
-    "content_scope": "public",
+    "content_scope": "official_share",
     "needs_identity": true,
     "duration_seconds": null,
     "duration_source": {
@@ -1316,15 +1316,20 @@
       "field": "unavailable",
       "checked_at": null,
       "status": "unverified",
-      "note": "能力阻塞：身份来源域和真实响应规则待 R6，当前公开页不提供作品完整时长。"
+      "note": "当前官方分享接口没有独立原始完整时长；official_share 仅使用交付候选实文件时长，原始完整性未验证。"
     },
     "availability_source": {
       "url": "https://weixin.qq.com/sph/A9znfitafp",
-      "kind": "public_page",
-      "field": "public_free_clear_media",
-      "checked_at": null,
-      "status": "unverified",
-      "note": "公开、免费、非 DRM 的完整媒体尚未独立证实；候选不能记通过。"
+      "kind": "official_share_metadata",
+      "field": "anonymous/native/official description + author + cover HTTPS origin/path",
+      "checked_at": "2026-10-03",
+      "status": "verified",
+      "note": "2026-10-03 实测：native HTTP200/code0，匿名及官方 feed HTTP201/errCode0；三方描述与作者经空白归一化相等，封面 HTTPS origin/path 相等（query 不同），媒体候选 2 个且未检测到保护材料。此条另外经 Web 正式链路交付，浏览器保存文件为 576×576 H264/AAC、24.448 秒、1525279 字节，全片解码无错误且 SHA-256 已核验；不把候选时长标为独立原长。公开、免费、原始完整性未验证，不代表脚本矩阵通过。安全证据：artifacts/coldstart/wechat-metadata-20261003/metadata.json 与 artifacts/coldstart/wechat-ui-20261003T110824Z/file-second.json。",
+      "metadata_match": {
+        "description": true,
+        "author": true,
+        "cover_origin_path": true
+      }
     },
     "minimum_spec": {
       "width": 320,
@@ -1338,7 +1343,7 @@
     "url": "https://weixin.qq.com/sph/AFWYoXF5Bw",
     "expected_media_id": "AFWYoXF5Bw",
     "kind": "positive",
-    "content_scope": "public",
+    "content_scope": "official_share",
     "needs_identity": true,
     "duration_seconds": null,
     "duration_source": {
@@ -1347,15 +1352,20 @@
       "field": "unavailable",
       "checked_at": null,
       "status": "unverified",
-      "note": "能力阻塞：身份来源域和真实响应规则待 R6，当前公开页不提供作品完整时长。"
+      "note": "当前官方分享接口没有独立原始完整时长；official_share 仅使用交付候选实文件时长，原始完整性未验证。"
     },
     "availability_source": {
       "url": "https://weixin.qq.com/sph/AFWYoXF5Bw",
-      "kind": "public_page",
-      "field": "public_free_clear_media",
-      "checked_at": null,
-      "status": "unverified",
-      "note": "公开、免费、非 DRM 的完整媒体尚未独立证实；候选不能记通过。"
+      "kind": "official_share_metadata",
+      "field": "anonymous/native/official description + author + cover HTTPS origin/path",
+      "checked_at": "2026-10-03",
+      "status": "verified",
+      "note": "2026-10-03 实测：native HTTP200/code0，匿名及官方 feed HTTP201/errCode0；三方描述与作者经空白归一化相等，封面 HTTPS origin/path 相等（query 不同），媒体候选 2 个且未检测到保护材料。仅验证分享元数据对应；公开、免费、原始完整性未验证，正式文件交付尚未执行。安全证据：artifacts/coldstart/wechat-metadata-20261003/metadata.json。",
+      "metadata_match": {
+        "description": true,
+        "author": true,
+        "cover_origin_path": true
+      }
     },
     "minimum_spec": {
       "width": 320,
