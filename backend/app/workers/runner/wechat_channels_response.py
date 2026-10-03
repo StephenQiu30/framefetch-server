@@ -10,7 +10,7 @@ import re
 import unicodedata
 from collections.abc import Mapping
 from dataclasses import dataclass, field
-from typing import Any, Literal
+from typing import Any, Literal, TypeGuard
 from urllib.parse import SplitResult, parse_qs, urlsplit
 
 from app.workers.runner.url_policy import UrlPolicyError, validate_media_url
@@ -19,6 +19,7 @@ _PARSE_HOST = "yuanbao.tencent.com"
 _PARSE_PATH = "/api/weixin/get_parse_result"
 _REFERENCE_HOST = "channels.weixin.qq.com"
 _REFERENCE_PATH = "/finder-preview/pages/feed"
+_FEED_PATH = "/finder-preview/api/feed/get_feed_info"
 _SHARE_URL = re.compile(r"https://weixin\.qq\.com/sph/[A-Za-z0-9_-]{4,256}")
 _BAD_ESCAPE = re.compile(r"%(?![0-9A-Fa-f]{2})")
 
@@ -54,14 +55,14 @@ def yuanbao_reference(
 ) -> YuanbaoReference | None:
     """Decode one reference without asserting the referenced video's identity."""
     if (
-        request_method != "POST"
-        or _official_url(request_url, _PARSE_HOST, _PARSE_PATH) is None
-        or _official_url(response_url, _PARSE_HOST, _PARSE_PATH) is None
-        or "?" in str(request_url)
-        or "?" in str(response_url)
-        or not isinstance(http_status, int)
-        or isinstance(http_status, bool)
-        or not 200 <= http_status < 300
+        not _captured_post_matches(
+            request_method,
+            request_url,
+            response_url,
+            http_status,
+            _PARSE_HOST,
+            _PARSE_PATH,
+        )
         or not isinstance(canonical_share_url, str)
         or _SHARE_URL.fullmatch(canonical_share_url) is None
         or not isinstance(request_body, Mapping)
@@ -101,7 +102,90 @@ def yuanbao_reference(
     token, export_id = query["token"][0], query["eid"][0]
     if not _safe_text(token, 2048) or not _safe_text(export_id, 512):
         return None
+    if "wx_export_id" in data:
+        observed_id = data["wx_export_id"]
+        if (
+            not isinstance(observed_id, str)
+            or not _safe_text(observed_id, 512)
+            or observed_id != export_id
+        ):
+            return None
     return YuanbaoReference(canonical_share_url, token, export_id)
+
+
+def authenticated_feed_info(
+    *,
+    request_method: object,
+    request_url: object,
+    response_url: object,
+    http_status: object,
+    request_body: object,
+    reference: object,
+    payload: object,
+) -> Mapping[str, Any] | None:
+    """Return captured feed metadata bound to the caller's reference context.
+
+    This checks request tickets, not a response work-id echo or media rights.
+    """
+    if (
+        not _valid_reference(reference)
+        or not _captured_post_matches(
+            request_method,
+            request_url,
+            response_url,
+            http_status,
+            _REFERENCE_HOST,
+            _FEED_PATH,
+        )
+        or not isinstance(request_body, Mapping)
+        or len(request_body) != 2
+        or set(request_body) != {"baseReq", "exportId"}
+        or request_body.get("exportId") != reference.export_id
+    ):
+        return None
+    base = request_body.get("baseReq")
+    if (
+        not isinstance(base, Mapping)
+        or len(base) != 1
+        or set(base) != {"generalToken"}
+        or base.get("generalToken") != reference.token
+    ):
+        return None
+    data = successful_response_data(payload, "errCode")
+    feed = data.get("feedInfo")
+    return feed if isinstance(feed, Mapping) and feed else None
+
+
+def _valid_reference(value: object) -> TypeGuard[YuanbaoReference]:
+    return (
+        isinstance(value, YuanbaoReference)
+        and isinstance(value.canonical_share_url, str)
+        and _SHARE_URL.fullmatch(value.canonical_share_url) is not None
+        and isinstance(value.token, str)
+        and _safe_text(value.token, 2048)
+        and isinstance(value.export_id, str)
+        and _safe_text(value.export_id, 512)
+    )
+
+
+def _captured_post_matches(
+    method: object,
+    request_url: object,
+    response_url: object,
+    http_status: object,
+    host: str,
+    path: str,
+) -> bool:
+    return (
+        method == "POST"
+        and _official_url(request_url, host, path) is not None
+        and _official_url(response_url, host, path) is not None
+        and "?" not in str(request_url)
+        and "?" not in str(response_url)
+        and isinstance(http_status, int)
+        and not isinstance(http_status, bool)
+        and 200 <= http_status < 300
+    )
 
 
 def _official_url(value: object, host: str, path: str) -> SplitResult | None:

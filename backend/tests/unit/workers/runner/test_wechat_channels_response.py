@@ -311,3 +311,47 @@ def test_adapter_does_not_modify_the_capture() -> None:
     original = deepcopy(payload)
     assert captured_reference(payload=payload) is not None
     assert payload == original
+
+
+@pytest.mark.parametrize(
+    "export_id",
+    [
+        None,
+        False,
+        1,
+        "",
+        "other-synthetic-export",
+        "synthetic-export\x00",
+        "synthetic-export\u0080",
+        "synthetic-export\u200b",
+        "synthetic-export\ud800",
+        pytest.param("x" * 513, id="export-field-too-long"),
+    ],
+)
+def test_reference_rejects_an_invalid_or_conflicting_export_field(
+    export_id: object,
+) -> None:
+    assert (
+        captured_reference(
+            payload={
+                "code": 0,
+                "data": {"playable_url": REFERENCE_URL, "wx_export_id": export_id},
+            }
+        )
+        is None
+    )
+
+
+def test_reference_checks_the_export_field_against_the_decoded_eid() -> None:
+    reference = captured_reference(
+        payload={
+            "code": 0,
+            "data": {
+                "playable_url": f"{FEED_URL}?token=synthetic&eid=synthetic%2Fexport",
+                "wx_export_id": "synthetic/export",
+            },
+        }
+    )
+
+    assert reference is not None
+    assert reference.export_id == "synthetic/export"
