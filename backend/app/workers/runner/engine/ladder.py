@@ -87,6 +87,17 @@ async def run_ladder(
     transferred = False
     active_layer: ResolverLayer | None = None
     native_page_identity = profile.identity_source == "yuanbao_native"
+    if native_page_identity:
+        # Service re-resolution starts with the previously inspected summary.
+        # Its authenticated account has not been reconfirmed in this operation.
+        # Keep the complete expectation separately and publish these facts only
+        # after the native parser returns its freshly bound identity.
+        context = replace(
+            context,
+            identity_used=False,
+            identity_digest=None,
+            browser_context_kind="none",
+        )
 
     async def inject_identity() -> None:
         nonlocal ctx

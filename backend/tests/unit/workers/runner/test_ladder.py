@@ -816,7 +816,11 @@ async def test_native_download_reacquires_same_account_digest_and_preserves_cont
     inspected = await run_ladder(
         source, source.request.profile, source.run_context.deadline
     )
-    download_source = replace(source, expected_context=inspected.execution_context)
+    download_source = replace(
+        source,
+        execution_context=inspected.execution_context,
+        expected_context=inspected.execution_context,
+    )
 
     downloaded = await run_ladder(
         download_source, source.request.profile, source.run_context.deadline
@@ -847,7 +851,11 @@ async def test_native_download_cannot_reconfirm_account_or_client_drift(
         if changed == "client"
         else "wechat_channels:browser",
     )
-    download_source = replace(source, expected_context=inspected.execution_context)
+    download_source = replace(
+        source,
+        execution_context=inspected.execution_context,
+        expected_context=inspected.execution_context,
+    )
 
     with pytest.raises(RunnerFailure) as caught:
         await run_ladder(
@@ -880,6 +888,60 @@ async def test_native_download_binding_drift_stops_before_native_request(
 
     assert caught.value.code == "context_changed"
     assert contexts == []
+    await close_material(inspected.run_context)
+
+
+@pytest.mark.parametrize("outcome", ["identity_unavailable", "deadline"])
+async def test_native_download_waits_for_fresh_account_before_authentication(
+    native_browser_source, monkeypatch, outcome
+):
+    source = native_browser_source
+    native_browser(monkeypatch, ["a" * 64])
+    inspected = await run_ladder(
+        source, source.request.profile, source.run_context.deadline
+    )
+    calls = []
+
+    class UnconfirmedNativeBrowser(BrowserLayer):
+        async def resolve(self, attempt, ctx):
+            calls.append(attempt.execution_context)
+            assert ctx.identity is None
+            assert attempt.expected_context == inspected.execution_context
+            assert attempt.execution_context.identity_used is False
+            assert attempt.execution_context.identity_digest is None
+            assert attempt.execution_context.browser_context_kind == "none"
+            if outcome == "deadline":
+                await asyncio.Event().wait()
+            raise LayerFailure(
+                FailureClass.IDENTITY_UNAVAILABLE,
+                "③",
+                {"kind": "runtime", "cause_code": "extension_disconnected"},
+            )
+
+    monkeypatch.setitem(LAYER_TABLE, Layer.L3, UnconfirmedNativeBrowser)
+    download_source = replace(
+        source,
+        execution_context=inspected.execution_context,
+        expected_context=inspected.execution_context,
+        run_context=replace(
+            source.run_context,
+            deadline=datetime.now(UTC) + timedelta(milliseconds=30)
+            if outcome == "deadline"
+            else source.run_context.deadline,
+        ),
+    )
+    with pytest.raises(RunnerFailure) as caught:
+        await run_ladder(
+            download_source,
+            source.request.profile,
+            download_source.run_context.deadline,
+        )
+    assert caught.value.code == (
+        "download_timeout" if outcome == "deadline" else "identity_unavailable"
+    )
+    assert len(calls) == 1
+    assert caught.value.failure.evidence["identity_used"] is False
+    assert "identity_digest" not in caught.value.failure.evidence
     await close_material(inspected.run_context)
 
 
