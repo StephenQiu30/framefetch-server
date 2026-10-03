@@ -1,128 +1,155 @@
-<img src="frontend/public/logo.png" alt="帧取 FrameFetch 正式 Logo，与 App 共用" width="88" />
+<img src="frontend/public/logo.png" alt="帧取 FrameFetch 正式 Logo" width="88" />
 
 # 帧取 · FrameFetch
 
-**开源、自托管的个人视频与剧本工作站。** 从一份素材，开始获取、理解与整理。
+**开源、自托管的个人视频与剧本工作站。** 接入素材，理解内容，交付可继续编辑的报告。
 
 [![CI 状态](https://github.com/StephenQiu30/video-server/actions/workflows/ci.yml/badge.svg)](https://github.com/StephenQiu30/video-server/actions/workflows/ci.yml)
-[![Latest release](https://img.shields.io/github/v/release/StephenQiu30/video-server?color=111111)](https://github.com/StephenQiu30/video-server/releases)
-[![GitHub stars](https://img.shields.io/github/stars/StephenQiu30/video-server?style=flat&color=111111)](https://github.com/StephenQiu30/video-server/stargazers)
 [![MIT License](https://img.shields.io/badge/license-MIT-111111.svg)](LICENSE)
-![Python 3.12](https://img.shields.io/badge/Python-3.12-111111.svg)
-![Next.js 16](https://img.shields.io/badge/Next.js-16-111111.svg)
-![Docker Compose](https://img.shields.io/badge/Docker-Compose-111111.svg)
+[![Preview release](https://img.shields.io/github/v/release/StephenQiu30/video-server?include_prereleases&color=111111)](https://github.com/StephenQiu30/video-server/releases)
 
-[产品介绍](#帧取是什么) · [完整工作流](#从素材到报告) · [AI 能力](#ai-分析与报告) · [界面预览](#界面预览) · [快速开始](#快速开始) · [技术架构](#架构) · [English](README.en.md)
+[产品介绍](#帧取是什么) · [完整工作流](#从素材到报告) · [视频分析](#12-种视频分析方法) · [剧本分析](#8-种剧本分析方法) · [各端与架构](#同一工作站多种使用方式) · [快速开始](#快速开始) · [文档](docs/design/README.md) · [English](README.en.md)
 
-![FrameFetch 当前 Web 工作区：链接、本地视频与剧本文档入口](docs/images/current-web-workspace.png)
+![FrameFetch Web／桌面同源工作区：链接、本地视频与剧本文档入口](docs/images/current-web-workspace.png)
 
-> 2026-10-02 当前源码的真实页面，使用隔离演示响应展示布局与流程；示例内容不作为真实下载或 AI 分析验收。页首 Logo 与 Flutter App 使用同一品牌资产。
+> Web 与桌面同源页面，本图由当前 Electron Renderer 捕获，记录和分析为演示数据。
 
 ## 帧取是什么
 
-帧取（FrameFetch）是自行部署、供部署者使用的个人视频与剧本工作站，面向创作者、内容研究者和开发者。它把有权获取的视频链接、本地 MP4 和剧本文档接入同一工作流：获取并校验素材、跟踪后台任务、阅读结构化 AI 分析，再导出可继续编辑的报告。
+帧取（FrameFetch）面向创作者、内容研究者和开发者，把原本分散的素材获取、视频复盘、剧本审阅与报告整理连接起来。你可以粘贴有权获取的媒体链接，按平台实际能力保存单视频、图集或有限视频合集，也可以导入自己的 MP4 成片或剧本文档。视频和剧本获取后可选择分析方法、输出语言与关注重点，阅读带时间或场景依据的结构化结果，再导出 Markdown／DOCX；图集与视频合集以 ZIP 和内置清单交付。
 
-本仓库提供 API、Next.js Web 和后台执行组件；[Flutter App](https://github.com/StephenQiu30/video-app) 连接同一后端。产品定位与范围见[设计 01](docs/design/01-产品定位与边界.md)。
+本仓库提供 **FastAPI 服务端、Next.js Web 和后台处理组件**。[Electron 桌面端](https://github.com/StephenQiu30/video-electron) 与 [Flutter App](https://github.com/StephenQiu30/video-app) 连接同一服务，共享账户、素材、任务和报告。产品按个人自托管工作站设计，部署者控制基础设施、文件存储和模型配置。
+
+### 五个核心特点
+
+- **素材入口完整**：按平台实际能力接入单视频、图集与有限视频合集；原图或合集视频以包含 `manifest.json` 的 ZIP 交付。本地 MP4 以及 DOCX、文字型 PDF、TXT、Markdown、Fountain 剧本文档进入同一工作区。
+- **分析有明确依据**：从完整视频制品取得技术参数、时间段概览与关键帧，组织连续分镜、场景、高光和视觉资产；剧本分析关联规范化场景，结论可回到原文复核。
+- **方法对应真实工作**：12 种视频方法覆盖拉片、叙事、剪辑、质量审查与内容整理；8 种剧本方法覆盖故事、人物、对白、结构、连续性与中英改写。
+- **交付物可以继续使用**：五种结构化结果形态，以及 Markdown／DOCX 双格式报告；文章、包装文案与剧本改写提供可编辑候选，便于人工修订和交接。
+- **各端协同、自行部署**：浏览器、原生桌面和手机使用同一后端；后台任务持久化，原件与报告集中管理，部署者可配置模型服务并维护运行环境。
 
 ## 适用场景
 
-- **镜头与叙事复盘**：导入自己的成片或已获授权的视频，查看分镜、场景、高光与时间证据，复盘构图、剪辑节奏和叙事结构。
-- **剧本审稿与改写**：阅读剧本文档，分析故事、人物、场景和对白，形成修改建议或中英改写候选。
-- **素材与文章整理**：保存经校验的视频与文档，把视频重组为文章初稿，并导出 Markdown／DOCX 用于后续编辑。
-- **开源二次开发**：以 OpenAPI 为唯一 REST 契约，扩展 Provider、分析方法或客户端。
+| 你的任务 | 帧取如何帮助 |
+| --- | --- |
+| 学习或复盘成片 | 导演拉片、分镜表、叙事结构和剪辑节奏审阅，结合具体时间段理解制作选择 |
+| 检查自己的视频 | 连续性与成片 QA、开场钩子审查，形成可复核的修改建议 |
+| 整理素材与传播内容 | 提炼场景、高光和资产，将视频重组为文章初稿或标题、封面文字与发布文案候选 |
+| 审阅与修订剧本 | 保留原文件和规范化文本，按故事、人物、场景、对白、结构与连续性阅读审稿结果 |
+| 建立个人工具链 | 使用自托管存储、可配置模型服务与 OpenAPI，扩展 Provider、方法或客户端 |
 
 ## 从素材到报告
 
-1. **输入素材**：粘贴授权的单条视频链接，上传本地 MP4，或导入 DOCX、可提取文字的 PDF、TXT、Markdown、Fountain 剧本文档。
-2. **确认来源与格式**：检查媒体信息、访问决策和实际可用格式；仅允许下载的链接可创建下载任务，过期结果须重新解析。
-3. **跟踪后台任务**：查看解析、下载或导入状态，按需取消、重试或找回历史记录；长任务不占用 HTTP 请求进程。
-4. **保存校验后的素材**：视频经过媒体身份、格式、大小、时长和 SHA-256 校验；剧本保留原件与规范化文本。
-5. **按需发起 AI 分析**：选择内置方法、输出语言和关注重点；分析独立记录状态，AI 失败不改变已成功的下载。
-6. **复核与导出**：结合视频时间证据或剧本场景阅读结论，将报告导出为 Markdown／DOCX，继续编辑和使用。
+1. **接入**：粘贴单条媒体链接或含单条链接的分享文案，按平台实际能力处理视频、图集或有限视频合集；也可上传 MP4，或导入五种格式的剧本文档。公众号文章仅做来源发现；当前候选不提供下载格式，页面提示官方播放或合法文件导入。
+2. **确认**：链接解析展示媒体信息、访问决策和真实格式；视频按画质、容器、编码与音轨选择输出，图集与合集核对条目数量并确认 ZIP 下载。过期解析结果可以显式刷新，格式变化时重新确认。
+3. **获取**：下载与导入在后台执行，页面显示排队、进度与结果，支持取消、重试和历史找回。本地视频采用受限分片上传，完成后由 Worker 复验。
+4. **管理**：视频保存为经校验的制品，提供详情、预览与文件交付；图集和有限视频合集交付原图／视频 ZIP，包内 `manifest.json` 记录标题、媒体类型与条目数量；剧本保存原件与规范化场景文本。任务、文件与报告在各端使用同一服务数据。
+5. **分析**：对视频或剧本选择 Skill、中文或英文输出及关注重点。两类输入分别使用适合的工具、方法和结果结构，分析状态独立于素材获取状态。
+6. **交付**：结合时间证据或剧本场景阅读结论，导出 Markdown／DOCX 继续编辑。报告正文与导出状态分开，导出恢复复用已有分析结果。
 
-Web 提供任务历史、详情、剧本阅读、Provider 状态与账户设置；管理员可管理用户、文件、AI 服务并查看下载／AI 统计及操作日志。网页任务状态通过 WebSocket 增量事件和断线 resync 更新，业务事实以 PostgreSQL 为准。成功后的素材与报告不会因访问 URL 过期而删除；文件清理是显式操作。
+### 页面与日常管理
 
-## AI 分析与报告
+Web 工作区提供解析详情、下载记录、个人处理记录、视频播放、剧本阅读、分析与报告、平台状态及账户设置。快捷操作支持 `⌘K`／`Ctrl+K`；页面提供明暗主题、键盘操作与适配窄屏的布局。活动任务通过 WebSocket 事件更新，重连时重新同步服务端事实。
 
-当前服务端代码目录内置 **12 种视频方法、8 种剧本方法**。Skill 决定分析重点，固定结果契约决定报告结构；方法目录数量不代表每种方法都已通过独立真实作品验收，独立桌面端有自己的首版方法集。
+管理员可以管理用户、文件、平台目录和 AI 服务，查看下载／AI 统计与系统操作日志。文件和报告持久保存，短时访问地址过期不会删除文件；删除和容量清理是显式操作。
 
-- **视频**：综合分析、分镜表制作、场景提炼、高光提炼、资产目录、导演拉片、成片叙事结构审阅、剪辑节奏审阅、连续性与成片 QA、公众号文章、短视频包装、开场钩子审查。
-- **剧本**：故事审稿、短剧故事审稿、人物与冲突、场景、对白、结构、连续性审阅，以及中英改写。
+## AI 如何理解素材
 
-| 结果形态 | 你可以读到什么 |
+**视频分析从完整媒体开始。** FFmpeg／ffprobe 读取技术信息，CLI 分析工具提供全片或指定区间的概览及精确时间点画面；API 模型线路接收有界、按时间排序的 JPEG 证据。分析方法要求区分画面事实、解释和建议，以真实剪辑边界与连续视觉节拍组织分镜。
+
+模型结果保存前按所选结果契约校验结构、输出语言与证据字段。视频视觉分析还检查完整时长、连续分镜时间轴及分镜引用；文章和通用报告使用时间段证据，剧本结果关联规范化场景。结构校验不能代替人工核实。报告保留分析口径与局限，供你结合原片或原文复核；长剧本文档按受限分块和汇总处理。
+
+**Skill、结果结构和模型引擎各司其职。** Skill 定义分析方法，结果契约定义交付物，引擎负责模型调用。每项任务保存不可变的方法指令快照；已完成分析步骤可在恢复时复用，结果不明的调用不会自动重发。下载成功和 AI 结果分别记录，AI 失败不会改变已经取得的素材。
+
+管理员可配置 **Codex App Server、Claude CLI、DeepSeek、OpenRouter、OpenAI Chat Completions 兼容服务**。普通用户选择方法、输出语言和分析重点，无需配置底层模型参数。设计与当前限制见 [AI 分析](docs/design/10-AI分析.md)与 [Skill 体系](docs/design/16-Skill体系与结果契约.md)。
+
+## 12 种视频分析方法
+
+| 方法 | 主要用途 |
 | --- | --- |
-| 视频视觉分析 | 核心判断、场景、连续分镜、高光、视觉资产及时间证据 |
-| 视频文章 | 标题、导语、章节正文、要点与结语；编辑证据和局限另列 |
-| 通用结构化报告 | 摘要、分析章节、候选条目、时间证据与局限 |
-| 剧本分析 | 故事概览、结构、人物、场景、对白与修改建议 |
-| 剧本改写 | 目标语言的文本候选与术语表 |
+| 导演拉片 | 逐分镜复盘调度、构图、镜头动机与剪辑关系，提出制作建议 |
+| 综合分析 | 连接镜头事实、内容段落、高光、资产和优先修改方向 |
+| 分镜表制作 | 整理剪辑边界、起止状态、主体动作、构图、光色与连续性 |
+| 场景提炼 | 归并场景段落，说明空间、主体事件、叙事任务与视觉规则 |
+| 成片叙事结构审阅 | 检查段落推进、转折、内容兑现和因果可读性 |
+| 剪辑节奏审阅 | 检查停留、信息密度、切点动机和动作衔接 |
+| 高光提炼 | 根据视觉冲击、信息转折、情绪变化和可剪辑性筛选候选片段 |
+| 连续性与成片 QA | 检查主体状态、空间方向、动作衔接、画面文字和明显技术瑕疵 |
+| 资产目录 | 归并人物、地点、物件、产品、Logo 与画面文字，关联出现时间 |
+| 公众号文章 | 将视频重组为标题、导语、章节正文与结语组成的文章初稿 |
+| 短视频包装 | 生成与现有素材对应的标题、封面文字、开头钩子和发布文案候选 |
+| 开场钩子审查 | 检查前 3、5、15 秒的注意力锚点、内容承诺与正文衔接 |
 
-### 如何执行与复核
+## 8 种剧本分析方法
 
-- **观察与证据**：使用 FFmpeg／ffprobe 和受限视频观察工具；API 路线使用有界、按时间排序的画面证据。视频结论绑定时间范围，剧本结论关联规范化场景。当前不做 ASR／OCR，没有可靠音频时不编造对白或引语。
-- **方法与结构**：每项任务固定 Skill 指令快照，模型结果在保存前进行严格 Schema、时间轴与证据校验；报告保留分析口径与局限。结构校验不能代替人工事实复核。
-- **后台执行**：宿主 AI Worker 通过 Temporal `SkillWorkflow` 调度，步骤日志复用已完成的块；结果不明的模型调用不自动重发。Markdown／DOCX 报告由独立报告链路发布。
-- **模型接入**：支持 Codex App Server、Claude CLI、DeepSeek、OpenRouter 和 OpenAI Chat Completions 兼容线路。管理员配置引擎与模型，普通用户选择 Skill、语言与关注重点；可用性取决于实际配置、模型能力和真实验收。
-
-实现细节与验证边界见 [AI 分析](docs/design/10-AI分析.md)及 [Skill 体系与结果契约](docs/design/16-Skill体系与结果契约.md)。
-
-## 使用方式与当前状态
-
-| 产品形态 | 当前范围与状态 |
+| 方法 | 主要用途 |
 | --- | --- |
-| Web／Server | 自托管源码与 Compose 运行方式；已实现解析、下载、导入、剧本、可选 AI、报告与管理链路。具体平台和模型仍以真实验收为准 |
-| iOS／Android | 独立 [Flutter 客户端](https://github.com/StephenQiu30/video-app)，连接同一后端，提供原生文件选择、任务跟踪、播放、报告阅读与分享。当前从源码构建，无 App Store／Google Play 预构建包；真机与真实账号业务端到端仍待验收 |
-| 独立桌面端 | `video-electron` **0.1.0 内部测试版已实现**。提供本地 MP4／剧本导入、媒体库与播放、链接解析／下载任务、取消与恢复、模型配置、5 种分析方法、Markdown／DOCX 报告；本机 macOS arm64 DMG 的安装态导入、播放、文档读取与重启持久化已验证 |
+| 剧本故事审稿 | 完整审阅故事机制、主要问题和有效之处 |
+| 短剧故事审稿 | 检查故事承诺、人物选择、局部回报与重复机制 |
+| 剧本人物与冲突审阅 | 检查目标、阻力、策略、选择与人物变化 |
+| 剧本场景审阅 | 检查场景目标、节拍、状态变化与相邻场景衔接 |
+| 剧本对白审阅 | 检查说话目的、言语策略、人物声音与信息释放 |
+| 剧本结构审阅 | 检查全局推进、转折与整体节奏 |
+| 剧本连续性审阅 | 核对跨场景人物知识、物件状态、时空顺序与因果 |
+| 剧本中英改写 | 生成中文／英文跨语言改写或同语言润色候选，维护人物、场景和术语一致性 |
 
-手机不运行媒体提取器、转码器或离线 AI；这些工作由部署者的服务端执行。Web 与手机的状态和文件以同一后端为准，App 当前使用受控轮询更新活动任务。
+## 五种结果形态与双格式导出
 
-桌面端独立运行，安装包包含 Python 引擎、FFmpeg／ffprobe、yt-dlp 与 Deno，数据保存在本机 SQLite 和文件系统，无需部署本服务。已产出内部未签名 `FrameFetch-0.1.0-mac-arm64.dmg`；本地导入、播放、历史和已有报告可离线使用。其 5 种方法为综合分析、分镜、高光、视频转文章与剧本分析；真实平台下载、自备模型真实调用、Windows／Intel Mac 安装及正式签名公证仍待独立验收，不能沿用服务端证据。
+| 结果形态 | 内容与使用方式 |
+| --- | --- |
+| 视频视觉分析 | 核心判断、场景、逐镜证据、高光、视觉资产与修改建议，适合拉片和成片审阅 |
+| 视频文章 | 标题、导语、章节、要点与结语，保留编辑依据和局限，适合二次编辑 |
+| 通用结构化报告 | 摘要、分析章节、候选条目与时间证据，适合包装与专项分析 |
+| 剧本分析 | 审稿结论、故事概览、结构、人物、对白、逐场附录与修改建议 |
+| 剧本改写 | 目标语言文本候选与术语表，供作者检查和继续修订 |
 
-**部署与费用**：MIT 许可证开放源代码；需要自行准备服务器、基础服务、存储和网络，外部模型也可能计费，不包含免费托管或模型额度。具体前置条件及命令见[快速开始](#快速开始)。
+**Markdown** 适合笔记、知识库和版本管理；**DOCX** 适合 Word 编辑、批注与交接。两种格式由同一结构化结果生成，不需要重新调用模型。
 
-**数据流**：Web／App 的原件、规范化文本和报告保存在部署者配置的服务端基础设施中；独立桌面端保存在本机。启用外部 AI 时，分析所需文本或画面会发送到选定服务；自托管或本地工作区不代表所有处理均离线。
+## 同一工作站，多种使用方式
 
-## 解析引擎
+| 项目 | 角色与特点 |
+| --- | --- |
+| **[video-server](https://github.com/StephenQiu30/video-server)** | FastAPI + Next.js：浏览器工作区、统一接口、媒体处理、AI、存储、报告与管理 |
+| **[video-electron](https://github.com/StephenQiu30/video-electron)** | Electron 桌面客户端：随包 React 页面复用 Web 业务源码，连接自托管 Server；提供原生窗口、菜单、按服务地址隔离的持久会话和系统文件保存对话框 |
+| **[video-app](https://github.com/StephenQiu30/video-app)** | Flutter iOS／Android 客户端：原生文件选择、受控任务轮询、视频播放、报告阅读、保存与分享，连接同一 Server |
 
-当前引擎通过 Registry 阶梯统一调用 HTTP 提取、证明准备与浏览器，使用受控出口和 Chrome 扩展身份来源。解析由单 Activity Temporal 工作流执行，下载由 RabbitMQ Worker 处理，最终制品经过完整性校验。yt-dlp 与 FFmpeg 是媒体适配和处理工具，帧取在其上提供输入、任务、隔离执行、存储、文档与分析工作流；提取器存在不保证当前部署可以下载。
+桌面端和 App 是同一工作站的客户端，媒体提取、处理和 AI 执行由服务端及宿主 AI Worker 承担。原件、规范化文本和报告保存在部署者配置的服务端存储中，切换客户端无需建立另一套媒体任务或业务库。
 
-项目只处理用户有权获取的 HTTP(S) 非 DRM 内容。Registry 独立声明 identity 与 content_scope，账号材料不扩张内容范围；不解密媒体或取得内容密钥。组件接线、元数据成功与完整文件交付是不同状态，实现状态、平台限制与真实证据只在[设计 17](docs/design/17-解析引擎重建.md)维护。
+Electron 从安装包读取页面和品牌资源，API 与 WebSocket 连接配置的 Server；桌面端无需本机 Next.js 进程或独立数据库。App 使用原生 Flutter 界面和服务端生成契约，手机上不运行媒体提取器或离线模型。
+
+## 公开预览与版本
+
+三个仓库的公开预览连接同一 Server：
+
+| 项目 | 当前预览 | 发行内容 |
+| --- | --- | --- |
+| Server / Web | [v0.3.0-beta.1](https://github.com/StephenQiu30/video-server/releases/tag/v0.3.0-beta.1) | 自托管源码与 Compose 部署方式 |
+| App | [v0.2.0-beta.1](https://github.com/StephenQiu30/video-app/releases/tag/v0.2.0-beta.1) | iOS／Android 源码；未附 APK、IPA 或商店安装包 |
+| Desktop | [v0.2.0-beta.1](https://github.com/StephenQiu30/video-electron/releases/tag/v0.2.0-beta.1) | macOS Apple Silicon DMG、Windows x64 安装包与 SHA-256 清单 |
+
+这些版本均为 Beta 预览。桌面安装包未签名，macOS 未公证；干净安装、升级与真实 Server 完整业务需要独立验证。Git tag 标识发行快照：当前预览内嵌 Server/API/Worker 包版本仍为 `0.2.0`，App 为 `0.1.0+1`，桌面包为 `0.2.0`。部署相关组件时使用匹配源码与服务端契约，不能仅凭 tag 数字判断兼容性。
+
+README 描述当前主分支；固定版本的安装、升级步骤和验证范围以对应 Release 与标签下 README 为准。
 
 ## 界面预览
 
-### Web
+**任务历史。** 查看素材、任务状态和后续操作，从历史回到详情继续处理。
 
-页首与以下截图均采集于 **2026-10-02 当前源码的本地预览页面**，通过 `agent-browser` 配合隔离演示响应展示工作区、任务历史、AI 报告和剧本阅读；不包含真实用户数据、凭据或第三方图片热链。
+![FrameFetch Web／桌面同源页面：演示任务历史与处理状态](docs/images/current-web-history.png)
 
-![FrameFetch 当前 Web：任务历史与处理状态](docs/images/current-web-history.png)
+**视频报告。** 按章节阅读核心判断、分镜与时间证据，回看原片并导出报告。
 
-**任务历史与处理状态。**
+![FrameFetch Web／桌面同源页面：城市漫步演示分析、分镜与时间证据](docs/images/current-web-ai-report.png)
 
-![FrameFetch 当前 Web：结构化 AI 报告与分镜时间证据展示](docs/images/current-web-ai-report.png)
+**剧本工作区。** 阅读规范化场景、查阅文档并按重点发起审稿或改写。
 
-**结构化 AI 报告。** 报告内容来自演示响应，本组截图没有执行真实模型分析，也不替代 AI 产品验收。
+![FrameFetch Web／桌面同源页面：午夜来客演示剧本、场景与分析入口](docs/images/current-web-screenplay.png)
 
-![FrameFetch 当前 Web：剧本文档阅读、场景与分析入口](docs/images/current-web-screenplay.png)
-
-**剧本文档阅读与分析入口。**
-
-实际可用平台和状态以部署实例的 `/providers` 页面及真实完整文件验收为准。Web 还提供 `/guide/`、`/self-hosting/`、`/about/` 与 `/llms.txt`；完整设计见[文档索引](docs/design/README.md)。
-
-### 独立桌面端
-
-以下为 **0.1.0 内部未签名 macOS arm64 安装版**的真实截图（2026-10-02），来自 `video-electron/.artifacts/packaged-*.png` 原图，展示设置与本地媒体库。截图中的视频为第一方验证素材。
-
-![FrameFetch Desktop 0.1.0 macOS arm64 安装版：本地目录、模型服务与系统设置](docs/images/current-desktop-settings.png)
-
-**本地目录与模型设置。**
-
-![FrameFetch Desktop 0.1.0 macOS arm64 安装版：本地媒体库与导入文件](docs/images/current-desktop-library.png)
-
-**安装版的本地媒体库。**
+以上为 Web 与桌面同源页面，图片由 2026-10-03 当前生产构建的 Electron Renderer 捕获，使用正式 Logo、共享业务组件与主题，未重绘页面。任务记录、城市漫步分析和午夜来客剧本文字均为演示数据，用于说明功能与报告结构，不含真实账户或私人素材。各端界面与构建说明分别见 [App README](https://github.com/StephenQiu30/video-app#readme) 和 [桌面端 README](https://github.com/StephenQiu30/video-electron#readme)。
 
 ## 快速开始
 
-本机开发使用 `docker-compose.yml`，生产使用 `docker-compose-prod.yml`。公开账号平台先匿名解析，明确认证失败后按已批准范围复用当前 Chrome 会话；固定公开平台不读取材料。提取器存在、Cookie 存在与服务健康均不代表媒体可下载，必须以真实文件结果验收。
+本机使用 `docker-compose.yml`，生产使用 `docker-compose-prod.yml`。先部署 Server，再让浏览器、Electron 或 App 连接。平台身份按 Registry 声明从普通 Chrome 扩展取得，接入方法见下文。
 
 ### 前置条件
 
@@ -143,6 +170,8 @@ test -f .env || cp .env.example .env
 docker compose up -d --build --wait --remove-orphans
 ```
 
+启动后访问 [Web 工作区](http://localhost:8101)、[Swagger UI](http://localhost:8111/docs) 或 [OpenAPI](http://localhost:8111/openapi.json)。全新空库须先按下文创建首管理员，再登录使用。
+
 所有容器化后台循环（Outbox 投递、解析与下载、导入、报告发布）运行在一个 `worker` 容器中，使用 `RABBITMQ_WORKER_USER` / `RABBITMQ_WORKER_PASS`。该账号须对 `RABBITMQ_VHOST` 中的当前业务队列有受限的 configure/write/read 权限；队列职责见[设计 13](docs/design/13-可靠性与运行.md)。平台身份安装见下文。
 
 全新空库还没有登录账号时，在部署机终端执行一次首管理员初始化（需使用可连接 PostgreSQL 的 `DATABASE_URL`，密码交互输入，不进入命令行历史）：
@@ -153,6 +182,9 @@ uv run --project backend python -m app.workers.bootstrap_admin \
 ```
 
 命令只在用户表为空时创建管理员；已有任何用户时拒绝，不开放 HTTP 初始化接口。若要让其他用户自行注册，先在 `.env` 配置真实 SMTP 并启用 `SMTP_ENABLED=true`。健康检查只证明服务可运行，不证明每个平台有真实媒体证据。
+
+<details>
+<summary>Temporal、固定出口与住宅节点配置</summary>
 
 ### 复用已有 Temporal 服务
 
@@ -202,9 +234,14 @@ listeners:
 
 配置或 Clash 节点/规则改变后递增 `EGRESS_NODE_REVISION`，重建更新 `egress-proxy` 与 `session-runner`。Runner 计算有效路由配置的 SHA-256 修订摘要；下载前比较修订与观测 IP，变化时返回 `context_changed`，需要重新解析和确认。IP 回显按路由选择：国内默认 `https://ip.3322.net`，境外默认 `https://ipinfo.io/ip`，分别由 `RUNNER_CN_EGRESS_IP_ECHO_URL`、`RUNNER_GLOBAL_EGRESS_IP_ECHO_URL` 覆盖，服务须返回纯文本公网 IP。国内回显目标需保持在国内，避免宿主 Clash 按域名分流到境外节点而误报；回显仅代表该目标的观测，固定节点仍需上述 Listener 配置保证。缓存键包含路由、修订与回显地址；经同一路由请求，限时五秒、响应最多 128 字节、不跟随重定向，成功或失败均缓存十分钟。失败时 IP 为空，任务继续运行；不会用空值证明节点未改变。
 
+</details>
+
+<details>
+<summary>平台身份安装、权限与升级</summary>
+
 ### 平台身份与升级
 
-宿主身份服务位于 `backend/app/workers/identity/`，扩展源码位于 `browser-extension/`，遵循[设计 17 第 3.4 节](docs/design/17-解析引擎重建.md#34-身份层)。普通用户 LaunchAgent 只监听 `127.0.0.1:19101`；WebSocket `/extension` 校验固定扩展 Origin 与双向 HMAC，`POST /cookies` 和固定 `POST /yuanbao-account` 只接受 Runner Bearer。扩展先认证服务端，再按声明来源读取当前普通 Profile 的非分区 Cookie，或限定元宝顶层页的必要账号材料；服务端每次请求实时取材料，5 秒上限并受操作截止时间约束，不建立材料库。无扩展连接、超时、无必要账号材料分别返回 `extension_disconnected`、`extension_timeout`、`credential_missing`，Runner 保留这些子因。视频号按历史元宝解析与微信官方 feed 链路恢复，当前只完成元宝材料路径的离线接线，真实账号恢复、解析请求与完整文件仍未验收，详见[第 8.5 节](docs/design/17-解析引擎重建.md#85-视频号元宝解析链路)。
+宿主身份服务位于 `backend/app/workers/identity/`，扩展源码位于 `browser-extension/`，遵循[设计 17 第 3.4 节](docs/design/17-解析引擎重建.md#34-身份层)。普通用户 LaunchAgent 只监听 `127.0.0.1:19101`；WebSocket `/extension` 校验固定扩展 Origin 与双向 HMAC，`POST /cookies` 和固定 `POST /yuanbao-account` 只接受 Runner Bearer。扩展先认证服务端，再按声明来源读取当前普通 Profile 的非分区 Cookie，或限定元宝顶层页的必要账号材料；服务端每次请求实时取材料，5 秒上限并受操作截止时间约束，不建立材料库。无扩展连接、超时、无必要账号材料分别返回 `extension_disconnected`、`extension_timeout`、`credential_missing`，Runner 保留这些子因。视频号的账号材料路径已接入，专属解析与下载状态见[第 8.5 节](docs/design/17-解析引擎重建.md#85-视频号元宝解析链路)。
 
 从 `backend/` 执行一次安装：
 
@@ -231,12 +268,6 @@ Runner 身份调用、RunContext 材料所有权和私有 tmpfs 清理统一见�
 docker compose --env-file .env.prod -f docker-compose-prod.yml up -d --build --wait --remove-orphans
 ```
 
-启动后访问：
-
-- Web 应用：<http://localhost:8101>
-- Swagger UI：<http://localhost:8111/docs>
-- OpenAPI：<http://localhost:8111/openapi.json>
-
 健康检查：
 
 ```bash
@@ -246,6 +277,8 @@ curl --fail --head http://127.0.0.1:8101/
 ```
 
 只需要下载与剧本文档导入时，可在 `.env` 中设置 `ANALYSIS_ENABLED=false`。完整的启动、停止、已有基础环境复用和故障恢复方式见[可靠性与运行](docs/design/13-可靠性与运行.md)。更新代码时先执行 `git pull --ff-only`，再按上面的命令构建启动 Compose；`docker compose restart` 不会应用新代码、镜像或环境配置。
+
+</details>
 
 ### 启用 AI 分析
 
@@ -270,12 +303,13 @@ uv run python -m app.workers.analysis.agent_cli install --env-file ../.env.prod
 
 ## 架构
 
-下图描述 Web／App 共用的服务端架构；独立 Electron 桌面端使用自己的本地引擎，不依赖这套服务。
+Web、Electron 和 Flutter App 共享同一 FastAPI 服务。客户端负责输入、交互与结果呈现；服务端负责身份、业务状态、媒体和文档处理、存储与报告，宿主 AI Worker 执行模型分析。
 
 ```mermaid
 flowchart LR
   Browser[Web 浏览器] --> Frontend[Next.js :8101]
   Frontend --> API[FastAPI :8111]
+  Desktop[Electron / React] --> API
   App[Flutter App] -->|Bearer API| API
   API --> DB[(PostgreSQL)]
   DB --> Outbox[Transactional Outbox]
@@ -285,49 +319,38 @@ flowchart LR
   Outbox --> MQ[RabbitMQ]
   MQ --> Download[Download Worker]
   MQ --> Documents[Import / Report Workers]
-  Download --> Runner[Isolated Media Runner]
-  Runner --> Proxy[Controlled Egress Proxy]
+  Download --> Runner[隔离媒体 Runner]
+  Runner --> Proxy[受控出口]
   Download --> Storage[(MinIO)]
   Documents --> Storage
-  Temporal --> HostAI[Host AI Agent]
+  Temporal --> HostAI[宿主 AI Worker]
   HostAI --> Storage
-  API -. WebSocket events .-> Browser
+  API -. WebSocket .-> Browser
 ```
 
 | 技术 | 职责与用户价值 |
 | --- | --- |
-| Next.js、React、TypeScript、Tailwind CSS、Radix／shadcn | 提供浏览器工作区、可访问控件、任务跟踪与结构化结果阅读 |
-| Python、FastAPI、Pydantic、OpenAPI | API 负责提交、查询与取消，生成统一 REST 契约，供 Web、App 和二次开发使用 |
-| PostgreSQL、SQLAlchemy、Transactional Outbox | 持久保存任务事实，并在同一事务中记录投递意图；恢复不只依赖进程内存 |
-| Temporal、RabbitMQ | Temporal 编排解析与 Skill 分析；RabbitMQ 执行下载、导入、报告发布与实时事件，避免同一业务双调度 |
-| Redis | 保存限流计数、登录会话缓存与短期租约，不作为业务事实来源 |
-| yt-dlp、FFmpeg／ffprobe、隔离 Runner、Squid | 适配媒体来源，探测与处理格式，校验最终文件；不可信媒体处理与请求进程隔离，并限制出网 |
-| MinIO、受限分片上传、短时预签名 URL | 存储原件、制品和报告，支持大文件上传及按授权获取文件 |
-| Flutter、Riverpod、Dio、media_kit／libmpv | iOS／Android 原生输入、状态展示和播放；系统安全存储保存刷新凭据，OpenAPI 生成客户端与服务端保持契约一致 |
-| Electron、React、本地 Python 引擎、SQLite | 独立桌面工作区、原生文件授权、本地任务与报告；随包运行时无需用户另装 Python／FFmpeg 或数据库服务 |
-| Docker Compose、独立宿主 AI Worker | 业务服务复用已有基础环境；宿主 AI 执行器与媒体任务按凭据、信任边界分离 |
+| Next.js、React、TypeScript、Tailwind CSS、Radix／shadcn | 浏览器工作区、可访问控件、响应式页面和结构化报告阅读；Electron 复用业务页面 |
+| Python、FastAPI、Pydantic、OpenAPI | 提交、查询与取消任务，校验请求与结果，自动生成 REST 契约和客户端 |
+| PostgreSQL、SQLAlchemy、Transactional Outbox | 在同一事务保存业务事实与执行意图，后台恢复依据持久状态 |
+| Temporal、RabbitMQ | Temporal 编排解析与 Skill；RabbitMQ 处理下载、导入、报告发布和实时事件；长任务不阻塞 HTTP |
+| yt-dlp、FFmpeg／ffprobe、Playwright、隔离 Runner | 适配平台差异、观察与处理媒体、核对完整文件；隔离媒体处理与请求进程 |
+| MinIO、受限分片上传、短时授权地址 | 存储原件、视频与报告，支持大文件传输和授权取回 |
+| Codex App Server、Claude CLI、HTTP 模型适配器 | 复用自备模型或已有宿主登录；方法与结果结构保持独立 |
+| Flutter、Riverpod、Dio、media_kit | 原生移动输入、任务状态、播放、报告和系统分享；刷新凭据使用系统安全存储 |
+| Electron、React、受控原生能力 | 原生桌面窗口、受控的文件操作与统一 Server 接入 |
+| Redis、Docker Compose、独立宿主 AI Worker | 限流和短期运行状态，业务服务部署与恢复，媒体/AI职责和凭据边界清晰 |
 
-完整的系统设计收录在 [docs/design/README.md](docs/design/README.md)。
+本机 Compose 复用已运行的 PostgreSQL、RabbitMQ、Redis、MinIO 和 Temporal；AI Worker 独立在宿主机运行。目录与生成契约规则见 [PROJECT.md](PROJECT.md)，完整设计见 [文档索引](docs/design/README.md)。
 
-## 安全与合规边界
+## 使用范围与部署要求
 
-- 只处理你拥有相应权利的内容，并遵守内容来源、所在地和部署环境适用的法律与平台规则。
-- 内容范围与平台身份按设计 17 独立声明；私网 URL、任意 yt-dlp 参数和 shell 输入始终禁止。
-- 普通业务请求不接收原始 Cookie。身份来源与传输见设计 17 第 3.4 节；设计 17 第 3.7 节的十二字段 ExecutionContext 不保存凭据。
-- Edge Agent 只能传输用户已合法取得并明确选择的明文文件，不能读取平台会话、拦截流量、提取密钥或转换受保护媒体。
-- 外部媒体访问必须经过阻断私网的出口代理；入口 URL 校验不能替代网络隔离。
+当前为公开预览阶段。12 种视频与 8 种剧本方法是内置方法目录，不代表每种方法均已完成真实模型验收；平台注册和解析成功不代表完整文件下载通过。当前 CI 覆盖确定性的工程检查，全量冷启动验收仍未完成；App 真机与真实账号闭环、桌面真实 Server 完整业务按各端验收说明独立验证。截图用于展示界面与结果结构，不替代这些验收。
 
-发现安全问题时，请不要在公开 Issue 中披露利用细节、密钥或用户内容；按 [安全策略](SECURITY.md) 使用私有渠道报告。
-
-## 当前限制
-
-- Chrome 扩展身份层已接线；登录平台专项与全量矩阵状态以设计 17 第 8 节为准，不能由身份接线或元数据成功推断完整文件可用。
-- 项目仍在持续演进，目前提供自托管源码和 Compose 运行方式，不承诺官方 SaaS、公共演示站或服务可用性 SLA。
-- Provider 能力受来源页面和平台变化影响；平台名称不代表对所有内容、地区或账户权益都可用。
-- AI 分析依赖独立宿主机 Agent 或部署方配置的模型服务，关闭 AI 不影响下载和文档导入。
-- 不提供直播录制、无限播放列表、OCR／图片型 PDF、批量文件输入或在线协作编辑；创作与平台发布领域尚未实施，见[设计 11](docs/design/11-内容创作与发布.md)。
-- 预签名 URL 会过期，但最终制品不会因此自动删除；管理员仍需规划 MinIO 容量、备份和显式清理策略。
-- 对外部署前必须检查 `.env.prod` 的实际配置，替换所有占位凭据，并完成网络、存储、Runner 和真实文件验收。
+- 处理你有权获取和分析的 HTTP(S) 非 DRM 素材。平台接入包括 YouTube、哔哩哔哩、抖音、TikTok、小红书、快手、微博等；具体链接受内容范围、账号、网络和平台变化影响。视频号当前不可下载，公众号文章提供来源发现；准确平台状态与完整文件证据见 [设计 17](docs/design/17-解析引擎重建.md#8-平台能力与验证边界)。
+- 提供自托管源码与构建方式。服务器、基础服务、存储、网络和模型由部署者准备，外部模型可能计费；启用外部 AI 会向选定服务发送分析所需的文本或画面。
+- 当前能力覆盖素材获取、管理、分析和报告。文章、包装与剧本改写是候选内容，需要人工检查；不提供 ASR／OCR、DRM 解密、直播录制、无限播放列表、在线协作编辑或自动平台发布。
+- 成功素材和报告持久保存，管理员应规划容量、备份与显式清理。详细安全要求见 [安全策略](SECURITY.md)与解析设计；对外部署前替换占位配置并核对网络、存储与模型服务。
 
 ## 本地开发
 
