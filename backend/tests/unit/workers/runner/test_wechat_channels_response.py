@@ -18,6 +18,8 @@ FEED_URL = "https://channels.weixin.qq.com/finder-preview/pages/feed"
 TOKEN = "synthetic-token"
 EXPORT_ID = "synthetic-export"
 REFERENCE_URL = f"{FEED_URL}?token={TOKEN}&eid={EXPORT_ID}"
+PRESENTATION_QUERY = "entry_card_type=48&comment_scene=39&appid=51&entry_scene=51"
+PRESENTATION_FIELDS = ("entry_card_type", "comment_scene", "appid", "entry_scene")
 
 
 def captured_reference(**overrides: object) -> YuanbaoReference | None:
@@ -116,6 +118,108 @@ def test_identical_reference_aliases_are_unambiguous() -> None:
     )
 
 
+def test_current_six_parameter_reference_preserves_the_url_tickets() -> None:
+    eid = "e" * 65
+    wx_export_id = "w" * 57
+    reference = captured_reference(
+        payload={
+            "code": 0,
+            "data": {
+                "playable_url": (
+                    f"{FEED_URL}?token={TOKEN}&eid={eid}&{PRESENTATION_QUERY}"
+                ),
+                "wx_export_id": wx_export_id,
+            },
+        }
+    )
+
+    assert reference is not None
+    assert reference.token == TOKEN
+    assert reference.export_id == eid
+    assert reference.export_id != wx_export_id
+    assert not hasattr(reference, "wx_export_id")
+
+
+@pytest.mark.parametrize("field", PRESENTATION_FIELDS)
+@pytest.mark.parametrize("value", ["0", "48", "2147483647"])
+def test_known_optional_presentation_values_are_bounded_decimal_numbers(
+    field: str, value: str
+) -> None:
+    reference = captured_reference(
+        payload={
+            "code": 0,
+            "data": {"playable_url": f"{REFERENCE_URL}&{field}={value}"},
+        }
+    )
+    assert reference is not None
+    assert reference.token == TOKEN
+    assert reference.export_id == EXPORT_ID
+
+
+@pytest.mark.parametrize("field", PRESENTATION_FIELDS)
+@pytest.mark.parametrize(
+    "value",
+    ["", "-1", "1.0", "+1", "1e2", "0x30", "４８", "2147483648", "00000000000"],
+)
+def test_reference_rejects_invalid_presentation_values(field: str, value: str) -> None:
+    assert (
+        captured_reference(
+            payload={
+                "code": 0,
+                "data": {"playable_url": f"{REFERENCE_URL}&{field}={value}"},
+            }
+        )
+        is None
+    )
+
+
+@pytest.mark.parametrize("field", PRESENTATION_FIELDS)
+def test_reference_rejects_duplicate_presentation_values(field: str) -> None:
+    assert (
+        captured_reference(
+            payload={
+                "code": 0,
+                "data": {"playable_url": f"{REFERENCE_URL}&{field}=48&{field}=48"},
+            }
+        )
+        is None
+    )
+
+
+@pytest.mark.parametrize(
+    "query",
+    [
+        "unknown=48",
+        "entry_scene=51&entry%5Fscene=51",
+        f"{PRESENTATION_QUERY}&appid=51",
+        f"{PRESENTATION_QUERY}&unknown=48",
+        "entry_scene=%2535%2531",
+        "%2565ntry_scene=51",
+    ],
+)
+def test_reference_rejects_unknown_or_ambiguous_presentation_query(query: str) -> None:
+    assert (
+        captured_reference(
+            payload={
+                "code": 0,
+                "data": {"playable_url": f"{REFERENCE_URL}&{query}"},
+            }
+        )
+        is None
+    )
+
+
+def test_presentation_query_is_url_decoded_once() -> None:
+    reference = captured_reference(
+        payload={
+            "code": 0,
+            "data": {"playable_url": f"{REFERENCE_URL}&entry%5Fscene=%35%31"},
+        }
+    )
+    assert reference is not None
+    assert reference.export_id == EXPORT_ID
+
+
 def test_reference_values_are_url_decoded_once_without_constructing_requests() -> None:
     reference = captured_reference(
         payload={
@@ -130,6 +234,24 @@ def test_reference_values_are_url_decoded_once_without_constructing_requests() -
     assert reference is not None
     assert reference.token == "synthetic+token"
     assert reference.export_id == "synthetic/export"
+
+
+@pytest.mark.parametrize("escape", ["2F", "2B", "20", "00", "26", "25"])
+def test_reference_keeps_once_decoded_literal_percent_tickets(escape: str) -> None:
+    reference = captured_reference(
+        payload={
+            "code": 0,
+            "data": {
+                "playable_url": (
+                    f"{FEED_URL}?eid=synthetic%25{escape}export"
+                    f"&token=synthetic%25{escape}token&{PRESENTATION_QUERY}"
+                )
+            },
+        }
+    )
+    assert reference is not None
+    assert reference.token == f"synthetic%{escape}token"
+    assert reference.export_id == f"synthetic%{escape}export"
 
 
 @pytest.mark.parametrize("field", ["request_url", "response_url"])
@@ -321,7 +443,6 @@ def test_adapter_does_not_modify_the_capture() -> None:
         False,
         1,
         "",
-        "other-synthetic-export",
         "synthetic-export\x00",
         "synthetic-export\u0080",
         "synthetic-export\u200b",
@@ -329,7 +450,7 @@ def test_adapter_does_not_modify_the_capture() -> None:
         pytest.param("x" * 513, id="export-field-too-long"),
     ],
 )
-def test_reference_rejects_an_invalid_or_conflicting_export_field(
+def test_reference_rejects_an_invalid_export_field(
     export_id: object,
 ) -> None:
     assert (
@@ -343,13 +464,13 @@ def test_reference_rejects_an_invalid_or_conflicting_export_field(
     )
 
 
-def test_reference_checks_the_export_field_against_the_decoded_eid() -> None:
+def test_reference_does_not_substitute_the_separate_export_field_for_url_eid() -> None:
     reference = captured_reference(
         payload={
             "code": 0,
             "data": {
                 "playable_url": f"{FEED_URL}?token=synthetic&eid=synthetic%2Fexport",
-                "wx_export_id": "synthetic/export",
+                "wx_export_id": "other-synthetic-export",
             },
         }
     )
@@ -377,6 +498,65 @@ def captured_feed(**overrides: object) -> object:
     }
     arguments.update(overrides)
     return authenticated_feed_info(**arguments)
+
+
+def test_authenticated_feed_uses_url_eid_and_ignores_the_separate_export_field() -> (
+    None
+):
+    wx_export_id = "other-synthetic-export"
+    reference = captured_reference(
+        payload={
+            "code": 0,
+            "data": {
+                "playable_url": f"{REFERENCE_URL}&{PRESENTATION_QUERY}",
+                "wx_export_id": wx_export_id,
+            },
+        }
+    )
+    assert reference is not None
+    assert captured_feed(reference=reference) is CAPTURED_FEED
+    assert (
+        captured_feed(
+            reference=reference,
+            request_body={"baseReq": {"generalToken": TOKEN}, "exportId": wx_export_id},
+        )
+        is None
+    )
+
+
+def test_authenticated_feed_binds_once_decoded_tickets_without_decoding_again() -> None:
+    reference = captured_reference(
+        payload={
+            "code": 0,
+            "data": {
+                "playable_url": (
+                    f"{FEED_URL}?token=synthetic%252Btoken&eid=synthetic%252Fexport"
+                    f"&{PRESENTATION_QUERY}"
+                )
+            },
+        }
+    )
+    assert reference is not None
+    assert (
+        captured_feed(
+            reference=reference,
+            request_body={
+                "baseReq": {"generalToken": "synthetic%2Btoken"},
+                "exportId": "synthetic%2Fexport",
+            },
+        )
+        is CAPTURED_FEED
+    )
+    assert (
+        captured_feed(
+            reference=reference,
+            request_body={
+                "baseReq": {"generalToken": "synthetic+token"},
+                "exportId": "synthetic/export",
+            },
+        )
+        is None
+    )
 
 
 @pytest.mark.parametrize("code", [0, "0"])

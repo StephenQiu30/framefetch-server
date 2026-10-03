@@ -1,7 +1,8 @@
-"""Pure decoding of captured historical Yuanbao response structures.
+"""Pure decoding of captured Yuanbao and official feed response structures.
 
-The reference records the supplied request context, not verified work identity
-or media availability. This module performs no requests or account operations.
+The reference records the supplied request context. It does not verify work
+identity, media rights, availability or original full duration. This module
+performs no requests or account operations.
 """
 
 from __future__ import annotations
@@ -22,10 +23,18 @@ _REFERENCE_PATH = "/finder-preview/pages/feed"
 _FEED_PATH = "/finder-preview/api/feed/get_feed_info"
 _SHARE_URL = re.compile(r"https://weixin\.qq\.com/sph/[A-Za-z0-9_-]{4,256}")
 _BAD_ESCAPE = re.compile(r"%(?![0-9A-Fa-f]{2})")
+_REFERENCE_TICKETS = frozenset({"token", "eid"})
+_PRESENTATION_FIELDS = frozenset(
+    {"entry_card_type", "comment_scene", "appid", "entry_scene"}
+)
+_PRESENTATION_NUMBER = re.compile(r"[0-9]{1,10}")
+_MAX_PRESENTATION_VALUE = 2**31 - 1
 
 
 @dataclass(frozen=True, slots=True)
 class YuanbaoReference:
+    """Request reference whose export_id is the once-decoded URL eid ticket."""
+
     canonical_share_url: str
     token: str = field(repr=False)
     export_id: str = field(repr=False)
@@ -53,7 +62,11 @@ def yuanbao_reference(
     canonical_share_url: object,
     payload: object,
 ) -> YuanbaoReference | None:
-    """Decode one reference without asserting the referenced video's identity."""
+    """Decode a bound request reference, not work identity, rights or duration.
+
+    Query tickets are decoded once. Optional presentation fields are discarded;
+    wx_export_id has separate semantics and never supplies the feed eid ticket.
+    """
     if (
         not _captured_post_matches(
             request_method,
@@ -91,12 +104,19 @@ def yuanbao_reference(
             keep_blank_values=True,
             strict_parsing=True,
             errors="strict",
-            max_num_fields=2,
+            max_num_fields=len(_REFERENCE_TICKETS | _PRESENTATION_FIELDS),
         )
     except (UnicodeError, ValueError):
         return None
-    if set(query) != {"token", "eid"} or any(
-        len(values) != 1 for values in query.values()
+    if (
+        not _REFERENCE_TICKETS <= query.keys()
+        or not query.keys() <= _REFERENCE_TICKETS | _PRESENTATION_FIELDS
+        or any(len(values) != 1 for values in query.values())
+        or any(
+            _PRESENTATION_NUMBER.fullmatch(query[name][0]) is None
+            or int(query[name][0]) > _MAX_PRESENTATION_VALUE
+            for name in query.keys() & _PRESENTATION_FIELDS
+        )
     ):
         return None
     token, export_id = query["token"][0], query["eid"][0]
@@ -104,11 +124,7 @@ def yuanbao_reference(
         return None
     if "wx_export_id" in data:
         observed_id = data["wx_export_id"]
-        if (
-            not isinstance(observed_id, str)
-            or not _safe_text(observed_id, 512)
-            or observed_id != export_id
-        ):
+        if not isinstance(observed_id, str) or not _safe_text(observed_id, 512):
             return None
     return YuanbaoReference(canonical_share_url, token, export_id)
 
@@ -125,7 +141,8 @@ def authenticated_feed_info(
 ) -> Mapping[str, Any] | None:
     """Return captured feed metadata bound to the caller's reference context.
 
-    This checks request tickets, not a response work-id echo or media rights.
+    This checks the once-decoded URL request tickets. It does not establish a
+    response work-id echo, media rights, availability or original full duration.
     """
     if (
         not _valid_reference(reference)
