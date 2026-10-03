@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime
+from typing import Literal
 from uuid import UUID
 
 from pydantic import Field, field_validator
@@ -11,6 +12,7 @@ from app.schemas.analysis_results import (
 )
 from app.schemas.common import StrictModel
 from app.services.analysis.models import AnalysisJobView
+from app.services.analysis.rules.content_document import ContentDraft, ContentSourceSet
 from app.services.analysis.rules.enums import (
     AnalysisErrorCode,
     AnalysisInputKind,
@@ -162,3 +164,13 @@ class AnalysisSkillResponse(StrictModel):
     default_prompt: str
     input_kinds: tuple[AnalysisInputKind, ...]
     result_contract: AnalysisResultContract
+
+
+class ContentAnalysisRequest(StrictModel):
+    source: ContentSourceSet
+    output_language: Literal["zh-CN", "en-US"] = "zh-CN"
+
+
+class ContentRevisionRequest(StrictModel):
+    base_report_id: UUID
+    draft: ContentDraft

@@ -4,8 +4,9 @@ import asyncio
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from unittest.mock import AsyncMock
-from uuid import UUID
+from uuid import UUID, uuid4
 
+from app.integrations.analysis_skill_catalog import BuiltinAnalysisSkillCatalog
 from app.integrations.temporal_client import CommandPublisher
 from app.models import AnalysisStepResultRow, ArtifactRow, OutboxEventRow
 from app.repositories.analysis.execution import AnalysisExecutionPersistence
@@ -13,8 +14,11 @@ from app.repositories.analysis.repository import SqlAlchemyAnalysisRepository
 from app.repositories.downloads.intent_repository import IntentRepository
 from app.repositories.downloads.repository import SqlAlchemyDownloadRepository
 from app.repositories.outbox_repository import SqlAlchemyOutboxRepository
+from app.services.analysis.create_content_analysis import CreateContentAnalysis
+from app.services.analysis_execution.content_executor import ContentExecutor
 from app.services.analysis_execution.models import VideoAnalysisRequest
 from app.services.analysis_execution.service import AnalysisExecution
+from app.services.downloads.fingerprints import HmacRequestFingerprinter
 from app.workers.analysis.activities import SkillActivities
 from app.workers.analysis.workflows import (
     SKILL_TASK_QUEUE,
@@ -28,6 +32,13 @@ from temporalio.worker import Replayer, Worker
 from tests.unit.repositories.analysis.factories import analysis_command, seed_artifact
 from tests.unit.workers.analysis.fakes import FakeLoader, settings
 from tests.unit.workers.analysis.fixtures import valid_mapping
+from tests.unit.workers.analysis.test_content_execution import (
+    Analyzer,
+    Resolver,
+    draft,
+    review,
+    source,
+)
 
 MARKER = "仅用于验证不进入 History 的模型输出"
 
@@ -181,3 +192,71 @@ async def test_lost_worker_mid_call_fails_as_unknown_outcome_without_second_call
     assert job is not None
     assert (job.error_code, job.attempt) == ("analysis_outcome_unknown", 1)
     assert await step_rows(sessions) == 0
+
+
+async def test_content_workflow_drafts_and_reviews_with_durable_budget(
+    postgres_engine, temporal_client, tmp_path: Path
+) -> None:
+    sessions = async_sessionmaker(postgres_engine, expire_on_commit=False)
+    analyses = SqlAlchemyAnalysisRepository(sessions)
+    create = CreateContentAnalysis(
+        repository=analyses,
+        fingerprinter=HmacRequestFingerprinter(b"content-test-secret-32-bytes"),
+        skill_catalog=BuiltinAnalysisSkillCatalog(),
+        now=now,
+        new_id=uuid4,
+        enabled=True,
+    )
+    job = await create(source(), "zh-CN", "a" * 64, str(uuid4()))
+    loop = OutboxPublisherLoop(
+        repository=SqlAlchemyOutboxRepository(sessions),
+        publisher=CommandPublisher(
+            AsyncMock(),
+            IntentRepository(sessions),
+            analyses,
+            address=temporal_client.service_client.config.target_host,
+            namespace="framefetch-test",
+            cancel_inspection=AsyncMock(),
+        ),
+        publisher_id="content-test-publisher",
+        clock=now,
+    )
+    assert await loop.run_once() == 1
+    output = draft()
+    output["blocks"][1]["text"] = MARKER
+    analyzer = Analyzer([output, review()])
+    resolver = Resolver(analyzer)
+    persistence = AnalysisExecutionPersistence(
+        analyses, SqlAlchemyDownloadRepository(sessions)
+    )
+    execution = AnalysisExecution(
+        repository=persistence,
+        loader=FakeLoader(tmp_path / "unused"),
+        resolver=resolver,
+        content_executor=ContentExecutor(
+            resolver=resolver, workspace_root=tmp_path / "content"
+        ),
+        clock=now,
+        settings=settings(),
+    )
+    skill = SkillActivities(execution, persistence, clock=now)
+    command = SkillCommand(str(job.id), str(job.run_id), job.run_no)
+    handle = temporal_client.get_workflow_handle(command.workflow_id)
+    async with worker(temporal_client, skill):
+        outcome = await asyncio.wait_for(handle.result(), 30)
+    assert outcome["status"] == "publishing"
+    assert len(analyzer.requests) == 2
+    result = await analyses.get_result(job.id)
+    assert result.kind == "content_document"
+    from app.models import AnalysisRunRow
+
+    async with sessions() as session:
+        run = await session.get(AnalysisRunRow, job.run_id)
+        assert run.model_calls_used == 2
+        assert run.execution_binding["max_model_calls"] == 4
+    assert await step_rows(sessions) == 0
+    history = await handle.fetch_history()
+    await Replayer(workflows=[SkillWorkflow]).replay_workflow(history)
+    assert MARKER.encode() not in b"".join(
+        event.SerializeToString() for event in history.events
+    )

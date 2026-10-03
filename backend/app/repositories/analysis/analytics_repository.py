@@ -55,7 +55,11 @@ def _base_statement(start: datetime, end: datetime, *columns: Any) -> Select[Any
         select(*columns)
         .select_from(AnalysisRunRow)
         .join(AnalysisJobRow, AnalysisJobRow.id == AnalysisRunRow.job_id)
-        .where(AnalysisRunRow.created_at >= start, AnalysisRunRow.created_at <= end)
+        .where(
+            AnalysisRunRow.created_at >= start,
+            AnalysisRunRow.created_at <= end,
+            AnalysisRunRow.trigger != "manual_edit",
+        )
     )
 
 

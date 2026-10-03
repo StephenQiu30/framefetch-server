@@ -55,7 +55,7 @@ class ParseHistoryRecordResponse(IntentHistoryItemResponse, HistoryRecordSummary
 
 
 class AnalysisHistoryRecordResponse(HistoryRecordSummary):
-    record_type: Literal["video_analysis", "screenplay_analysis"]
+    record_type: Literal["video_analysis", "screenplay_analysis", "content_creation"]
     document_id: UUID | None
     artifact_id: UUID | None
     output_language: str
@@ -85,6 +85,10 @@ class ScreenplayAnalysisHistoryRecordResponse(AnalysisHistoryRecordResponse):
     record_type: Literal["screenplay_analysis"]
 
 
+class ContentCreationHistoryRecordResponse(AnalysisHistoryRecordResponse):
+    record_type: Literal["content_creation"]
+
+
 class DocumentParseHistoryRecordResponse(HistoryRecordSummary):
     record_type: Literal["document_parse"]
     id: UUID
@@ -101,6 +105,7 @@ HistoryRecordItemResponse = Annotated[
     ParseHistoryRecordResponse
     | VideoAnalysisHistoryRecordResponse
     | ScreenplayAnalysisHistoryRecordResponse
+    | ContentCreationHistoryRecordResponse
     | DocumentParseHistoryRecordResponse,
     Field(discriminator="record_type"),
 ]
@@ -181,20 +186,28 @@ def _parse_item(item: HistoryRecordSnapshot) -> ParseHistoryRecordResponse:
 
 def _analysis_item(
     item: HistoryRecordSnapshot,
-) -> VideoAnalysisHistoryRecordResponse | ScreenplayAnalysisHistoryRecordResponse:
+) -> (
+    VideoAnalysisHistoryRecordResponse
+    | ScreenplayAnalysisHistoryRecordResponse
+    | ContentCreationHistoryRecordResponse
+):
     if item.title is None or item.skill_id is None or item.progress is None:
         raise ValueError("video analysis history record is incomplete")
-    response = (
+    response: type[
         VideoAnalysisHistoryRecordResponse
-        if item.record_type is HistoryRecordKind.VIDEO_ANALYSIS
-        else ScreenplayAnalysisHistoryRecordResponse
-    )
+        | ScreenplayAnalysisHistoryRecordResponse
+        | ContentCreationHistoryRecordResponse
+    ]
+    if item.record_type is HistoryRecordKind.VIDEO_ANALYSIS:
+        response = VideoAnalysisHistoryRecordResponse
+    elif item.record_type is HistoryRecordKind.CONTENT_CREATION:
+        response = ContentCreationHistoryRecordResponse
+    else:
+        response = ScreenplayAnalysisHistoryRecordResponse
     return response.model_validate(
         dict(
             **_summary(item),
-            record_type="video_analysis"
-            if item.record_type is HistoryRecordKind.VIDEO_ANALYSIS
-            else "screenplay_analysis",
+            record_type=item.record_type.value,
             allowed_actions=["view", "delete"]
             + (
                 ["cancel"]

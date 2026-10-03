@@ -75,7 +75,9 @@ class AnalysisRetryRepository(AnalysisRepositoryBase):
                     # not expose a relationship from which SQLAlchemy can infer insert
                     # ordering. Persist the run before adding dependent rows.
                     await session.flush()
-                    session.add(new_source_lock(row, now))
+                    lock = new_source_lock(row, now)
+                    if lock is not None:
+                        session.add(lock)
                     session.add(
                         AnalysisRetryOperationRow(
                             job_id=row.id,

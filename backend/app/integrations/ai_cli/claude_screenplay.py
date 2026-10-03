@@ -28,6 +28,7 @@ from app.integrations.ai_cli.screenplay_workspace import (
     prepare_screenplay_job_files,
 )
 from app.integrations.ai_cli.workspace import run_with_workspace_policy
+from app.services.analysis_execution.content_models import ContentModelRequest
 from app.services.analysis_execution.models import (
     ScreenplayAnalysisRequest,
     ScreenplayAnalysisSynthesisRequest,
@@ -53,6 +54,25 @@ class ClaudeCliScreenplayAnalyzer:
             stdout_limit_bytes=config.max_stdout_bytes,
             stderr_limit_bytes=config.max_stderr_bytes,
             terminate_grace_seconds=config.terminate_grace_seconds,
+        )
+
+    async def generate_content(self, request: ContentModelRequest) -> object:
+        source = request.workspace / "input" / "screenplay.md"
+        source.parent.mkdir(mode=0o700, exist_ok=True)
+        source.write_text(
+            "Content materials are embedded in the fixed request.\n", encoding="utf-8"
+        )
+        source.chmod(0o600)
+        schema = json.loads(request.schema_json)
+        files = prepare_screenplay_call_files(
+            workspace=request.workspace,
+            screenplay=source,
+            schema=schema,
+            prompt=request.prompt,
+            manifest={"call": "content", "stage": request.stage},
+        )
+        return await self._invoke(
+            files.root, files.claude_settings, schema, request.prompt
         )
 
     async def analyze(self, request: ScreenplayAnalysisRequest) -> object:

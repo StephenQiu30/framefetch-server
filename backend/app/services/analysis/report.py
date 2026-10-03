@@ -3,6 +3,7 @@ from __future__ import annotations
 from collections.abc import Callable
 from typing import Any
 
+from app.services.analysis.content_report import render_content_markdown
 from app.services.analysis.report_formatting import markdown_block as _markdown_block
 from app.services.analysis.report_formatting import markdown_text as _markdown_text
 from app.services.analysis.rules.contracts import contract_for_result
@@ -40,6 +41,7 @@ def _render_video_article_report_markdown(result: VideoArticleResult) -> str:
 
 
 _RENDERERS: dict[AnalysisResultKind, Callable[[Any], str]] = {
+    AnalysisResultKind.CONTENT_DOCUMENT: render_content_markdown,
     AnalysisResultKind.VIDEO_VISUAL_ANALYSIS: render_video_analysis_report_markdown,
     AnalysisResultKind.VIDEO_ARTICLE: _render_video_article_report_markdown,
     AnalysisResultKind.SCREENPLAY_ANALYSIS: render_screenplay_report_markdown,

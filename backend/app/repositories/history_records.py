@@ -112,14 +112,20 @@ class SqlAlchemyHistoryRecordRepository:
             select(
                 case(
                     (AnalysisJobRow.input_kind == "video", "video_analysis"),
+                    (AnalysisJobRow.input_kind == "content", "content_creation"),
                     else_="screenplay_analysis",
                 ).label("record_type"),
                 AnalysisJobRow.id.label("id"),
                 func.coalesce(
+                    AnalysisReportVersionRow.result_json["title"].as_string(),
                     DocumentRow.title,
                     MediaInspectionRow.title,
                     MediaImportRow.display_name,
-                    case((AnalysisJobRow.input_kind == "video", "视频"), else_="剧本"),
+                    case(
+                        (AnalysisJobRow.input_kind == "video", "视频"),
+                        (AnalysisJobRow.input_kind == "content", "内容创作"),
+                        else_="剧本",
+                    ),
                 ).label("title"),
                 AnalysisJobRow.created_at.label("created_at"),
                 AnalysisJobRow.status.label("status"),
@@ -148,6 +154,13 @@ class SqlAlchemyHistoryRecordRepository:
                 AnalysisJobRow.current_run_no.label("current_run_no"),
                 AnalysisJobRow.cancel_requested_at.label("cancel_requested_at"),
                 case(
+                    (
+                        and_(
+                            AnalysisJobRow.input_kind == "content",
+                            AnalysisJobRow.content_source.is_not(None),
+                        ),
+                        "available",
+                    ),
                     (
                         and_(
                             AnalysisJobRow.input_kind == "screenplay",
@@ -480,7 +493,9 @@ def _page_statement(
     if filters.analysis_id:
         statement = statement.where(
             records.c.id == filters.analysis_id,
-            records.c.record_type.in_(["video_analysis", "screenplay_analysis"]),
+            records.c.record_type.in_(
+                ["video_analysis", "screenplay_analysis", "content_creation"]
+            ),
         )
     if before is not None:
         statement = statement.where(

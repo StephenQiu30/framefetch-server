@@ -62,7 +62,9 @@ class AnalysisCreationRepository(AnalysisRepositoryBase):
                         now=now,
                     )
                     session.add(run)
-                    session.add(new_source_lock(row, now))
+                    lock = new_source_lock(row, now)
+                    if lock is not None:
+                        session.add(lock)
                     session.add(
                         self.requested_event(
                             row,
@@ -103,6 +105,9 @@ class AnalysisCreationRepository(AnalysisRepositoryBase):
     def _new_row(command: AnalysisCreate, now: datetime) -> AnalysisJobRow:
         return AnalysisJobRow(
             id=command.id,
+            content_source=None
+            if command.content_source is None
+            else command.content_source.model_dump(mode="json"),
             input_kind=command.input_kind.value,
             result_contract=command.result_contract.value,
             artifact_id=command.artifact_id,

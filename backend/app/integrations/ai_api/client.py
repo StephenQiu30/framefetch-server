@@ -74,9 +74,13 @@ async def invoke_structured(
             langchain_content = cast(list[str | dict[Any, Any]], message_content)
             value = await runnable.ainvoke([HumanMessage(content=langchain_content)])
     except AuthenticationError as exc:
-        raise AnalysisCliError("analysis_cli_not_authenticated") from exc
+        raise AnalysisCliError(
+            "analysis_cli_not_authenticated", no_model_execution=True
+        ) from exc
     except RateLimitError as exc:
-        raise AnalysisCliError("analysis_provider_rate_limited") from exc
+        raise AnalysisCliError(
+            "analysis_provider_rate_limited", no_model_execution=True
+        ) from exc
     except (APITimeoutError, TimeoutError) as exc:
         raise AnalysisCliError("analysis_cli_timeout") from exc
     except APIStatusError as exc:
@@ -84,25 +88,35 @@ async def invoke_structured(
     except APIConnectionError as exc:
         raise AnalysisCliError("analysis_cli_failed") from exc
     except OutputParserException as exc:
-        raise AnalysisCliError("invalid_model_output") from exc
+        raise AnalysisCliError("invalid_model_output", outcome_known=True) from exc
     except NotImplementedError as exc:
-        raise AnalysisCliError("analysis_cli_unsupported") from exc
+        raise AnalysisCliError(
+            "analysis_cli_unsupported", no_model_execution=True
+        ) from exc
     if not isinstance(value, Mapping):
-        raise AnalysisCliError("invalid_model_output")
+        raise AnalysisCliError("invalid_model_output", outcome_known=True)
     result = dict(value)
     if len(json.dumps(result, ensure_ascii=False).encode()) > maximum_result_bytes:
-        raise AnalysisCliError("analysis_resource_limit")
+        raise AnalysisCliError("analysis_resource_limit", outcome_known=True)
     return result
 
 
 def _status_error(error: APIStatusError) -> AnalysisCliError:
     detail = str(error).casefold()
     if error.status_code in {401, 403}:
-        return AnalysisCliError("analysis_cli_not_authenticated")
+        return AnalysisCliError(
+            "analysis_cli_not_authenticated", no_model_execution=True
+        )
     if error.status_code == 429:
-        return AnalysisCliError("analysis_provider_rate_limited")
+        return AnalysisCliError(
+            "analysis_provider_rate_limited", no_model_execution=True
+        )
     if error.status_code == 402 or any(
         marker in detail for marker in ("quota", "balance", "credit")
     ):
-        return AnalysisCliError("analysis_provider_usage_limited")
-    return AnalysisCliError("analysis_cli_failed")
+        return AnalysisCliError(
+            "analysis_provider_usage_limited", no_model_execution=True
+        )
+    return AnalysisCliError(
+        "analysis_cli_failed", no_model_execution=error.status_code in {400, 404, 422}
+    )

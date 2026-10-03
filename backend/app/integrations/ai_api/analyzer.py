@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from typing import Any
 
 from app.integrations.ai_api.client import (
@@ -30,6 +31,7 @@ from app.integrations.ai_cli.workspace import (
     prepare_job_files,
     run_with_workspace_policy,
 )
+from app.services.analysis_execution.content_models import ContentModelRequest
 from app.services.analysis_execution.models import (
     ScreenplayAnalysisRequest,
     ScreenplayAnalysisSynthesisRequest,
@@ -52,6 +54,9 @@ class ApiAnalyzer:
         self._config = config
         self._model = model
         self._frames = frames or ApiFrameExtractor(config)
+
+    async def generate_content(self, request: ContentModelRequest) -> object:
+        return await self._invoke(request.prompt, json.loads(request.schema_json))
 
     async def analyze(self, request: VideoAnalysisRequest) -> object:
         schema = analysis_output_schema(

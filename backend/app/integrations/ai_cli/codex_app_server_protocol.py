@@ -126,11 +126,11 @@ def agent_text(value: object) -> str | None:
 
 def parse_result(text: str | None, maximum: int) -> object:
     if text is None or len(text.encode()) > maximum:
-        raise AnalysisCliError("invalid_model_output")
+        raise AnalysisCliError("invalid_model_output", outcome_known=True)
     try:
         return json.loads(text)
     except json.JSONDecodeError as exc:
-        raise AnalysisCliError("invalid_model_output") from exc
+        raise AnalysisCliError("invalid_model_output", outcome_known=True) from exc
 
 
 async def drain(stream: asyncio.StreamReader, maximum: int) -> bytes:

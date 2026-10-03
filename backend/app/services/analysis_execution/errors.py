@@ -56,6 +56,8 @@ _ERROR_CODES = {
     "input_artifact_unavailable": AnalysisErrorCode.INPUT_ARTIFACT_UNAVAILABLE,
     "invalid_media_artifact": AnalysisErrorCode.MEDIA_INVALID,
     "analysis_outcome_unknown": AnalysisErrorCode.OUTCOME_UNKNOWN,
+    "analysis_needs_material": AnalysisErrorCode.NEEDS_MATERIAL,
+    "analysis_configuration_changed": AnalysisErrorCode.CONFIGURATION_CHANGED,
 }
 
 

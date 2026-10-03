@@ -74,14 +74,19 @@ from app.repositories.task_event_store import TaskEventStore
 from app.services.ai_providers import AiProviderService
 from app.services.analysis.analytics import GetAnalysisAnalytics
 from app.services.analysis.cancel_analysis import CancelAnalysis
+from app.services.analysis.content_revision import ReviseContent
+from app.services.analysis.content_versions import ListContentVersions
 from app.services.analysis.create_analysis import CreateAnalysis
+from app.services.analysis.create_content_analysis import CreateContentAnalysis
 from app.services.analysis.create_document_analysis import CreateDocumentAnalysis
 from app.services.analysis.delete_analysis import DeleteAnalysis
 from app.services.analysis.export_report import (
+    ExportAnalysisHtml,
     ExportAnalysisMarkdown,
     ExportAnalysisReport,
 )
 from app.services.analysis.get_analysis import GetAnalysis
+from app.services.analysis.get_content_source import GetContentSource
 from app.services.analysis.get_latest_analysis import (
     GetLatestDocumentAnalysis,
     GetLatestDownloadAnalysis,
@@ -422,6 +427,20 @@ def build_api_runtime(settings: Settings) -> ApiRuntime:
     get_analysis = GetAnalysis(analysis_repository)
     skill_catalog = BuiltinAnalysisSkillCatalog()
     analysis_use_cases = AnalysisUseCases(
+        get_content_source=GetContentSource(analysis_repository),
+        export_analysis_html=ExportAnalysisHtml(
+            get_analysis, analysis_repository, storage
+        ),
+        revise_content=ReviseContent(analysis_repository, clock),
+        list_content_versions=ListContentVersions(analysis_repository),
+        create_content_analysis=CreateContentAnalysis(
+            repository=analysis_repository,
+            fingerprinter=fingerprinter,
+            skill_catalog=skill_catalog,
+            now=clock,
+            new_id=uuid4,
+            enabled=settings.analysis_enabled,
+        ),
         get_analysis_analytics=GetAnalysisAnalytics(analysis_repository, now=clock),
         list_analysis_skills=skill_catalog.list,
         create_analysis=CreateAnalysis(

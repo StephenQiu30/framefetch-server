@@ -5,6 +5,7 @@ from typing import Annotated, Literal, TypeAlias
 from pydantic import Field, TypeAdapter
 
 from app.schemas.common import StrictModel
+from app.services.analysis.rules.content_document import ContentDocumentResult
 
 
 class AnalysisMediaResponse(StrictModel):
@@ -202,7 +203,8 @@ class StructuredReportResultResponse(StrictModel):
 
 
 AnalysisResultResponse: TypeAlias = Annotated[  # noqa: UP040
-    VideoAnalysisResultResponse
+    ContentDocumentResult
+    | VideoAnalysisResultResponse
     | VideoArticleResultResponse
     | ScreenplayAnalysisResultResponse
     | ScreenplayRewriteResultResponse

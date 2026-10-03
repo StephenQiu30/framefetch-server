@@ -27,7 +27,7 @@ class AnalysisRunRow(Base):
     __table_args__ = (
         UniqueConstraint("job_id", "run_no", name="uq_analysis_runs_job_no"),
         CheckConstraint(
-            "trigger IN ('initial','manual_retry','manual_rerun')",
+            "trigger IN ('initial','manual_retry','manual_rerun','manual_edit')",
             name="ck_analysis_runs_trigger",
         ),
         CheckConstraint(
@@ -39,6 +39,7 @@ class AnalysisRunRow(Base):
         CheckConstraint("progress BETWEEN 0 AND 100", name="ck_analysis_runs_progress"),
         CheckConstraint("attempt >= 0", name="ck_analysis_runs_attempt"),
         CheckConstraint("max_attempts > 0", name="ck_analysis_runs_max_attempts"),
+        CheckConstraint("model_calls_used >= 0", name="ck_analysis_runs_model_calls"),
         CheckConstraint("version >= 0", name="ck_analysis_runs_version"),
         CheckConstraint(
             "stage_rank BETWEEN 0 AND 4", name="ck_analysis_runs_stage_rank"
@@ -48,6 +49,11 @@ class AnalysisRunRow(Base):
         Index("ix_analysis_runs_stale", "status", "lease_expires_at"),
     )
 
+    execution_binding: Mapped[dict[str, Any] | None] = mapped_column(
+        JSONB(none_as_null=True)
+    )
+    execution_deadline: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    model_calls_used: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     id: Mapped[UUID] = mapped_column(Uuid, primary_key=True, default=uuid4)
     job_id: Mapped[UUID] = mapped_column(
         Uuid,
@@ -107,6 +113,7 @@ class AnalysisRetryOperationRow(Base):
         ForeignKey("analysis_runs.id", ondelete="CASCADE"),
         nullable=False,
     )
+    request_sha256: Mapped[str | None] = mapped_column(String(64))
     operation: Mapped[str] = mapped_column(String(32), nullable=False)
     idempotency_key: Mapped[str] = mapped_column(String(128), nullable=False)
     created_at: Mapped[datetime] = mapped_column(

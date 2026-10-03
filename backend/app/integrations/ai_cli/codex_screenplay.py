@@ -26,6 +26,7 @@ from app.integrations.ai_cli.screenplay_workspace import (
     prepare_screenplay_job_files,
 )
 from app.integrations.ai_cli.workspace import JobFiles, run_with_workspace_policy
+from app.services.analysis_execution.content_models import ContentModelRequest
 from app.services.analysis_execution.models import (
     ScreenplayAnalysisRequest,
     ScreenplayAnalysisSynthesisRequest,
@@ -45,6 +46,23 @@ class CodexAppServerScreenplayAnalyzer:
     ) -> None:
         self._config = config
         self._client = client or CodexAppServerClient(config)
+
+    async def generate_content(self, request: ContentModelRequest) -> object:
+        source = request.workspace / "input" / "screenplay.md"
+        source.parent.mkdir(mode=0o700, exist_ok=True)
+        source.write_text(
+            "Content materials are embedded in the fixed request.\n", encoding="utf-8"
+        )
+        source.chmod(0o600)
+        schema = json.loads(request.schema_json)
+        files = prepare_screenplay_call_files(
+            workspace=request.workspace,
+            screenplay=source,
+            schema=schema,
+            prompt=request.prompt,
+            manifest={"call": "content", "stage": request.stage},
+        )
+        return await self._invoke(files, request.prompt)
 
     async def analyze(self, request: ScreenplayAnalysisRequest) -> object:
         schema = screenplay_analysis_output_schema(

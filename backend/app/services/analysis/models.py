@@ -1,9 +1,10 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime
 from uuid import UUID
 
+from app.services.analysis.rules.content_document import ContentSourceSet
 from app.services.analysis.rules.enums import (
     AnalysisErrorCode,
     AnalysisInputKind,
@@ -48,6 +49,7 @@ class AnalysisCreate:
         AnalysisResultContract.VIDEO_VISUAL_ANALYSIS
     )
     quota: UserQuota = UserQuota()
+    content_source: ContentSourceSet | None = field(default=None, repr=False)
 
 
 @dataclass(frozen=True, slots=True)
@@ -85,6 +87,8 @@ class AnalysisJobSnapshot:
     input_kind: str = AnalysisInputKind.VIDEO.value
     result_contract: str = AnalysisResultContract.VIDEO_VISUAL_ANALYSIS.value
 
+    content_source: ContentSourceSet | None = field(default=None, repr=False)
+
     @classmethod
     def queued(cls, command: AnalysisCreate, *, now: datetime) -> AnalysisJobSnapshot:
         return cls(
@@ -119,6 +123,7 @@ class AnalysisJobSnapshot:
             document_id=command.document_id,
             input_kind=command.input_kind.value,
             result_contract=command.result_contract.value,
+            content_source=command.content_source,
         )
 
 

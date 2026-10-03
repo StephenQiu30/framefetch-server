@@ -13,6 +13,7 @@ from app.integrations.ai_cli.workspace import (
     prepare_job_files,
     run_with_workspace_policy,
 )
+from app.services.analysis_execution.content_models import ContentModelRequest
 from app.services.analysis_execution.models import (
     ScreenplayAnalysisRequest,
     ScreenplayAnalysisSynthesisRequest,
@@ -41,6 +42,9 @@ class ClaudeCliVideoAnalyzer:
         self._screenplay = ClaudeCliScreenplayAnalyzer(
             config, supervisor=self._supervisor
         )
+
+    async def generate_content(self, request: ContentModelRequest) -> object:
+        return await self._screenplay.generate_content(request)
 
     async def analyze(self, request: VideoAnalysisRequest) -> object:
         schema = analysis_output_schema(

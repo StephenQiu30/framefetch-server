@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from datetime import datetime
+from typing import Any
 from uuid import UUID, uuid4
 
 from sqlalchemy import (
@@ -16,6 +17,7 @@ from sqlalchemy import (
     UniqueConstraint,
     Uuid,
 )
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.db import Base, utc_now
@@ -55,21 +57,26 @@ class AnalysisJobRow(Base):
             name="ck_analysis_jobs_skill_instructions_sha256",
         ),
         CheckConstraint(
-            "input_kind IN ('video','screenplay')",
+            "input_kind IN ('video','screenplay','content')",
             name="ck_analysis_jobs_input_kind",
         ),
         CheckConstraint(
             "result_contract IN ("
             "'video-visual-analysis','video-article','screenplay-analysis',"
-            "'screenplay-rewrite','structured-report'"
+            "'screenplay-rewrite','structured-report','content-document'"
             ")",
             name="ck_analysis_jobs_result_contract",
         ),
         CheckConstraint(
-            "(input_kind = 'video' AND artifact_id IS NOT NULL "
+            "(input_kind = 'content' AND content_source IS NOT NULL "
+            "AND artifact_id IS NULL AND document_id IS NULL "
+            "AND result_contract = 'content-document') OR "
+            "(input_kind = 'video' AND content_source IS NULL "
+            "AND artifact_id IS NOT NULL "
             "AND document_id IS NULL AND result_contract IN ("
             "'video-visual-analysis','video-article','structured-report')) "
-            "OR (input_kind = 'screenplay' AND artifact_id IS NULL "
+            "OR (input_kind = 'screenplay' AND content_source IS NULL "
+            "AND artifact_id IS NULL "
             "AND document_id IS NOT NULL AND result_contract IN ("
             "'screenplay-analysis','screenplay-rewrite'))",
             name="ck_analysis_jobs_input_shape",
@@ -82,6 +89,9 @@ class AnalysisJobRow(Base):
         Index("ix_analysis_jobs_document", "document_id"),
     )
 
+    content_source: Mapped[dict[str, Any] | None] = mapped_column(
+        JSONB(none_as_null=True)
+    )
     id: Mapped[UUID] = mapped_column(Uuid, primary_key=True, default=uuid4)
     input_kind: Mapped[str] = mapped_column(String(24), nullable=False, default="video")
     result_contract: Mapped[str] = mapped_column(

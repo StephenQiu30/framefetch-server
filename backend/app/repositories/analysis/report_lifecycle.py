@@ -20,6 +20,7 @@ from app.repositories.analysis.repository_base import AnalysisRepositoryBase
 from app.services.analysis.rules.enums import (
     AnalysisReportArtifactStatus,
     AnalysisReportStatus,
+    AnalysisResultKind,
     AnalysisStatus,
 )
 
@@ -132,6 +133,11 @@ class AnalysisReportLifecycleRepository(AnalysisRepositoryBase):
                     )
                     await delete(f"{prefix}/report.md")
                     await delete(f"{prefix}/report.docx")
+                    if (
+                        report.result_json.get("kind")
+                        == AnalysisResultKind.CONTENT_DOCUMENT.value
+                    ):
+                        await delete(f"{prefix}/report.html")
                 except Exception:
                     failed += 1
                     continue
@@ -149,6 +155,7 @@ class AnalysisReportLifecycleRepository(AnalysisRepositoryBase):
                         AnalysisResultRow.id,
                         AnalysisResultRow.job_id,
                         AnalysisRunRow.run_no,
+                        AnalysisResultRow.result_json["kind"].as_string(),
                     )
                     .join(AnalysisRunRow, AnalysisRunRow.id == AnalysisResultRow.run_id)
                     .where(
@@ -158,8 +165,12 @@ class AnalysisReportLifecycleRepository(AnalysisRepositoryBase):
             ).all()
         return frozenset(
             f"analyses/{job_id}/runs/{run_no}/reports/{report_id}/report.{suffix}"
-            for report_id, job_id, run_no in rows
-            for suffix in ("md", "docx")
+            for report_id, job_id, run_no, kind in rows
+            for suffix in (
+                ("md", "docx", "html")
+                if kind == AnalysisResultKind.CONTENT_DOCUMENT.value
+                else ("md", "docx")
+            )
         )
 
     @staticmethod

@@ -182,3 +182,4 @@ async def test_client_maps_app_server_failures(
         )
 
     assert error.value.code == code
+    assert error.value.no_model_execution is (failure == "schema")

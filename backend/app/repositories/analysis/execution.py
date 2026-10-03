@@ -18,6 +18,7 @@ from app.services.analysis.errors import PersistenceConflict, PersistenceNotFoun
 from app.services.analysis.models import AnalysisJobSnapshot, AnalysisPublish
 from app.services.analysis.rules.result_types import AnalysisResult
 from app.services.analysis_execution.errors import (
+    AnalysisExecutionError,
     AnalysisOwnershipLost,
     AnalysisPersistenceRejected,
     AnalysisPersistenceUnavailable,
@@ -196,29 +197,78 @@ class AnalysisExecutionPersistence:
         raise AssertionError("unreachable")
 
     async def begin_step(
-        self, run_id: UUID, step_key: str, input_sha256: str, *, now: datetime
+        self,
+        run_id: UUID,
+        step_key: str,
+        input_sha256: str,
+        *,
+        now: datetime,
+        owner: str,
+        attempt: int,
     ) -> AnalysisStepBegin:
         with _translate_errors():
             return await self._analysis.begin_step(
-                run_id, step_key, input_sha256, now=now
+                run_id, step_key, input_sha256, now=now, owner=owner, attempt=attempt
             )
         raise AssertionError("unreachable")
 
     async def complete_step(
-        self, run_id: UUID, step_key: str, payload: object, *, now: datetime
+        self,
+        run_id: UUID,
+        step_key: str,
+        payload: object,
+        *,
+        now: datetime,
+        owner: str,
+        attempt: int,
     ) -> None:
         with _translate_errors():
-            await self._analysis.complete_step(run_id, step_key, payload, now=now)
+            await self._analysis.complete_step(
+                run_id, step_key, payload, now=now, owner=owner, attempt=attempt
+            )
 
-    async def abandon_step(self, run_id: UUID, step_key: str) -> None:
+    async def abandon_step(
+        self, run_id: UUID, step_key: str, *, now: datetime, owner: str, attempt: int
+    ) -> None:
         with _translate_errors():
-            await self._analysis.abandon_step(run_id, step_key)
+            await self._analysis.abandon_step(
+                run_id, step_key, now=now, owner=owner, attempt=attempt
+            )
 
     async def fail_step(
-        self, run_id: UUID, step_key: str, error_code: str, *, now: datetime
+        self,
+        run_id: UUID,
+        step_key: str,
+        error_code: str,
+        *,
+        now: datetime,
+        owner: str,
+        attempt: int,
     ) -> None:
         with _translate_errors():
-            await self._analysis.fail_step(run_id, step_key, error_code, now=now)
+            await self._analysis.fail_step(
+                run_id, step_key, error_code, now=now, owner=owner, attempt=attempt
+            )
+
+    async def bind_execution(
+        self,
+        run_id: UUID,
+        binding: dict[str, object],
+        *,
+        owner: str,
+        attempt: int,
+        now: datetime,
+        deadline: datetime,
+    ) -> None:
+        with _translate_errors():
+            await self._analysis.bind_execution(
+                run_id,
+                binding,
+                owner=owner,
+                attempt=attempt,
+                now=now,
+                deadline=deadline,
+            )
 
     async def has_started_step(self, run_id: UUID) -> bool:
         with _translate_errors():
@@ -236,6 +286,7 @@ def _translate_errors() -> Iterator[None]:
         yield
     except (
         AnalysisOwnershipLost,
+        AnalysisExecutionError,
         AnalysisPersistenceRejected,
         AnalysisPersistenceUnavailable,
         AnalysisSourceUnavailable,

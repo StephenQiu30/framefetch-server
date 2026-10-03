@@ -74,6 +74,7 @@ async def test_analysis_analytics_fills_utc_days_and_missing_input_kinds() -> No
     assert view.inputs == (
         AnalysisAnalyticsInput(AnalysisInputKind.VIDEO, 3),
         AnalysisAnalyticsInput(AnalysisInputKind.SCREENPLAY, 0),
+        AnalysisAnalyticsInput(AnalysisInputKind.CONTENT, 0),
     )
     assert view.summary.average_duration_seconds == 12.5
     assert view.summary.completed_duration_count == 2
@@ -93,7 +94,7 @@ async def test_empty_analysis_analytics_has_null_duration_and_real_zero_counts()
     assert view.summary.completed_duration_count == 0
     assert len(view.daily) == 30
     assert all(item.total == item.active == 0 for item in view.daily)
-    assert [item.total for item in view.inputs] == [0, 0]
+    assert [item.total for item in view.inputs] == [0, 0, 0]
 
 
 @pytest.mark.parametrize("days", [0, 6, 366])

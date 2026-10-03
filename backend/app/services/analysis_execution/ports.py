@@ -84,17 +84,51 @@ class AnalysisExecutionRepository(Protocol):
     ) -> AnalysisJobSnapshot: ...
 
     async def begin_step(
-        self, run_id: UUID, step_key: str, input_sha256: str, *, now: datetime
+        self,
+        run_id: UUID,
+        step_key: str,
+        input_sha256: str,
+        *,
+        now: datetime,
+        owner: str,
+        attempt: int,
     ) -> AnalysisStepBegin: ...
 
     async def complete_step(
-        self, run_id: UUID, step_key: str, payload: object, *, now: datetime
+        self,
+        run_id: UUID,
+        step_key: str,
+        payload: object,
+        *,
+        now: datetime,
+        owner: str,
+        attempt: int,
     ) -> None: ...
 
-    async def abandon_step(self, run_id: UUID, step_key: str) -> None: ...
+    async def abandon_step(
+        self, run_id: UUID, step_key: str, *, now: datetime, owner: str, attempt: int
+    ) -> None: ...
 
     async def fail_step(
-        self, run_id: UUID, step_key: str, error_code: str, *, now: datetime
+        self,
+        run_id: UUID,
+        step_key: str,
+        error_code: str,
+        *,
+        now: datetime,
+        owner: str,
+        attempt: int,
+    ) -> None: ...
+
+    async def bind_execution(
+        self,
+        run_id: UUID,
+        binding: dict[str, object],
+        *,
+        owner: str,
+        attempt: int,
+        now: datetime,
+        deadline: datetime,
     ) -> None: ...
 
 
@@ -152,6 +186,7 @@ class AnalyzerSelection:
     provider: str
     model: str
     cli_version: str
+    binding_sha256: str = ""
 
 
 class AnalyzerResolver(Protocol):

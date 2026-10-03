@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import hashlib
+import json
 import os
 
 from app.core.config import Settings
@@ -46,6 +48,42 @@ class ConfiguredAnalyzerResolver:
             provider=profile.key,
             model=runtime.model,
             cli_version=runtime.cli_version,
+            binding_sha256=hashlib.sha256(
+                json.dumps(
+                    {
+                        "profile": [
+                            profile.key,
+                            profile.display_name,
+                            profile.engine.value,
+                            profile.auth_mode.value,
+                            profile.base_url,
+                            profile.model,
+                            profile.updated_at.isoformat(),
+                            hashlib.sha256(
+                                str(profile.credential_ciphertext).encode()
+                            ).hexdigest(),
+                        ],
+                        "policy": [
+                            str(self._settings.analysis_codex_binary),
+                            str(self._settings.analysis_claude_binary),
+                            str(self._settings.analysis_ffmpeg_binary),
+                            str(self._settings.analysis_ffprobe_binary),
+                            self._settings.analysis_timeout_seconds,
+                            self._settings.analysis_max_stdout_bytes,
+                            self._settings.analysis_max_stderr_bytes,
+                            self._settings.analysis_max_workspace_bytes,
+                            self._settings.analysis_max_workspace_files,
+                            self._settings.analysis_max_frames,
+                            self._settings.analysis_max_image_bytes,
+                            self._settings.analysis_workspace_poll_seconds,
+                            self._settings.analysis_terminate_grace_seconds,
+                            self._settings.analysis_claude_max_turns,
+                        ],
+                        "runtime": [runtime.model, runtime.cli_version],
+                    },
+                    sort_keys=True,
+                ).encode()
+            ).hexdigest(),
         )
         self._cached_stamp = stamp
         self._cached = selection

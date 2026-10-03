@@ -176,7 +176,14 @@ class FakeRepository:
         return self.job
 
     async def begin_step(
-        self, run_id: UUID, step_key: str, input_sha256: str, *, now: datetime
+        self,
+        run_id: UUID,
+        step_key: str,
+        input_sha256: str,
+        *,
+        now: datetime,
+        owner: str | None = None,
+        attempt: int | None = None,
     ) -> AnalysisStepBegin:
         current = self.steps.get(step_key)
         if current is None:
@@ -191,18 +198,32 @@ class FakeRepository:
         return AnalysisStepBegin(AnalysisStepStatus.UNKNOWN)
 
     async def complete_step(
-        self, run_id: UUID, step_key: str, payload: object, *, now: datetime
+        self,
+        run_id: UUID,
+        step_key: str,
+        payload: object,
+        *,
+        now: datetime,
+        owner: str | None = None,
+        attempt: int | None = None,
     ) -> None:
         status, digest, _ = self.steps[step_key]
         assert status == "started"
         self.steps[step_key] = ("succeeded", digest, payload)
 
-    async def abandon_step(self, run_id: UUID, step_key: str) -> None:
+    async def abandon_step(self, run_id: UUID, step_key: str, **kwargs: object) -> None:
         if self.steps.get(step_key, ("",))[0] == "started":
             del self.steps[step_key]
 
     async def fail_step(
-        self, run_id: UUID, step_key: str, error_code: str, *, now: datetime
+        self,
+        run_id: UUID,
+        step_key: str,
+        error_code: str,
+        *,
+        now: datetime,
+        owner: str | None = None,
+        attempt: int | None = None,
     ) -> None:
         status, digest, _ = self.steps[step_key]
         assert status == "started"

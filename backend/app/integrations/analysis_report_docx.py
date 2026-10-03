@@ -46,7 +46,10 @@ class PythonDocxAnalysisReportRenderer:
 def _configure_document(
     document: DocumentObject, title: str, result_kind: AnalysisResultKind
 ) -> None:
-    is_article = result_kind is AnalysisResultKind.VIDEO_ARTICLE
+    is_article = result_kind in {
+        AnalysisResultKind.VIDEO_ARTICLE,
+        AnalysisResultKind.CONTENT_DOCUMENT,
+    }
     section = document.sections[0]
     section.start_type = WD_SECTION.NEW_PAGE
     section.page_width = Inches(8.5)

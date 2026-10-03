@@ -4,7 +4,7 @@ from datetime import UTC, datetime, timedelta
 from uuid import uuid4
 
 import pytest
-from app.models import AnalysisStepResultRow
+from app.models import AnalysisRunRow, AnalysisStepResultRow
 from app.models.analysis import AnalysisArtifactLockRow
 from app.services.analysis.errors import PersistenceConflict, PersistenceNotFound
 from app.services.analysis_execution.errors import AnalysisPersistenceRejected
@@ -241,3 +241,17 @@ async def test_step_journal_replays_results_and_reports_unknown_outcomes(
             select(func.count()).select_from(AnalysisStepResultRow)
         )
     assert remaining == 0
+
+
+async def test_legacy_unbound_step_can_release_without_negative_call_count(analysis_db):
+    _, command = await create_job(analysis_db)
+    await analysis_db.repository.begin_step(command.run_id, "legacy", "d" * 64, now=NOW)
+    async with analysis_db.sessions() as session, session.begin():
+        run = await session.get(AnalysisRunRow, command.run_id)
+        assert run.execution_binding is None
+        run.model_calls_used = 0  # Incremental SQL adds zero to older running jobs.
+    await analysis_db.repository.abandon_step(command.run_id, "legacy")
+    async with analysis_db.sessions() as session:
+        run = await session.get(AnalysisRunRow, command.run_id)
+        assert run.model_calls_used == 0
+        assert not await analysis_db.repository.has_started_step(command.run_id)

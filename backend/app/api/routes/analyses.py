@@ -23,6 +23,7 @@ from app.schemas.analyses import (
 from app.schemas.history_records import (
     AnalysisRunHistoryPageResponse,
     AnalysisRunHistoryResponse,
+    ContentCreationHistoryRecordResponse,
     HistoryRecordPageResponse,
     ScreenplayAnalysisHistoryRecordResponse,
     VideoAnalysisHistoryRecordResponse,
@@ -255,7 +256,8 @@ async def delete_analysis(
     "/analyses/{analysis_id}/history-record",
     operation_id="getAnalysisHistoryRecord",
     response_model=VideoAnalysisHistoryRecordResponse
-    | ScreenplayAnalysisHistoryRecordResponse,
+    | ScreenplayAnalysisHistoryRecordResponse
+    | ContentCreationHistoryRecordResponse,
     summary="读取分析来源与历史摘要",
 )
 async def get_analysis_history_record(
@@ -263,7 +265,11 @@ async def get_analysis_history_record(
     user: User,
     service: Annotated[HistoryRecordService, Depends(get_history_record_service)],
     response: Response,
-) -> VideoAnalysisHistoryRecordResponse | ScreenplayAnalysisHistoryRecordResponse:
+) -> (
+    VideoAnalysisHistoryRecordResponse
+    | ScreenplayAnalysisHistoryRecordResponse
+    | ContentCreationHistoryRecordResponse
+):
     response.headers["Cache-Control"] = "no-store"
     record = await service.analysis_record(user.owner_hash, analysis_id)
     item = HistoryRecordPageResponse.from_page(
@@ -271,7 +277,9 @@ async def get_analysis_history_record(
     ).items[0]
     assert isinstance(
         item,
-        VideoAnalysisHistoryRecordResponse | ScreenplayAnalysisHistoryRecordResponse,
+        VideoAnalysisHistoryRecordResponse
+        | ScreenplayAnalysisHistoryRecordResponse
+        | ContentCreationHistoryRecordResponse,
     )
     return item
 

@@ -67,13 +67,14 @@ def test_analysis_openapi_is_current_and_excludes_internal_fields(
     assert "report_markdown" in fields
     assert {"run_id", "run_no", "run_trigger", "version"} <= set(fields)
     assert {"input_kind", "result_contract"} <= set(fields)
-    assert components["AnalysisInputKind"]["enum"] == ["video", "screenplay"]
+    assert components["AnalysisInputKind"]["enum"] == ["video", "screenplay", "content"]
     assert components["AnalysisResultContract"]["enum"] == [
         "video-visual-analysis",
         "video-article",
         "screenplay-analysis",
         "screenplay-rewrite",
         "structured-report",
+        "content-document",
     ]
     assert {"artifact_id", "schema_version", "transcript", "provider"}.isdisjoint(
         fields
@@ -82,6 +83,7 @@ def test_analysis_openapi_is_current_and_excludes_internal_fields(
     assert result_union["discriminator"] == {
         "propertyName": "kind",
         "mapping": {
+            "content_document": "#/components/schemas/ContentDocumentResult",
             "screenplay_analysis": (
                 "#/components/schemas/ScreenplayAnalysisResultResponse"
             ),
@@ -98,6 +100,7 @@ def test_analysis_openapi_is_current_and_excludes_internal_fields(
         },
     }
     assert {item["$ref"] for item in result_union["oneOf"]} == {
+        "#/components/schemas/ContentDocumentResult",
         "#/components/schemas/VideoAnalysisResultResponse",
         "#/components/schemas/VideoArticleResultResponse",
         "#/components/schemas/ScreenplayAnalysisResultResponse",
@@ -133,3 +136,23 @@ def test_analysis_openapi_is_current_and_excludes_internal_fields(
         "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
         in export["responses"]["200"]["content"]
     )
+
+    content_fields = components["ContentDocumentResult"]["properties"]
+    assert {
+        "blocks",
+        "evidence_index",
+        "source_set_ref",
+        "review_history",
+    } <= content_fields.keys()
+    assert {"execution_binding", "execution_deadline", "model_calls_used"}.isdisjoint(
+        fields
+    )
+    assert components["ContentSourceSet"]["additionalProperties"] is False
+    for path, verb, operation in [
+        ("/api/content/analyses", "post", "createContentAnalysis"),
+        ("/api/content/analyses/{analysis_id}/source", "get", "getContentSource"),
+        ("/api/content/analyses/{analysis_id}/revisions", "post", "reviseContent"),
+        ("/api/content/analyses/{analysis_id}/versions", "get", "listContentVersions"),
+        ("/api/content/analyses/{analysis_id}/report.html", "get", "exportContentHtml"),
+    ]:
+        assert paths[path][verb]["operationId"] == operation

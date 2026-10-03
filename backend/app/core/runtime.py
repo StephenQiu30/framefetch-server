@@ -23,14 +23,19 @@ from app.schemas.engine_catalog import EngineCatalogResponse
 from app.services.ai_providers import AiProviderService
 from app.services.analysis.analytics import GetAnalysisAnalytics
 from app.services.analysis.cancel_analysis import CancelAnalysis
+from app.services.analysis.content_revision import ReviseContent
+from app.services.analysis.content_versions import ListContentVersions
 from app.services.analysis.create_analysis import CreateAnalysis
+from app.services.analysis.create_content_analysis import CreateContentAnalysis
 from app.services.analysis.create_document_analysis import CreateDocumentAnalysis
 from app.services.analysis.delete_analysis import DeleteAnalysis
 from app.services.analysis.export_report import (
+    ExportAnalysisHtml,
     ExportAnalysisMarkdown,
     ExportAnalysisReport,
 )
 from app.services.analysis.get_analysis import GetAnalysis
+from app.services.analysis.get_content_source import GetContentSource
 from app.services.analysis.get_latest_analysis import (
     GetLatestDocumentAnalysis,
     GetLatestDownloadAnalysis,
@@ -117,6 +122,11 @@ class AnalysisUseCases:
     retry_analysis: RetryAnalysis
     export_analysis_report: ExportAnalysisReport
     export_analysis_markdown: ExportAnalysisMarkdown
+    create_content_analysis: CreateContentAnalysis | None = None
+    get_content_source: GetContentSource | None = None
+    revise_content: ReviseContent | None = None
+    list_content_versions: ListContentVersions | None = None
+    export_analysis_html: ExportAnalysisHtml | None = None
 
 
 @dataclass(frozen=True, slots=True)

@@ -762,6 +762,7 @@ DROP INDEX IF EXISTS ix_artifacts_expires;
 ALTER TABLE artifacts DROP COLUMN IF EXISTS expires_at;
 
 CREATE TABLE IF NOT EXISTS analysis_jobs (
+    content_source JSONB,
     id UUID PRIMARY KEY,
     input_kind VARCHAR(24) NOT NULL DEFAULT 'video',
     result_contract VARCHAR(32) NOT NULL DEFAULT 'video-visual-analysis',
@@ -816,25 +817,32 @@ CREATE TABLE IF NOT EXISTS analysis_jobs (
         skill_instructions_sha256 ~ '^[0-9a-f]{64}$'
     ),
     CONSTRAINT ck_analysis_jobs_input_kind CHECK (
-        input_kind IN ('video', 'screenplay')
+        input_kind IN ('video', 'screenplay', 'content')
     ),
     CONSTRAINT ck_analysis_jobs_result_contract CHECK (
         result_contract IN (
             'video-visual-analysis', 'video-article', 'screenplay-analysis', 'screenplay-rewrite',
-            'structured-report'
+            'structured-report', 'content-document'
         )
     ),
     CONSTRAINT ck_analysis_jobs_input_shape CHECK (
         (
             input_kind = 'video'
+            AND content_source IS NULL
             AND artifact_id IS NOT NULL
             AND document_id IS NULL
             AND result_contract IN ('video-visual-analysis', 'video-article', 'structured-report')
         ) OR (
             input_kind = 'screenplay'
+            AND content_source IS NULL
             AND artifact_id IS NULL
             AND document_id IS NOT NULL
             AND result_contract IN ('screenplay-analysis', 'screenplay-rewrite')
+        ) OR (
+            input_kind = 'content'
+            AND artifact_id IS NULL AND document_id IS NULL
+            AND content_source IS NOT NULL AND jsonb_typeof(content_source) = 'object'
+            AND result_contract = 'content-document'
         )
     )
 );
@@ -847,6 +855,7 @@ CREATE INDEX IF NOT EXISTS ix_analysis_jobs_queued_recovery
     ON analysis_jobs (status, updated_at);
 CREATE INDEX IF NOT EXISTS ix_analysis_jobs_artifact ON analysis_jobs (artifact_id);
 
+ALTER TABLE analysis_jobs ADD COLUMN IF NOT EXISTS content_source JSONB;
 ALTER TABLE analysis_jobs ADD COLUMN IF NOT EXISTS input_kind VARCHAR(24);
 ALTER TABLE analysis_jobs ADD COLUMN IF NOT EXISTS result_contract VARCHAR(32);
 ALTER TABLE analysis_jobs ADD COLUMN IF NOT EXISTS document_id UUID;
@@ -875,26 +884,33 @@ ALTER TABLE analysis_jobs ALTER COLUMN result_contract SET NOT NULL;
 ALTER TABLE analysis_jobs ALTER COLUMN artifact_id DROP NOT NULL;
 ALTER TABLE analysis_jobs DROP CONSTRAINT IF EXISTS ck_analysis_jobs_input_kind;
 ALTER TABLE analysis_jobs ADD CONSTRAINT ck_analysis_jobs_input_kind
-    CHECK (input_kind IN ('video', 'screenplay'));
+    CHECK (input_kind IN ('video', 'screenplay', 'content'));
 ALTER TABLE analysis_jobs
     DROP CONSTRAINT IF EXISTS ck_analysis_jobs_result_contract;
 ALTER TABLE analysis_jobs ADD CONSTRAINT ck_analysis_jobs_result_contract
     CHECK (result_contract IN (
         'video-visual-analysis', 'video-article', 'screenplay-analysis', 'screenplay-rewrite',
-            'structured-report'
+            'structured-report', 'content-document'
     ));
 ALTER TABLE analysis_jobs DROP CONSTRAINT IF EXISTS ck_analysis_jobs_input_shape;
 ALTER TABLE analysis_jobs ADD CONSTRAINT ck_analysis_jobs_input_shape CHECK (
     (
         input_kind = 'video'
+            AND content_source IS NULL
         AND artifact_id IS NOT NULL
         AND document_id IS NULL
         AND result_contract IN ('video-visual-analysis', 'video-article', 'structured-report')
     ) OR (
         input_kind = 'screenplay'
+            AND content_source IS NULL
         AND artifact_id IS NULL
         AND document_id IS NOT NULL
         AND result_contract IN ('screenplay-analysis', 'screenplay-rewrite')
+    ) OR (
+        input_kind = 'content'
+        AND artifact_id IS NULL AND document_id IS NULL
+        AND content_source IS NOT NULL AND jsonb_typeof(content_source) = 'object'
+        AND result_contract = 'content-document'
     )
 );
 UPDATE analysis_jobs SET
@@ -921,6 +937,9 @@ ALTER TABLE analysis_jobs ADD CONSTRAINT ck_analysis_jobs_stage_rank
     CHECK (stage_rank BETWEEN 0 AND 4);
 
 CREATE TABLE IF NOT EXISTS analysis_runs (
+    execution_binding JSONB,
+    execution_deadline TIMESTAMPTZ,
+    model_calls_used INTEGER NOT NULL DEFAULT 0,
     id UUID PRIMARY KEY,
     job_id UUID NOT NULL REFERENCES analysis_jobs (id) ON DELETE CASCADE,
     run_no INTEGER NOT NULL,
@@ -948,7 +967,7 @@ CREATE TABLE IF NOT EXISTS analysis_runs (
     updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT uq_analysis_runs_job_no UNIQUE (job_id, run_no),
     CONSTRAINT ck_analysis_runs_trigger CHECK (
-        trigger IN ('initial', 'manual_retry', 'manual_rerun')
+        trigger IN ('initial', 'manual_retry', 'manual_rerun', 'manual_edit')
     ),
     CONSTRAINT ck_analysis_runs_status CHECK (
         status IN ('queued', 'running', 'retry_wait', 'succeeded', 'failed', 'cancelled')
@@ -965,6 +984,11 @@ CREATE INDEX IF NOT EXISTS ix_analysis_runs_job_created
 CREATE INDEX IF NOT EXISTS ix_analysis_runs_claim ON analysis_runs (status, retry_at);
 CREATE INDEX IF NOT EXISTS ix_analysis_runs_stale ON analysis_runs (status, lease_expires_at);
 
+ALTER TABLE analysis_runs ADD COLUMN IF NOT EXISTS execution_binding JSONB;
+ALTER TABLE analysis_runs ADD COLUMN IF NOT EXISTS execution_deadline TIMESTAMPTZ;
+ALTER TABLE analysis_runs ADD COLUMN IF NOT EXISTS model_calls_used INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE analysis_runs DROP CONSTRAINT IF EXISTS ck_analysis_runs_model_calls;
+ALTER TABLE analysis_runs ADD CONSTRAINT ck_analysis_runs_model_calls CHECK (model_calls_used >= 0);
 ALTER TABLE analysis_runs DROP CONSTRAINT IF EXISTS ck_analysis_runs_stage_rank;
 ALTER TABLE analysis_runs ADD CONSTRAINT ck_analysis_runs_stage_rank
     CHECK (stage_rank BETWEEN 0 AND 4);
@@ -986,7 +1010,11 @@ ON CONFLICT (job_id, run_no) DO NOTHING;
 UPDATE analysis_jobs SET active_run_id = id WHERE active_run_id IS NULL;
 ALTER TABLE analysis_jobs ALTER COLUMN active_run_id SET NOT NULL;
 
+ALTER TABLE analysis_runs DROP CONSTRAINT IF EXISTS ck_analysis_runs_trigger;
+ALTER TABLE analysis_runs ADD CONSTRAINT ck_analysis_runs_trigger CHECK (trigger IN ('initial','manual_retry','manual_rerun','manual_edit'));
+
 CREATE TABLE IF NOT EXISTS analysis_retry_operations (
+    request_sha256 VARCHAR(64),
     id UUID PRIMARY KEY,
     job_id UUID NOT NULL REFERENCES analysis_jobs (id) ON DELETE CASCADE,
     run_id UUID NOT NULL REFERENCES analysis_runs (id) ON DELETE CASCADE,
@@ -996,6 +1024,8 @@ CREATE TABLE IF NOT EXISTS analysis_retry_operations (
     CONSTRAINT uq_analysis_retry_operations_key
         UNIQUE (job_id, operation, idempotency_key)
 );
+
+ALTER TABLE analysis_retry_operations ADD COLUMN IF NOT EXISTS request_sha256 VARCHAR(64);
 
 -- Model-call journal for SkillWorkflow resume. A row left in 'started' means a
 -- call may have reached the provider; it is never re-sent automatically.
@@ -1056,7 +1086,7 @@ CREATE TABLE IF NOT EXISTS analysis_report_versions (
     CONSTRAINT ck_analysis_report_versions_result_kind CHECK (
         result_json ? 'kind' AND result_json ->> 'kind' IN (
             'video_visual_analysis', 'video_article',
-            'screenplay_analysis', 'screenplay_rewrite', 'structured_report'
+            'screenplay_analysis', 'screenplay_rewrite', 'structured_report', 'content_document'
         )
     )
 );
@@ -1076,7 +1106,7 @@ CREATE TABLE IF NOT EXISTS analysis_report_artifacts (
     deleted_at TIMESTAMPTZ,
     CONSTRAINT uq_analysis_report_artifacts_format UNIQUE (report_id, format),
     CONSTRAINT uq_analysis_report_artifacts_object UNIQUE (bucket, object_key),
-    CONSTRAINT ck_analysis_report_artifacts_format CHECK (format IN ('markdown', 'docx')),
+    CONSTRAINT ck_analysis_report_artifacts_format CHECK (format IN ('markdown', 'docx', 'html')),
     CONSTRAINT ck_analysis_report_artifacts_status CHECK (
         status IN ('available', 'delete_pending', 'deleted', 'failed')
     ),
@@ -1112,10 +1142,12 @@ ALTER TABLE analysis_report_versions
     ADD CONSTRAINT ck_analysis_report_versions_result_kind CHECK (
         result_json ? 'kind' AND result_json ->> 'kind' IN (
             'video_visual_analysis', 'video_article',
-            'screenplay_analysis', 'screenplay_rewrite', 'structured_report'
+            'screenplay_analysis', 'screenplay_rewrite', 'structured_report', 'content_document'
         )
     );
 ALTER TABLE analysis_report_artifacts DROP COLUMN IF EXISTS expires_at;
+ALTER TABLE analysis_report_artifacts DROP CONSTRAINT IF EXISTS ck_analysis_report_artifacts_format;
+ALTER TABLE analysis_report_artifacts ADD CONSTRAINT ck_analysis_report_artifacts_format CHECK (format IN ('markdown','docx','html'));
 
 -- Legacy releases could mark a job succeeded before the durable Markdown and
 -- DOCX report existed. Fail those inconsistent projections closed so clients

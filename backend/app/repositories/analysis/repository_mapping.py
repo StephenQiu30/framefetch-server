@@ -3,6 +3,7 @@
 from app.core.db import as_utc
 from app.models import AnalysisJobRow, AnalysisRunRow, ArtifactRow, DownloadJobRow
 from app.services.analysis.models import AnalysisArtifactSnapshot, AnalysisJobSnapshot
+from app.services.analysis.rules.content_document import ContentSourceSet
 
 
 def analysis_job_snapshot(
@@ -13,6 +14,9 @@ def analysis_job_snapshot(
     run_trigger = run.trigger if run is not None else row.current_run_trigger
     return AnalysisJobSnapshot(
         id=row.id,
+        content_source=None
+        if row.content_source is None
+        else ContentSourceSet.model_validate(row.content_source),
         artifact_id=row.artifact_id,
         owner_hash=row.owner_hash,
         request_fingerprint=row.request_fingerprint,

@@ -6,7 +6,7 @@ from copy import deepcopy
 from datetime import datetime
 from uuid import UUID
 
-from sqlalchemy import select
+from sqlalchemy import and_, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.db import as_utc
@@ -53,8 +53,17 @@ class AnalysisRepositoryBase(RepositoryBase):
         async with self._sessions() as session:
             document = await session.scalar(
                 select(AnalysisResultRow.result_json)
-                .where(AnalysisResultRow.job_id == job_id)
-                .order_by(AnalysisResultRow.created_at.desc())
+                .join(AnalysisJobRow, AnalysisJobRow.id == AnalysisResultRow.job_id)
+                .where(
+                    AnalysisJobRow.id == job_id,
+                    or_(
+                        AnalysisResultRow.id == AnalysisJobRow.current_report_id,
+                        and_(
+                            AnalysisJobRow.current_report_id.is_(None),
+                            AnalysisResultRow.run_id == AnalysisJobRow.active_run_id,
+                        ),
+                    ),
+                )
                 .limit(1)
             )
             if document is None:
@@ -65,8 +74,9 @@ class AnalysisRepositoryBase(RepositoryBase):
         async with self._sessions() as session:
             report = await session.scalar(
                 select(AnalysisResultRow)
+                .join(AnalysisRunRow, AnalysisRunRow.id == AnalysisResultRow.run_id)
                 .where(AnalysisResultRow.job_id == job_id)
-                .order_by(AnalysisResultRow.created_at.desc())
+                .order_by(AnalysisRunRow.run_no.desc())
                 .limit(1)
             )
             if report is None:

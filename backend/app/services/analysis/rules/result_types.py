@@ -1,3 +1,4 @@
+from app.services.analysis.rules.content_document import ContentDocumentResult
 from app.services.analysis.rules.result_models import (
     VideoAnalysisResult,
     VideoArticleResult,
@@ -9,7 +10,8 @@ from app.services.analysis.rules.screenplay_results import (
 from app.services.analysis.rules.structured_report import StructuredReportResult
 
 type AnalysisResult = (
-    VideoAnalysisResult
+    ContentDocumentResult
+    | VideoAnalysisResult
     | VideoArticleResult
     | ScreenplayAnalysisResult
     | ScreenplayRewriteResult

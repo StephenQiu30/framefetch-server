@@ -10,6 +10,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from app.services.analysis.rules.content_document import ContentDocumentResult
 from app.services.analysis.rules.enums import (
     AnalysisInputKind,
     AnalysisResultContract,
@@ -43,6 +44,12 @@ class ResultContract:
 
 
 RESULT_CONTRACTS: tuple[ResultContract, ...] = (
+    ResultContract(
+        AnalysisResultContract.CONTENT_DOCUMENT,
+        AnalysisResultKind.CONTENT_DOCUMENT,
+        AnalysisInputKind.CONTENT,
+        ContentDocumentResult,
+    ),
     ResultContract(
         AnalysisResultContract.VIDEO_VISUAL_ANALYSIS,
         AnalysisResultKind.VIDEO_VISUAL_ANALYSIS,

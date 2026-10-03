@@ -7,11 +7,13 @@ from datetime import datetime, timedelta
 from typing import Protocol
 
 from app.integrations.analysis_report_docx import PythonDocxAnalysisReportRenderer
+from app.integrations.content_html import render_content_html
 from app.integrations.object_storage import MinioObjectStorage
 from app.repositories.analysis.report_repository import (
     ReportObject,
     SqlAlchemyAnalysisReportRepository,
 )
+from app.services.analysis.rules.enums import AnalysisResultKind
 from app.workers.report.message import ReportRequested
 
 MARKDOWN_TYPE = "text/markdown; charset=utf-8"
@@ -66,18 +68,34 @@ class ReportPublisher:
             docx = self._renderer.render(
                 publication.markdown, result_kind=publication.result_kind
             )
-            if len(markdown) + len(docx) > self._max_bytes:
+            html = (
+                render_content_html(
+                    publication.markdown, language=publication.output_language
+                )
+                if publication.result_kind is AnalysisResultKind.CONTENT_DOCUMENT
+                else b""
+            )
+            if len(markdown) + len(docx) + len(html) > self._max_bytes:
                 raise ReportSizeExceeded("report exceeds publication byte budget")
             prefix = (
                 f"analyses/{publication.job_id}/runs/{publication.run_no}/"
                 f"reports/{publication.id}"
             )
-            objects = (
+            objects: tuple[ReportObject, ...] = (
                 await self._ensure(
                     "markdown", f"{prefix}/report.md", markdown, MARKDOWN_TYPE
                 ),
                 await self._ensure("docx", f"{prefix}/report.docx", docx, DOCX_TYPE),
             )
+            if html:
+                objects += (
+                    await self._ensure(
+                        "html",
+                        f"{prefix}/report.html",
+                        html,
+                        "text/html; charset=utf-8",
+                    ),
+                )
             await self._repository.complete(
                 publication, self._worker_id, objects, self._clock()
             )

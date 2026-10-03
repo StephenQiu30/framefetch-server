@@ -55,7 +55,7 @@ class AnalysisReportVersionRow(Base):
         CheckConstraint(
             "result_json ? 'kind' AND result_json ->> 'kind' IN ("
             "'video_visual_analysis','video_article',"
-            "'screenplay_analysis','screenplay_rewrite','structured_report')",
+            "'screenplay_analysis','screenplay_rewrite','structured_report','content_document')",
             name="ck_analysis_report_versions_result_kind",
         ).ddl_if(dialect="postgresql"),
     )
@@ -99,7 +99,8 @@ class AnalysisReportArtifactRow(Base):
             "bucket", "object_key", name="uq_analysis_report_artifacts_object"
         ),
         CheckConstraint(
-            "format IN ('markdown','docx')", name="ck_analysis_report_artifacts_format"
+            "format IN ('markdown','docx','html')",
+            name="ck_analysis_report_artifacts_format",
         ),
         CheckConstraint(
             f"status IN ({_ARTIFACT_STATUS_SQL_VALUES})",

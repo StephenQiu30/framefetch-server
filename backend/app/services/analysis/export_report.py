@@ -82,3 +82,20 @@ async def _read_verified(
     ):
         raise AnalysisApplicationError(AnalysisApplicationErrorCode.REPORT_UNAVAILABLE)
     return content
+
+
+class ExportAnalysisHtml(ExportAnalysisReport):
+    async def __call__(self, job_id: UUID, owner_hash: str) -> AnalysisReportFile:
+        view = await self._get_analysis(job_id, owner_hash)
+        if view.input_kind.value != "content":
+            raise AnalysisApplicationError(AnalysisApplicationErrorCode.INVALID_REQUEST)
+        stored = await self._repository.get_current_report_file(job_id, "html")
+        if stored is None:
+            raise AnalysisApplicationError(
+                AnalysisApplicationErrorCode.REPORT_NOT_READY
+            )
+        return AnalysisReportFile(
+            content=await _read_verified(self._object_reader, stored),
+            filename=f"content-{job_id}.html",
+            media_type=stored.media_type,
+        )

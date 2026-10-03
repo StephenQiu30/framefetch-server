@@ -41,7 +41,9 @@ def test_input_kinds_partition_the_contracts() -> None:
     video = contracts_for_input(AnalysisInputKind.VIDEO)
     screenplay = contracts_for_input(AnalysisInputKind.SCREENPLAY)
     assert video.isdisjoint(screenplay)
-    assert video | screenplay == set(AnalysisResultContract)
+    content = contracts_for_input(AnalysisInputKind.CONTENT)
+    assert content.isdisjoint(video | screenplay)
+    assert video | screenplay | content == set(AnalysisResultContract)
 
 
 def test_video_dispatch_rejects_screenplay_contracts() -> None:

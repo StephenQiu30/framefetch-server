@@ -21,6 +21,7 @@ from app.repositories.analysis.worker_registry import (
     SqlAlchemyAnalysisWorkerRegistry,
 )
 from app.repositories.downloads.repository import SqlAlchemyDownloadRepository
+from app.services.analysis_execution.content_executor import ContentExecutor
 from app.services.analysis_execution.models import AnalysisExecutionSettings
 from app.services.analysis_execution.service import AnalysisExecution
 from app.workers.analysis.activities import SkillActivities
@@ -111,6 +112,11 @@ def build_runtime(settings: Settings) -> AnalysisWorkerRuntime:
         loader=loader,
         resolver=resolver,
         screenplay_executor=screenplay.executor,
+        content_executor=ContentExecutor(
+            resolver=resolver,
+            workspace_root=settings.analysis_workspace_root,
+            timeout_seconds=settings.analysis_timeout_seconds,
+        ),
         clock=utc_now,
         settings=AnalysisExecutionSettings(
             bucket=settings.minio_bucket,

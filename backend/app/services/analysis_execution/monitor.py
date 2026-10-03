@@ -89,7 +89,12 @@ class AnalysisLeaseMonitor:
         result and must never be silently discarded and regenerated.
         """
         begun = await self._repository.begin_step(
-            self._run_id, key, request_digest(request), now=self._clock()
+            self._run_id,
+            key,
+            request_digest(request),
+            now=self._clock(),
+            owner=self._owner,
+            attempt=self._attempt,
         )
         if begun.status is AnalysisStepStatus.UNKNOWN:
             raise AnalysisOutcomeUnknown
@@ -112,7 +117,13 @@ class AnalysisLeaseMonitor:
             raise
         except Exception as error:
             if getattr(error, "no_model_execution", False) is True:
-                await self._repository.abandon_step(self._run_id, key)
+                await self._repository.abandon_step(
+                    self._run_id,
+                    key,
+                    now=self._clock(),
+                    owner=self._owner,
+                    attempt=self._attempt,
+                )
                 raise
             if getattr(error, "outcome_known", False) is True:
                 await self._repository.fail_step(
@@ -120,13 +131,32 @@ class AnalysisLeaseMonitor:
                     key,
                     str(getattr(error, "code", "invalid_model_output")),
                     now=self._clock(),
+                    owner=self._owner,
+                    attempt=self._attempt,
                 )
                 raise
             raise AnalysisOutcomeUnknown from error
         await self._repository.complete_step(
-            self._run_id, key, payload, now=self._clock()
+            self._run_id,
+            key,
+            payload,
+            now=self._clock(),
+            owner=self._owner,
+            attempt=self._attempt,
         )
         return parse(payload)
+
+    async def bind_execution(
+        self, binding: dict[str, object], *, deadline_for: timedelta
+    ) -> None:
+        await self._repository.bind_execution(
+            self._run_id,
+            binding,
+            owner=self._owner,
+            attempt=self._attempt,
+            now=self._clock(),
+            deadline=self._clock() + deadline_for,
+        )
 
     async def advance(self, stage: AnalysisStage, progress: int) -> None:
         try:

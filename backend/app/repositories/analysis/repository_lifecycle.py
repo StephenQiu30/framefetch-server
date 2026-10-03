@@ -27,6 +27,9 @@ from app.services.analysis.rules.enums import (
 STAGE_RANKS = {
     "preparing": 1,
     "analyzing": 2,
+    "drafting": 2,
+    "reviewing": 2,
+    "revising": 2,
     "validating": 3,
 }
 

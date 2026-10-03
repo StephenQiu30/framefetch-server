@@ -38,6 +38,7 @@ class ReportPublication:
     markdown_sha256: str
     renderer_version: str
     result_kind: AnalysisResultKind
+    output_language: str = "zh-CN"
 
 
 @dataclass(frozen=True, slots=True)
@@ -115,6 +116,7 @@ class SqlAlchemyAnalysisReportRepository(AnalysisReportLifecycleRepository):
                 markdown_sha256=report.content_sha256,
                 renderer_version=report.renderer_version,
                 result_kind=AnalysisResultKind(report.result_json["kind"]),
+                output_language=job.output_language,
             )
 
     async def complete(
@@ -124,7 +126,12 @@ class SqlAlchemyAnalysisReportRepository(AnalysisReportLifecycleRepository):
         objects: tuple[ReportObject, ...],
         now: datetime,
     ) -> None:
-        if {item.format for item in objects} != {"markdown", "docx"}:
+        expected = (
+            {"markdown", "docx", "html"}
+            if publication.result_kind is AnalysisResultKind.CONTENT_DOCUMENT
+            else {"markdown", "docx"}
+        )
+        if {item.format for item in objects} != expected:
             raise ValueError("both report formats are required")
         async with self._sessions() as session, session.begin():
             report, job = await lock_report_and_job(session, publication.id)

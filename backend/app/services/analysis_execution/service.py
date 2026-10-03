@@ -58,6 +58,7 @@ class AnalysisExecution:
         analyzer: VideoAnalyzer | None = None,
         resolver: AnalyzerResolver | None = None,
         screenplay_executor: ClaimedAnalysisExecutor | None = None,
+        content_executor: ClaimedAnalysisExecutor | None = None,
         clock: Clock,
         settings: AnalysisExecutionSettings,
     ) -> None:
@@ -82,6 +83,8 @@ class AnalysisExecution:
                 clock=clock,
             )
         }
+        if content_executor is not None:
+            self._executors[AnalysisInputKind.CONTENT] = content_executor
         if screenplay_executor is not None:
             self._executors[AnalysisInputKind.SCREENPLAY] = screenplay_executor
 

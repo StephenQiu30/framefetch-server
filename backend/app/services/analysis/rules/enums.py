@@ -15,6 +15,7 @@ class AnalysisStatus(StrEnum):
 class AnalysisInputKind(StrEnum):
     VIDEO = "video"
     SCREENPLAY = "screenplay"
+    CONTENT = "content"
 
 
 class AnalysisResultContract(StrEnum):
@@ -23,6 +24,7 @@ class AnalysisResultContract(StrEnum):
     SCREENPLAY_ANALYSIS = "screenplay-analysis"
     SCREENPLAY_REWRITE = "screenplay-rewrite"
     STRUCTURED_REPORT = "structured-report"
+    CONTENT_DOCUMENT = "content-document"
 
 
 class AnalysisResultKind(StrEnum):
@@ -31,11 +33,15 @@ class AnalysisResultKind(StrEnum):
     SCREENPLAY_ANALYSIS = "screenplay_analysis"
     SCREENPLAY_REWRITE = "screenplay_rewrite"
     STRUCTURED_REPORT = "structured_report"
+    CONTENT_DOCUMENT = "content_document"
 
 
 class AnalysisStage(StrEnum):
     PREPARING = "preparing"
     ANALYZING = "analyzing"
+    DRAFTING = "drafting"
+    REVIEWING = "reviewing"
+    REVISING = "revising"
     VALIDATING = "validating"
     PUBLISHING = "publishing"
 
@@ -76,6 +82,8 @@ class AnalysisErrorCode(StrEnum):
     INTERNAL_ERROR = "internal_error"
     WORKER_LOST = "worker_lost"
     OUTCOME_UNKNOWN = "analysis_outcome_unknown"
+    NEEDS_MATERIAL = "analysis_needs_material"
+    CONFIGURATION_CHANGED = "analysis_configuration_changed"
 
     @property
     def retryable(self) -> bool:

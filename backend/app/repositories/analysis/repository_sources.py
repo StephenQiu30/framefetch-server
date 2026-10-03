@@ -24,8 +24,9 @@ from app.services.analysis.errors import (
     PersistenceNotFound,
 )
 from app.services.analysis.models import AnalysisCreate
+from app.services.analysis.rules.content_document import ContentSourceSet
 from app.services.analysis.rules.contracts import contracts_for_input
-from app.services.analysis.rules.enums import AnalysisInputKind
+from app.services.analysis.rules.enums import AnalysisInputKind, AnalysisResultContract
 
 _SCREENPLAY_CONTRACTS = contracts_for_input(AnalysisInputKind.SCREENPLAY)
 _VIDEO_CONTRACTS = contracts_for_input(AnalysisInputKind.VIDEO)
@@ -34,6 +35,16 @@ _VIDEO_CONTRACTS = contracts_for_input(AnalysisInputKind.VIDEO)
 async def validate_create_source(
     session: AsyncSession, command: AnalysisCreate, now: datetime
 ) -> None:
+    if command.input_kind is AnalysisInputKind.CONTENT:
+        if (
+            command.content_source is None
+            or command.artifact_id is not None
+            or command.document_id is not None
+            or command.result_contract is not AnalysisResultContract.CONTENT_DOCUMENT
+            or command.content_source.sha256 != command.input_sha256
+        ):
+            raise PersistenceConflict("invalid content source snapshot")
+        return
     if (
         command.input_kind is AnalysisInputKind.VIDEO
         and command.result_contract in _VIDEO_CONTRACTS
@@ -72,6 +83,14 @@ async def validate_create_source(
 async def require_retry_source(
     session: AsyncSession, row: AnalysisJobRow, now: datetime
 ) -> None:
+    if row.input_kind == AnalysisInputKind.CONTENT.value:
+        if (
+            row.content_source is not None
+            and ContentSourceSet.model_validate(row.content_source).sha256
+            == row.input_sha256
+        ):
+            return
+        raise PersistenceArtifactUnavailable("content source snapshot changed")
     if (
         row.input_kind == AnalysisInputKind.VIDEO.value
         and row.result_contract in {contract.value for contract in _VIDEO_CONTRACTS}
@@ -101,7 +120,12 @@ async def require_retry_source(
 
 def new_source_lock(
     row: AnalysisJobRow, now: datetime
-) -> AnalysisArtifactLockRow | AnalysisDocumentLockRow:
+) -> AnalysisArtifactLockRow | AnalysisDocumentLockRow | None:
+    if (
+        row.input_kind == AnalysisInputKind.CONTENT.value
+        and row.content_source is not None
+    ):
+        return None
     if row.input_kind == AnalysisInputKind.VIDEO.value and row.artifact_id is not None:
         return AnalysisArtifactLockRow(
             job_id=row.id, artifact_id=row.artifact_id, created_at=now

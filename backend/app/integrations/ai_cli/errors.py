@@ -20,7 +20,7 @@ def classify_cli_failure(output: bytes) -> AnalysisCliError:
     if "failed to load agents.md instructions" in detail:
         return AnalysisCliError("analysis_sandbox_unavailable")
     if "invalid_json_schema" in detail:
-        return AnalysisCliError("analysis_cli_unsupported")
+        return AnalysisCliError("analysis_cli_unsupported", no_model_execution=True)
     if any(marker in detail for marker in ("429", "rate limit", "too many requests")):
         return AnalysisCliError("analysis_provider_rate_limited")
     if any(marker in detail for marker in ("credit", "usage limit", "quota")):
