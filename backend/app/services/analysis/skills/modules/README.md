@@ -8,6 +8,7 @@ This directory holds unmodified Markdown files from MIT-licensed repositories, e
 | `screenwriting-skills/` | [jtydhr88/screenwriting-skills](https://github.com/jtydhr88/screenwriting-skills) | `sw-story-structure`, `sw-character-conflict`, `sw-scene-craft`, `sw-dialogue`, `sw-premise-theme`, `sw-truby-anatomy` |
 | `humanizer-zh/` | [op7418/Humanizer-zh](https://github.com/op7418/Humanizer-zh) | `humanizer-zh` |
 | `chinese-copywriting-guidelines/` | [sparanoid/chinese-copywriting-guidelines](https://github.com/sparanoid/chinese-copywriting-guidelines) | `zh-copywriting-guidelines` |
+| `baoyu-skills/` | [JimLiu/baoyu-skills](https://github.com/JimLiu/baoyu-skills) | `baoyu-article-title`（只选直述标题方法，供 `video-to-article` 使用） |
 
 `manifest.json` pins each file's SHA-256, license, source URL and the `##` sections a product Skill may compile. Select only sections that serve the product task: a section that would have to be followed by "ignore this" in the Skill body does not belong in the selection. The per-module rationale is in `../NOTICE.md`.
 

@@ -35,7 +35,7 @@ Most built-in analysis skills are original, project-specific rewrites. The sourc
 - Source: https://github.com/doocs/md
 - Reviewed commit: `1c2c2f41396225892b3b3f0b5765b7d2f5d1b435`
 - License: WTFPL v2; copyright 2025 Doocs.
-- Local use: the article report is emitted as clean Markdown with mobile-friendly headings and a removable editor appendix so it can enter a WeChat Markdown formatting workflow. No editor code, styles, themes, assets, image-hosting logic, or deployment configuration were copied.
+- Local use: the article report is emitted as clean Markdown with mobile-friendly headings; review evidence stays outside the article artifact. No editor code, styles, themes, assets, image-hosting logic, or deployment configuration were copied.
 
 ## wechat-article-writer
 
@@ -124,3 +124,14 @@ Each repository's original license is kept beside its files. `modules/manifest.j
 - Used by every analysis Skill for report prose; `screenplay-rewrite` applies it to narration and stage directions and keeps characters' intentional speech as written.
 
 Updating any reviewed commit requires a fresh license and prompt-injection review, static fixtures, and real-provider E2E before release.
+
+## baoyu-skills (2026-10-04)
+
+- Source: https://github.com/JimLiu/baoyu-skills/blob/1567581c26ec29f4216c6e6835415bf30343b0e3/skills/baoyu-format-markdown/references/title-formulas.md
+- Reviewed commit: `1567581c26ec29f4216c6e6835415bf30343b0e3`
+- License: MIT
+- Imported Markdown (unmodified): `baoyu-skills/baoyu-format-markdown-title-formulas.md`
+- Registered modules: `baoyu-article-title`
+- Dropped, never vendored or executed: none
+- Prompt-injection scan: no findings
+- Local use: `video-to-article` compiles only `Straightforward Style`: descriptive titles state topic and scope; declarative titles state a supported conclusion. Hook formulas, the five-character hook rule, negation preference, title length targets, publishing workflows, scripts, account preferences and all other sections are excluded. The file is unmodified; `modules/manifest.json` selects the only compiled section. No upstream plugin, script or publishing connector was installed or executed.

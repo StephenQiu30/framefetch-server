@@ -1,5 +1,14 @@
 {
   "modules": {
+    "baoyu-article-title": {
+      "path": "baoyu-skills/baoyu-format-markdown-title-formulas.md",
+      "sha256": "7c7da8ff605d35a15ef7fc5bae27a26c96bd6cb6c8e2e216774665d44f98233f",
+      "license": "MIT",
+      "source_url": "https://github.com/JimLiu/baoyu-skills/blob/1567581c26ec29f4216c6e6835415bf30343b0e3/skills/baoyu-format-markdown/references/title-formulas.md",
+      "sections": [
+        "Straightforward Style"
+      ]
+    },
     "drama-anti-template": {
       "path": "drama-skills/anti-template-repair.md",
       "sha256": "c357d622db275494589199d3cde90460471250724288f0c6be642cc9411bf1f9",

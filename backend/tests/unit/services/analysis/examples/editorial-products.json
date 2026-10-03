@@ -1,0 +1,61 @@
+{
+  "calibration_only": true,
+  "production_runtime_output": false,
+  "material_kind": "repository_text",
+  "source_scope": "Current local project documentation and Web article code; no provider call or private material.",
+  "sources": [
+    {
+      "id": "source-1",
+      "path": "README.md",
+      "sha256": "cf02b1ed1c0bfd1f0f8ff7ef95ff955820168c5f9cc0697e0f90540b1b7ad2ba"
+    },
+    {
+      "id": "source-2",
+      "path": "docs/design/10-AI分析.md",
+      "sha256": "88838391d6c5c2343a8171901942a54e0382391e4532b74b761735ac7e2fcb65"
+    },
+    {
+      "id": "source-3",
+      "path": "backend/app/services/analysis/rules/contracts.py",
+      "sha256": "d53e0d7ef486fee115f2b2669be9ff46ef0ae65fbae79dcef303a93f276f3804"
+    },
+    {
+      "id": "source-4",
+      "path": "frontend/src/components/analysis/analysis-article-result-view.tsx",
+      "sha256": "4bfaeb70bd38793de19b34774be0e2552481c3408dd91bd7f6bca5edb8265735"
+    }
+  ],
+  "examples": [
+    {
+      "id": "wechat-article",
+      "document_type": "article",
+      "source_ids": [
+        "source-1",
+        "source-2",
+        "source-3",
+        "source-4"
+      ],
+      "markdown": "# 把视频整理成可继续使用的稿件\n\n视频保存下来以后，还可以继续拆解镜头、整理内容，或者写成一篇文章。帧取把这些工作接在素材获取之后：先保留视频，再选择分析方法，最后交付可阅读、可继续修改的文件。\n\n## 先确定这次要整理什么\n\n不同用途需要不同的整理方式。想研究镜头如何组织，可以做导演拉片；想找到值得保留的片段，可以提炼高光；想把画面内容转成文字，可以选择“公众号文章”。\n\n视频文章以可见画面为主要材料。动作演示、操作过程和能看清的画面文字，可以成为稿件的内容；演讲中没有可靠文字材料的观点，不能仅凭几张画面补出来。素材提供的信息越清楚，写作时越容易确定一个具体主题。\n\n## 阅读正文，需要时再回查\n\n在帧取的网页结果里，文章正文和回查依据分别显示。正文从标题到结尾完整呈现，时间证据、要点和待核验信息留在另一个页签。\n\n这样既能连续阅读，也能在遇到重要判断时回到视频。回查入口服务编辑工作，文章文件本身不需要附上一串时码，也不需要读者先删除工作说明。\n\n## 留下一份能继续修改的文件\n\n稿件可以导出为 Markdown 或 Word。在熟悉的编辑器里修改标题、调整段落、补充自己的材料，便能继续整理这份初稿。\n\n视频文件保存成功与文章是否写好，是两个独立的结果。保存素材提供了起点；从素材中选出有用的信息，再用适合读者的文字表达，才完成了这次整理。\n"
+    },
+    {
+      "id": "short-post",
+      "document_type": "post",
+      "source_ids": [
+        "source-1",
+        "source-2"
+      ],
+      "markdown": "一段视频可以继续整理成分镜、高光或文章初稿，一份剧本也可以按人物、对白和结构审阅。帧取把素材、任务和报告保存在个人工作站里，支持导入自己的 MP4 和剧本文档，阅读结果后导出 Markdown 或 Word，继续完成修改。\n"
+    },
+    {
+      "id": "usage-note",
+      "document_type": "guide",
+      "source_ids": [
+        "source-1",
+        "source-2",
+        "source-3",
+        "source-4"
+      ],
+      "markdown": "# 在帧取网页中整理视频文章初稿\n\n准备一份有权使用的 MP4 视频，或先通过已支持的来源取得视频制品。当前文章整理以可见画面为主，适合动作、操作过程和清楚的画面信息。\n\n## 1. 准备视频\n\n导入本地视频，或完成视频下载。等待文件处理成功后，再从视频进入分析。下载和分析是独立任务，分析失败不会改变已经成功保存的视频。\n\n## 2. 选择文章整理\n\n选择“公众号文章”、输出语言，并填写这次要整理的重点。重点可以明确读者和主题，例如“向第一次使用产品的人说明画面里的操作顺序”。\n\n不要要求稿件补写视频中没有的测试数据、人物身份或无法读取的对白。需要引用这些内容时，应先准备可靠的文字材料。\n\n## 3. 阅读与回查\n\n分析完成后，在“文章正文”页签连续阅读标题、正文和结尾。需要核对重要陈述时，打开“回查依据”，查看对应时间范围、要点和待核验信息。\n\n视频仍可播放时，点击时间范围回看；原视频已经清理时，时间回放不可用。\n\n## 4. 导出后继续编辑\n\n导出 Markdown 或 Word，在自己的编辑器中继续修改。文章文件只保留成稿内容，回查记录不会追加到文末。\n\n现有网页流程交付的是文章初稿和导出文件。写入公众号账号的草稿还需要独立的渠道能力。\n"
+    }
+  ]
+}

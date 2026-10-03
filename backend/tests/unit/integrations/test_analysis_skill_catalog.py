@@ -183,6 +183,26 @@ def test_article_and_screenplay_skills_preserve_stage_boundaries() -> None:
     assert rewrite is not None and "新增场景或镜头" in rewrite.instructions
 
 
+def test_article_uses_baoyu_title_method_without_hook_or_execution_instructions() -> (
+    None
+):
+    article = BUILTIN_ANALYSIS_SKILLS.get("video-to-article", AnalysisInputKind.VIDEO)
+    assert article is not None
+    assert "# Source module: baoyu-article-title" in article.instructions
+    assert "## Straightforward Style" in article.instructions
+    assert "**Descriptive**" in article.instructions
+    assert "**Declarative**" in article.instructions
+    for excluded in (
+        "## Hook Formulas",
+        "## Title Principles",
+        "## Prohibited Patterns",
+    ):
+        assert excluded not in article.instructions
+    assert "scripts/main.ts" not in article.instructions
+    assert "baoyu-post-to-wechat" not in article.instructions
+    assert not (SKILLS_ROOT / "modules" / "baoyu-skills" / "scripts").exists()
+
+
 def test_opening_hook_review_preserves_visual_evidence_boundaries() -> None:
     skill = BUILTIN_ANALYSIS_SKILLS.get("opening-hook-review", AnalysisInputKind.VIDEO)
 
