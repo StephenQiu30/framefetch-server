@@ -44,10 +44,14 @@ export default function DownloadJobView({
   const format = state.job?.format ?? undefined;
   const gallery = state.job?.media_kind === 'image_gallery';
   const collection = state.job?.media_kind === 'video_collection';
-  const title = state.job?.title ?? state.job?.source_label ?? '媒体下载任务';
+  const platform =
+    state.job?.execution_context?.provider_key === 'wechat_channels'
+      ? '微信视频号'
+      : null;
+  const sourceLabel = platform ?? state.job?.source_label ?? null;
+  const title = state.job?.title ?? sourceLabel ?? '媒体下载任务';
   const thumbnail = state.job?.thumbnail_url ?? null;
-  const extractor = state.job?.extractor_key ?? null;
-  const sourceLabel = state.job?.source_label ?? null;
+  const extractor = platform ?? state.job?.extractor_key ?? null;
   const duration = state.job?.duration_seconds ?? undefined;
 
   function selectTime(milliseconds: number) {

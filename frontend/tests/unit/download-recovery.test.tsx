@@ -10,6 +10,7 @@ describe('source-aware download recovery', () => {
     const value = {
       ...job('failed'),
       error_code: 'context_changed' as const,
+      source_label: 'WechatChannelsPublic',
     };
     const props = {
       action: null,
@@ -49,6 +50,8 @@ describe('source-aware download recovery', () => {
       'href',
       '/',
     );
+    expect(screen.getByText('微信视频号')).toBeVisible();
+    expect(screen.queryByText('WechatChannelsPublic')).not.toBeInTheDocument();
   });
 
   it.each(['failed', 'cancelled', 'succeeded'] as const)(
@@ -57,6 +60,7 @@ describe('source-aware download recovery', () => {
       const value = {
         ...job(status),
         source_kind: 'browser_import' as const,
+        source_label: 'WechatChannelsPublic',
         file_available: false,
       };
       const props = {
@@ -95,6 +99,7 @@ describe('source-aware download recovery', () => {
       expect(
         screen.getByRole('link', { name: '返回首页重新导入' }),
       ).toHaveAttribute('href', '/');
+      expect(screen.getByText('WechatChannelsPublic')).toBeVisible();
     },
   );
 });

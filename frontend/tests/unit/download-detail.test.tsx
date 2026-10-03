@@ -64,10 +64,35 @@ describe('DownloadJobView', () => {
   });
 
   it('uses WebSocket state until the job succeeds and exposes analysis', async () => {
-    mockHttpResponses(job('running'), job('succeeded'), null, analysisSkills);
+    const channels = {
+      source_label: 'WechatChannelsPublic',
+      extractor_key: 'WechatChannelsPublic',
+      execution_context: {
+        provider_key: 'wechat_channels',
+        registry_revision: 'wechat-channels-official-share',
+        resolved_layer: 'L3',
+        client: 'wechat_channels:browser',
+        engine_revision: 'test-engine',
+        egress_route: 'test-egress',
+        egress_revision: 'test-egress-revision',
+        egress_class: 'unknown',
+        egress_observed_ip: null,
+        identity_used: true,
+        identity_digest: 'a'.repeat(64),
+        browser_context_kind: 'authenticated',
+      },
+    };
+    mockHttpResponses(
+      { ...job('running'), ...channels },
+      { ...job('succeeded'), ...channels },
+      null,
+      analysisSkills,
+    );
     render(<DownloadJobView jobId={job().id} pollIntervalMs={5} />);
 
     expect((await screen.findAllByText('正在下载')).length).toBeGreaterThan(0);
+    expect(screen.getByText(/微信视频号 ·/u)).toBeVisible();
+    expect(screen.queryByText(/WechatChannelsPublic/u)).not.toBeInTheDocument();
     const mediaFrame = document.querySelector(
       '[data-slot="media-result-frame"]',
     );

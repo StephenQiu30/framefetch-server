@@ -44,9 +44,37 @@ describe('inspection result route', () => {
   });
 
   it('keeps the reusable fixed frame and opens the download detail after creating a job', async () => {
-    mockHttpResponses(inspection, job());
+    const scopeMessage =
+      '视频号交付微信官方分享对应的非加密文件；显示时长来自候选文件，公开免费标签与原作品完整性未获平台证明。';
+    mockHttpResponses(
+      {
+        ...inspection,
+        extractor_key: 'WechatChannelsPublic',
+        entitlement_state: 'unknown',
+        rights_basis: null,
+        user_action: scopeMessage,
+        execution_context: {
+          provider_key: 'wechat_channels',
+          registry_revision: 'wechat-channels-official-share',
+          resolved_layer: 'L3',
+          client: 'wechat_channels:browser',
+          engine_revision: 'test-engine',
+          egress_route: 'test-egress',
+          egress_revision: 'test-egress-revision',
+          egress_class: 'unknown',
+          egress_observed_ip: null,
+          identity_used: true,
+          identity_digest: 'a'.repeat(64),
+          browser_context_kind: 'authenticated',
+        },
+      },
+      job(),
+    );
     renderRoute(`inspectionId=${inspection.id}`);
     expect(await screen.findByText(inspection.title)).toBeVisible();
+    expect(screen.getByText('微信视频号')).toBeVisible();
+    expect(screen.queryByText('WechatChannelsPublic')).not.toBeInTheDocument();
+    expect(screen.getByText(scopeMessage)).toBeVisible();
     expect(
       document.querySelector('[data-slot="media-result-frame"]'),
     ).toBeInTheDocument();

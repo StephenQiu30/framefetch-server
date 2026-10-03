@@ -5,6 +5,7 @@ import { DownloadSimple, UploadSimple } from '@phosphor-icons/react';
 import FormatPicker from '@/components/intake/format-picker';
 import MediaCover from '@/components/media/media-cover';
 import { MediaResult } from '@/components/media/media-result';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import {
   Item,
@@ -39,6 +40,10 @@ export default function InspectionWorkspace({
     : undefined;
   const gallery = inspection.media_kind === 'image_gallery';
   const collection = inspection.media_kind === 'video_collection';
+  const platform =
+    inspection.execution_context?.provider_key === 'wechat_channels'
+      ? '微信视频号'
+      : inspection.extractor_key;
 
   return (
     <div data-slot="inspection-result">
@@ -53,7 +58,7 @@ export default function InspectionWorkspace({
                 inspection,
                 selected?.plan ?? undefined,
               ),
-              eyebrow: inspection.extractor_key,
+              eyebrow: platform,
               title: inspection.title,
             }}
             priority
@@ -61,34 +66,45 @@ export default function InspectionWorkspace({
           />
         }
         metadata={
-          <ItemGroup
-            aria-label="媒体信息"
-            className="mt-2 flex-row flex-wrap items-start justify-start gap-x-3 gap-y-2 text-left tabular-nums"
-          >
-            <Meta label="平台" mono value={inspection.extractor_key} />
-            {inspection.duration_seconds > 0 ? (
+          <>
+            <ItemGroup
+              aria-label="媒体信息"
+              className="mt-2 flex-row flex-wrap items-start justify-start gap-x-3 gap-y-2 text-left tabular-nums"
+            >
               <Meta
-                label="时长"
-                value={formatDuration(inspection.duration_seconds)}
+                label="平台"
+                mono={platform === inspection.extractor_key}
+                value={platform}
               />
+              {inspection.duration_seconds > 0 ? (
+                <Meta
+                  label="时长"
+                  value={formatDuration(inspection.duration_seconds)}
+                />
+              ) : null}
+              {gallery ? (
+                <Meta
+                  label="媒体"
+                  value={`图文作品 · ${inspection.asset_count} 张原图`}
+                />
+              ) : collection ? (
+                <Meta
+                  label="媒体"
+                  value={`视频合集 · ${inspection.asset_count} 个视频`}
+                />
+              ) : selected?.plan ? (
+                <Meta
+                  label="当前清晰度"
+                  value={`${selected.plan.width}×${selected.plan.height}`}
+                />
+              ) : null}
+            </ItemGroup>
+            {downloadable && inspection.user_action ? (
+              <Alert className="mt-4">
+                <AlertDescription>{inspection.user_action}</AlertDescription>
+              </Alert>
             ) : null}
-            {gallery ? (
-              <Meta
-                label="媒体"
-                value={`图文作品 · ${inspection.asset_count} 张原图`}
-              />
-            ) : collection ? (
-              <Meta
-                label="媒体"
-                value={`视频合集 · ${inspection.asset_count} 个视频`}
-              />
-            ) : selected?.plan ? (
-              <Meta
-                label="当前清晰度"
-                value={`${selected.plan.width}×${selected.plan.height}`}
-              />
-            ) : null}
-          </ItemGroup>
+          </>
         }
         panel={{
           title: downloadable

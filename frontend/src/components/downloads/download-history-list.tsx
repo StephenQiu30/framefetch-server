@@ -119,6 +119,11 @@ export default function DownloadHistoryList({
 
 function HistoryContent({ item }: { item: API.DownloadHistoryItemResponse }) {
   const detailHref = `/downloads/detail?jobId=${encodeURIComponent(item.id)}`;
+  const sourceLabel =
+    item.source_kind === 'remote_provider' &&
+    item.source_label === 'WechatChannelsPublic'
+      ? '微信视频号'
+      : item.source_label;
   return (
     <Link
       aria-label={item.title}
@@ -132,7 +137,7 @@ function HistoryContent({ item }: { item: API.DownloadHistoryItemResponse }) {
           compact
           fallback={{
             detail: item.format_name,
-            eyebrow: item.source_label,
+            eyebrow: sourceLabel,
             title: item.title,
           }}
           src={item.thumbnail_url}
@@ -141,7 +146,7 @@ function HistoryContent({ item }: { item: API.DownloadHistoryItemResponse }) {
       <div className="flex min-w-0 flex-col gap-1.5">
         <span className="line-clamp-2">{item.title}</span>
         <div className="text-muted-foreground">
-          <span>{item.source_label}</span>
+          <span>{sourceLabel}</span>
           <span aria-hidden> · </span>
           <span>{item.format_name}</span>
           <span aria-hidden> · </span>
