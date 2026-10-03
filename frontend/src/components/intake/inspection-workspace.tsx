@@ -1,6 +1,7 @@
 'use client';
 
 import { DownloadSimple, UploadSimple } from '@phosphor-icons/react';
+import { cn } from 'cn';
 
 import FormatPicker from '@/components/intake/format-picker';
 import MediaCover from '@/components/media/media-cover';
@@ -70,6 +71,7 @@ export default function InspectionWorkspace({
             <ItemGroup
               aria-label="媒体信息"
               className="mt-2 flex-row flex-wrap items-start justify-start gap-x-3 gap-y-2 text-left tabular-nums"
+              data-media-result-metadata=""
             >
               <Meta
                 label="平台"
@@ -225,7 +227,7 @@ function Meta({
     >
       <ItemContent className="flex-none gap-0">
         <ItemTitle className="sr-only">{label}</ItemTitle>
-        <ItemDescription className={mono ? 'font-mono' : 'tabular-nums'}>
+        <ItemDescription className={cn(mono && 'font-mono')}>
           {value}
         </ItemDescription>
       </ItemContent>
