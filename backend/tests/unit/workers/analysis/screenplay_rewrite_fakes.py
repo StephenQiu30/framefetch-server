@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import replace
 from pathlib import Path
 
-from app.services.analysis_execution.errors import AnalysisExecutionError
+from app.integrations.ai_cli.errors import AnalysisCliError
 from app.services.analysis_execution.ports import ScreenplayRewriteAnalyzerSelection
 from app.services.analysis_execution.screenplay_executor import (
     ScreenplayAnalysisExecutor,
@@ -60,7 +60,12 @@ class FakeRewriteAnalyzer:
         self.chunk_requests.append(request)
         call_no = len(self.chunk_requests)
         if code := self.error_calls.get(call_no):
-            raise AnalysisExecutionError(code)
+            raise AnalysisCliError(
+                code,
+                no_model_execution=code == "analysis_provider_rate_limited",
+                outcome_known=code
+                in {"invalid_model_output", "analysis_resource_limit"},
+            )
         scene_id = request.source_scene_id
         if self.invalid_call == call_no or call_no in self.invalid_calls:
             scene_id = "scene-invented"

@@ -88,17 +88,17 @@ class ChatCompletionsModel:
         try:
             choice = response["choices"][0]
             if not isinstance(choice, dict):
-                raise AnalysisCliError("invalid_model_output")
+                raise AnalysisCliError("invalid_model_output", outcome_known=True)
             message = choice["message"]
             if not isinstance(message, dict):
-                raise AnalysisCliError("invalid_model_output")
+                raise AnalysisCliError("invalid_model_output", outcome_known=True)
             if choice.get("finish_reason") != "stop" or message.get("refusal"):
-                raise AnalysisCliError("invalid_model_output")
+                raise AnalysisCliError("invalid_model_output", outcome_known=True)
             result = json.loads(message["content"])
         except (KeyError, IndexError, TypeError, ValueError):
-            raise AnalysisCliError("invalid_model_output") from None
+            raise AnalysisCliError("invalid_model_output", outcome_known=True) from None
         if not isinstance(result, dict):
-            raise AnalysisCliError("invalid_model_output")
+            raise AnalysisCliError("invalid_model_output", outcome_known=True)
         return result
 
 
@@ -113,5 +113,5 @@ class _ChatInvoker:
             or len(value) != 1
             or not isinstance(value[0], HumanMessage)
         ):
-            raise AnalysisCliError("invalid_model_output")
+            raise AnalysisCliError("invalid_model_output", outcome_known=True)
         return await self.model.complete(value[0].content, self.schema)

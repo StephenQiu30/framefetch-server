@@ -51,6 +51,7 @@ class SqlAlchemyAnalysisRepository:
         self.begin_step = steps.begin_step
         self.complete_step = steps.complete_step
         self.abandon_step = steps.abandon_step
+        self.fail_step = steps.fail_step
         self.has_started_step = steps.has_started_step
         self.purge_steps = steps.purge_steps
         retry = AnalysisRetryRepository(sessions, quota_policy=quota_policy)

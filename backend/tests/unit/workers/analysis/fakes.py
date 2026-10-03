@@ -8,6 +8,7 @@ from uuid import UUID, uuid4
 
 from app.services.analysis.models import AnalysisJobSnapshot
 from app.services.analysis.rules.result_types import AnalysisResult
+from app.services.analysis_execution.errors import AnalysisPersistenceRejected
 from app.services.analysis_execution.models import (
     AnalysisArtifactSource,
     AnalysisExecutionSettings,
@@ -178,11 +179,13 @@ class FakeRepository:
         self, run_id: UUID, step_key: str, input_sha256: str, *, now: datetime
     ) -> AnalysisStepBegin:
         current = self.steps.get(step_key)
-        if current is None or (
-            current[0] == "succeeded" and current[1] != input_sha256
-        ):
+        if current is None:
             self.steps[step_key] = ("started", input_sha256, None)
             return AnalysisStepBegin(AnalysisStepStatus.NEW)
+        if current[1] != input_sha256:
+            raise AnalysisPersistenceRejected("analysis step input changed")
+        if current[0] == "failed":
+            return AnalysisStepBegin(AnalysisStepStatus.FAILED, current[2])
         if current[0] == "succeeded":
             return AnalysisStepBegin(AnalysisStepStatus.REPLAY, current[2])
         return AnalysisStepBegin(AnalysisStepStatus.UNKNOWN)
@@ -197,6 +200,13 @@ class FakeRepository:
     async def abandon_step(self, run_id: UUID, step_key: str) -> None:
         if self.steps.get(step_key, ("",))[0] == "started":
             del self.steps[step_key]
+
+    async def fail_step(
+        self, run_id: UUID, step_key: str, error_code: str, *, now: datetime
+    ) -> None:
+        status, digest, _ = self.steps[step_key]
+        assert status == "started"
+        self.steps[step_key] = ("failed", digest, error_code)
 
 
 class FakeLoader:

@@ -59,6 +59,7 @@ class SlowAnalyzer:
 class ProviderFailure(RuntimeError):
     def __init__(self, code: str) -> None:
         self.code = code
+        self.no_model_execution = code == "analysis_provider_rate_limited"
         super().__init__(code)
 
 
@@ -319,3 +320,63 @@ async def test_returned_provider_failure_releases_step_for_normal_retry(
 
     assert repository.job.status == "retry_wait"
     assert "video" not in repository.steps
+
+
+@pytest.mark.asyncio
+async def test_timeout_preserves_started_call_and_never_auto_retries(
+    tmp_path: Path,
+) -> None:
+    repository = FakeRepository(running_job())
+    analyzer = CountingAnalyzer(TimeoutError())
+    await execution(repository, FakeLoader(tmp_path), analyzer=analyzer).execute(
+        repository.job.id, repository.job.run_id, repository.job.run_no, OWNER
+    )
+    assert analyzer.calls == 1
+    assert repository.steps["video"][0] == "started"
+    assert repository.job.status == "failed"
+    assert repository.failures[-1]["error_code"] == "analysis_outcome_unknown"
+    assert repository.failures[-1]["retryable"] is False
+
+
+@pytest.mark.asyncio
+async def test_received_invalid_output_is_saved_and_not_regenerated(
+    tmp_path: Path,
+) -> None:
+    repository = FakeRepository(running_job())
+    invalid = valid_mapping()
+    invalid["summary"]["evidence_shot_ids"] = ["invented-shot"]
+    first = CountingAnalyzer(invalid)
+    await execution(repository, FakeLoader(tmp_path), analyzer=first).execute(
+        repository.job.id, repository.job.run_id, repository.job.run_no, OWNER
+    )
+    assert first.calls == 1
+    assert repository.steps["video"][0] == "succeeded"
+    repository.job = replace(repository.job, status="running", stage="preparing")
+    replacement = CountingAnalyzer(valid_mapping())
+    await execution(repository, FakeLoader(tmp_path), analyzer=replacement).execute(
+        repository.job.id, repository.job.run_id, repository.job.run_no, "run:1:2"
+    )
+    assert replacement.calls == 0
+    assert len(repository.published) == 0
+
+
+@pytest.mark.asyncio
+async def test_explicit_known_invalid_response_is_recorded_without_reissue(
+    tmp_path: Path,
+) -> None:
+    from app.integrations.ai_cli.errors import AnalysisCliError
+
+    repository = FakeRepository(running_job())
+    first = CountingAnalyzer(
+        AnalysisCliError("invalid_model_output", outcome_known=True)
+    )
+    await execution(repository, FakeLoader(tmp_path), analyzer=first).execute(
+        repository.job.id, repository.job.run_id, repository.job.run_no, OWNER
+    )
+    assert repository.steps["video"][0] == "failed"
+    repository.job = replace(repository.job, status="running", stage="preparing")
+    replacement = CountingAnalyzer(valid_mapping())
+    await execution(repository, FakeLoader(tmp_path), analyzer=replacement).execute(
+        repository.job.id, repository.job.run_id, repository.job.run_no, "run:1:2"
+    )
+    assert replacement.calls == 0

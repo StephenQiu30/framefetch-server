@@ -7,6 +7,7 @@ import pytest
 from app.models import AnalysisStepResultRow
 from app.models.analysis import AnalysisArtifactLockRow
 from app.services.analysis.errors import PersistenceConflict, PersistenceNotFound
+from app.services.analysis_execution.errors import AnalysisPersistenceRejected
 from app.services.analysis_execution.models import AnalysisStepStatus
 from sqlalchemy import func, select
 from tests.unit.repositories.analysis.factories import (
@@ -221,9 +222,9 @@ async def test_step_journal_replays_results_and_reports_unknown_outcomes(
         AnalysisStepStatus.REPLAY,
         {"scenes": [1]},
     )
-    # A completed result for different input is simply recomputed.
-    changed = await journal.begin_step(run_id, "chunk-000", "e" * 64, now=NOW)
-    assert changed.status is AnalysisStepStatus.NEW
+    # A completed step is immutable even when a replacement changes its input.
+    with pytest.raises(AnalysisPersistenceRejected):
+        await journal.begin_step(run_id, "chunk-000", "e" * 64, now=NOW)
 
     await journal.begin_step(run_id, "chunk-001", digest, now=NOW)
     assert not await journal.has_started_step(uuid4())

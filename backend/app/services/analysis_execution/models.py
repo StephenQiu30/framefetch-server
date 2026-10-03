@@ -17,6 +17,7 @@ class AnalysisStepStatus(StrEnum):
     NEW = "new"
     REPLAY = "replay"
     UNKNOWN = "unknown"
+    FAILED = "failed"
 
 
 @dataclass(frozen=True, slots=True)

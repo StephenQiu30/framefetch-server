@@ -11,6 +11,7 @@ from uuid import UUID
 
 from app.services.analysis.rules.enums import AnalysisStage
 from app.services.analysis_execution.errors import (
+    AnalysisExecutionError,
     AnalysisLeaseLost,
     AnalysisOutcomeUnknown,
     AnalysisOwnershipLost,
@@ -83,37 +84,49 @@ class AnalysisLeaseMonitor:
     ) -> ResultT:
         """Run one model call at most once per run; replay its saved payload.
 
-        The journal row is written before the call. Only a failure returned by
-        the call itself proves the outcome, so only then is the row released;
-        an interrupted call leaves it for the next attempt to report as unknown.
+        A returned exception does not prove that the provider did not execute.
+        Persist received output before parsing; invalid output is also a paid
+        result and must never be silently discarded and regenerated.
         """
         begun = await self._repository.begin_step(
             self._run_id, key, request_digest(request), now=self._clock()
         )
         if begun.status is AnalysisStepStatus.UNKNOWN:
             raise AnalysisOutcomeUnknown
+        if begun.status is AnalysisStepStatus.FAILED:
+            raise AnalysisExecutionError(str(begun.payload))
         if begun.status is AnalysisStepStatus.REPLAY:
             await self.advance(stage, progress)
             return parse(begun.payload)
 
-        async def guarded() -> tuple[bool, object]:
-            try:
-                return True, await call()
-            except Exception as error:
-                return False, error
+        async def invoke() -> object:
+            return await call()
 
-        succeeded, payload = await self.run(guarded, stage=stage, progress=progress)
         try:
-            if not succeeded:
-                raise payload  # type: ignore[misc]
-            value = parse(payload)
-        except Exception:
-            await self._repository.abandon_step(self._run_id, key)
+            payload = await self.run(invoke, stage=stage, progress=progress)
+        except (
+            AnalysisLeaseLost,
+            AnalysisPersistenceUnavailable,
+            asyncio.CancelledError,
+        ):
             raise
+        except Exception as error:
+            if getattr(error, "no_model_execution", False) is True:
+                await self._repository.abandon_step(self._run_id, key)
+                raise
+            if getattr(error, "outcome_known", False) is True:
+                await self._repository.fail_step(
+                    self._run_id,
+                    key,
+                    str(getattr(error, "code", "invalid_model_output")),
+                    now=self._clock(),
+                )
+                raise
+            raise AnalysisOutcomeUnknown from error
         await self._repository.complete_step(
             self._run_id, key, payload, now=self._clock()
         )
-        return value
+        return parse(payload)
 
     async def advance(self, stage: AnalysisStage, progress: int) -> None:
         try:

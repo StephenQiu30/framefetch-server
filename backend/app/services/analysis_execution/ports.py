@@ -93,6 +93,10 @@ class AnalysisExecutionRepository(Protocol):
 
     async def abandon_step(self, run_id: UUID, step_key: str) -> None: ...
 
+    async def fail_step(
+        self, run_id: UUID, step_key: str, error_code: str, *, now: datetime
+    ) -> None: ...
+
 
 class ArtifactLoader(Protocol):
     async def materialize(

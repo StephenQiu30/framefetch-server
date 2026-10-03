@@ -1008,12 +1008,19 @@ CREATE TABLE IF NOT EXISTS analysis_step_results (
     started_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     completed_at TIMESTAMPTZ,
     PRIMARY KEY (run_id, step_key),
-    CONSTRAINT ck_analysis_step_results_status CHECK (status IN ('started', 'succeeded')),
+    CONSTRAINT ck_analysis_step_results_status CHECK (status IN ('started', 'succeeded', 'failed')),
     CONSTRAINT ck_analysis_step_results_input_sha CHECK (length(input_sha256) = 64),
     CONSTRAINT ck_analysis_step_results_payload CHECK (
-        (status = 'succeeded') = (payload IS NOT NULL)
+        (status IN ('succeeded', 'failed')) = (payload IS NOT NULL)
     )
 );
+
+ALTER TABLE analysis_step_results DROP CONSTRAINT IF EXISTS ck_analysis_step_results_status;
+ALTER TABLE analysis_step_results ADD CONSTRAINT ck_analysis_step_results_status
+    CHECK (status IN ('started', 'succeeded', 'failed'));
+ALTER TABLE analysis_step_results DROP CONSTRAINT IF EXISTS ck_analysis_step_results_payload;
+ALTER TABLE analysis_step_results ADD CONSTRAINT ck_analysis_step_results_payload
+    CHECK ((status IN ('succeeded', 'failed')) = (payload IS NOT NULL));
 
 CREATE TABLE IF NOT EXISTS analysis_report_versions (
     id UUID PRIMARY KEY,

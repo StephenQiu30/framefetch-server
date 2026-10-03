@@ -214,6 +214,12 @@ class AnalysisExecutionPersistence:
         with _translate_errors():
             await self._analysis.abandon_step(run_id, step_key)
 
+    async def fail_step(
+        self, run_id: UUID, step_key: str, error_code: str, *, now: datetime
+    ) -> None:
+        with _translate_errors():
+            await self._analysis.fail_step(run_id, step_key, error_code, now=now)
+
     async def has_started_step(self, run_id: UUID) -> bool:
         with _translate_errors():
             return await self._analysis.has_started_step(run_id)

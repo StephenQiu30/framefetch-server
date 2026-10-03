@@ -2,8 +2,16 @@ from __future__ import annotations
 
 
 class AnalysisCliError(RuntimeError):
-    def __init__(self, code: str) -> None:
+    def __init__(
+        self,
+        code: str,
+        *,
+        no_model_execution: bool = False,
+        outcome_known: bool = False,
+    ) -> None:
         self.code = code
+        self.no_model_execution = no_model_execution
+        self.outcome_known = outcome_known
         super().__init__(code)
 
 

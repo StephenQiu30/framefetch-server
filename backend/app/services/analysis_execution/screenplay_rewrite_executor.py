@@ -237,7 +237,7 @@ class ScreenplayRewriteExecutor:
         for call_attempt in range(1, self._chunk_call_attempts + 1):
             try:
                 return await monitor.step(
-                    key,
+                    key if call_attempt == 1 else f"{key}-repair-{call_attempt:02d}",
                     request,
                     partial(selection.analyzer.rewrite_screenplay_chunk, request),
                     partial(
@@ -267,16 +267,12 @@ class ScreenplayRewriteExecutor:
         raise RuntimeError("unreachable screenplay chunk recovery state")
 
 
-_RECOVERABLE_CHUNK_CODES = {
-    "analysis_provider_rate_limited",
-    "analysis_cli_timeout",
-    "analysis_cli_failed",
-    "invalid_model_output",
-}
-
-
 def _recoverable_chunk_error(error: Exception) -> bool:
     return (
         isinstance(error, AnalysisValidationError)
-        or getattr(error, "code", None) in _RECOVERABLE_CHUNK_CODES
+        or getattr(error, "no_model_execution", False) is True
+        or (
+            getattr(error, "outcome_known", False) is True
+            and getattr(error, "code", None) == "invalid_model_output"
+        )
     )

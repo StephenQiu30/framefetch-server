@@ -44,9 +44,9 @@ async def request_json(
     except httpx.HTTPError:
         raise AnalysisCliError("analysis_cli_failed") from None
     except (ValueError, UnicodeError):
-        raise AnalysisCliError("invalid_model_output") from None
+        raise AnalysisCliError("invalid_model_output", outcome_known=True) from None
     if not isinstance(value, dict):
-        raise AnalysisCliError("invalid_model_output")
+        raise AnalysisCliError("invalid_model_output", outcome_known=True)
     error = value.get("error")
     if isinstance(error, dict):
         code = error.get("code")
@@ -64,4 +64,8 @@ def status_error(status: int) -> AnalysisCliError:
         404: "analysis_cli_unsupported",
         422: "analysis_cli_unsupported",
     }.get(status, "analysis_cli_failed")
-    return AnalysisCliError(code)
+    # Only an explicit client-side rejection proves that this HTTP request did
+    # not produce a completion. A 5xx or lost connection can follow execution.
+    return AnalysisCliError(
+        code, no_model_execution=status in {400, 401, 402, 403, 404, 422, 429}
+    )

@@ -302,7 +302,7 @@ Temporal 只编排解析与 Skill 分析／内容制作的执行。PostgreSQL �
 
 Activity 可能至少执行一次，[Temporal 官方错误处理](https://docs.temporal.io/develop/python/best-practices/error-handling)要求结合业务幂等处理重试。Temporal 不保证供应商模型或平台写入恰好一次；上述未知保护是项目自己的业务机制。重放、取消、心跳与故障演练见设计 15。
 
-目前 Provider／上层 Prompt／Schema／预算未全部冻结，普通模型超时也未全面改为未知结果分类。必须先完成这些前置项，再上线新增多阶段调用。此文没有改变当前运行代码或完成 Temporal 服务验收。
+步骤监控已将超时、断连及无明确未执行证据的异常保留为未知结果；收到的结果在解析前持久化，已知无执行的拒绝才释放步骤。已知坏结果的局部修复使用独立有界步骤，不覆写原调用。Provider／上层 Prompt／Schema／预算仍需完整冻结，完成这些前置项后才上线新增多阶段调用。
 
 ## 8. 成品与验收
 

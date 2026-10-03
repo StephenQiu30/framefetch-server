@@ -120,13 +120,14 @@ class AnalysisStepResultRow(Base):
     __tablename__ = "analysis_step_results"
     __table_args__ = (
         CheckConstraint(
-            "status IN ('started', 'succeeded')", name="ck_analysis_step_results_status"
+            "status IN ('started', 'succeeded', 'failed')",
+            name="ck_analysis_step_results_status",
         ),
         CheckConstraint(
             "length(input_sha256) = 64", name="ck_analysis_step_results_input_sha"
         ),
         CheckConstraint(
-            "(status = 'succeeded') = (payload IS NOT NULL)",
+            "(status IN ('succeeded', 'failed')) = (payload IS NOT NULL)",
             name="ck_analysis_step_results_payload",
         ),
     )

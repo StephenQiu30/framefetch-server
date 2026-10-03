@@ -102,8 +102,6 @@ async def test_rewrite_recovers_current_invalid_chunk_without_repeating_verified
     "error_code",
     [
         "analysis_provider_rate_limited",
-        "analysis_cli_timeout",
-        "analysis_cli_failed",
         "invalid_model_output",
     ],
 )
@@ -156,6 +154,23 @@ async def test_rewrite_does_not_retry_nonrecoverable_chunk_failure(
     assert repository.failures[0]["error_code"] == "analysis_resource_limit"
     assert len(analyzer.chunk_requests) == 1
     assert analyzer.retry_delays == []
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("error_code", ["analysis_cli_timeout", "analysis_cli_failed"])
+async def test_rewrite_stops_on_unknown_chunk_outcome(
+    tmp_path: Path, error_code: str
+) -> None:
+    execution, repository, _, analyzer, _ = build_rewrite_execution(tmp_path)
+    analyzer.error_calls[2] = error_code
+    job = repository.job
+    await execution.execute(job.id, job.run_id, job.run_no, "run:1:1")
+    assert repository.published == []
+    assert len(analyzer.chunk_requests) == 2
+    assert analyzer.retry_delays == []
+    assert repository.failures[0]["error_code"] == "analysis_outcome_unknown"
+    assert repository.failures[0]["retryable"] is False
+    assert repository.steps["rewrite-001"][0] == "started"
 
 
 @pytest.mark.asyncio
