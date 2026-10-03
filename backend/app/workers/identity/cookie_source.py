@@ -598,7 +598,9 @@ class CookieSource:
         if (
             profile.identity_source != "yuanbao_native"
             or profile.identity_origin != YUANBAO_ORIGIN
-            or profile.identity == "none"
+            or profile.identity != "required"
+            or profile.content_scope != "official_share"
+            or profile.cookie_domain_allowlist
         ):
             raise IdentityUnavailable("identity_source_mismatch")
         if self.connection is None:

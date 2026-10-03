@@ -14,11 +14,7 @@ def configured_provider_statuses() -> tuple[ProviderStatusView, ...]:
             key=profile.key,
             display_name=profile.display_name,
             registered=True,
-            extractor_exists=profile.key
-            not in {
-                ProviderKey.WECHAT_CHANNELS,
-                ProviderKey.WECHAT_OFFICIAL_ACCOUNT_ARTICLE,
-            },
+            extractor_exists=profile.key != ProviderKey.WECHAT_OFFICIAL_ACCOUNT_ARTICLE,
             capabilities=()
             if profile.key == ProviderKey.WECHAT_OFFICIAL_ACCOUNT_ARTICLE
             else tuple(sorted(profile.capabilities, key=str)),
@@ -27,8 +23,8 @@ def configured_provider_statuses() -> tuple[ProviderStatusView, ...]:
             user_action=(
                 "支持公开文章视频发现与显式选择。"
                 if profile.key == ProviderKey.WECHAT_OFFICIAL_ACCOUNT_ARTICLE
-                else "视频号元宝链路尚未接通，暂不支持链接下载；"
-                "可导入已合法取得的非加密 MP4 文件。"
+                else "视频号需要登录元宝，并保持元宝页面打开；"
+                "仅交付官方分享链接对应的非加密文件，无法解析时可导入已有文件。"
                 if profile.key == ProviderKey.WECHAT_CHANNELS
                 else "此平台需要登录身份；无法解析时，可导入已有文件。"
                 if profile.identity is ProviderIdentity.REQUIRED

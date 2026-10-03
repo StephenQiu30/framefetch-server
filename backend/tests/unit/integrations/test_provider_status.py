@@ -54,7 +54,7 @@ def test_required_identity_action_explains_login_requirement_for_extractors():
         assert "无需登录" not in item.user_action
 
 
-def test_wechat_channels_exposes_parser_gap_without_removing_platform():
+def test_wechat_channels_exposes_official_share_delivery_without_verified_support():
     channels = next(
         item
         for item in configured_provider_statuses()
@@ -62,8 +62,8 @@ def test_wechat_channels_exposes_parser_gap_without_removing_platform():
     )
     public = ProviderStatusResponse.from_view(channels)
     assert public.registered
-    assert not public.extractor_exists
-    assert not public.download_supported
+    assert public.extractor_exists
+    assert public.download_supported
     assert public.status is ProviderSupportStatus.UNKNOWN
     assert public.identity is ProviderIdentity.REQUIRED
     assert set(public.capabilities) == {
@@ -71,9 +71,12 @@ def test_wechat_channels_exposes_parser_gap_without_removing_platform():
         ProviderCapability.SHORT_VIDEO,
     }
     assert public.user_action is not None
-    assert "元宝链路尚未接通" in public.user_action
-    assert "暂不支持链接下载" in public.user_action
-    assert "非加密 MP4" in public.user_action
+    assert "需要登录元宝" in public.user_action
+    assert "元宝页面打开" in public.user_action
+    assert "官方分享链接" in public.user_action
+    assert "非加密文件" in public.user_action
+    assert all(word not in public.user_action for word in ("公开", "免费", "完整"))
+    assert "last_verified_at" not in public.model_dump()
 
 
 def test_official_account_articles_remain_discovery_only():

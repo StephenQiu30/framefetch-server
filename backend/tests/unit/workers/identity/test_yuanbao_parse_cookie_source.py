@@ -155,6 +155,10 @@ def test_parse_request_accepts_only_the_fixed_canonical_share(change):
         {"identity_source": "yuanbao_account"},
         {"identity_origin": "https://yuanbao.tencent.com.evil.invalid"},
         {"identity": "none"},
+        {"identity": "prefer"},
+        {"content_scope": "public"},
+        {"content_scope": "personal_full"},
+        {"cookie_domain_allowlist": ("yuanbao.tencent.com",)},
     ],
 )
 async def test_registry_declaration_is_required_before_request(

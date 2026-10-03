@@ -36,7 +36,7 @@ _DECLARATIONS = {
     "xiaohongshu": ("L3,L1", "cn", "prefer", "public"),
     "kuaishou": ("L2,L3", "cn", "prefer", "public"),
     "weibo": ("L2,L3", "cn", "prefer", "public"),
-    "wechat_channels": ("L3", "cn", "required", "public"),
+    "wechat_channels": ("L3", "cn", "required", "official_share"),
     "qqvideo": ("L1,L3", "cn", "required", "personal_full"),
     "youku": ("L1,L3", "cn", "required", "personal_full"),
     "hongguo_web": ("L1,L3", "cn", "none", "public"),
@@ -213,7 +213,7 @@ def test_implemented_browser_parsers_reject_empty_payload(key):
 
 
 @pytest.mark.parametrize(
-    "key", ["facebook", "instagram", "x", "qqvideo", "hongguo_web", "wechat_channels"]
+    "key", ["facebook", "instagram", "x", "qqvideo", "hongguo_web"]
 )
 async def test_missing_browser_parser_fails_before_identity_or_browser_io(
     key, tmp_path, monkeypatch

@@ -269,6 +269,18 @@ def _inspection_metadata(result: RunnerInspection) -> dict[str, object]:
         # A complete account-visible stream is not an official export grant.
         metadata["entitlement_state"] = "unknown"
         metadata["rights_basis"] = None
+    if result.execution_context.provider_key == ProviderKey.WECHAT_CHANNELS:
+        # official_share describes the delivered file, not independently
+        # established public/free rights or the original work's completeness.
+        metadata["entitlement_state"] = "unknown"
+        metadata["rights_basis"] = None
+        metadata["content_scope"] = "official_share"
+        metadata["duration_origin"] = "candidate_file"
+        metadata["original_completeness"] = "not_verified"
+        metadata["user_action"] = (
+            "视频号交付微信官方分享对应的非加密文件；显示时长来自候选文件，"
+            "公开免费标签与原作品完整性未获平台证明。"
+        )
     if result.media_kind in {MediaKind.IMAGE_GALLERY, MediaKind.VIDEO_COLLECTION}:
         metadata["media_kind"] = result.media_kind.value
         metadata["asset_count"] = result.asset_count

@@ -71,7 +71,7 @@ class ProviderProfile:
     identity: ProviderIdentity = ProviderIdentity.NONE
     identity_source: Literal["cookies", "yuanbao_native"] = "cookies"
     identity_origin: str | None = None
-    content_scope: Literal["public", "personal_full"] = "public"
+    content_scope: Literal["public", "personal_full", "official_share"] = "public"
     cookie_domain_allowlist: frozenset[str] = frozenset()
     client_profile: str = "yt-dlp-default"
     support_status: ProviderSupportStatus = ProviderSupportStatus.UNKNOWN
@@ -108,6 +108,8 @@ class ProviderRegistry:
         *,
         fallback: ProviderProfile | None = None,
     ) -> None:
+        if fallback is not None and fallback.content_scope == "official_share":
+            raise ValueError("fallback cannot use official share content scope")
         configured = tuple(profiles)
         by_host: dict[str, ProviderProfile] = {}
         by_host_suffix: dict[str, ProviderProfile] = {}
@@ -118,7 +120,11 @@ class ProviderRegistry:
             keys.add(profile.key)
             if not profile.hosts:
                 raise ValueError(f"provider {profile.key} must declare hosts")
-            if profile.content_scope not in {"public", "personal_full"}:
+            if profile.content_scope not in {
+                "public",
+                "personal_full",
+                "official_share",
+            }:
                 raise ValueError(f"provider {profile.key} has invalid content scope")
             if not profile.ladder or len(set(profile.ladder)) != len(profile.ladder):
                 raise ValueError(f"provider {profile.key} has invalid ladder")
@@ -151,6 +157,11 @@ class ProviderRegistry:
                     f"provider {profile.key} declares unused identity domains"
                 )
             if profile.identity_source == "cookies":
+                if profile.content_scope == "official_share":
+                    raise ValueError(
+                        f"provider {profile.key} has invalid "
+                        "official share content scope"
+                    )
                 if profile.identity_origin is not None:
                     raise ValueError(
                         f"provider {profile.key} has invalid identity origin"
@@ -161,7 +172,7 @@ class ProviderRegistry:
                     or profile.identity is not ProviderIdentity.REQUIRED
                     or profile.identity_origin != YUANBAO_ORIGIN
                     or profile.cookie_domain_allowlist
-                    or profile.content_scope != "public"
+                    or profile.content_scope != "official_share"
                 ):
                     raise ValueError(
                         f"provider {profile.key} has invalid page identity"

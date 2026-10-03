@@ -19,6 +19,7 @@ from app.workers.runner.engine.browser import (
     douyin,
     kuaishou,
     tiktok,
+    wechat_channels,
     weibo,
     xiaohongshu,
     youku,
@@ -159,12 +160,14 @@ async def _cookie_jar(operation: BrowserOperation, directory: Path) -> Path:
 class BrowserLayer:
     @staticmethod
     def has_parser(key: str) -> bool:
-        return key == "youtube" or PARSERS.get(key) is not None
+        return key in {"youtube", "wechat_channels"} or PARSERS.get(key) is not None
 
     async def resolve(self, source: ResolutionSource, ctx: RunContext) -> ResolvedMedia:
         profile = source.request.profile
         if profile.key == "youtube":
             return await youtube.resolve(source, ctx)
+        if profile.key == "wechat_channels":
+            return await wechat_channels.resolve(source, ctx)
         parser = PARSERS.get(profile.key)
         runtime = source.pipeline.browser
         if parser is None:

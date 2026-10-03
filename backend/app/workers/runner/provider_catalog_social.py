@@ -30,6 +30,7 @@ SOCIAL_PROVIDER_PROFILES: tuple[ProviderProfile, ...] = (
         # The existing Chrome page supplies its own native authenticated request.
         identity_source="yuanbao_native",
         identity_origin=YUANBAO_ORIGIN,
+        content_scope="official_share",
         command_args=CHROME_IMPERSONATION,
         client_profile="chrome-136-macos-15",
         probe_authenticated_media=True,

@@ -109,9 +109,10 @@ async def parse_yuanbao_share(
         raise _failure("identity_deadline_invalid", FailureClass.INVALID_INPUT, "none")
     profile = provider_profile_for_key("wechat_channels")
     if (
-        profile.identity_source != "yuanbao_native"
+        profile.key != "wechat_channels"
+        or profile.identity_source != "yuanbao_native"
         or profile.identity_origin != YUANBAO_ORIGIN
-        or profile.content_scope != "public"
+        or profile.content_scope != "official_share"
         or profile.identity is not ProviderIdentity.REQUIRED
         or profile.cookie_domain_allowlist
     ):

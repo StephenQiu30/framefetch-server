@@ -1,4 +1,4 @@
-"""Fail-closed parsing policy for public WeChat Channels metadata."""
+"""Bounded admission of official WeChat Channels metadata and clear candidates."""
 
 from __future__ import annotations
 
@@ -7,6 +7,8 @@ from collections.abc import Iterator, Mapping
 from typing import Any, TypeGuard
 from urllib.parse import urlsplit
 
+from app.workers.runner.entitlements import enforce_media_rights
+from app.workers.runner.errors import RunnerFailure
 from app.workers.runner.url_policy import UrlPolicyError, validate_media_url
 from app.workers.runner.wechat_channels_response import successful_response_data
 
@@ -49,6 +51,32 @@ def video_formats(feed: Mapping[str, Any]) -> list[dict[str, Any]]:
     return formats
 
 
+def strict_official_video_formats(feed: Mapping[str, Any]) -> list[dict[str, Any]]:
+    """Admit fixed official CDN routes; let the actual file establish its specs."""
+    formats: list[dict[str, Any]] = []
+    for candidate in video_formats(feed):
+        parsed = urlsplit(candidate["url"])
+        if (
+            "#" in candidate["url"]
+            or "%" in parsed.path
+            or any(segment in {"", ".", ".."} for segment in parsed.path[1:].split("/"))
+            or any(item["url"] == candidate["url"] for item in formats)
+        ):
+            continue
+        formats.append(
+            {
+                "format_id": candidate["format_id"],
+                "url": candidate["url"],
+                "ext": "mp4",
+                "vcodec": None,
+                "acodec": None,
+            }
+        )
+    if not formats:
+        raise ValueError("official clear candidate missing")
+    return formats
+
+
 def allowed_media_url(value: object) -> TypeGuard[str]:
     if not isinstance(value, str) or any(
         character.isspace() or unicodedata.category(character) in {"Cc", "Cf", "Cs"}
@@ -69,6 +97,62 @@ def allowed_media_url(value: object) -> TypeGuard[str]:
 
 
 def has_protection_material(value: object) -> bool:
+    for key, item in _entries(value):
+        normalized = str(key).replace("_", "").casefold()
+        if normalized in {
+            "decodekey",
+            "drm",
+            "hasdrm",
+            "isdrm",
+            "isencrypt",
+            "isencrypted",
+            "encrypted",
+            "encryption",
+        } and not _inactive(item):
+            return True
+    return False
+
+
+def enforce_known_restrictions(value: object) -> None:
+    """Reject explicit limits; absence of a limit does not assert public rights."""
+    for key, item in _entries(value):
+        if isinstance(item, Mapping):
+            enforce_media_rights(
+                {"availability": item.get("availability")},
+                provider_key="wechat_channels",
+            )
+        normalized = str(key).replace("_", "").casefold()
+        if normalized in {
+            "isprivate",
+            "isfriendonly",
+            "isfriendsonly",
+            "isfollowonly",
+            "isfolloweronly",
+            "isfollowersonly",
+            "ischargecontent",
+            "ispaid",
+            "ispremium",
+            "ismemberonly",
+            "ispreview",
+            "requirespurchase",
+            "requirepurchase",
+            "needlogin",
+            "requireslogin",
+            "needfollow",
+            "requiresfollow",
+            "isgeorestricted",
+            "geoblocked",
+        } and not _inactive(item):
+            raise RunnerFailure("content_unavailable", status=403)
+
+
+def _inactive(value: object) -> bool:
+    if isinstance(value, str):
+        return value.casefold() in {"", "0", "false", "none", "null"}
+    return value is None or value is False or value == 0
+
+
+def _entries(value: object) -> Iterator[tuple[object, object]]:
     # Iterators keep wide responses from being copied into a traversal stack.
     pending: list[Iterator[tuple[object, object]]] = [iter(((None, value),))]
     visited = 0
@@ -81,20 +165,11 @@ def has_protection_material(value: object) -> bool:
         visited += 1
         if visited > _MAX_PROTECTION_NODES:
             raise ProtectionScanLimitError("response structure limit exceeded")
-        normalized = str(key).replace("_", "").casefold()
-        if normalized in {
-            "decodekey",
-            "drm",
-            "hasdrm",
-            "encrypted",
-            "encryption",
-        } and item not in (None, False, 0, "", "0", "false", "none", "null"):
-            return True
+        yield key, item
         if isinstance(item, Mapping):
             pending.append(iter(item.items()))
         elif isinstance(item, list):
             pending.append((None, child) for child in item)
-    return False
 
 
 def _format(

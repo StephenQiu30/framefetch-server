@@ -176,12 +176,12 @@ async def test_restricted_platform_returns_persisted_inspection_without_runner(
 
 
 @pytest.mark.asyncio
-async def test_wechat_channels_public_share_reaches_provider_runner() -> None:
+async def test_wechat_channels_official_share_reaches_provider_runner() -> None:
     repository = FakeRepository()
     inspect, runner, cipher = use_case(repository, runner_result())
     url = "https://weixin.qq.com/sph/AbCdEf12"
 
-    view = await inspect(url, OWNER, "wechat-channels-public")
+    view = await inspect(url, OWNER, "wechat-channels-official-share")
 
     assert runner.seen == cipher.seen == [url]
     assert view.access_decision.value == "downloadable"
@@ -349,3 +349,28 @@ async def test_personal_routes_reach_runner_without_claiming_public_or_official_
     assert response.access_decision.value == "downloadable"
     assert response.entitlement_state.value == "unknown"
     assert response.rights_basis is None
+
+
+async def test_official_share_does_not_claim_rights_or_original_completeness() -> None:
+    context = replace(
+        execution_context(),
+        provider_key="wechat_channels",
+        identity_used=True,
+        identity_digest="synthetic-native-account-digest",
+    )
+    inspection = replace(
+        runner_result(), execution_context=context, extractor_key="WechatChannelsPublic"
+    )
+    repository = FakeRepository()
+    execute, _, _ = use_case(repository, inspection)
+    response = await execute(
+        "https://weixin.qq.com/sph/SyntheticShare", OWNER, "official-share-inspection"
+    )
+    assert response.formats and response.duration_seconds == 30
+    assert response.entitlement_state.value == "unknown"
+    assert response.rights_basis is None
+    assert "候选文件" in response.user_action
+    metadata = repository.inspection_commands[0].metadata
+    assert metadata["content_scope"] == "official_share"
+    assert metadata["duration_origin"] == "candidate_file"
+    assert metadata["original_completeness"] == "not_verified"

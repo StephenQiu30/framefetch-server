@@ -49,7 +49,7 @@ class ProviderProfileVersion(StrEnum):
     TIKTOK = "tiktok-public-player"
     XIAOHONGSHU = "xiaohongshu-public"
     KUAISHOU = "kuaishou-public"
-    WECHAT_CHANNELS = "wechat-channels-public"
+    WECHAT_CHANNELS = "wechat-channels-official-share"
     VIMEO = "vimeo-public"
     DAILYMOTION = "dailymotion-public-video"
     X = "x-public"

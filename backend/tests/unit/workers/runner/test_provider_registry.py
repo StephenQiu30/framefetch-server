@@ -580,7 +580,11 @@ def test_registry_declares_content_scope_for_all_profiles():
 
     for profile in default_provider_registry().profiles:
         assert profile.content_scope == (
-            "personal_full" if profile.key in {"qqvideo", "youku"} else "public"
+            "personal_full"
+            if profile.key in {"qqvideo", "youku"}
+            else "official_share"
+            if profile.key == "wechat_channels"
+            else "public"
         )
     assert (
         provider_profile("https://media.example.com/file.mp4").content_scope == "public"
@@ -632,19 +636,19 @@ def test_hongguo_public_web_share_does_not_request_account_cookies() -> None:
     assert not profile.cookie_domain_allowlist
 
 
-def test_channels_declares_page_identity_without_claiming_parser_availability() -> None:
+def test_channels_declares_native_official_share_without_verified_support() -> None:
     from app.services.provider_types import Layer
     from app.workers.identity.yuanbao_parse import YUANBAO_ORIGIN
-    from app.workers.runner.engine.layers.browser import BrowserLayer
 
     profile = provider_profile("https://weixin.qq.com/sph/A9znfitafp")
     assert profile.identity_source == "yuanbao_native"
     assert profile.identity_origin == YUANBAO_ORIGIN
     assert not profile.cookie_domain_allowlist
-    assert profile.content_scope == "public"
+    assert profile.content_scope == "official_share"
+    assert profile.version == "wechat-channels-official-share"
     assert profile.support_status is ProviderSupportStatus.UNKNOWN
     assert profile.ladder == (Layer.L3,)
-    assert not BrowserLayer.has_parser(profile.key)
+    ProviderRegistry((profile,))
 
 
 @pytest.mark.parametrize(
@@ -655,6 +659,7 @@ def test_channels_declares_page_identity_without_claiming_parser_availability() 
         {"identity_origin": None},
         {"cookie_domain_allowlist": frozenset({"yuanbao.tencent.com"})},
         {"content_scope": "personal_full"},
+        {"content_scope": "public"},
     ],
 )
 def test_page_identity_cannot_expand_source_or_content_scope(change) -> None:
@@ -676,3 +681,33 @@ def test_cookie_profile_rejects_page_origin_declaration() -> None:
     assert profile.identity_source == "cookies" and profile.identity_origin is None
     with pytest.raises(ValueError, match="invalid identity origin"):
         ProviderRegistry((replace(profile, identity_origin=YUANBAO_ORIGIN),))
+
+
+@pytest.mark.parametrize("key", ["youtube", "instagram", "qqvideo", "youku", "generic"])
+def test_official_share_scope_cannot_be_assigned_to_cookie_profiles(key) -> None:
+    profile = default_provider_registry().profile_for_key(key)
+    assert profile.identity_source == "cookies"
+    with pytest.raises(ValueError, match="official share content scope"):
+        ProviderRegistry(
+            (
+                replace(
+                    profile,
+                    content_scope="official_share",
+                    hosts=frozenset({"test.example"}),
+                ),
+            )
+        )
+
+
+def test_official_share_scope_requires_the_native_source() -> None:
+    profile = provider_profile("https://weixin.qq.com/sph/A9znfitafp")
+    with pytest.raises(ValueError, match="official share content scope"):
+        ProviderRegistry(
+            (replace(profile, identity_source="cookies", identity_origin=None),)
+        )
+
+
+def test_official_share_scope_cannot_expand_the_fallback() -> None:
+    profile = default_provider_registry().profile_for_key("generic")
+    with pytest.raises(ValueError, match="fallback.*official share content scope"):
+        ProviderRegistry((), fallback=replace(profile, content_scope="official_share"))

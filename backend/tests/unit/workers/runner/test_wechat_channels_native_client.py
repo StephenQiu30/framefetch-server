@@ -176,9 +176,11 @@ async def test_missing_bearer_never_contacts_host(transport):
 @pytest.mark.parametrize(
     "change",
     [
+        {"key": "instagram"},
         {"identity_source": "cookies"},
         {"identity_origin": "https://evil.test"},
         {"content_scope": "personal_full"},
+        {"content_scope": "public"},
         {"cookie_domain_allowlist": frozenset({"yuanbao.tencent.com"})},
     ],
 )
@@ -190,6 +192,7 @@ async def test_invalid_native_profile_never_contacts_host(
     values = {
         name: getattr(profile, name)
         for name in (
+            "key",
             "identity_source",
             "identity_origin",
             "content_scope",
