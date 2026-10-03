@@ -123,7 +123,7 @@ Electron 从安装包读取页面和品牌资源，API 与 WebSocket 连接配�
 
 | 项目 | 当前预览 | 发行内容 |
 | --- | --- | --- |
-| Server / Web | [v0.3.0-beta.1](https://github.com/StephenQiu30/video-server/releases/tag/v0.3.0-beta.1) | 自托管源码与 Compose 部署方式 |
+| Server / Web | [v0.3.0-beta.2](https://github.com/StephenQiu30/video-server/releases/tag/v0.3.0-beta.2) | 自托管源码与 Compose 部署方式 |
 | App | [v0.2.0-beta.1](https://github.com/StephenQiu30/video-app/releases/tag/v0.2.0-beta.1) | iOS／Android 源码；未附 APK、IPA 或商店安装包 |
 | Desktop | [v0.2.0-beta.1](https://github.com/StephenQiu30/video-electron/releases/tag/v0.2.0-beta.1) | macOS Apple Silicon DMG、Windows x64 安装包与 SHA-256 清单 |
 

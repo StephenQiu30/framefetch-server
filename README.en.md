@@ -123,7 +123,7 @@ The three public previews connect to the same Server:
 
 | Project | Current preview | Distribution |
 | --- | --- | --- |
-| Server / Web | [v0.3.0-beta.1](https://github.com/StephenQiu30/video-server/releases/tag/v0.3.0-beta.1) | Self-hosted source and Compose deployment |
+| Server / Web | [v0.3.0-beta.2](https://github.com/StephenQiu30/video-server/releases/tag/v0.3.0-beta.2) | Self-hosted source and Compose deployment |
 | App | [v0.2.0-beta.1](https://github.com/StephenQiu30/video-app/releases/tag/v0.2.0-beta.1) | iOS/Android source; no attached APK, IPA or store package |
 | Desktop | [v0.2.0-beta.1](https://github.com/StephenQiu30/video-electron/releases/tag/v0.2.0-beta.1) | macOS Apple Silicon DMG, Windows x64 installer and SHA-256 manifest |
 
