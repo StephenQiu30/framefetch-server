@@ -4,4 +4,4 @@
 
 | 计划 | 来源 | 状态 |
 | --- | --- | --- |
-| [影视 Skill 体系执行计划](PLAN-影视Skill体系.md) | [影视 Skill PRD](../prd/PRD-影视Skill体系.md) | 已编制，覆盖 11 项能力；实施与验收尚未开始 |
+| [内容创作 Skill 体系执行计划](PLAN-内容创作Skill体系.md) | [内容创作 Skill PRD](../prd/PRD-内容创作Skill体系.md) | 已编制，覆盖 17 项能力、35 个工作包、72 项 checklist；实施与验收尚未开始 |

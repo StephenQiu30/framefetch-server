@@ -2,7 +2,7 @@
 
 # FrameFetch
 
-Film Skills are being redesigned from scratch in the [new PRD](docs/prd/PRD-影视Skill体系.md) and [execution plan](docs/plan/PLAN-影视Skill体系.md) (Chinese). The existing method and result catalogs below remain pending removal; they are not the new target. Script diagnosis, audiovisual study and subtitle correction have not been implemented by this documentation change.
+Content creation Skills for film, articles, WeChat Official Account content and Xiaohongshu cards are being redesigned from scratch in the [new PRD](docs/prd/PRD-内容创作Skill体系.md) and [execution plan](docs/plan/PLAN-内容创作Skill体系.md) (Chinese). The existing method and result catalogs below remain pending removal; they are not the new target. The new film, writing, editing, WeChat handoff and Xiaohongshu card workflows have not been implemented by this documentation change.
 
 **An open-source, self-hosted video and screenplay workstation.** Bring in material, understand it, and produce analysis results you can export.
 
@@ -63,7 +63,7 @@ Results are validated against the selected contract before storage, including st
 
 **Skills, result structures and engines have separate roles.** A Skill defines the method, a result contract defines the deliverable, and an engine calls the model. Each job stores an immutable instruction snapshot; completed steps can be reused after interruption, while calls with unknown outcomes are not automatically repeated. An AI failure does not change successfully obtained material.
 
-Administrators can configure **Codex App Server, Claude CLI, DeepSeek, OpenRouter or OpenAI Chat Completions-compatible services**. Users choose the method, language and focus without configuring low-level provider parameters. See [AI analysis](docs/design/10-AI分析.md) and [Film Skill PRD](docs/prd/PRD-影视Skill体系.md) (Chinese).
+Administrators can configure **Codex App Server, Claude CLI, DeepSeek, OpenRouter or OpenAI Chat Completions-compatible services**. Users choose the method, language and focus without configuring low-level provider parameters. See [AI analysis](docs/design/10-AI分析.md) and [Content Creation Skill PRD](docs/prd/PRD-内容创作Skill体系.md) (Chinese).
 
 ## 12 video analysis methods
 
@@ -311,7 +311,7 @@ pnpm build
 
 ## Roadmap
 
-Platform support and validation limits are described in [the parsing design](docs/design/17-解析引擎重建.md#8-平台能力与验证边界); other unfinished work is listed in [BACKLOG](BACKLOG.md) (Chinese); the proposed Film Skill redesign is defined in the [new PRD](docs/prd/PRD-影视Skill体系.md), with work packages and acceptance checklists in the [execution plan](docs/plan/PLAN-影视Skill体系.md), and has not been implemented. Discuss priorities in [Issues](https://github.com/StephenQiu30/video-server/issues) — tasks labeled `good first issue` or `help wanted` are a good place to start.
+Platform support and validation limits are described in [the parsing design](docs/design/17-解析引擎重建.md#8-平台能力与验证边界); other unfinished work is listed in [BACKLOG](BACKLOG.md) (Chinese); the proposed content creation Skill redesign is defined in the [new PRD](docs/prd/PRD-内容创作Skill体系.md), with work packages and acceptance checklists in the [execution plan](docs/plan/PLAN-内容创作Skill体系.md), and has not been implemented. Discuss priorities in [Issues](https://github.com/StephenQiu30/video-server/issues) — tasks labeled `good first issue` or `help wanted` are a good place to start.
 
 ## Contributing
 
