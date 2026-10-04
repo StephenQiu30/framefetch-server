@@ -2,11 +2,12 @@ from __future__ import annotations
 
 from typing import Any
 
-from sqlalchemy import func, literal, select, union_all
+from sqlalchemy import Text, cast, func, literal, select, union_all
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.core.db import as_utc
 from app.models import (
+    AnalysisJobRow,
     AnalysisReportArtifactRow,
     AnalysisReportVersionRow,
     ArtifactRow,
@@ -15,6 +16,7 @@ from app.models import (
     DownloadJobRow,
     MediaImportRow,
     MediaInspectionRow,
+    UserRow,
 )
 from app.services.analysis.rules.enums import (
     AnalysisReportArtifactStatus,
@@ -31,7 +33,15 @@ async def list_stored_files(
         total = await session.scalar(select(func.count()).select_from(files))
         rows = (
             await session.execute(
-                select(files)
+                select(files, UserRow.username.label("uploader_username"))
+                .outerjoin(
+                    UserRow,
+                    files.c.owner_hash
+                    == func.encode(
+                        func.sha256(func.convert_to(cast(UserRow.id, Text), "UTF8")),
+                        "hex",
+                    ),
+                )
                 .order_by(files.c.created_at.desc(), files.c.id.desc())
                 .offset((page - 1) * page_size)
                 .limit(page_size)
@@ -43,6 +53,7 @@ async def list_stored_files(
                     id=row["id"],
                     category=row["category"],
                     name=row["name"],
+                    uploader_username=row["uploader_username"],
                     object_count=int(row["object_count"]),
                     size_bytes=int(row["size_bytes"]),
                     created_at=as_utc(row["created_at"]),
@@ -66,6 +77,7 @@ def _stored_files_statement() -> Any:
             ArtifactRow.id.label("id"),
             literal("video").label("category"),
             video_name.label("name"),
+            DownloadJobRow.owner_hash.label("owner_hash"),
             literal(1).label("object_count"),
             ArtifactRow.size_bytes.label("size_bytes"),
             ArtifactRow.created_at.label("created_at"),
@@ -83,6 +95,7 @@ def _stored_files_statement() -> Any:
             DocumentRow.id.label("id"),
             literal("screenplay").label("category"),
             DocumentRow.title.label("name"),
+            DocumentRow.owner_hash.label("owner_hash"),
             func.count(DocumentArtifactRow.id).label("object_count"),
             func.sum(DocumentArtifactRow.size_bytes).label("size_bytes"),
             DocumentRow.created_at.label("created_at"),
@@ -94,13 +107,19 @@ def _stored_files_statement() -> Any:
             DocumentArtifactRow.status == "ready",
             DocumentArtifactRow.deleted_at.is_(None),
         )
-        .group_by(DocumentRow.id, DocumentRow.title, DocumentRow.created_at)
+        .group_by(
+            DocumentRow.id,
+            DocumentRow.title,
+            DocumentRow.owner_hash,
+            DocumentRow.created_at,
+        )
     )
     reports = (
         select(
             AnalysisReportVersionRow.id.label("id"),
             literal("analysis_report").label("category"),
             literal("分析报告").label("name"),
+            AnalysisJobRow.owner_hash.label("owner_hash"),
             func.count(AnalysisReportArtifactRow.id).label("object_count"),
             func.sum(AnalysisReportArtifactRow.size_bytes).label("size_bytes"),
             AnalysisReportVersionRow.created_at.label("created_at"),
@@ -109,12 +128,17 @@ def _stored_files_statement() -> Any:
             AnalysisReportArtifactRow,
             AnalysisReportArtifactRow.report_id == AnalysisReportVersionRow.id,
         )
+        .join(AnalysisJobRow, AnalysisJobRow.id == AnalysisReportVersionRow.job_id)
         .where(
             AnalysisReportVersionRow.status == AnalysisReportStatus.AVAILABLE.value,
             AnalysisReportArtifactRow.status
             == AnalysisReportArtifactStatus.AVAILABLE.value,
             AnalysisReportArtifactRow.deleted_at.is_(None),
         )
-        .group_by(AnalysisReportVersionRow.id, AnalysisReportVersionRow.created_at)
+        .group_by(
+            AnalysisReportVersionRow.id,
+            AnalysisReportVersionRow.created_at,
+            AnalysisJobRow.owner_hash,
+        )
     )
     return union_all(videos, documents, reports)

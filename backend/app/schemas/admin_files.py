@@ -17,6 +17,12 @@ class StoredFileResponse(StrictModel):
     id: UUID
     category: StoredFileCategory
     name: str = Field(min_length=1, max_length=512)
+    uploader_username: str | None = Field(
+        default=None,
+        min_length=2,
+        max_length=32,
+        description="文件所属账号的当前用户名；无法关联账号时为空。报告使用分析任务发起账号。",
+    )
     object_count: int = Field(ge=1)
     size_bytes: int = Field(gt=0)
     created_at: datetime

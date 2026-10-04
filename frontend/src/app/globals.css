@@ -269,7 +269,8 @@
   }
 
   /* Shared borderless layout, retaining official interactive states. */
-  [data-design="borderless"] [data-media-result-metadata] > [data-slot="item"] {
+  [data-design="borderless"] [data-media-result-metadata] > [data-slot="item"],
+  [data-design="borderless"] .table-borderless [data-slot="item"] {
     padding: 0;
     border-width: 0;
   }

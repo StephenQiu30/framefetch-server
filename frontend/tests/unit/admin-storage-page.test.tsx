@@ -43,6 +43,48 @@ describe('administrator storage management', () => {
     runtime.toastWarning.mockReset();
   });
 
+  it('shows each file uploader and keeps files whose account is unavailable', async () => {
+    runtime.listStoredFiles.mockResolvedValue({
+      items: [
+        storedFile({ name: '其他用户的视频', uploader_username: 'alice' }),
+        storedFile({
+          id: 'file-2',
+          name: '归属未知的文件',
+          uploader_username: null,
+        }),
+      ],
+      page: 1,
+      page_size: 10,
+      total: 2,
+    });
+    render(<AdminStorageView />);
+
+    const file = (await screen.findByText('其他用户的视频')).closest('tr');
+    const orphan = screen.getByText('归属未知的文件').closest('tr');
+    if (!file || !orphan) throw new Error('File rows missing');
+    expect(within(file).getByText('alice')).toBeInTheDocument();
+    expect(within(file).getByText('上传人：alice')).toBeInTheDocument();
+    expect(within(orphan).getByText('未知上传人')).toBeInTheDocument();
+    expect(within(orphan).getByText('上传人：未知上传人')).toBeInTheDocument();
+    expect(
+      within(file).queryByText(runtime.user.username),
+    ).not.toBeInTheDocument();
+
+    fireEvent.pointerDown(screen.getByRole('button', { name: '显示列' }), {
+      button: 0,
+      ctrlKey: false,
+    });
+    fireEvent.click(
+      await screen.findByRole('menuitemcheckbox', {
+        name: '上传人',
+      }),
+    );
+    expect(
+      screen.queryByRole('columnheader', { name: '上传人' }),
+    ).not.toBeInTheDocument();
+    expect(within(file).getByText('上传人：alice')).toBeInTheDocument();
+  });
+
   it('paginates persistent files and cleans files older than 30 days by default', async () => {
     runtime.listStoredFiles.mockImplementation(async ({ page = 1 }) => ({
       items: [storedFile({ id: `file-${page}`, name: `视频 ${page}` })],
@@ -183,6 +225,7 @@ function storedFile(
     created_at: '2026-07-01T10:00:00Z',
     id: 'file-1',
     name: '视频 1',
+    uploader_username: 'uploader',
     object_count: 1,
     size_bytes: 1_024,
     ...overrides,

@@ -13,6 +13,7 @@ class StoredFileView:
     id: UUID
     category: StoredFileCategory
     name: str
+    uploader_username: str | None
     object_count: int
     size_bytes: int
     created_at: datetime

@@ -2548,6 +2548,8 @@ declare namespace API {
     category: StoredFileCategory;
     /** Name */
     name: string;
+    /** Uploader Username 文件所属账号的当前用户名；无法关联账号时为空。报告使用分析任务发起账号。 */
+    uploader_username?: string | null;
     /** Object Count */
     object_count: number;
     /** Size Bytes */

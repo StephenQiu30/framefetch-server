@@ -5,6 +5,13 @@ import {
 } from '@/components/layout/bulk-delete-selection';
 import { DataTable } from '@/components/layout/data-table';
 import { Button } from '@/components/ui/button';
+import {
+  Item,
+  ItemContent,
+  ItemDescription,
+  ItemGroup,
+  ItemTitle,
+} from '@/components/ui/item';
 
 import {
   formatStorageDate,
@@ -39,23 +46,38 @@ export function StorageFileList({
               hideable: false,
               className: 'w-full whitespace-normal',
               cell: (item) => (
-                <div className="flex min-w-0 flex-col gap-1">
-                  <span className="line-clamp-2 break-all" title={item.name}>
-                    {item.name}
-                  </span>
-                  <span className="text-xs text-muted-foreground md:hidden">
-                    {storageCategoryLabels[item.category]} ·{' '}
-                    {formatStorageSize(item.size_bytes)} · {item.object_count}{' '}
-                    个对象
-                  </span>
-                  <time
-                    className="text-xs text-muted-foreground md:hidden"
-                    dateTime={item.created_at}
-                  >
-                    {formatStorageDate(item.created_at)}
-                  </time>
-                </div>
+                <ItemGroup>
+                  <Item size="xs">
+                    <ItemContent className="min-w-0">
+                      <ItemTitle
+                        className="w-full line-clamp-2 break-all"
+                        title={item.name}
+                      >
+                        {item.name}
+                      </ItemTitle>
+                      <ItemDescription className="break-all xl:hidden">
+                        上传人：{item.uploader_username ?? '未知上传人'}
+                      </ItemDescription>
+                      <ItemDescription className="md:hidden">
+                        {storageCategoryLabels[item.category]} ·{' '}
+                        {formatStorageSize(item.size_bytes)} ·{' '}
+                        {item.object_count} 个对象
+                      </ItemDescription>
+                      <ItemDescription className="md:hidden">
+                        <time dateTime={item.created_at}>
+                          {formatStorageDate(item.created_at)}
+                        </time>
+                      </ItemDescription>
+                    </ItemContent>
+                  </Item>
+                </ItemGroup>
               ),
+            },
+            {
+              id: '上传人',
+              header: '上传人',
+              className: 'hidden whitespace-nowrap xl:table-cell',
+              cell: (item) => item.uploader_username ?? '未知上传人',
             },
             {
               id: '类型',
