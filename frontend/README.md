@@ -65,6 +65,22 @@ pnpm dlx shadcn@latest add input --diff input.tsx
 
 Biome 对官方 ui 源码中有明确用途的角色、事件、数组 key 与图表 CSS 注入使用目录级规则豁免；业务代码继续执行完整规则。pnpm-workspace.yaml 明确拒绝不需要的 es5-ext 安装脚本。
 
+## 通用正文组件
+
+正文统一从 `@/components/editor` 引用 `Editor`、`Viewer` 和 `toEditorDocument`。`Editor` 使用 [Editor.js](https://github.com/codex-team/editor.js) 及官方块工具，支持标题、正文、嵌套列表／任务列表、引用、代码、表格和分隔线；`Viewer` 用语义化 React 元素展示相同的 Editor.js `OutputData`，无需初始化编辑器。
+
+```tsx
+import { Editor, Viewer, type EditorDocument } from '@/components/editor';
+
+const [document, setDocument] = useState<EditorDocument>({ blocks: [] });
+<Editor value={document} onChange={setDocument} />;
+<Viewer value={document} />;
+```
+
+两个组件的 `value` 均接受块数据或 Markdown 字符串；编辑变更输出块数据。`Editor` 提供 `readOnly`、`label`、`placeholder`、`onError`，以及 `ref.save()` 异步读取完整块数据。受控值回传不会重建实例；外部替换正文使用实例的 render，卸载清理实例，初始化失败可重试。Editor.js 与工具仅在浏览器动态加载。
+
+报告和剧本的已有 Markdown 接口与 MD／DOCX 导出保持当前契约，阅读入口改用 `Viewer`；本次没有新增正文编辑保存接口。Markdown 转换使用 GFM 解析，块内 HTML 仅允许安全文本格式与明确 HTTP(S) 链接，不加载远端图像或运行原始 HTML；剧本通过 `htmlPolicy="text"` 按原文显示 HTML 标签并禁用链接。`headingOffset` 与 `headingIds` 支持页面标题层级与目录锚点。未注册块不能进入 `Editor`，避免保存时静默丢失内容；新增块工具时需同时扩展转换、Viewer 和相关测试。
+
 ## 内置 Skill
 
 保留原视频／剧本详情、导航、分析配置器与报告布局：Skill、中文／英文、可编辑默认提示词、恢复默认与原执行提示均保持。调用和类型由后端原正式分析契约生成，具体方法及报告内容可优化，不新增Skill工作台、双源表单或文本处理弹窗。
