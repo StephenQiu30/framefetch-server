@@ -19,6 +19,7 @@ from app.core.runtime import (
 from app.core.security.ai_provider_cipher import FernetAiProviderSecretCipher
 from app.core.security.url_cipher import URLCipher
 from app.integrations.ai_api.catalog import OpenRouterModelCatalog
+from app.integrations.analysis_skill_catalog import BuiltinAnalysisSkillCatalog
 from app.integrations.article_discovery.adapter import WeChatArticleDiscoveryAdapter
 from app.integrations.jwt_tokens import JwtTokenService
 from app.integrations.media_runner_factory import session_media_runner
@@ -47,7 +48,6 @@ from app.repositories.auth.redis_auth_repository import (
 )
 from app.repositories.auth.user_repository import SqlAlchemyUserRepository
 from app.repositories.auth.web_sessions import WebSessionRepository
-from app.repositories.creation import CreationRepository
 from app.repositories.documents.catalog_repository import (
     SqlAlchemyDocumentCatalogRepository,
 )
@@ -75,6 +75,8 @@ from app.services.ai_providers import AiProviderService
 from app.services.analysis.analytics import GetAnalysisAnalytics
 from app.services.analysis.cancel_analysis import CancelAnalysis
 from app.services.analysis.content_versions import ListContentVersions
+from app.services.analysis.create_analysis import CreateAnalysis
+from app.services.analysis.create_document_analysis import CreateDocumentAnalysis
 from app.services.analysis.delete_analysis import DeleteAnalysis
 from app.services.analysis.export_report import (
     ExportAnalysisMarkdown,
@@ -86,12 +88,11 @@ from app.services.analysis.get_latest_analysis import (
     GetLatestDocumentAnalysis,
     GetLatestDownloadAnalysis,
 )
+from app.services.analysis.retry_analysis import RetryAnalysis
 from app.services.auth.email_verification import EmailVerification
 from app.services.auth.service import AuthService
 from app.services.auth.user_service import UserService
 from app.services.auth.web_sessions import WebSessionService
-from app.services.creation.export_service import CreationExportService
-from app.services.creation.service import CreationService
 from app.services.documents.service import DeleteDocument, GetDocument, ListDocuments
 from app.services.downloads.analytics import GetDownloadAnalytics
 from app.services.downloads.create_download import CreateDownload
@@ -421,7 +422,37 @@ def build_api_runtime(settings: Settings) -> ApiRuntime:
         ),
     )
     get_analysis = GetAnalysis(analysis_repository)
+    skill_catalog = BuiltinAnalysisSkillCatalog()
     analysis_use_cases = AnalysisUseCases(
+        list_analysis_skills=skill_catalog.list,
+        create_analysis=CreateAnalysis(
+            repository=analysis_repository,
+            fingerprinter=fingerprinter,
+            now=clock,
+            new_id=uuid4,
+            max_attempts=1,
+            skill_catalog=skill_catalog,
+            enabled=settings.analysis_enabled,
+        ),
+        create_document_analysis=CreateDocumentAnalysis(
+            repository=analysis_repository,
+            fingerprinter=fingerprinter,
+            now=clock,
+            new_id=uuid4,
+            max_attempts=1,
+            skill_catalog=skill_catalog,
+            enabled=settings.analysis_enabled and settings.screenplay_analysis_enabled,
+            max_source_characters=settings.analysis_screenplay_single_call_characters,
+        ),
+        retry_analysis=RetryAnalysis(
+            analysis_repository,
+            now=clock,
+            new_id=uuid4,
+            skill_catalog=skill_catalog,
+            max_runs_per_job=settings.analysis_max_runs_per_job,
+            min_interval_seconds=settings.analysis_manual_retry_min_interval_seconds,
+            retries_per_day=settings.analysis_manual_retries_per_day,
+        ),
         get_content_source=GetContentSource(analysis_repository),
         list_content_versions=ListContentVersions(analysis_repository),
         get_analysis_analytics=GetAnalysisAnalytics(analysis_repository, now=clock),
@@ -444,14 +475,6 @@ def build_api_runtime(settings: Settings) -> ApiRuntime:
 
     return ApiRuntime(
         services=ApiServices(
-            creation_export_service=CreationExportService(
-                CreationRepository(sessions), font_path=settings.creation_card_font_path
-            ),
-            creation_service=CreationService(
-                CreationRepository(sessions),
-                enabled=settings.analysis_enabled,
-                worker_stale_seconds=settings.analysis_worker_stale_seconds,
-            ),
             engine_catalog_reader=runner.engine_catalog,
             intent_service=IntentService(
                 IntentRepository(sessions, quota_policy=quota_policy),

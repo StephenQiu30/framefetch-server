@@ -16,6 +16,8 @@ _TEXT_FORMATS = {
     ImportSourceFormat.TXT,
     ImportSourceFormat.MARKDOWN,
     ImportSourceFormat.FOUNTAIN,
+    ImportSourceFormat.SRT,
+    ImportSourceFormat.VTT,
 }
 
 

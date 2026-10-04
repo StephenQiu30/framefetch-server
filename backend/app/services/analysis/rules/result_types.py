@@ -8,9 +8,11 @@ from app.services.analysis.rules.screenplay_results import (
     ScreenplayRewriteResult,
 )
 from app.services.analysis.rules.structured_report import StructuredReportResult
+from app.services.skills.models import SkillReportResult
 
 type AnalysisResult = (
-    ContentDocumentResult
+    SkillReportResult
+    | ContentDocumentResult
     | VideoAnalysisResult
     | VideoArticleResult
     | ScreenplayAnalysisResult

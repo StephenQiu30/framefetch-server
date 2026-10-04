@@ -1,5 +1,7 @@
 """Map mutable analysis rows into application-owned snapshots."""
 
+from copy import deepcopy
+
 from app.core.db import as_utc
 from app.models import AnalysisJobRow, AnalysisRunRow, ArtifactRow, DownloadJobRow
 from app.services.analysis.models import AnalysisArtifactSnapshot, AnalysisJobSnapshot
@@ -14,6 +16,7 @@ def analysis_job_snapshot(
     run_trigger = run.trigger if run is not None else row.current_run_trigger
     return AnalysisJobSnapshot(
         id=row.id,
+        skill_inputs=deepcopy(row.skill_inputs),
         content_source=None
         if row.content_source is None
         else ContentSourceSet.model_validate(row.content_source),

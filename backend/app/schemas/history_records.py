@@ -55,7 +55,9 @@ class ParseHistoryRecordResponse(IntentHistoryItemResponse, HistoryRecordSummary
 
 
 class AnalysisHistoryRecordResponse(HistoryRecordSummary):
-    record_type: Literal["video_analysis", "screenplay_analysis", "content_creation"]
+    record_type: Literal[
+        "video_analysis", "screenplay_analysis", "content_creation", "skill_analysis"
+    ]
     document_id: UUID | None
     artifact_id: UUID | None
     output_language: str
@@ -89,6 +91,10 @@ class ContentCreationHistoryRecordResponse(AnalysisHistoryRecordResponse):
     record_type: Literal["content_creation"]
 
 
+class SkillAnalysisHistoryRecordResponse(AnalysisHistoryRecordResponse):
+    record_type: Literal["skill_analysis"]
+
+
 class DocumentParseHistoryRecordResponse(HistoryRecordSummary):
     record_type: Literal["document_parse"]
     id: UUID
@@ -106,6 +112,7 @@ HistoryRecordItemResponse = Annotated[
     | VideoAnalysisHistoryRecordResponse
     | ScreenplayAnalysisHistoryRecordResponse
     | ContentCreationHistoryRecordResponse
+    | SkillAnalysisHistoryRecordResponse
     | DocumentParseHistoryRecordResponse,
     Field(discriminator="record_type"),
 ]
@@ -190,6 +197,7 @@ def _analysis_item(
     VideoAnalysisHistoryRecordResponse
     | ScreenplayAnalysisHistoryRecordResponse
     | ContentCreationHistoryRecordResponse
+    | SkillAnalysisHistoryRecordResponse
 ):
     if item.title is None or item.skill_id is None or item.progress is None:
         raise ValueError("video analysis history record is incomplete")
@@ -197,9 +205,12 @@ def _analysis_item(
         VideoAnalysisHistoryRecordResponse
         | ScreenplayAnalysisHistoryRecordResponse
         | ContentCreationHistoryRecordResponse
+        | SkillAnalysisHistoryRecordResponse
     ]
     if item.record_type is HistoryRecordKind.VIDEO_ANALYSIS:
         response = VideoAnalysisHistoryRecordResponse
+    elif item.record_type is HistoryRecordKind.SKILL_ANALYSIS:
+        response = SkillAnalysisHistoryRecordResponse
     elif item.record_type is HistoryRecordKind.CONTENT_CREATION:
         response = ContentCreationHistoryRecordResponse
     else:
@@ -210,11 +221,7 @@ def _analysis_item(
             record_type=item.record_type.value,
             allowed_actions=["view", "delete"]
             + (
-                ["cancel"]
-                if item.status in {"queued", "running", "retry_wait"}
-                else ["retry"]
-                if item.source_availability is HistoryAvailability.AVAILABLE
-                else []
+                ["cancel"] if item.status in {"queued", "running", "retry_wait"} else []
             ),
             action_unavailable_reason="源文件不可用，无法重新执行。"
             if item.source_availability is HistoryAvailability.UNAVAILABLE

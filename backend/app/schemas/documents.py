@@ -14,7 +14,9 @@ from app.services.documents.models import DocumentPage, DocumentView
 from app.services.imports.models import ImportView, UploadSessionView
 from app.services.imports.rules.enums import ImportErrorCode, ImportStatus
 
-type DocumentSourceFormat = Literal["docx", "pdf", "txt", "markdown", "fountain"]
+type DocumentSourceFormat = Literal[
+    "docx", "pdf", "txt", "markdown", "fountain", "srt", "vtt"
+]
 
 
 class DocumentImportRequest(StrictModel):

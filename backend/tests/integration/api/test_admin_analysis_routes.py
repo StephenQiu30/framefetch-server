@@ -73,6 +73,7 @@ def test_admin_analysis_analytics_returns_only_aggregate_fields_without_caching(
         {"input_kind": "video", "total": 0},
         {"input_kind": "screenplay", "total": 0},
         {"input_kind": "content", "total": 0},
+        {"input_kind": "skill", "total": 0},
     ]
     assert repository.calls == [(datetime(2026, 8, 4, tzinfo=UTC), NOW)]
     assert all(

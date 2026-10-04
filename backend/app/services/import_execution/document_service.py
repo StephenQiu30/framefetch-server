@@ -182,4 +182,4 @@ def _artifact_keys(claim: ImportVerificationClaim) -> tuple[str, str]:
             "unsupported document artifact identity",
         )
     prefix = f"documents/{claim.resource_id}/{claim.attempt}"
-    return f"{prefix}/original", f"{prefix}/screenplay.md"
+    return f"{prefix}/original", f"{prefix}/document.md"

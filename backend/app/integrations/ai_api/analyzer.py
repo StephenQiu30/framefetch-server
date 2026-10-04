@@ -10,6 +10,7 @@ from app.integrations.ai_api.client import (
 )
 from app.integrations.ai_api.config import ApiAdapterConfig
 from app.integrations.ai_api.frames import ApiFrameExtractor, FrameEvidence
+from app.integrations.ai_cli.observation_receipts import record_observation
 from app.integrations.ai_cli.prompt import analysis_prompt
 from app.integrations.ai_cli.screenplay_prompt import (
     screenplay_analysis_prompt,
@@ -45,7 +46,7 @@ from app.services.analysis_execution.screenplay_rewrite_models import (
 
 
 class ApiAnalyzer:
-    supports_creation_images = True
+    supports_skill_images = True
 
     def __init__(
         self,
@@ -62,14 +63,14 @@ class ApiAnalyzer:
         if request.image_paths:
             content: list[dict[str, Any]] = [{"type": "text", "text": request.prompt}]
             if len(request.image_paths) > 12:
-                raise ValueError("creation image limit")
+                raise ValueError("Skill image limit")
             for path in request.image_paths:
                 if (
                     path.is_symlink()
                     or not path.resolve().is_relative_to(request.workspace)
                     or path.stat().st_size > self._config.max_image_bytes
                 ):
-                    raise ValueError("invalid creation frame")
+                    raise ValueError("invalid Skill frame")
                 content.append(
                     {
                         "type": "image_url",
@@ -107,6 +108,13 @@ class ApiAnalyzer:
                 duration_ms=request.duration_ms,
                 observation_ms=request.observation_ms,
             )
+            for frame in evidence:
+                record_observation(
+                    files.root,
+                    "provided_video_frame",
+                    timestamps_ms=[frame.timestamp_ms],
+                    image=frame.jpeg,
+                )
             return await self._invoke(prompt, schema, _frame_content(prompt, evidence))
 
         return await run_with_workspace_policy(

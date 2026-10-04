@@ -21,7 +21,12 @@ class Repository:
         return (DOCUMENT_ID,)
 
     async def expected_artifact_object_keys(self):
-        return frozenset({f"documents/{DOCUMENT_ID}/1/original"})
+        return frozenset(
+            {
+                f"documents/{DOCUMENT_ID}/1/original",
+                f"documents/{DOCUMENT_ID}/1/document.md",
+            }
+        )
 
 
 class Storage:
@@ -33,7 +38,9 @@ class Storage:
         other = "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee"
         return (
             Stored(f"documents/{DOCUMENT_ID}/1/original", NOW - timedelta(hours=2)),
+            Stored(f"documents/{DOCUMENT_ID}/1/document.md", NOW - timedelta(hours=2)),
             Stored(f"documents/{other}/1/screenplay.md", NOW - timedelta(hours=2)),
+            Stored(f"documents/{other}/1/document.md", NOW - timedelta(hours=2)),
             Stored(f"documents/{other}/1/original", NOW),
             Stored("documents/unmanaged/content", NOW - timedelta(days=1)),
         )
@@ -58,4 +65,7 @@ async def test_document_recovery_only_deletes_safe_old_unreferenced_artifacts() 
 
     other = "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee"
     assert recovered == (DOCUMENT_ID,)
-    assert storage.deleted == [f"documents/{other}/1/screenplay.md"]
+    assert storage.deleted == [
+        f"documents/{other}/1/screenplay.md",
+        f"documents/{other}/1/document.md",
+    ]

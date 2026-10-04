@@ -6,14 +6,13 @@ from uuid import uuid4
 
 import pytest
 from app.models import ArtifactRow, DocumentArtifactRow, DocumentRow
-from app.repositories.creation import CreationRepository
+from app.models.creation import CreationMaterialRow, CreationRevisionRow
 from app.repositories.documents.delete_repository import (
     SqlAlchemyDocumentDeleteRepository,
 )
 from app.repositories.downloads.delete_repository import DownloadDeleteRepository
 from app.repositories.errors import RepositoryConflict
 from app.repositories.storage_files.repository import SqlAlchemyStorageFileRepository
-from app.services.creation.models import CreationMaterialCreateRequest
 from app.services.imports.errors import ImportPersistenceConflict
 from app.services.storage_files.errors import StorageFileError, StorageFileErrorCode
 from sqlalchemy import select
@@ -30,16 +29,8 @@ async def test_creation_video_source_blocks_delete_and_age_cleanup(
 ) -> None:
     sessions = async_sessionmaker(postgres_engine, expire_on_commit=False)
     source = await seed_artifact(sessions, NOW)
-    creation = CreationRepository(sessions)
-    material = await creation.create_material(
-        OWNER,
-        str(uuid4()),
-        CreationMaterialCreateRequest(
-            kind="video",
-            title="固定影视依据",
-            download_id=source.download_id,
-            rights_statement="本人拥有素材使用权",
-        ),
+    material, revision = await historical_reference(
+        sessions, artifact_id=source.artifact_id, kind="video"
     )
     with pytest.raises(RepositoryConflict, match="creation source"):
         await DownloadDeleteRepository(sessions).prepare_download_deletion(
@@ -72,9 +63,10 @@ async def test_creation_video_source_blocks_delete_and_age_cleanup(
     async with sessions() as session:
         retained = await session.get(ArtifactRow, source.artifact_id)
         assert retained is not None and retained.deleted_at is None
-    fixed = await creation.get_material(material.id, OWNER)
-    assert fixed.artifact_id == source.artifact_id
-    assert fixed.current_revision.id == material.current_revision.id
+    async with sessions() as session:
+        fixed = await session.get(CreationMaterialRow, material.id)
+        assert fixed is not None and fixed.artifact_id == source.artifact_id
+        assert fixed.current_revision_id == revision.id
 
 
 @pytest.mark.asyncio
@@ -83,18 +75,8 @@ async def test_historical_document_source_blocks_delete_and_age_cleanup(
 ) -> None:
     sessions = async_sessionmaker(postgres_engine, expire_on_commit=False)
     source = await seed_screenplay(sessions, NOW)
-    creation = CreationRepository(sessions)
-    # This directly seeds a historical reference. New API intake requires real bytes.
-    material = await creation.create_material(
-        OWNER,
-        str(uuid4()),
-        CreationMaterialCreateRequest(
-            kind="screenplay",
-            title="历史剧本依据",
-            text="已保存的剧本文本",
-            document_id=source.document_id,
-            rights_statement="本人拥有剧本使用权",
-        ),
+    material, revision = await historical_reference(
+        sessions, document_id=source.document_id, kind="screenplay"
     )
     with pytest.raises(ImportPersistenceConflict, match="creation source"):
         await SqlAlchemyDocumentDeleteRepository(sessions).prepare_document_deletion(
@@ -140,6 +122,48 @@ async def test_historical_document_source_blocks_delete_and_age_cleanup(
         assert all(
             item.status == "ready" and item.deleted_at is None for item in artifacts
         )
-    fixed = await creation.get_material(material.id, OWNER)
-    assert fixed.document_id == source.document_id
-    assert fixed.current_revision.id == material.current_revision.id
+    async with sessions() as session:
+        fixed = await session.get(CreationMaterialRow, material.id)
+        assert fixed is not None and fixed.document_id == source.document_id
+        assert fixed.current_revision_id == revision.id
+
+
+async def historical_reference(
+    sessions: async_sessionmaker,
+    *,
+    kind: str,
+    artifact_id=None,
+    document_id=None,
+):
+    """Seed only retained historical rows; the retired API is unavailable."""
+    material_id, revision_id = uuid4(), uuid4()
+    material = CreationMaterialRow(
+        id=material_id,
+        owner_hash=OWNER,
+        idempotency_key=str(uuid4()),
+        request_sha256="a" * 64,
+        kind=kind,
+        title="历史引用",
+        rights_statement="本人素材",
+        artifact_id=artifact_id,
+        document_id=document_id,
+        current_revision_id=revision_id,
+        created_at=NOW,
+        updated_at=NOW,
+    )
+    revision = CreationRevisionRow(
+        id=revision_id,
+        material_id=material_id,
+        owner_hash=OWNER,
+        number=1,
+        text="历史内容",
+        data={},
+        sha256="b" * 64,
+        confirmed=True,
+        created_at=NOW,
+    )
+    async with sessions() as session, session.begin():
+        session.add(material)
+        await session.flush()
+        session.add(revision)
+    return material, revision

@@ -23,11 +23,12 @@ async def read_document_preview(
     if snapshot.status != ImportStatus.READY.value:
         return None, False
     artifact = snapshot.normalized_artifact
-    expected_key = f"documents/{snapshot.id}/{snapshot.attempt}/screenplay.md"
+    prefix = f"documents/{snapshot.id}/{snapshot.attempt}"
+    expected_keys = {f"{prefix}/document.md", f"{prefix}/screenplay.md"}
     if (
         artifact is None
         or artifact.bucket != storage.bucket
-        or artifact.object_key != expected_key
+        or artifact.object_key not in expected_keys
         or artifact.size_bytes <= 0
         or artifact.sha256 != snapshot.text_sha256
     ):

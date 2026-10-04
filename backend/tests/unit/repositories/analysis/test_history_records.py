@@ -65,7 +65,8 @@ async def test_four_types_stable_cursor_and_owner(analysis_db):
     repo = SqlAlchemyHistoryRecordRepository(analysis_db.sessions)
     all_records = await repo.history(OWNER, before=None, limit=20)
     assert {r.record_type for r in all_records.items} == set(HistoryRecordKind) - {
-        HistoryRecordKind.CONTENT_CREATION
+        HistoryRecordKind.CONTENT_CREATION,
+        HistoryRecordKind.SKILL_ANALYSIS,
     }
     observed = []
     cursor = None

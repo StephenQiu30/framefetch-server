@@ -8,7 +8,6 @@ from uuid import UUID
 import pytest
 from app.integrations.imports.pdf import PdfScreenplayVerifier, PdfVerificationSettings
 from app.integrations.imports.text import TextVerificationSettings
-from app.services.documents.rules.structure import ScreenplayElementKind
 from app.services.import_execution.errors import ImportVerificationRejected
 from app.services.import_execution.models import ImportVerificationClaim
 from app.services.imports.rules.enums import (
@@ -125,16 +124,11 @@ async def test_pdf_extracts_text_into_shared_screenplay_contract(
     assert "INT. ROOM - DAY\nALICE" in normalized
     assert "EXT. STREET - NIGHT\nBOB" in normalized
     assert verified.detected_language == "en-US"
-    assert len(verified.scenes) == 2
+    assert verified.scenes == ()
     assert verified.parse_summary.page_count == 2
     assert verified.parse_summary.paragraph_count == 6
-    assert verified.parse_summary.heading_count == 2
-    assert verified.parse_summary.dialogue_block_count == 2
-    assert [element.kind for element in verified.scenes[0].elements] == [
-        ScreenplayElementKind.HEADING,
-        ScreenplayElementKind.CHARACTER,
-        ScreenplayElementKind.DIALOGUE,
-    ]
+    assert verified.parse_summary.heading_count == 0
+    assert verified.parse_summary.dialogue_block_count == 0
 
 
 @pytest.mark.parametrize("kind", ["javascript", "attachment", "uri", "external-stream"])

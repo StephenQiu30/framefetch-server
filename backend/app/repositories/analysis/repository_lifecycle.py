@@ -12,6 +12,7 @@ from app.models import (
     AnalysisJobRow,
     AnalysisReportArtifactRow,
     AnalysisResultRow,
+    AnalysisStepResultRow,
     ArtifactRow,
 )
 from app.repositories.analysis.repository_base import AnalysisRepositoryBase
@@ -97,6 +98,7 @@ class AnalysisLifecycleRepository(AnalysisRepositoryBase):
                 await self.release_lock(session, row.id)
             else:
                 row.version += 1
+                await self.release_lock(session, row.id)
             row.deleted_at = now
             row.updated_at = now
             report_ids = select(AnalysisResultRow.id).where(
@@ -148,6 +150,8 @@ class AnalysisLifecycleRepository(AnalysisRepositoryBase):
                 or row.current_run_no != run_no
             ):
                 await increment_counter(session, "claim_noop", "analysis")
+                return None
+            if row.input_kind == "skill" and row.status != "queued":
                 return None
             run = await self.active_run(session, row, for_update=True)
             due_retry = (
@@ -246,7 +250,17 @@ class AnalysisLifecycleRepository(AnalysisRepositoryBase):
             row.cancel_requested_at = now
             row.finished_at = now
             row.retry_at = None
-            row.error_code = "cancelled"
+            unknown = await session.scalar(
+                select(AnalysisStepResultRow.step_key)
+                .where(
+                    AnalysisStepResultRow.run_id == run.id,
+                    AnalysisStepResultRow.status == "started",
+                )
+                .limit(1)
+            )
+            row.error_code = (
+                "analysis_outcome_unknown" if unknown is not None else "cancelled"
+            )
             row.error_message = None
             row.lease_owner = None
             row.lease_expires_at = None

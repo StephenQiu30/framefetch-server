@@ -23,6 +23,7 @@ class SqlAlchemyAnalysisRepository:
         quota_policy: QuotaPolicy | None = None,
     ) -> None:
         reads = AnalysisRepositoryBase(sessions, quota_policy=quota_policy)
+        self.get_job_by_key = reads.get_job_by_key
         self.get_job = reads.get_job
         self.get_result = reads.get_result
         self.get_latest_report = reads.get_latest_report
@@ -35,6 +36,7 @@ class SqlAlchemyAnalysisRepository:
         self.get_artifact_for_download = inputs.get_artifact_for_download
         self.get_artifact = inputs.get_artifact
         self.get_document_for_analysis = inputs.get_document_for_analysis
+        self.get_document_text_source = inputs.get_document_text_source
         self.get_screenplay_source = inputs.get_screenplay_source
         lifecycle = AnalysisLifecycleRepository(sessions, quota_policy=quota_policy)
         self.get_latest_job_for_download = lifecycle.get_latest_job_for_download

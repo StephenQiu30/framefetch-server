@@ -161,6 +161,12 @@ def _add_markdown(document: DocumentObject, markdown: str) -> str:
             paragraph = document.add_paragraph(style=style)
             _render_inline(paragraph, inline.children or [])
             first_paragraph = False
+        elif token.type in {"fence", "code_block"}:
+            paragraph = document.add_paragraph()
+            run = paragraph.add_run(token.content.rstrip("\n"))
+            run.font.name = "Consolas"
+            run.font.size = Pt(10)
+            first_paragraph = False
         elif token.type == "ordered_list_open":
             list_styles.append("List Number")
         elif token.type == "bullet_list_open":
@@ -189,6 +195,7 @@ def _inline_text(tokens: list[Token]) -> str:
 def _render_inline(paragraph: Paragraph, tokens: list[Token]) -> None:
     bold = False
     italic = False
+    link_target: str | None = None
     for token in tokens:
         if token.type == "strong_open":
             bold = True
@@ -200,6 +207,13 @@ def _render_inline(paragraph: Paragraph, tokens: list[Token]) -> None:
             italic = False
         elif token.type in {"softbreak", "hardbreak"}:
             paragraph.add_run().add_break()
+        elif token.type == "link_open":
+            href = token.attrGet("href")
+            link_target = href if isinstance(href, str) else None
+        elif token.type == "link_close":
+            if link_target:
+                paragraph.add_run(f" ({link_target})")
+            link_target = None
         elif token.type in {"text", "code_inline"}:
             run = paragraph.add_run(token.content)
             _set_run_font(run, 11, _BLACK, bold=bold)

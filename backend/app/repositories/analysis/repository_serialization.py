@@ -21,16 +21,18 @@ from app.services.analysis.rules.content_document import ContentDocumentResult
 from app.services.analysis.rules.contracts import contract_for_result
 from app.services.analysis.rules.enums import AnalysisResultKind
 from app.services.analysis.rules.result_types import AnalysisResult
+from app.services.skills.models import SkillReportResult
 
 
 def analysis_result_document(result: AnalysisResult) -> dict[str, Any]:
     result_kind(result)
-    if isinstance(result, ContentDocumentResult):
+    if isinstance(result, (ContentDocumentResult, SkillReportResult)):
         return result.model_dump(mode="json")
     return dataclass_document(result)
 
 
 _FROM_DOCUMENT: dict[AnalysisResultKind, Callable[[dict[str, Any]], AnalysisResult]] = {
+    AnalysisResultKind.SKILL_REPORT: SkillReportResult.model_validate,
     AnalysisResultKind.CONTENT_DOCUMENT: ContentDocumentResult.model_validate,
     AnalysisResultKind.VIDEO_VISUAL_ANALYSIS: video_result_from_document,
     AnalysisResultKind.VIDEO_ARTICLE: video_article_from_document,

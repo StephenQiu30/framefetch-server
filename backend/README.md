@@ -86,7 +86,7 @@ uv run python -m app.workers.analysis.agent_cli doctor --env-file ../.env.prod
 uv run python -m app.workers.analysis.agent_cli install --env-file ../.env.prod
 ```
 
-API 固定监听 `8111`，前端固定监听 `8101`。API `/health/live` 只证明进程存活；`/health/ready` 还会在有界超时内检查数据库结构、MinIO、RabbitMQ 与 Redis。宿主机 AI Worker 在 `ff-skill` 队列执行内置 Skill 分析 Workflow，使用协议版本 4 的心跳，与 Temporal 断连时自动重连，并由系统服务监督进程；Worker 离线期间任务保持排队，恢复后继续观察，未知模型调用不会自动重发。没有 AI Worker 的部署必须显式设置 `ANALYSIS_ENABLED=false` 并重建 API。
+API 固定监听 `8111`，前端固定监听 `8101`。API `/health/live` 只证明进程存活；`/health/ready` 还会在有界超时内检查数据库结构、MinIO、RabbitMQ 与 Redis。宿主机 AI Worker 在 `ff-skill` 队列执行内置 Skill 分析 Workflow，使用协议版本 5 的心跳，与 Temporal 断连时自动重连，并由系统服务监督进程；Worker 离线期间任务保持排队，恢复后继续观察，未知模型调用不会自动重发。没有 AI Worker 的部署必须显式设置 `ANALYSIS_ENABLED=false` 并重建 API。
 
 ## 测试目录
 

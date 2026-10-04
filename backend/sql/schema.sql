@@ -653,6 +653,9 @@ ALTER TABLE documents ADD CONSTRAINT ck_documents_ready_shape CHECK (
         character_count IS NOT NULL AND text_sha256 IS NOT NULL
     )
 );
+ALTER TABLE documents DROP CONSTRAINT IF EXISTS ck_documents_source_format;
+ALTER TABLE documents ADD CONSTRAINT ck_documents_source_format CHECK (source_format IN ('docx','pdf','txt','markdown','fountain','srt','vtt'));
+
 CREATE TABLE IF NOT EXISTS document_import_attempts (
     resource_id UUID NOT NULL REFERENCES documents (id) ON DELETE CASCADE,
     attempt INTEGER NOT NULL,
@@ -762,6 +765,7 @@ DROP INDEX IF EXISTS ix_artifacts_expires;
 ALTER TABLE artifacts DROP COLUMN IF EXISTS expires_at;
 
 CREATE TABLE IF NOT EXISTS analysis_jobs (
+    skill_inputs JSONB,
     content_source JSONB,
     id UUID PRIMARY KEY,
     input_kind VARCHAR(24) NOT NULL DEFAULT 'video',
@@ -817,16 +821,17 @@ CREATE TABLE IF NOT EXISTS analysis_jobs (
         skill_instructions_sha256 ~ '^[0-9a-f]{64}$'
     ),
     CONSTRAINT ck_analysis_jobs_input_kind CHECK (
-        input_kind IN ('video', 'screenplay', 'content')
+        input_kind IN ('video', 'screenplay', 'content', 'skill')
     ),
     CONSTRAINT ck_analysis_jobs_result_contract CHECK (
         result_contract IN (
             'video-visual-analysis', 'video-article', 'screenplay-analysis', 'screenplay-rewrite',
-            'structured-report', 'content-document'
+            'structured-report', 'content-document', 'skill-report'
         )
     ),
     CONSTRAINT ck_analysis_jobs_input_shape CHECK (
-        (
+        (input_kind = 'skill' AND skill_inputs IS NOT NULL AND jsonb_typeof(skill_inputs) = 'object'
+         AND content_source IS NULL AND result_contract = 'skill-report') OR (
             input_kind = 'video'
             AND content_source IS NULL
             AND artifact_id IS NOT NULL
@@ -837,7 +842,7 @@ CREATE TABLE IF NOT EXISTS analysis_jobs (
             AND content_source IS NULL
             AND artifact_id IS NULL
             AND document_id IS NOT NULL
-            AND result_contract IN ('screenplay-analysis', 'screenplay-rewrite')
+            AND result_contract IN ('screenplay-analysis', 'screenplay-rewrite', 'structured-report')
         ) OR (
             input_kind = 'content'
             AND artifact_id IS NULL AND document_id IS NULL
@@ -856,6 +861,7 @@ CREATE INDEX IF NOT EXISTS ix_analysis_jobs_queued_recovery
 CREATE INDEX IF NOT EXISTS ix_analysis_jobs_artifact ON analysis_jobs (artifact_id);
 
 ALTER TABLE analysis_jobs ADD COLUMN IF NOT EXISTS content_source JSONB;
+ALTER TABLE analysis_jobs ADD COLUMN IF NOT EXISTS skill_inputs JSONB;
 ALTER TABLE analysis_jobs ADD COLUMN IF NOT EXISTS input_kind VARCHAR(24);
 ALTER TABLE analysis_jobs ADD COLUMN IF NOT EXISTS result_contract VARCHAR(32);
 ALTER TABLE analysis_jobs ADD COLUMN IF NOT EXISTS document_id UUID;
@@ -884,17 +890,18 @@ ALTER TABLE analysis_jobs ALTER COLUMN result_contract SET NOT NULL;
 ALTER TABLE analysis_jobs ALTER COLUMN artifact_id DROP NOT NULL;
 ALTER TABLE analysis_jobs DROP CONSTRAINT IF EXISTS ck_analysis_jobs_input_kind;
 ALTER TABLE analysis_jobs ADD CONSTRAINT ck_analysis_jobs_input_kind
-    CHECK (input_kind IN ('video', 'screenplay', 'content'));
+    CHECK (input_kind IN ('video', 'screenplay', 'content', 'skill'));
 ALTER TABLE analysis_jobs
     DROP CONSTRAINT IF EXISTS ck_analysis_jobs_result_contract;
 ALTER TABLE analysis_jobs ADD CONSTRAINT ck_analysis_jobs_result_contract
     CHECK (result_contract IN (
         'video-visual-analysis', 'video-article', 'screenplay-analysis', 'screenplay-rewrite',
-            'structured-report', 'content-document'
+            'structured-report', 'content-document', 'skill-report'
     ));
 ALTER TABLE analysis_jobs DROP CONSTRAINT IF EXISTS ck_analysis_jobs_input_shape;
 ALTER TABLE analysis_jobs ADD CONSTRAINT ck_analysis_jobs_input_shape CHECK (
-    (
+    (input_kind = 'skill' AND skill_inputs IS NOT NULL AND jsonb_typeof(skill_inputs) = 'object'
+     AND content_source IS NULL AND result_contract = 'skill-report') OR (
         input_kind = 'video'
             AND content_source IS NULL
         AND artifact_id IS NOT NULL
@@ -905,7 +912,7 @@ ALTER TABLE analysis_jobs ADD CONSTRAINT ck_analysis_jobs_input_shape CHECK (
             AND content_source IS NULL
         AND artifact_id IS NULL
         AND document_id IS NOT NULL
-        AND result_contract IN ('screenplay-analysis', 'screenplay-rewrite')
+        AND result_contract IN ('screenplay-analysis', 'screenplay-rewrite', 'structured-report')
     ) OR (
         input_kind = 'content'
         AND artifact_id IS NULL AND document_id IS NULL
@@ -1086,7 +1093,7 @@ CREATE TABLE IF NOT EXISTS analysis_report_versions (
     CONSTRAINT ck_analysis_report_versions_result_kind CHECK (
         result_json ? 'kind' AND result_json ->> 'kind' IN (
             'video_visual_analysis', 'video_article',
-            'screenplay_analysis', 'screenplay_rewrite', 'structured_report', 'content_document'
+            'screenplay_analysis', 'screenplay_rewrite', 'structured_report', 'content_document', 'skill_report'
         )
     )
 );
@@ -1142,7 +1149,7 @@ ALTER TABLE analysis_report_versions
     ADD CONSTRAINT ck_analysis_report_versions_result_kind CHECK (
         result_json ? 'kind' AND result_json ->> 'kind' IN (
             'video_visual_analysis', 'video_article',
-            'screenplay_analysis', 'screenplay_rewrite', 'structured_report', 'content_document'
+            'screenplay_analysis', 'screenplay_rewrite', 'structured_report', 'content_document', 'skill_report'
         )
     );
 ALTER TABLE analysis_report_artifacts DROP COLUMN IF EXISTS expires_at;

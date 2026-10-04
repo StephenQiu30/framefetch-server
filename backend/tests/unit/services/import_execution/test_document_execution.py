@@ -168,7 +168,7 @@ async def test_document_success_promotes_original_and_normalized_before_commit(
         ("uploading", 95),
     ]
     assert storage.promotions == [(claim().object_key, f"{prefix}/original")]
-    assert storage.uploads[0][1] == f"{prefix}/screenplay.md"
+    assert storage.uploads[0][1] == f"{prefix}/document.md"
     assert len(repository.completed) == 1
     assert storage.deletes == [claim().object_key]
     assert workspace.cleaned is True

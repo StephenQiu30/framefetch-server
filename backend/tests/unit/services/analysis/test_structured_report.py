@@ -108,6 +108,17 @@ def test_report_escapes_model_text_as_plain_markdown() -> None:
     assert "## 事实边界与待核验项" in markdown
 
 
+def test_english_report_uses_english_server_evidence_and_limit_labels() -> None:
+    from dataclasses import replace
+
+    markdown = render_analysis_report_markdown(
+        replace(parse(payload()), language="en-US")
+    )
+    assert "**Viewing evidence**" in markdown
+    assert "## Factual limits and verification needs" in markdown
+    assert "回看依据" not in markdown and "事实边界与待核验项" not in markdown
+
+
 def test_model_schema_fixes_structure_and_limits() -> None:
     schema = analysis_output_schema("zh-CN", AnalysisResultContract.STRUCTURED_REPORT)
     assert schema["additionalProperties"] is False

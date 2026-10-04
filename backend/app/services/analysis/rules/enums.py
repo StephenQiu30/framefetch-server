@@ -16,6 +16,7 @@ class AnalysisInputKind(StrEnum):
     VIDEO = "video"
     SCREENPLAY = "screenplay"
     CONTENT = "content"
+    SKILL = "skill"
 
 
 class AnalysisResultContract(StrEnum):
@@ -25,6 +26,7 @@ class AnalysisResultContract(StrEnum):
     SCREENPLAY_REWRITE = "screenplay-rewrite"
     STRUCTURED_REPORT = "structured-report"
     CONTENT_DOCUMENT = "content-document"
+    SKILL_REPORT = "skill-report"
 
 
 class AnalysisResultKind(StrEnum):
@@ -34,6 +36,7 @@ class AnalysisResultKind(StrEnum):
     SCREENPLAY_REWRITE = "screenplay_rewrite"
     STRUCTURED_REPORT = "structured_report"
     CONTENT_DOCUMENT = "content_document"
+    SKILL_REPORT = "skill_report"
 
 
 class AnalysisStage(StrEnum):

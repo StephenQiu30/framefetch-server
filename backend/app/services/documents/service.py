@@ -136,7 +136,7 @@ def _owner_hash(value: str) -> str:
 def _validate_deletion_key(object_key: str, document_id: UUID, attempt: int) -> None:
     for prefix, final_names in (
         (f"quarantine/screenplay/{document_id}/", {"source"}),
-        (f"documents/{document_id}/", {"original", "screenplay.md"}),
+        (f"documents/{document_id}/", {"original", "document.md", "screenplay.md"}),
     ):
         if object_key.startswith(prefix):
             parts = object_key.removeprefix(prefix).split("/")

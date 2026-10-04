@@ -25,8 +25,6 @@ from app.services.auth.models import CurrentUser, UserRole
 from app.services.auth.service import AuthService
 from app.services.auth.user_service import UserService
 from app.services.auth.web_sessions import WebSessionGrant, WebSessionService
-from app.services.creation.export_service import CreationExportService
-from app.services.creation.service import CreationService
 from app.services.downloads.ports import DownloadArtifactStorage
 from app.services.history_records import HistoryRecordService
 from app.services.provider_catalog import ProviderCatalogService
@@ -65,16 +63,6 @@ def get_source_discovery_use_cases(request: Request) -> SourceDiscoveryUseCases:
 
 def get_analysis_use_cases(request: Request) -> AnalysisUseCases:
     return require_service(get_services(request).analysis_use_cases, "analysis")
-
-
-def get_creation_service(request: Request) -> CreationService:
-    return require_service(get_services(request).creation_service, "content creation")
-
-
-def get_creation_export_service(request: Request) -> CreationExportService:
-    return require_service(
-        get_services(request).creation_export_service, "content export"
-    )
 
 
 def get_history_record_service(request: Request) -> HistoryRecordService:

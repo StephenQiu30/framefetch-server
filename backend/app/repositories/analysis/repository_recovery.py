@@ -8,7 +8,7 @@ from uuid import UUID
 from sqlalchemy import select
 
 from app.core.db import as_utc
-from app.models import AnalysisJobRow
+from app.models import AnalysisJobRow, AnalysisStepResultRow
 from app.repositories.analysis.repository_base import AnalysisRepositoryBase
 from app.repositories.analysis.repository_mapping import analysis_job_snapshot
 from app.services.analysis.errors import PersistenceNotFound
@@ -38,6 +38,17 @@ class AnalysisRecoveryRepository(AnalysisRepositoryBase):
                 raise PersistenceNotFound("analysis job does not exist")
             run = await self.active_run(session, row, for_update=True)
             self.require_lease(row, worker_id, attempt, now)
+            unknown = await session.scalar(
+                select(AnalysisStepResultRow.step_key)
+                .where(
+                    AnalysisStepResultRow.run_id == run.id,
+                    AnalysisStepResultRow.status == "started",
+                )
+                .limit(1)
+            )
+            if unknown is not None:
+                error_code = "analysis_outcome_unknown"
+                retryable = False
             should_retry = retryable and row.attempt < row.max_attempts
             if should_retry and (retry_at is None or as_utc(retry_at) <= as_utc(now)):
                 raise ValueError("retry_at must be in the future")
@@ -78,6 +89,18 @@ class AnalysisRecoveryRepository(AnalysisRepositoryBase):
             }:
                 return analysis_job_snapshot(row)
             run = await self.active_run(session, row, for_update=True)
+            if row.stage == "publishing":
+                return analysis_job_snapshot(row)
+            unknown = await session.scalar(
+                select(AnalysisStepResultRow.step_key)
+                .where(
+                    AnalysisStepResultRow.run_id == run.id,
+                    AnalysisStepResultRow.status == "started",
+                )
+                .limit(1)
+            )
+            if unknown is not None:
+                error_code = "analysis_outcome_unknown"
             row.status = "failed"
             row.stage = None
             row.stage_rank = 0

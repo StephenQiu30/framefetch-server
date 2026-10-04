@@ -14,10 +14,10 @@ from temporalio.exceptions import WorkflowAlreadyStartedError
 from temporalio.service import RPCError, RPCStatusCode
 
 from app.integrations.messaging.envelope import EventEnvelope, EventEnvelopeError
-from app.repositories.creation import CreationRepository
+from app.repositories.analysis.repository import SqlAlchemyAnalysisRepository
 from app.repositories.downloads.intent_repository import IntentRepository
 from app.services.downloads.intent_models import IntentStatus
-from app.workers.analysis.creation_workflow import CreationCommand, CreationWorkflow
+from app.workers.analysis.skill_workflow import SkillCommand, SkillWorkflow
 from app.workers.download.workflows import InspectionCommand, InspectionWorkflow
 from app.workers.outbox.loop import EventPublisher
 
@@ -37,25 +37,31 @@ class CommandPublisher:
         address: str,
         namespace: str,
         cancel_inspection: Callable[[str], Awaitable[None]],
-        creation: CreationRepository | None = None,
+        analyses: SqlAlchemyAnalysisRepository | None = None,
         clock: Callable[[], datetime] = lambda: datetime.now(UTC),
+        analysis_timeout_seconds: float = 900,
     ) -> None:
         self._fallback = fallback
         self._intents = intents
         self._address = address
         self._namespace = namespace
         self._cancel_inspection = cancel_inspection
-        self._creation = creation
+        self._analyses = analyses
         self._clock = clock
+        self._analysis_timeout_seconds = analysis_timeout_seconds
         self._client: Client | None = None
 
     async def publish(self, envelope: EventEnvelope) -> None:
         if envelope.event_type in _INSPECTION_EVENTS:
             await self._inspection(envelope)
         elif envelope.event_type == "analysis.requested":
-            raise EventEnvelopeError("legacy analysis execution has been retired")
+            await self._analysis_skill(envelope)
         elif envelope.event_type == "creation.requested":
-            await self._creation_skill(envelope)
+            raise EventEnvelopeError("creation execution has been retired")
+        elif envelope.event_type == "skill.requested":
+            raise EventEnvelopeError(
+                "superseded generic Skill execution has been retired"
+            )
         else:
             await self._fallback.publish(envelope)
 
@@ -125,28 +131,41 @@ class CommandPublisher:
             self._client = await connect_temporal(self._address, self._namespace)
         return self._client
 
-    async def _creation_skill(self, envelope: EventEnvelope) -> None:
+    async def _analysis_skill(self, envelope: EventEnvelope) -> None:
         payload = envelope.payload
-        attempt = payload.get("attempt")
         if (
-            set(payload) != {"task_id", "attempt", "request_id"}
-            or payload["task_id"] != str(envelope.aggregate_id)
-            or type(attempt) is not int
-            or attempt < 1
-            or not isinstance(payload["request_id"], str)
+            set(payload) != {"job_id", "run_id", "run_no", "version"}
+            or payload["job_id"] != str(envelope.aggregate_id)
+            or type(payload["run_no"]) is not int
+            or payload["run_no"] < 1
+            or not isinstance(payload["run_id"], str)
+            or type(payload["version"]) is not int
         ):
-            raise EventEnvelopeError("invalid creation command")
-        if self._creation is None:
-            raise EventEnvelopeError("creation execution is unavailable")
-        task = await self._creation.get_task(envelope.aggregate_id)
-        if task.status.value != "queued" or task.attempt != attempt:
+            raise EventEnvelopeError("invalid analysis Skill command")
+        if self._analyses is None:
+            raise EventEnvelopeError("analysis Skill execution is unavailable")
+        job = await self._analyses.get_job(envelope.aggregate_id)
+        if (
+            job is None
+            or job.input_kind not in {"video", "screenplay"}
+            or job.status != "queued"
+            or str(job.run_id) != payload["run_id"]
+            or job.run_no != payload["run_no"]
+        ):
             return
-        command = CreationCommand(str(task.id), attempt)
+        command = SkillCommand(
+            str(job.id), str(job.run_id), job.run_no, self._analysis_timeout_seconds
+        )
         client = await self._connect()
-        binding: dict[str, object] = {"task_id": command.task_id, "attempt": attempt}
+        binding: dict[str, object] = {
+            "job_id": command.job_id,
+            "run_id": command.run_id,
+            "run_no": command.run_no,
+            "timeout_seconds": command.timeout_seconds,
+        }
         try:
             await client.start_workflow(
-                CreationWorkflow.run,
+                SkillWorkflow.run,
                 command,
                 id=command.workflow_id,
                 task_queue="ff-skill",
@@ -157,7 +176,7 @@ class CommandPublisher:
             )
         except WorkflowAlreadyStartedError:
             await _require_binding(
-                client.get_workflow_handle(command.workflow_id), binding, "creation"
+                client.get_workflow_handle(command.workflow_id), binding, "skill"
             )
 
 

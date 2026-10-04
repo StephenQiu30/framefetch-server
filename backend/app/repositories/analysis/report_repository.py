@@ -201,7 +201,8 @@ class SqlAlchemyAnalysisReportRepository(AnalysisReportLifecycleRepository):
                 job.finished_at = now
                 job.updated_at = now
                 self.sync_run(job, run)
-                await self.release_lock(session, job.id)
+                if job.input_kind != "skill":
+                    await self.release_lock(session, job.id)
 
     async def fail(
         self,
@@ -249,7 +250,8 @@ class SqlAlchemyAnalysisReportRepository(AnalysisReportLifecycleRepository):
                 job.version += 1
                 if run is not None:
                     self.sync_run(job, run)
-                await self.release_lock(session, job.id)
+                if job.input_kind != "skill":
+                    await self.release_lock(session, job.id)
             report.error_message = message[:512]
             report.lease_owner = None
             report.lease_expires_at = None

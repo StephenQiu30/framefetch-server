@@ -12,6 +12,7 @@ from app.repositories.documents.catalog_repository import (
 from app.repositories.documents.import_repository import (
     SqlAlchemyDocumentImportRepository,
 )
+from app.schemas.documents import DocumentDetailResponse
 from app.services.documents.service import GetDocument, ListDocuments
 from app.services.imports.errors import (
     ImportApplicationError,
@@ -109,11 +110,20 @@ async def test_detail_maps_safe_metadata_and_hides_other_owner(catalog_data) -> 
     assert raised.value.code is ImportApplicationErrorCode.NOT_FOUND
 
 
+@pytest.mark.parametrize(
+    ("filename", "text", "scene_count"),
+    (
+        ("screenplay.md", "<script>alert('text only')</script>\n内景 - 夜\n", 1),
+        ("document.md", "# 已有文章\n\n原文正文。\n", 0),
+    ),
+)
 async def test_ready_detail_reads_only_bounded_normalized_plain_text(
     catalog_data,
+    filename: str,
+    text: str,
+    scene_count: int,
 ) -> None:
     catalog, sessions = catalog_data
-    text = "<script>alert('text only')</script>\n内景 - 夜\n"
     payload = text.encode()
     digest = hashlib.sha256(payload).hexdigest()
     async with sessions() as session, session.begin():
@@ -122,7 +132,7 @@ async def test_ready_detail_reads_only_bounded_normalized_plain_text(
         row.status = "ready"
         row.attempt = 1
         row.detected_language = "mixed"
-        row.scene_count = 1
+        row.scene_count = scene_count
         row.character_count = len(text)
         row.text_sha256 = digest
         row.finished_at = NOW
@@ -131,7 +141,7 @@ async def test_ready_detail_reads_only_bounded_normalized_plain_text(
                 document_id=FIRST,
                 kind="normalized",
                 bucket="video-artifacts",
-                object_key=f"documents/{FIRST}/1/screenplay.md",
+                object_key=f"documents/{FIRST}/1/{filename}",
                 content_type="text/markdown; charset=utf-8",
                 size_bytes=len(payload),
                 sha256=digest,
@@ -163,7 +173,10 @@ async def test_ready_detail_reads_only_bounded_normalized_plain_text(
     assert view.parse_summary is not None
     assert view.parse_summary.page_count == 2
     assert view.parse_summary.paragraph_count == 3
-    assert storage.calls == [(f"documents/{FIRST}/1/screenplay.md", len(payload))]
+    assert storage.calls == [(f"documents/{FIRST}/1/{filename}", len(payload))]
+    response = DocumentDetailResponse.from_view(view)
+    assert response.scene_count == scene_count
+    assert response.preview == text
 
 
 async def test_preview_truncation_drops_only_an_incomplete_utf8_suffix(

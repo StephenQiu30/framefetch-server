@@ -14,20 +14,36 @@ from app.core.security.url_cipher import URLCipher
 from app.integrations.object_storage import MinioObjectStorage
 from app.integrations.temporal_client import connect_temporal
 from app.repositories.ai_provider_repository import SqlAlchemyAiProviderRepository
+from app.repositories.analysis.execution import AnalysisExecutionPersistence
+from app.repositories.analysis.repository import SqlAlchemyAnalysisRepository
 from app.repositories.analysis.worker_registry import (
     ANALYSIS_MESSAGE_SCHEMA_VERSION,
     SqlAlchemyAnalysisWorkerRegistry,
 )
-from app.repositories.creation import CreationRepository
+from app.repositories.downloads.repository import SqlAlchemyDownloadRepository
+from app.services.analysis_execution.document_organization import (
+    DocumentOrganizationExecutor,
+)
+from app.services.analysis_execution.screenplay_executor import (
+    ScreenplayAnalysisExecutor,
+)
+from app.services.analysis_execution.video_executor import VideoAnalysisExecutor
+from app.services.analysis_execution.video_observations import (
+    configure_video_observation_logging,
+)
 from app.workers.analysis.agent_lock import (
     AnalysisAgentAlreadyRunning,
     analysis_agent_process_lock,
 )
 from app.workers.analysis.artifacts import LocalAnalysisArtifactLoader
-from app.workers.analysis.creation_activities import CreationActivities
-from app.workers.analysis.creation_workflow import CreationWorkflow
 from app.workers.analysis.heartbeat import AnalysisWorkerHeartbeat
 from app.workers.analysis.providers import ConfiguredAnalyzerResolver
+from app.workers.analysis.screenplay_artifacts import LocalScreenplayArtifactLoader
+from app.workers.analysis.screenplay_providers import (
+    ConfiguredScreenplayAnalyzerResolver,
+)
+from app.workers.analysis.skill_activities import ClaimedSkillExecutor, SkillActivities
+from app.workers.analysis.skill_workflow import SkillWorkflow
 from app.workers.analysis.utilities import utc_now, worker_id
 from app.workers.supervision import install_signal_handlers, run_resilient
 from sqlalchemy.ext.asyncio import AsyncEngine
@@ -38,7 +54,7 @@ SKILL_TASK_QUEUE = "ff-skill"
 
 @dataclass(slots=True)
 class AnalysisWorkerRuntime:
-    creation: CreationActivities
+    skills: SkillActivities
     temporal_address: str
     temporal_namespace: str
     heartbeat: AnalysisWorkerHeartbeat
@@ -46,6 +62,7 @@ class AnalysisWorkerRuntime:
     loader: LocalAnalysisArtifactLoader
     engine: AsyncEngine
     resolver: ConfiguredAnalyzerResolver
+    screenplay_loader: LocalScreenplayArtifactLoader
 
     async def close(self) -> None:
         try:
@@ -88,10 +105,41 @@ def build_runtime(settings: Settings) -> AnalysisWorkerRuntime:
         bucket=settings.minio_bucket,
         max_source_bytes=settings.max_file_size_bytes,
     )
-    return AnalysisWorkerRuntime(
-        creation=CreationActivities(
-            CreationRepository(sessions), resolver, loader, settings
+    repository = SqlAlchemyAnalysisRepository(sessions)
+    persistence = AnalysisExecutionPersistence(
+        repository, SqlAlchemyDownloadRepository(sessions)
+    )
+    screenplay_loader = LocalScreenplayArtifactLoader(
+        storage,
+        workspace_root=settings.analysis_workspace_root,
+        bucket=settings.minio_bucket,
+        max_source_bytes=settings.analysis_max_screenplay_bytes,
+    )
+    executors: dict[tuple[str, str], ClaimedSkillExecutor] = {
+        ("video", "structured-report"): VideoAnalysisExecutor(
+            repository=persistence, loader=loader, resolver=resolver, clock=utc_now
         ),
+        ("screenplay", "screenplay-analysis"): ScreenplayAnalysisExecutor(
+            repository=persistence,
+            loader=screenplay_loader,
+            resolver=ConfiguredScreenplayAnalyzerResolver(resolver),
+            clock=utc_now,
+            max_single_call_characters=settings.analysis_screenplay_single_call_characters,
+            timeout_seconds=settings.analysis_timeout_seconds,
+        ),
+        ("screenplay", "structured-report"): DocumentOrganizationExecutor(
+            repository,
+            storage,
+            resolver,
+            settings.analysis_workspace_root,
+            bucket=settings.minio_bucket,
+            maximum_bytes=settings.analysis_max_screenplay_bytes,
+            maximum_characters=settings.analysis_screenplay_single_call_characters,
+            timeout_seconds=settings.analysis_timeout_seconds,
+        ),
+    }
+    return AnalysisWorkerRuntime(
+        skills=SkillActivities(repository, persistence, executors, settings),
         temporal_address=settings.temporal_address,
         temporal_namespace=settings.temporal_namespace,
         heartbeat=AnalysisWorkerHeartbeat(
@@ -106,17 +154,19 @@ def build_runtime(settings: Settings) -> AnalysisWorkerRuntime:
         loader=loader,
         engine=engine,
         resolver=resolver,
+        screenplay_loader=screenplay_loader,
     )
 
 
 async def run(settings: Settings | None = None) -> None:
+    configure_video_observation_logging()
     runtime = build_runtime(settings or get_settings_for_role("analysis-worker"))
     stop = asyncio.Event()
     install_signal_handlers(stop)
     try:
         await runtime.loader.prepare_root()
-        # Text formatting and card preparation remain usable without a model
-        # profile; each model task performs its own readiness check.
+        await runtime.screenplay_loader.prepare_root()
+        # Every enabled task resolves its configured provider at execution time.
         await _serve(runtime, stop)
     finally:
         stop.set()
@@ -144,17 +194,17 @@ async def _serve(runtime: AnalysisWorkerRuntime, stop: asyncio.Event) -> None:
 async def _run_skill_worker(
     runtime: AnalysisWorkerRuntime, stop: asyncio.Event
 ) -> None:
-    """Serve bounded activities; CreationActivities reserves one model slot."""
+    """Serve bounded activities; SkillActivities reserves one model slot."""
     client = await connect_temporal(
         runtime.temporal_address, runtime.temporal_namespace
     )
     worker = Worker(
         client,
         task_queue=SKILL_TASK_QUEUE,
-        workflows=[CreationWorkflow],
+        workflows=[SkillWorkflow],
         activities=[
-            runtime.creation.run,
-            runtime.creation.reconcile,
+            runtime.skills.run,
+            runtime.skills.reconcile,
         ],
         max_concurrent_activities=8,
         graceful_shutdown_timeout=timedelta(seconds=30),

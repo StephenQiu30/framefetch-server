@@ -30,7 +30,6 @@ def test_swagger_ui_and_openapi_contract_are_available(tmp_path: Path) -> None:
         "providers",
         "downloads",
         "analyses",
-        "creation",
     }
     assert all(not path.startswith("/api/v1") for path in schema["paths"])
 
@@ -141,26 +140,10 @@ def test_swagger_ui_and_openapi_contract_are_available(tmp_path: Path) -> None:
         "exportAnalysisReport",
         "cancelAnalysis",
         "deleteAnalysis",
-        "listCreationSkills",
-        "listCreationProjects",
-        "createCreationProject",
-        "listCreationMaterials",
-        "createCreationMaterial",
-        "getCreationMaterial",
-        "getCreationMaterialImage",
-        "getCreationDocumentSource",
-        "listCreationMaterialRevisions",
-        "saveCreationMaterialRevision",
-        "confirmCreationMaterial",
-        "listCreationTasks",
-        "createCreationTask",
-        "getCreationTask",
-        "cancelCreationTask",
-        "listCreationTaskRevisions",
-        "saveCreationTaskRevision",
-        "confirmCreationTask",
-        "retryCreationTask",
-        "exportCreationRevision",
+        "listAnalysisSkills",
+        "createAnalysis",
+        "createDocumentAnalysis",
+        "retryAnalysis",
     }
     assert all(len(operation["tags"]) == 1 for operation in operations.values())
 

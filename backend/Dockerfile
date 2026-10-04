@@ -28,7 +28,6 @@ FROM python:3.12-slim-bookworm@sha256:392307d22300de8b5986851a12d9176dfc0fc073e6
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     PLAYWRIGHT_BROWSERS_PATH=/opt/playwright \
-    CREATION_CARD_FONT_PATH=/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc \
     PATH="/app/backend/.venv/bin:${PATH}"
 WORKDIR /app/backend
 
@@ -38,7 +37,7 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     rm -f /etc/apt/apt.conf.d/docker-clean \
     && apt-get -o Acquire::Retries=5 update \
     && apt-get -o Acquire::Retries=5 install --no-install-recommends -y \
-        ca-certificates ffmpeg libstdc++6 xauth fonts-noto-cjk \
+        ca-certificates ffmpeg libstdc++6 xauth \
     && useradd --create-home --uid 10001 appuser \
     && chown -R appuser:appuser /app \
     && install -d -o 10001 -g 10001 -m 0700 /work

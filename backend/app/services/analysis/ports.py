@@ -14,14 +14,24 @@ from app.services.analysis.models import (
     AnalysisPublish,
     AnalysisReportSnapshot,
     AnalysisRetry,
+    AnalysisSkillResolution,
+    AnalysisSkillView,
     AnalysisStoredReportFile,
 )
-from app.services.analysis.rules.enums import AnalysisResultKind
+from app.services.analysis.rules.enums import AnalysisInputKind, AnalysisResultKind
 from app.services.analysis.rules.result_types import AnalysisResult
 
 
 class RequestFingerprinter(Protocol):
     def fingerprint(self, namespace: str, *values: str) -> str: ...
+
+
+class AnalysisSkillCatalog(Protocol):
+    def list(self, input_kind: AnalysisInputKind) -> tuple[AnalysisSkillView, ...]: ...
+
+    def resolve(
+        self, skill_id: str, input_kind: AnalysisInputKind
+    ) -> AnalysisSkillResolution | None: ...
 
 
 class AnalysisRepository(Protocol):

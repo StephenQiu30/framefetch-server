@@ -25,7 +25,7 @@ from app.services.analysis_execution.screenplay_rewrite_models import (
 
 
 class CodexAppServerVideoAnalyzer:
-    supports_creation_images = True
+    supports_skill_images = True
 
     def __init__(
         self,

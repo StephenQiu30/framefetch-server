@@ -56,8 +56,9 @@ def test_client_host_fails_closed_for_a_malformed_forwarding_chain() -> None:
 @pytest.mark.parametrize(
     "path",
     [
-        "/api/creation/tasks",
-        "/api/creation/tasks/00000000-0000-0000-0000-000000000001/attempts",
+        "/api/downloads/00000000-0000-0000-0000-000000000001/analyses",
+        "/api/documents/00000000-0000-0000-0000-000000000001/analyses",
+        "/api/analyses/00000000-0000-0000-0000-000000000001/retry",
     ],
 )
 def test_all_analysis_creation_routes_enforce_admission(path: str) -> None:
@@ -82,7 +83,6 @@ def test_all_analysis_creation_routes_enforce_admission(path: str) -> None:
 def test_costly_routes_declare_admission_and_recovery_routes_remain_available() -> None:
     from app.api.routes import (
         analyses,
-        creation,
         document_analyses,
         documents,
         downloads,
@@ -102,13 +102,13 @@ def test_costly_routes_declare_admission_and_recovery_routes_remain_available() 
         "createDocumentImport",
         "createDocumentUploadSession",
         "completeDocumentImport",
-        "createCreationTask",
-        "retryCreationTask",
+        "createAnalysis",
+        "createDocumentAnalysis",
+        "retryAnalysis",
     }
     found = set()
     for module in (
         analyses,
-        creation,
         document_analyses,
         documents,
         downloads,

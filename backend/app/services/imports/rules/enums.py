@@ -20,6 +20,8 @@ class ImportSourceFormat(StrEnum):
     TXT = "txt"
     MARKDOWN = "markdown"
     FOUNTAIN = "fountain"
+    SRT = "srt"
+    VTT = "vtt"
 
     @property
     def content_kind(self) -> ContentKind:
@@ -39,6 +41,8 @@ class ImportSourceFormat(StrEnum):
             self.TXT: "text/plain; charset=utf-8",
             self.MARKDOWN: "text/markdown; charset=utf-8",
             self.FOUNTAIN: "text/plain; charset=utf-8",
+            self.SRT: "application/x-subrip; charset=utf-8",
+            self.VTT: "text/vtt; charset=utf-8",
         }[self]
 
 

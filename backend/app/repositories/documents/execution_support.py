@@ -124,7 +124,7 @@ def artifact_keys(claim: ImportVerificationClaim) -> tuple[str, str]:
     if claim.content_kind is not ContentKind.SCREENPLAY or claim.attempt < 1:
         raise ValueError("invalid document artifact identity")
     prefix = f"documents/{claim.resource_id}/{claim.attempt}"
-    return f"{prefix}/original", f"{prefix}/screenplay.md"
+    return f"{prefix}/original", f"{prefix}/document.md"
 
 
 def validate_artifact(
@@ -132,7 +132,7 @@ def validate_artifact(
     artifact: VerifiedDocumentImport,
     bucket: str,
 ) -> None:
-    spans_are_valid = bool(artifact.scenes) and all(
+    spans_are_valid = all(
         _valid_scene(scene, artifact.character_count) for scene in artifact.scenes
     )
     summary = artifact.parse_summary

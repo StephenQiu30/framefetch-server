@@ -16,7 +16,7 @@ _log = logging.getLogger(__name__)
 _DOCUMENT_ARTIFACT_KEY = re.compile(
     r"documents/[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-"
     r"[89ab][0-9a-f]{3}-[0-9a-f]{12}/[1-9][0-9]*/"
-    r"(?:original|screenplay\.md)"
+    r"(?:original|document\.md|screenplay\.md)"
 )
 
 

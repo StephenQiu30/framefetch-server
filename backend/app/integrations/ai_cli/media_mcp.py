@@ -5,6 +5,8 @@ import subprocess
 from pathlib import Path
 from typing import Any
 
+from app.integrations.ai_cli.observation_receipts import record_observation
+
 
 class VideoObserver:
     def __init__(self, arguments: Any) -> None:
@@ -50,6 +52,7 @@ class VideoObserver:
             "json",
             str(self.video),
         )
+        record_observation(self.root, "probe_video", timestamps_ms=[])
         return _text(result.stdout.decode("utf-8", errors="replace"))
 
     def _overview(self, arguments: dict[str, Any]) -> dict[str, Any]:
@@ -84,7 +87,16 @@ class VideoObserver:
             str(path),
         )
         timestamps = [round(start + index * (end - start) / 16) for index in range(16)]
-        return self._image(path, f"Cells left-to-right, top-to-bottom: {timestamps} ms")
+        image = self._image(
+            path, f"Cells left-to-right, top-to-bottom: {timestamps} ms"
+        )
+        record_observation(
+            self.root,
+            "inspect_video_overview",
+            timestamps_ms=timestamps,
+            image=path.read_bytes(),
+        )
+        return image
 
     def _frame(self, arguments: dict[str, Any]) -> dict[str, Any]:
         timestamp = _integer(arguments, "timestamp_ms")
@@ -109,7 +121,14 @@ class VideoObserver:
             "2",
             str(path),
         )
-        return self._image(path, f"Frame near {timestamp} ms")
+        image = self._image(path, f"Frame near {timestamp} ms")
+        record_observation(
+            self.root,
+            "inspect_video_frame",
+            timestamps_ms=[timestamp],
+            image=path.read_bytes(),
+        )
+        return image
 
     def _interval(self, arguments: dict[str, Any]) -> tuple[int, int]:
         start = _integer(arguments, "start_ms")

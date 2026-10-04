@@ -42,7 +42,7 @@ UseCases = Annotated[DocumentImportUseCases, Depends(get_document_import_use_cas
     dependencies=[Depends(RateLimitAdmission("document_import"))],
     response_model=DocumentImportResponse,
     status_code=status.HTTP_201_CREATED,
-    summary="创建剧本文档导入",
+    summary="创建文档导入",
 )
 async def create_document_import(
     body: DocumentImportRequest,
@@ -71,7 +71,7 @@ async def create_document_import(
     "",
     operation_id="listDocuments",
     response_model=DocumentPageResponse,
-    summary="查询剧本文档列表",
+    summary="查询文档列表",
 )
 async def list_documents(
     user: User,
@@ -89,7 +89,7 @@ async def list_documents(
     "/{document_id}",
     operation_id="getDocumentImport",
     response_model=DocumentDetailResponse,
-    summary="查询剧本文档导入",
+    summary="查询文档导入",
 )
 async def get_document_import(
     document_id: UUID,
@@ -107,7 +107,7 @@ async def get_document_import(
     "/{document_id}",
     operation_id="deleteDocument",
     status_code=status.HTTP_204_NO_CONTENT,
-    summary="删除剧本文档及其制品",
+    summary="删除文档及其制品",
 )
 async def delete_document(
     document_id: UUID,
@@ -173,7 +173,7 @@ async def complete_document_import(
     "/{document_id}/cancel",
     operation_id="cancelDocumentImport",
     response_model=DocumentImportResponse,
-    summary="取消剧本文档导入",
+    summary="取消文档导入",
 )
 async def cancel_document_import(
     document_id: UUID,

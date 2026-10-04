@@ -30,7 +30,7 @@ class DocumentRow(Base):
             "owner_hash", "idempotency_key", name="uq_documents_owner_idempotency"
         ),
         CheckConstraint(
-            "source_format IN ('docx','pdf','txt','markdown','fountain')",
+            "source_format IN ('docx','pdf','txt','markdown','fountain','srt','vtt')",
             name="ck_documents_source_format",
         ),
         CheckConstraint(

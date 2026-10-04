@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import asyncio
+import os
 import sys
 from pathlib import Path
 
@@ -183,3 +185,60 @@ async def test_client_maps_app_server_failures(
 
     assert error.value.code == code
     assert error.value.no_model_execution is (failure == "schema")
+
+
+@pytest.mark.asyncio
+@pytest.mark.skipif(os.name == "nt", reason="POSIX process-group cancellation")
+async def test_cancelled_client_terminates_app_server_and_its_child_group(
+    tmp_path: Path,
+) -> None:
+    root = tmp_path / "held-job"
+    (root / "tmp").mkdir(parents=True)
+    binary = fake_server(tmp_path)
+    script = binary.read_text().replace(
+        "        if protocol_payload_bytes:",
+        """        import subprocess
+        import time
+        from pathlib import Path
+        child = subprocess.Popen([sys.executable, "-c", "import time;time.sleep(120)"])
+        Path("tmp/child.pid").write_text(str(child.pid))
+        while True:
+            time.sleep(1)
+        if protocol_payload_bytes:""",
+    )
+    binary.write_text(script)
+
+    class ObservedClient(CodexAppServerClient):
+        async def _spawn(self, workspace, duration_ms):
+            self.process = await super()._spawn(workspace, duration_ms)
+            return self.process
+
+    client = ObservedClient(config(binary))
+    task = asyncio.create_task(
+        client.invoke(
+            root=root,
+            prompt="controlled hold",
+            schema={"type": "object"},
+            duration_ms=None,
+        )
+    )
+    try:
+        async with asyncio.timeout(3):
+            while not (root / "tmp/child.pid").exists():
+                await asyncio.sleep(0.01)
+        group = client.process.pid
+        task.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await task
+        assert client.process.returncode is not None
+        async with asyncio.timeout(3):
+            while True:
+                try:
+                    os.killpg(group, 0)
+                except ProcessLookupError:
+                    break
+                await asyncio.sleep(0.05)
+    finally:
+        if not task.done():
+            task.cancel()
+        await asyncio.gather(task, return_exceptions=True)

@@ -377,6 +377,22 @@ class MinioObjectStorage:
             response.close()
             response.release_conn()
 
+    async def read_bounded(self, object_key: str, *, maximum: int) -> bytes:
+        _validate_key(object_key)
+        if type(maximum) is not int or not 0 < maximum <= 10 * 1024**2:
+            raise ValueError("bounded object read limit is invalid")
+        response = await asyncio.to_thread(
+            self._private.get_object, self._bucket, object_key
+        )
+        try:
+            content = await asyncio.to_thread(response.read, maximum + 1)
+            if len(content) > maximum:
+                raise ImportObjectStorageError("object exceeds its bounded read limit")
+            return content
+        finally:
+            response.close()
+            response.release_conn()
+
     async def read_range(self, object_key: str, *, length: int) -> bytes:
         _validate_key(object_key)
         if isinstance(length, bool) or not 1 <= length <= 256 * 1024:

@@ -9,7 +9,6 @@ from app.integrations.imports.text import (
     TextScreenplayVerifier,
     TextVerificationSettings,
 )
-from app.services.documents.rules.structure import ScreenplayElementKind
 from app.services.import_execution.errors import ImportVerificationRejected
 from app.services.import_execution.models import ImportVerificationClaim
 from app.services.imports.rules.enums import (
@@ -66,14 +65,10 @@ async def test_text_formats_are_verified_and_written_as_canonical_utf8(
         verified.normalized_sha256
         == hashlib.sha256(verified.normalized_path.read_bytes()).hexdigest()
     )
-    assert len(verified.scenes) == 1
+    assert verified.scenes == ()
     assert verified.parse_summary.page_count is None
     assert verified.parse_summary.paragraph_count == 2
-    assert verified.parse_summary.heading_count == 1
-    assert [element.kind for element in verified.scenes[0].elements] == [
-        ScreenplayElementKind.HEADING,
-        ScreenplayElementKind.ACTION,
-    ]
+    assert verified.parse_summary.heading_count == 0
 
 
 @pytest.mark.parametrize(
@@ -126,3 +121,27 @@ async def test_hash_mismatch_and_unsupported_document_format_are_rejected(
 
     assert mismatch.value.code is ImportErrorCode.SHA256_MISMATCH
     assert unsupported.value.code is ImportErrorCode.DOCUMENT_FORMAT_UNSUPPORTED
+
+
+@pytest.mark.parametrize(
+    "source_format",
+    [
+        ImportSourceFormat.TXT,
+        ImportSourceFormat.MARKDOWN,
+        ImportSourceFormat.SRT,
+        ImportSourceFormat.VTT,
+    ],
+)
+async def test_ordinary_article_and_subtitle_import_need_no_scene(
+    tmp_path, source_format
+):
+    content = "文章观点。\r\n  保留缩进与空格  \r\n".encode()
+    workspace = tmp_path / "ordinary"
+    workspace.mkdir()
+    source = workspace / "source"
+    source.write_bytes(content)
+    result = await verifier(tmp_path)(source, claim(content, source_format))
+    assert result.scenes == ()
+    assert result.character_count > 0
+    assert result.normalized_path.read_text() == "文章观点。\n  保留缩进与空格  \n"
+    assert result.normalized_path.name == "document.md"

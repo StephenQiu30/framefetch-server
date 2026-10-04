@@ -15,7 +15,6 @@ from app.integrations.imports.docx import (
     DocxVerificationSettings,
 )
 from app.integrations.imports.text import TextVerificationSettings
-from app.services.documents.rules.structure import ScreenplayElementKind
 from app.services.import_execution.errors import ImportVerificationRejected
 from app.services.import_execution.models import ImportVerificationClaim
 from app.services.imports.rules.enums import (
@@ -116,23 +115,13 @@ async def test_docx_extracts_only_body_and_table_text_into_shared_contract(
     assert "INT. ROOM - DAY\nALICE\nHello there." in normalized
     assert "外景 - 夜\n小明\t你好。" in normalized
     assert verified.detected_language == "mixed"
-    assert len(verified.scenes) == 2
+    assert verified.scenes == ()
     assert verified.quality_warnings == ()
     assert verified.parse_summary.page_count is None
     assert verified.parse_summary.paragraph_count == 5
-    assert verified.parse_summary.heading_count == 2
+    assert verified.parse_summary.heading_count == 0
     assert verified.parse_summary.table_count == 1
-    assert verified.parse_summary.dialogue_block_count == 2
-    assert [element.kind for element in verified.scenes[0].elements] == [
-        ScreenplayElementKind.HEADING,
-        ScreenplayElementKind.CHARACTER,
-        ScreenplayElementKind.DIALOGUE,
-    ]
-    assert [element.kind for element in verified.scenes[1].elements] == [
-        ScreenplayElementKind.HEADING,
-        ScreenplayElementKind.CHARACTER,
-        ScreenplayElementKind.DIALOGUE,
-    ]
+    assert verified.parse_summary.dialogue_block_count == 0
 
 
 async def test_docx_preserves_heading_and_list_styles_as_safe_markdown(
@@ -149,10 +138,10 @@ async def test_docx_preserves_heading_and_list_styles_as_safe_markdown(
     normalized = verified.normalized_path.read_text(encoding="utf-8")
 
     assert normalized == (
-        "# INT. ROOM - DAY\n## Beat overview\n- Visible checklist item\n"
+        "# INT. ROOM - DAY\n## Beat overview\n- Visible checklist item"
     )
     assert verified.parse_summary.paragraph_count == 3
-    assert verified.parse_summary.heading_count == 2
+    assert verified.parse_summary.heading_count == 0
     assert verified.parse_summary.list_item_count == 1
 
 

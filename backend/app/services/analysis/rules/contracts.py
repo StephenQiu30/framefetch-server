@@ -26,6 +26,7 @@ from app.services.analysis.rules.screenplay_results import (
     ScreenplayRewriteResult,
 )
 from app.services.analysis.rules.structured_report import StructuredReportResult
+from app.services.skills.models import SkillReportResult
 
 
 @dataclass(frozen=True, slots=True)
@@ -36,6 +37,12 @@ class ResultContract:
     result_type: type[AnalysisResult]
     # Rewrite results are stored in the target language they produce.
     language_field: str = "language"
+    additional_input_kinds: tuple[AnalysisInputKind, ...] = ()
+
+    def accepts(self, input_kind: AnalysisInputKind) -> bool:
+        return (
+            input_kind is self.input_kind or input_kind in self.additional_input_kinds
+        )
 
     def language(self, result: AnalysisResult) -> str:
         value = getattr(result, self.language_field)
@@ -44,6 +51,12 @@ class ResultContract:
 
 
 RESULT_CONTRACTS: tuple[ResultContract, ...] = (
+    ResultContract(
+        AnalysisResultContract.SKILL_REPORT,
+        AnalysisResultKind.SKILL_REPORT,
+        AnalysisInputKind.SKILL,
+        SkillReportResult,
+    ),
     ResultContract(
         AnalysisResultContract.CONTENT_DOCUMENT,
         AnalysisResultKind.CONTENT_DOCUMENT,
@@ -80,6 +93,7 @@ RESULT_CONTRACTS: tuple[ResultContract, ...] = (
         AnalysisResultKind.STRUCTURED_REPORT,
         AnalysisInputKind.VIDEO,
         StructuredReportResult,
+        additional_input_kinds=(AnalysisInputKind.SCREENPLAY,),
     ),
 )
 
@@ -113,5 +127,5 @@ def contracts_for_input(
     input_kind: AnalysisInputKind,
 ) -> frozenset[AnalysisResultContract]:
     return frozenset(
-        item.contract for item in RESULT_CONTRACTS if item.input_kind is input_kind
+        item.contract for item in RESULT_CONTRACTS if item.accepts(input_kind)
     )

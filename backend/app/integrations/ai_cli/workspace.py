@@ -62,6 +62,7 @@ def prepare_job_files(
             directory.mkdir(parents=True, exist_ok=True, mode=0o700)
             directory.chmod(0o700)
         manifest = {
+            "stage": request.stage,
             "duration_ms": request.duration_ms,
             "size_bytes": request.size_bytes,
             "container": request.container,

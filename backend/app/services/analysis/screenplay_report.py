@@ -133,7 +133,45 @@ def render_screenplay_report_markdown(
 
 
 def _analysis_report(result: ScreenplayAnalysisResult) -> str:
-    labels = _ZH if _is_chinese(result.language) else _EN
+    labels = dict(_ZH if _is_chinese(result.language) else _EN)
+    if any(scene.source_scene_id.startswith("unit-") for scene in result.scenes):
+        if _is_chinese(result.language):
+            labels.update(
+                deck=(
+                    "叙事文本审稿报告 · 共 {scenes} 个源单元，"
+                    "按原文顺序审阅 · 主要人物 {characters} 个"
+                ),
+                appendix="六、逐单元附录",
+                appendix_intro=(
+                    "以下按章节或文本单元的原文顺序列出审阅要点；这些单位不是拍摄场景。"
+                ),
+                scene="源单元 {index}",
+                no_scene_findings="本单元没有独立发现。",
+                notes_body=(
+                    "源单元按上传正文的章节或文本顺序编号。"
+                    "覆盖与顺序校验只证明源单元对应，"
+                    "文学判断与建议仍需对照原文核查。"
+                ),
+            )
+        else:
+            labels.update(
+                deck=(
+                    "Narrative coverage · {scenes} source units in original order · "
+                    "{characters} principal characters"
+                ),
+                appendix="6. Source-unit notes",
+                appendix_intro=(
+                    "Notes follow the source chapter or text-unit order; "
+                    "these units are not shooting scenes."
+                ),
+                scene="Source unit {index}",
+                no_scene_findings="No separate finding for this source unit.",
+                notes_body=(
+                    "Units follow the persisted source text. Coverage and "
+                    "order checks establish source correspondence; "
+                    "judgments and suggestions still need editorial review."
+                ),
+            )
     lines = [
         f"# {_inline(result.title)}",
         "",

@@ -57,17 +57,19 @@ class AnalysisJobRow(Base):
             name="ck_analysis_jobs_skill_instructions_sha256",
         ),
         CheckConstraint(
-            "input_kind IN ('video','screenplay','content')",
+            "input_kind IN ('video','screenplay','content','skill')",
             name="ck_analysis_jobs_input_kind",
         ),
         CheckConstraint(
             "result_contract IN ("
             "'video-visual-analysis','video-article','screenplay-analysis',"
-            "'screenplay-rewrite','structured-report','content-document'"
+            "'screenplay-rewrite','structured-report','content-document','skill-report'"
             ")",
             name="ck_analysis_jobs_result_contract",
         ),
         CheckConstraint(
+            "(input_kind = 'skill' AND skill_inputs IS NOT NULL "
+            "AND content_source IS NULL AND result_contract = 'skill-report') OR "
             "(input_kind = 'content' AND content_source IS NOT NULL "
             "AND artifact_id IS NULL AND document_id IS NULL "
             "AND result_contract = 'content-document') OR "
@@ -78,7 +80,7 @@ class AnalysisJobRow(Base):
             "OR (input_kind = 'screenplay' AND content_source IS NULL "
             "AND artifact_id IS NULL "
             "AND document_id IS NOT NULL AND result_contract IN ("
-            "'screenplay-analysis','screenplay-rewrite'))",
+            "'screenplay-analysis','screenplay-rewrite','structured-report'))",
             name="ck_analysis_jobs_input_shape",
         ),
         Index("ix_analysis_jobs_owner_created", "owner_hash", "created_at"),
@@ -89,6 +91,9 @@ class AnalysisJobRow(Base):
         Index("ix_analysis_jobs_document", "document_id"),
     )
 
+    skill_inputs: Mapped[dict[str, Any] | None] = mapped_column(
+        JSONB(none_as_null=True)
+    )
     content_source: Mapped[dict[str, Any] | None] = mapped_column(
         JSONB(none_as_null=True)
     )

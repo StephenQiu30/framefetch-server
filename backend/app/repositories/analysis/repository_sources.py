@@ -120,7 +120,27 @@ async def require_retry_source(
 
 def new_source_lock(
     row: AnalysisJobRow, now: datetime
-) -> AnalysisArtifactLockRow | AnalysisDocumentLockRow | None:
+) -> (
+    AnalysisArtifactLockRow
+    | AnalysisDocumentLockRow
+    | tuple[AnalysisArtifactLockRow | AnalysisDocumentLockRow, ...]
+    | None
+):
+    if row.input_kind == AnalysisInputKind.SKILL.value:
+        locks: list[AnalysisArtifactLockRow | AnalysisDocumentLockRow] = []
+        if row.artifact_id is not None:
+            locks.append(
+                AnalysisArtifactLockRow(
+                    job_id=row.id, artifact_id=row.artifact_id, created_at=now
+                )
+            )
+        if row.document_id is not None:
+            locks.append(
+                AnalysisDocumentLockRow(
+                    job_id=row.id, document_id=row.document_id, created_at=now
+                )
+            )
+        return tuple(locks)
     if (
         row.input_kind == AnalysisInputKind.CONTENT.value
         and row.content_source is not None

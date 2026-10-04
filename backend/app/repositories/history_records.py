@@ -111,6 +111,7 @@ class SqlAlchemyHistoryRecordRepository:
         analysis_records = (
             select(
                 case(
+                    (AnalysisJobRow.input_kind == "skill", "skill_analysis"),
                     (AnalysisJobRow.input_kind == "video", "video_analysis"),
                     (AnalysisJobRow.input_kind == "content", "content_creation"),
                     else_="screenplay_analysis",
@@ -122,6 +123,7 @@ class SqlAlchemyHistoryRecordRepository:
                     MediaInspectionRow.title,
                     MediaImportRow.display_name,
                     case(
+                        (AnalysisJobRow.input_kind == "skill", "Skill 分析"),
                         (AnalysisJobRow.input_kind == "video", "视频"),
                         (AnalysisJobRow.input_kind == "content", "内容创作"),
                         else_="剧本",
@@ -154,6 +156,29 @@ class SqlAlchemyHistoryRecordRepository:
                 AnalysisJobRow.current_run_no.label("current_run_no"),
                 AnalysisJobRow.cancel_requested_at.label("cancel_requested_at"),
                 case(
+                    (
+                        and_(
+                            AnalysisJobRow.input_kind == "skill",
+                            AnalysisJobRow.skill_inputs.is_not(None),
+                            or_(
+                                AnalysisJobRow.artifact_id.is_(None),
+                                and_(
+                                    DownloadJobRow.status == "succeeded",
+                                    ArtifactRow.id.is_not(None),
+                                    ArtifactRow.deleted_at.is_(None),
+                                ),
+                            ),
+                            or_(
+                                AnalysisJobRow.document_id.is_(None),
+                                and_(
+                                    DocumentRow.status == "ready",
+                                    DocumentRow.deleted_at.is_(None),
+                                    DocumentArtifactRow.status == "ready",
+                                ),
+                            ),
+                        ),
+                        "available",
+                    ),
                     (
                         and_(
                             AnalysisJobRow.input_kind == "content",
@@ -494,7 +519,12 @@ def _page_statement(
         statement = statement.where(
             records.c.id == filters.analysis_id,
             records.c.record_type.in_(
-                ["video_analysis", "screenplay_analysis", "content_creation"]
+                [
+                    "video_analysis",
+                    "screenplay_analysis",
+                    "content_creation",
+                    "skill_analysis",
+                ]
             ),
         )
     if before is not None:

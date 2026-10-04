@@ -10,6 +10,7 @@ from app.services.analysis.rules.content_document import (
     ContentReview,
 )
 from app.services.analysis.rules.editorial_review import ReviewStatus
+from app.services.skills.models import SkillReportResult
 
 
 def _omit_default(schema: dict[str, Any]) -> None:
@@ -195,12 +196,20 @@ class ScreenplayRewriteResultResponse(StrictModel):
     change_summary: tuple[str, ...]
 
 
+class StructuredReportCitationResponse(StrictModel):
+    source_sha256: str = Field(pattern=r"^[a-f0-9]{64}$")
+    start: int = Field(ge=0)
+    end: int = Field(gt=0)
+    quote: str
+
+
 class StructuredReportSectionResponse(StrictModel):
     id: str
     heading: str
     body: str
     items: tuple[str, ...]
     evidence: tuple[VideoArticleEvidenceResponse, ...]
+    citations: tuple[StructuredReportCitationResponse, ...] = ()
 
 
 class StructuredReportResultResponse(StrictModel):
@@ -212,7 +221,7 @@ class StructuredReportResultResponse(StrictModel):
     summary: str
     sections: tuple[StructuredReportSectionResponse, ...]
     limitations: tuple[str, ...]
-    media: AnalysisMediaResponse
+    media: AnalysisMediaResponse | None
     review_status: ReviewStatus = Field(
         default="not_reviewed", json_schema_extra=_omit_default
     )
@@ -220,7 +229,8 @@ class StructuredReportResultResponse(StrictModel):
 
 
 AnalysisResultResponse: TypeAlias = Annotated[  # noqa: UP040
-    ContentDocumentResult
+    SkillReportResult
+    | ContentDocumentResult
     | VideoAnalysisResultResponse
     | VideoArticleResultResponse
     | ScreenplayAnalysisResultResponse

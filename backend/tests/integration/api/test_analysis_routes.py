@@ -185,6 +185,10 @@ def client(tmp_path: Path) -> tuple[TestClient, dict[str, StubUseCase]]:
     }
     application.state.services.analysis_use_cases = AnalysisUseCases(
         get_analysis_analytics=StubUseCase(None),
+        list_analysis_skills=lambda _: (),
+        create_analysis=stubs["create"],
+        create_document_analysis=stubs["create_document"],
+        retry_analysis=stubs["retry"],
         delete_analysis=stubs["delete"],
         get_analysis=stubs["get"],
         get_latest_download_analysis=stubs["get"],
@@ -290,14 +294,11 @@ def test_analysis_errors_are_error_envelopes(tmp_path: Path) -> None:
 def test_retired_skill_entries_cannot_create_or_retry_but_history_remains(tmp_path):
     test_client, stubs = client(tmp_path)
     with test_client:
-        assert (
-            test_client.get("/api/analysis-skills?input_kind=video").status_code == 404
-        )
+        assert test_client.get("/api/skills?input_kind=video").status_code == 404
         for path in (
-            f"/api/downloads/{DOWNLOAD_ID}/analyses",
-            f"/api/documents/{DOCUMENT_ID}/analyses",
+            "/api/analyses",
+            "/api/creation/projects",
             "/api/content/analyses",
-            f"/api/analyses/{ANALYSIS_ID}/retry",
         ):
             assert (
                 test_client.post(

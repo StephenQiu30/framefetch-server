@@ -25,7 +25,7 @@ def editorial_status(history: tuple[ContentReview, ...]) -> ReviewStatus:
 def validate_editorial_review(
     history: tuple[ContentReview, ...], status: ReviewStatus, section_count: int
 ) -> None:
-    ids = {"title", "lead", "closing", "summary", "key-points"} | {
+    ids = {"title", "lead", "closing", "summary", "key-points", "limitations"} | {
         f"section-{index:03d}" for index in range(section_count)
     }
     if (

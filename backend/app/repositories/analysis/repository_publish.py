@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+import json
 from uuid import uuid4
 
 from sqlalchemy import select
@@ -21,12 +22,15 @@ from app.services.analysis.rules.enums import (
     AnalysisStage,
     AnalysisStatus,
 )
+from app.services.analysis.rules.structured_report import StructuredReportResult
 from app.services.identifiers import AnalysisReportRenderer
 
 
 class AnalysisPublishRepository(AnalysisRepositoryBase):
     async def publish_result(self, command: AnalysisPublish) -> AnalysisJobSnapshot:
         document = analysis_result_document(command.result)
+        if len(json.dumps(document, ensure_ascii=False).encode()) > 1024**2:
+            raise PersistenceConflict("analysis result exceeds JSON byte limit")
         async with self._sessions() as session, session.begin():
             row = await session.scalar(
                 select(AnalysisJobRow)
@@ -65,8 +69,38 @@ class AnalysisPublishRepository(AnalysisRepositoryBase):
                 or row.result_contract != contract.contract.value
             ):
                 raise PersistenceConflict("analysis result contract differs from job")
+            if isinstance(command.result, StructuredReportResult):
+                if row.input_kind == "video" and command.result.media is None:
+                    raise PersistenceConflict(
+                        "video report requires authoritative media"
+                    )
+                if row.input_kind == "screenplay":
+                    command.result.validate_document_source(row.input_sha256)
             report_id = uuid4()
             markdown = render_analysis_report_markdown(command.result)
+            binding = run.execution_binding
+            if row.result_contract == "screenplay-analysis" and isinstance(
+                binding, dict
+            ):
+                units = binding.get("source_units")
+                if isinstance(units, list) and units:
+                    lines = [
+                        "",
+                        "## 来源索引"
+                        if row.output_language == "zh-CN"
+                        else "## Source index",
+                        "",
+                        f"UTF-8 SHA256 `{row.input_sha256}` · Unicode",
+                    ]
+                    for index, unit in enumerate(units, start=1):
+                        if (
+                            not isinstance(unit, dict)
+                            or type(unit.get("start")) is not int
+                            or type(unit.get("end")) is not int
+                        ):
+                            raise PersistenceConflict("source index is invalid")
+                        lines.append(f"- {index}: [{unit['start']}, {unit['end']})")
+                    markdown += "\n".join(lines) + "\n"
             markdown_sha256 = hashlib.sha256(markdown.encode("utf-8")).hexdigest()
             session.add(
                 AnalysisResultRow(

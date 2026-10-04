@@ -15,6 +15,7 @@ from app.services.analysis.rules.result_models import (
     VideoArticleEvidence,
 )
 from app.services.analysis.rules.structured_report import (
+    StructuredReportCitation,
     StructuredReportResult,
     StructuredReportSection,
 )
@@ -31,7 +32,11 @@ def structured_report_from_document(document: object) -> StructuredReportResult:
     root = mapping(document, _FIELDS | optional, "structured report result")
     if root["kind"] != AnalysisResultKind.STRUCTURED_REPORT.value:
         raise ValueError("stored structured report kind is invalid")
-    media = mapping(root["media"], {"duration_ms", "container", "size_bytes"}, "media")
+    media = (
+        None
+        if root["media"] is None
+        else mapping(root["media"], {"duration_ms", "container", "size_bytes"}, "media")
+    )
     return StructuredReportResult(
         language=string(root["language"], "language"),
         title=string(root["title"], "title"),
@@ -43,7 +48,9 @@ def structured_report_from_document(document: object) -> StructuredReportResult:
             ContentReview.model_validate(item)
             for item in array(root.get("review_history", []), "review_history")
         ),
-        media=AnalysisMedia(
+        media=None
+        if media is None
+        else AnalysisMedia(
             duration_ms=integer(media["duration_ms"], "media.duration_ms"),
             container=string(media["container"], "media.container"),
             size_bytes=integer(media["size_bytes"], "media.size_bytes"),
@@ -52,17 +59,38 @@ def structured_report_from_document(document: object) -> StructuredReportResult:
 
 
 def _section(value: object) -> StructuredReportSection:
-    source = mapping(
-        value, {"id", "heading", "body", "items", "evidence"}, "report section"
-    )
+    fields = {"id", "heading", "body", "items", "evidence"}
+    if isinstance(value, dict) and "citations" in value:
+        fields.add("citations")
+    source = mapping(value, fields, "report section")
+    body = source["body"]
+    if not isinstance(body, str):
+        raise ValueError("report body must be text")
     return StructuredReportSection(
         id=string(source["id"], "report section.id"),
         heading=string(source["heading"], "report section.heading"),
-        body=string(source["body"], "report section.body"),
+        body=body if source.get("citations") else string(body, "report section.body"),
         items=tuple(strings(source["items"], "report section.items")),
         evidence=tuple(
             _evidence(item) for item in array(source["evidence"], "report evidence")
         ),
+        citations=tuple(
+            _citation(item)
+            for item in array(source.get("citations", []), "source citations")
+        ),
+    )
+
+
+def _citation(value: object) -> StructuredReportCitation:
+    item = mapping(value, {"source_sha256", "start", "end", "quote"}, "source citation")
+    quote = item["quote"]
+    if not isinstance(quote, str):
+        raise ValueError("source quote must be text")
+    return StructuredReportCitation(
+        string(item["source_sha256"], "source sha256"),
+        integer(item["start"], "start"),
+        integer(item["end"], "end"),
+        quote,
     )
 
 

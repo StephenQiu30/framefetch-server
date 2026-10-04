@@ -27,7 +27,10 @@ class AnalysisCreationRepository(AnalysisRepositoryBase):
     async def create_job_and_enqueue(
         self, command: AnalysisCreate, *, now: datetime
     ) -> AnalysisJobSaveResult:
-        if command.outbox_event_type != "analysis.requested":
+        if (
+            command.outbox_event_type != "analysis.requested"
+            or command.input_kind.value not in {"video", "screenplay"}
+        ):
             raise PersistenceConflict("invalid analysis outbox event type")
         async with self._sessions() as session:
             try:
@@ -62,8 +65,12 @@ class AnalysisCreationRepository(AnalysisRepositoryBase):
                         now=now,
                     )
                     session.add(run)
-                    lock = new_source_lock(row, now)
-                    if lock is not None:
+                    locks = new_source_lock(row, now)
+                    for lock in (
+                        locks
+                        if isinstance(locks, tuple)
+                        else (() if locks is None else (locks,))
+                    ):
                         session.add(lock)
                     session.add(
                         self.requested_event(
@@ -105,6 +112,7 @@ class AnalysisCreationRepository(AnalysisRepositoryBase):
     def _new_row(command: AnalysisCreate, now: datetime) -> AnalysisJobRow:
         return AnalysisJobRow(
             id=command.id,
+            skill_inputs=command.skill_inputs,
             content_source=None
             if command.content_source is None
             else command.content_source.model_dump(mode="json"),

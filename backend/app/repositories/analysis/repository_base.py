@@ -39,6 +39,18 @@ from app.services.identifiers import AnalysisReportRenderer
 
 
 class AnalysisRepositoryBase(RepositoryBase):
+    async def get_job_by_key(
+        self, owner_hash: str, key: str
+    ) -> AnalysisJobSnapshot | None:
+        async with self._sessions() as session:
+            row = await session.scalar(
+                select(AnalysisJobRow).where(
+                    AnalysisJobRow.owner_hash == owner_hash,
+                    AnalysisJobRow.idempotency_key == key,
+                )
+            )
+            return None if row is None else analysis_job_snapshot(row)
+
     async def get_job(self, job_id: UUID) -> AnalysisJobSnapshot | None:
         async with self._sessions() as session:
             row = await session.scalar(

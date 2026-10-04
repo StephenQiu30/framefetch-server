@@ -26,6 +26,7 @@ class HistoryRecordKind(StrEnum):
     DOCUMENT_PARSE = "document_parse"
     SCREENPLAY_ANALYSIS = "screenplay_analysis"
     CONTENT_CREATION = "content_creation"
+    SKILL_ANALYSIS = "skill_analysis"
 
 
 class HistoryStatusGroup(StrEnum):

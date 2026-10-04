@@ -59,8 +59,8 @@ def command() -> ImportResourceCreate:
     )
 
 
-@pytest.fixture
-async def deletion_data(postgres_engine: AsyncEngine):
+@pytest.fixture(params=("screenplay.md", "document.md"))
+async def deletion_data(postgres_engine: AsyncEngine, request):
     sessions = async_sessionmaker(postgres_engine, expire_on_commit=False)
     imports = SqlAlchemyDocumentImportRepository(sessions)
     await imports.create_resource(command(), now=NOW)
@@ -103,7 +103,7 @@ async def deletion_data(postgres_engine: AsyncEngine):
                     document_id=DOCUMENT_ID,
                     kind="normalized",
                     bucket="video-artifacts",
-                    object_key=f"documents/{DOCUMENT_ID}/1/screenplay.md",
+                    object_key=f"documents/{DOCUMENT_ID}/1/{request.param}",
                     content_type="text/markdown; charset=utf-8",
                     size_bytes=900,
                     sha256="d" * 64,
@@ -114,13 +114,13 @@ async def deletion_data(postgres_engine: AsyncEngine):
                 ),
             )
         )
-    yield sessions
+    yield sessions, request.param
 
 
 async def test_delete_marks_state_cleans_objects_and_is_retryable(
     deletion_data,
 ) -> None:
-    sessions = deletion_data
+    sessions, filename = deletion_data
     storage = FakeStorage()
     service = DeleteDocument(
         SqlAlchemyDocumentDeleteRepository(sessions), storage, now=lambda: NOW
@@ -134,7 +134,7 @@ async def test_delete_marks_state_cleans_objects_and_is_retryable(
     assert set(storage.deleted) == {
         quarantine,
         f"documents/{DOCUMENT_ID}/1/original",
-        f"documents/{DOCUMENT_ID}/1/screenplay.md",
+        f"documents/{DOCUMENT_ID}/1/{filename}",
     }
     async with sessions() as session:
         document = await session.get(DocumentRow, DOCUMENT_ID)
@@ -154,7 +154,7 @@ async def test_delete_marks_state_cleans_objects_and_is_retryable(
 
 
 async def test_delete_rejects_untrusted_artifact_key(deletion_data) -> None:
-    sessions = deletion_data
+    sessions, _ = deletion_data
     async with sessions() as session, session.begin():
         artifact = await session.get(DocumentArtifactRow, ORIGINAL_ID)
         assert artifact is not None

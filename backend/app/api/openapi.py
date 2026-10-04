@@ -17,7 +17,7 @@ API_DESCRIPTION = """
 OPENAPI_TAGS: list[dict[str, Any]] = [
     {
         "name": "auth",
-        "description": "邮箱注册、登录、JWT 刷新、注销与当前用户会话。",
+        "description": ("邮箱注册、登录、JWT 刷新、注销与当前用户会话。"),
     },
     {
         "name": "users",
@@ -25,7 +25,7 @@ OPENAPI_TAGS: list[dict[str, Any]] = [
     },
     {
         "name": "admin",
-        "description": "管理员用户管理、全局下载分析与持久文件清理。",
+        "description": ("管理员用户管理、全局下载分析与持久文件清理。"),
     },
     {
         "name": "system",
@@ -41,7 +41,7 @@ OPENAPI_TAGS: list[dict[str, Any]] = [
     },
     {
         "name": "source-discoveries",
-        "description": "有界发现微信公众号文章中的视频并要求用户显式选择。",
+        "description": ("有界发现微信公众号文章中的视频并要求用户显式选择。"),
     },
     {
         "name": "downloads",
@@ -49,7 +49,7 @@ OPENAPI_TAGS: list[dict[str, Any]] = [
     },
     {
         "name": "media-imports",
-        "description": "创建本地 MP4、签发隔离上传会话并触发可信验证。",
+        "description": ("创建本地 MP4、签发隔离上传会话并触发可信验证。"),
     },
     {
         "name": "providers",
@@ -57,16 +57,11 @@ OPENAPI_TAGS: list[dict[str, Any]] = [
     },
     {
         "name": "analyses",
-        "description": "读取、取消和删除历史视频 AI 分析与报告。",
+        "description": (
+            "在原视频与文档入口调用分析 Skill，并读取、取消、重试和导出报告。"
+        ),
     },
 ]
-
-OPENAPI_TAGS.append(
-    {
-        "name": "creation",
-        "description": "影视分析与文章整理，固定材料、人工版本及文件交付。",
-    }
-)
 
 SWAGGER_UI_PARAMETERS: dict[str, Any] = {
     "displayRequestDuration": True,

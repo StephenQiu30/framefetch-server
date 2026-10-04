@@ -10,8 +10,8 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from app.core.db import as_utc
 from app.models import AnalysisWorkerHeartbeatRow
 
-# 3: CreationWorkflow replaces retired SkillWorkflow commands on Temporal.
-ANALYSIS_MESSAGE_SCHEMA_VERSION = 3
+# 4: Built-in SkillWorkflow writes existing AnalysisJob/Run/Report facts.
+ANALYSIS_MESSAGE_SCHEMA_VERSION = 5
 
 
 class SqlAlchemyAnalysisWorkerRegistry:

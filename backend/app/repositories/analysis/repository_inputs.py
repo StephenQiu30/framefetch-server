@@ -11,7 +11,10 @@ from sqlalchemy.sql.elements import ColumnElement
 from app.models import ArtifactRow, DocumentArtifactRow, DocumentRow, DownloadJobRow
 from app.repositories.analysis.repository_mapping import analysis_artifact_snapshot
 from app.repositories.repository_base import RepositoryBase
-from app.services.analysis.input_models import AnalysisDocumentSnapshot
+from app.services.analysis.input_models import (
+    AnalysisDocumentSnapshot,
+    AnalysisDocumentTextSource,
+)
 from app.services.analysis.models import AnalysisArtifactSnapshot
 from app.services.analysis_execution.models import (
     AnalysisScreenplaySource,
@@ -74,6 +77,47 @@ class AnalysisInputRepository(RepositoryBase):
                 text_sha256=document.text_sha256,
                 normalized_status=None if normalized is None else normalized.status,
                 normalized_sha256=None if normalized is None else normalized.sha256,
+                character_count=document.character_count,
+            )
+
+    async def get_document_text_source(
+        self, document_id: UUID, owner_hash: str
+    ) -> AnalysisDocumentTextSource | None:
+        async with self._sessions() as session:
+            result = (
+                await session.execute(
+                    select(DocumentRow, DocumentArtifactRow)
+                    .join(
+                        DocumentArtifactRow,
+                        DocumentArtifactRow.document_id == DocumentRow.id,
+                    )
+                    .where(
+                        DocumentRow.id == document_id,
+                        DocumentRow.owner_hash == owner_hash,
+                        DocumentRow.status == "ready",
+                        DocumentRow.deleted_at.is_(None),
+                        DocumentArtifactRow.kind == "normalized",
+                        DocumentArtifactRow.status == "ready",
+                        DocumentArtifactRow.deleted_at.is_(None),
+                    )
+                )
+            ).one_or_none()
+            if result is None:
+                return None
+            document, artifact = result
+            if (
+                document.text_sha256 != artifact.sha256
+                or document.character_count is None
+            ):
+                return None
+            return AnalysisDocumentTextSource(
+                document.id,
+                document.owner_hash,
+                artifact.bucket,
+                artifact.object_key,
+                artifact.sha256,
+                artifact.size_bytes,
+                document.character_count,
             )
 
     async def get_screenplay_source(

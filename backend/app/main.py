@@ -27,8 +27,6 @@ from app.api.routes.admin_users import router as admin_users_router
 from app.api.routes.analyses import router as analyses_router
 from app.api.routes.auth import router as auth_router
 from app.api.routes.content_analyses import router as content_analyses_router
-from app.api.routes.creation import router as creation_router
-from app.api.routes.creation_exports import router as creation_exports_router
 from app.api.routes.document_analyses import router as document_analyses_router
 from app.api.routes.documents import router as documents_router
 from app.api.routes.download_intents import router as download_intents_router
@@ -95,8 +93,6 @@ def create_app(
     api_router.include_router(media_imports_router)
     api_router.include_router(analyses_router)
     api_router.include_router(content_analyses_router)
-    api_router.include_router(creation_exports_router)
-    api_router.include_router(creation_router)
     api_router.include_router(task_socket_router)
     application.include_router(api_router)
     application.middleware("http")(

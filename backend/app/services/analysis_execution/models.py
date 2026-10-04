@@ -71,7 +71,7 @@ class ScreenplaySceneSource:
 
     def __post_init__(self) -> None:
         if (
-            not self.id.startswith("scene-")
+            not self.id.startswith(("scene-", "unit-"))
             or len(self.id) > 128
             or isinstance(self.start, bool)
             or isinstance(self.end, bool)
@@ -102,7 +102,7 @@ class AnalysisScreenplaySource:
             or len(self.sha256) != 64
             or len(self.owner_hash) != 64
             or self.detected_language not in {"zh-CN", "en-US", "mixed", "unknown"}
-            or not 1 <= len(self.scenes) <= 5_000
+            or not 0 <= len(self.scenes) <= 5_000
         ):
             raise ValueError("invalid screenplay analysis source")
         previous_end = 0
@@ -171,6 +171,7 @@ class ScreenplayAnalysisRequest:
     skill_id: str
     skill_instructions: str
     custom_prompt: str | None = None
+    source_index_json: str | None = field(default=None, repr=False)
 
     def __post_init__(self) -> None:
         if (

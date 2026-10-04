@@ -17,11 +17,9 @@ def test_analysis_openapi_is_current_and_excludes_internal_fields(
         "/api/analyses/{analysis_id}/report.docx",
     } <= paths.keys()
     for retired in (
-        "/api/analysis-skills",
-        "/api/downloads/{download_id}/analyses",
-        "/api/documents/{document_id}/analyses",
+        "/api/skills",
+        "/api/analyses",
         "/api/content/analyses",
-        "/api/analyses/{analysis_id}/retry",
     ):
         assert retired not in paths
     assert (
@@ -43,7 +41,12 @@ def test_analysis_openapi_is_current_and_excludes_internal_fields(
     assert "report_markdown" in fields
     assert {"run_id", "run_no", "run_trigger", "version"} <= set(fields)
     assert {"input_kind", "result_contract"} <= set(fields)
-    assert components["AnalysisInputKind"]["enum"] == ["video", "screenplay", "content"]
+    assert components["AnalysisInputKind"]["enum"] == [
+        "video",
+        "screenplay",
+        "content",
+        "skill",
+    ]
     assert components["AnalysisResultContract"]["enum"] == [
         "video-visual-analysis",
         "video-article",
@@ -51,6 +54,7 @@ def test_analysis_openapi_is_current_and_excludes_internal_fields(
         "screenplay-rewrite",
         "structured-report",
         "content-document",
+        "skill-report",
     ]
     assert {"artifact_id", "schema_version", "transcript", "provider"}.isdisjoint(
         fields
@@ -60,6 +64,7 @@ def test_analysis_openapi_is_current_and_excludes_internal_fields(
         "propertyName": "kind",
         "mapping": {
             "content_document": "#/components/schemas/ContentDocumentResult",
+            "skill_report": "#/components/schemas/SkillReportResult",
             "screenplay_analysis": (
                 "#/components/schemas/ScreenplayAnalysisResultResponse"
             ),
@@ -77,6 +82,7 @@ def test_analysis_openapi_is_current_and_excludes_internal_fields(
     }
     assert {item["$ref"] for item in result_union["oneOf"]} == {
         "#/components/schemas/ContentDocumentResult",
+        "#/components/schemas/SkillReportResult",
         "#/components/schemas/VideoAnalysisResultResponse",
         "#/components/schemas/VideoArticleResultResponse",
         "#/components/schemas/ScreenplayAnalysisResultResponse",

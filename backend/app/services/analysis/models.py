@@ -18,6 +18,23 @@ from app.services.quotas import UserQuota
 
 
 @dataclass(frozen=True, slots=True)
+class AnalysisSkillView:
+    id: str
+    display_name: str
+    description: str
+    default_prompt: str
+    input_kinds: tuple[AnalysisInputKind, ...]
+    result_contract: AnalysisResultContract
+
+
+@dataclass(frozen=True, slots=True)
+class AnalysisSkillResolution:
+    view: AnalysisSkillView
+    instructions: str
+    instructions_sha256: str
+
+
+@dataclass(frozen=True, slots=True)
 class AnalysisArtifactSnapshot:
     id: UUID
     download_id: UUID
@@ -50,6 +67,7 @@ class AnalysisCreate:
     )
     quota: UserQuota = UserQuota()
     content_source: ContentSourceSet | None = field(default=None, repr=False)
+    skill_inputs: dict[str, object] | None = field(default=None, repr=False)
 
 
 @dataclass(frozen=True, slots=True)
@@ -88,6 +106,7 @@ class AnalysisJobSnapshot:
     result_contract: str = AnalysisResultContract.VIDEO_VISUAL_ANALYSIS.value
 
     content_source: ContentSourceSet | None = field(default=None, repr=False)
+    skill_inputs: dict[str, object] | None = field(default=None, repr=False)
 
     @classmethod
     def queued(cls, command: AnalysisCreate, *, now: datetime) -> AnalysisJobSnapshot:
@@ -124,6 +143,7 @@ class AnalysisJobSnapshot:
             input_kind=command.input_kind.value,
             result_contract=command.result_contract.value,
             content_source=command.content_source,
+            skill_inputs=command.skill_inputs,
         )
 
 

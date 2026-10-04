@@ -271,3 +271,44 @@ async def test_terminal_failure_and_expired_lease_recovery_are_stable(
     assert document is not None and document.status == "failed"
     assert document.error_code == ImportErrorCode.DOCUMENT_TEXT_UNAVAILABLE.value
     assert events == 2
+
+
+async def test_ordinary_document_with_no_scenes_is_published_ready(
+    repositories, tmp_path
+):
+    upload, execution, sessions = repositories
+    resource = await verifying(upload)
+    claim = await execution.claim_verification(
+        DOCUMENT_ID,
+        ContentKind.SCREENPLAY,
+        1,
+        resource.version,
+        worker_id="ordinary",
+        now=NOW,
+        lease_for=timedelta(seconds=30),
+    )
+    ordinary = replace(
+        verified(tmp_path / "document.md"),
+        scenes=(),
+        quality_warnings=(),
+        parse_summary=DocumentParseSummary(None, 2, 0, 0, 0, 0),
+    )
+    await execution.complete_verification(
+        claim,
+        ordinary,
+        worker_id="ordinary",
+        bucket="video-artifacts",
+        now=NOW + timedelta(seconds=1),
+    )
+    async with sessions() as session:
+        document = await session.get(DocumentRow, DOCUMENT_ID)
+        assert document.status == "ready" and document.scene_count == 0
+        assert document.character_count == 64 and document.text_sha256 == "d" * 64
+        normalized = await session.scalar(
+            select(DocumentArtifactRow).where(
+                DocumentArtifactRow.document_id == DOCUMENT_ID,
+                DocumentArtifactRow.kind == "normalized",
+            )
+        )
+        assert normalized.artifact_metadata["scenes"] == []
+        assert normalized.object_key.endswith("/document.md")

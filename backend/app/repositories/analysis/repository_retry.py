@@ -9,7 +9,12 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.db import as_utc
-from app.models import AnalysisJobRow, AnalysisRetryOperationRow, AnalysisRunRow
+from app.models import (
+    AnalysisJobRow,
+    AnalysisRetryOperationRow,
+    AnalysisRunRow,
+    AnalysisStepResultRow,
+)
 from app.repositories.analysis.repository_base import AnalysisRepositoryBase
 from app.repositories.analysis.repository_mapping import analysis_job_snapshot
 from app.repositories.analysis.repository_sources import (
@@ -50,6 +55,21 @@ class AnalysisRetryRepository(AnalysisRepositoryBase):
                         return replay
                     if row.status not in {"failed", "cancelled", "succeeded"}:
                         raise PersistenceActiveRun("analysis already has an active run")
+                    unknown_call = await session.scalar(
+                        select(AnalysisStepResultRow.step_key)
+                        .where(
+                            AnalysisStepResultRow.run_id == row.active_run_id,
+                            AnalysisStepResultRow.status == "started",
+                        )
+                        .limit(1)
+                    )
+                    if (
+                        row.error_code == "analysis_outcome_unknown"
+                        or unknown_call is not None
+                    ):
+                        raise PersistenceConflict(
+                            "model outcome is unknown; retry is prohibited"
+                        )
                     await self._require_retry_capacity(session, row, command, now)
                     await require_retry_source(session, row, now)
                     await reserve(

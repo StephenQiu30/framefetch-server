@@ -13,7 +13,7 @@ from app.integrations.media_runner_factory import session_media_runner
 from app.integrations.messaging.rabbitmq import RabbitMqPublisher
 from app.integrations.messaging.topology import RabbitMqTopology
 from app.integrations.temporal_client import CommandPublisher
-from app.repositories.creation import CreationRepository
+from app.repositories.analysis.repository import SqlAlchemyAnalysisRepository
 from app.repositories.downloads.intent_repository import IntentRepository
 from app.repositories.operation_logs import OperationLogStore
 from app.repositories.outbox_repository import SqlAlchemyOutboxRepository
@@ -75,7 +75,8 @@ def build_runtime(
                 address=settings.temporal_address,
                 namespace=settings.temporal_namespace,
                 cancel_inspection=runner.cancel,
-                creation=CreationRepository(sessions),
+                analyses=SqlAlchemyAnalysisRepository(sessions),
+                analysis_timeout_seconds=settings.analysis_timeout_seconds,
             ),
             publisher_id=publisher_id,
             clock=lambda: datetime.now(UTC),

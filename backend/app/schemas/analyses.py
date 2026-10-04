@@ -3,6 +3,8 @@ from __future__ import annotations
 from datetime import datetime
 from uuid import UUID
 
+from pydantic import Field, field_validator
+
 from app.schemas.analysis_results import (
     ANALYSIS_RESULT_RESPONSE_ADAPTER,
     AnalysisResultResponse,
@@ -17,6 +19,42 @@ from app.services.analysis.rules.enums import (
     AnalysisStage,
     AnalysisStatus,
 )
+
+
+class AnalysisRequest(StrictModel):
+    skill_id: str = Field(
+        min_length=1,
+        max_length=128,
+        pattern=r"^[a-z0-9]+(?:-[a-z0-9]+)*$",
+        description="由分析 Skill 清单提供的稳定任务标识。",
+        examples=["video-review"],
+    )
+    output_language: str = Field(
+        min_length=2,
+        max_length=35,
+        pattern=r"^[A-Za-z]{2,3}(?:-[A-Za-z0-9]{2,8})*$",
+        description="结果语言；本项目支持 zh-CN 和 en-US。",
+        examples=["zh-CN", "en-US"],
+    )
+    custom_prompt: str | None = Field(
+        default=None,
+        max_length=4000,
+        description="可编辑的任务要求；不能覆盖来源、安全、工具或结果结构。",
+    )
+
+    @field_validator("custom_prompt")
+    @classmethod
+    def normalize_custom_prompt(cls, value: str | None) -> str | None:
+        return None if value is None else value.strip() or None
+
+
+class AnalysisSkillResponse(StrictModel):
+    id: str
+    display_name: str
+    description: str
+    default_prompt: str
+    input_kinds: tuple[AnalysisInputKind, ...]
+    result_contract: AnalysisResultContract
 
 
 class AnalysisReportArtifactResponse(StrictModel):

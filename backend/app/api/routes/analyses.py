@@ -3,9 +3,12 @@ from __future__ import annotations
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Query, Response, status
+from fastapi import APIRouter, Depends, Query, Request, Response, status
+from fastapi.exceptions import RequestValidationError
 
+from app.api.admission import RateLimitAdmission
 from app.api.deps import (
+    IdempotencyKey,
     get_analysis_use_cases,
     get_current_user,
     get_history_record_service,
@@ -13,7 +16,9 @@ from app.api.deps import (
 from app.api.responses import ApiResponseRoute
 from app.core.runtime import AnalysisUseCases
 from app.schemas.analyses import (
+    AnalysisRequest,
     AnalysisResponse,
+    AnalysisSkillResponse,
 )
 from app.schemas.history_records import (
     AnalysisRunHistoryPageResponse,
@@ -21,15 +26,101 @@ from app.schemas.history_records import (
     ContentCreationHistoryRecordResponse,
     HistoryRecordPageResponse,
     ScreenplayAnalysisHistoryRecordResponse,
+    SkillAnalysisHistoryRecordResponse,
     VideoAnalysisHistoryRecordResponse,
 )
 from app.services.analysis.export_report import DOCX_MEDIA_TYPE, MARKDOWN_MEDIA_TYPE
+from app.services.analysis.rules.enums import AnalysisInputKind
 from app.services.auth.models import CurrentUser
 from app.services.history_records import HistoryRecordPage, HistoryRecordService
 
 router = APIRouter(route_class=ApiResponseRoute, tags=["analyses"])
 User = Annotated[CurrentUser, Depends(get_current_user)]
 UseCases = Annotated[AnalysisUseCases, Depends(get_analysis_use_cases)]
+
+
+@router.get(
+    "/analysis-skills",
+    operation_id="listAnalysisSkills",
+    response_model=tuple[AnalysisSkillResponse, ...],
+    summary="列出输入兼容的分析 Skill",
+)
+async def list_analysis_skills(
+    use_cases: UseCases,
+    input_kind: AnalysisInputKind,
+) -> tuple[AnalysisSkillResponse, ...]:
+    return tuple(
+        AnalysisSkillResponse.model_validate(skill)
+        for skill in use_cases.list_analysis_skills(input_kind)
+    )
+
+
+@router.post(
+    "/downloads/{download_id}/analyses",
+    operation_id="createAnalysis",
+    response_model=AnalysisResponse,
+    status_code=status.HTTP_201_CREATED,
+    dependencies=[Depends(RateLimitAdmission("analysis"))],
+    summary="创建视频分析任务",
+)
+async def create_analysis(
+    download_id: UUID,
+    body: AnalysisRequest,
+    idempotency_key: IdempotencyKey,
+    response: Response,
+    user: User,
+    use_cases: UseCases,
+) -> AnalysisResponse:
+    view = await use_cases.create_analysis(
+        download_id,
+        user.owner_hash,
+        idempotency_key,
+        body.skill_id,
+        body.output_language,
+        body.custom_prompt,
+        quota=user.admission_quota,
+    )
+    response.headers["Location"] = f"/api/analyses/{view.id}"
+    response.headers["Cache-Control"] = "private, no-store"
+    return AnalysisResponse.from_view(view)
+
+
+@router.post(
+    "/analyses/{analysis_id}/retry",
+    operation_id="retryAnalysis",
+    response_model=AnalysisResponse,
+    status_code=status.HTTP_201_CREATED,
+    dependencies=[Depends(RateLimitAdmission("analysis_retry"))],
+    summary="重新执行原分析任务",
+)
+async def retry_analysis(
+    analysis_id: UUID,
+    request: Request,
+    idempotency_key: IdempotencyKey,
+    response: Response,
+    user: User,
+    use_cases: UseCases,
+) -> AnalysisResponse:
+    if (await request.body()).strip() not in {b"", b"null"}:
+        raise RequestValidationError(
+            [
+                {
+                    "type": "value_error",
+                    "loc": ("body",),
+                    "msg": "Retry does not accept a request body",
+                    "input": None,
+                }
+            ]
+        )
+    view = await use_cases.retry_analysis(
+        analysis_id,
+        user.owner_hash,
+        idempotency_key,
+        quota=user.admission_quota,
+    )
+    response.headers["Location"] = f"/api/analyses/{view.id}"
+    response.headers["Cache-Control"] = "private, no-store"
+    return AnalysisResponse.from_view(view)
 
 
 @router.get(
@@ -52,7 +143,7 @@ async def get_latest_download_analysis(
     "/analyses/{analysis_id}",
     operation_id="getAnalysis",
     response_model=AnalysisResponse,
-    summary="查询视频分析任务",
+    summary="查询分析任务",
 )
 async def get_analysis(
     analysis_id: UUID,
@@ -76,7 +167,7 @@ async def get_analysis(
             },
         }
     },
-    summary="导出 Markdown 视频分析报告",
+    summary="导出 Markdown 分析报告",
 )
 async def export_analysis_markdown(
     analysis_id: UUID,
@@ -163,7 +254,8 @@ async def delete_analysis(
     operation_id="getAnalysisHistoryRecord",
     response_model=VideoAnalysisHistoryRecordResponse
     | ScreenplayAnalysisHistoryRecordResponse
-    | ContentCreationHistoryRecordResponse,
+    | ContentCreationHistoryRecordResponse
+    | SkillAnalysisHistoryRecordResponse,
     summary="读取分析来源与历史摘要",
 )
 async def get_analysis_history_record(
@@ -175,6 +267,7 @@ async def get_analysis_history_record(
     VideoAnalysisHistoryRecordResponse
     | ScreenplayAnalysisHistoryRecordResponse
     | ContentCreationHistoryRecordResponse
+    | SkillAnalysisHistoryRecordResponse
 ):
     response.headers["Cache-Control"] = "no-store"
     record = await service.analysis_record(user.owner_hash, analysis_id)
@@ -185,7 +278,8 @@ async def get_analysis_history_record(
         item,
         VideoAnalysisHistoryRecordResponse
         | ScreenplayAnalysisHistoryRecordResponse
-        | ContentCreationHistoryRecordResponse,
+        | ContentCreationHistoryRecordResponse
+        | SkillAnalysisHistoryRecordResponse,
     )
     return item
 

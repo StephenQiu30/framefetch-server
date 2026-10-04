@@ -4,8 +4,8 @@ import hashlib
 from pathlib import Path
 from typing import Protocol
 
-from app.services.documents.rules.screenplay import normalize_screenplay
 from app.services.documents.rules.summary import summarize_document
+from app.services.documents.rules.text import normalize_document
 from app.services.import_execution.errors import ImportVerificationRejected
 from app.services.import_execution.models import (
     ImportVerificationClaim,
@@ -35,7 +35,7 @@ def normalized_document(
 ) -> VerifiedDocumentImport:
     _validate_text(extracted_text, limits)
     try:
-        screenplay = normalize_screenplay(extracted_text)
+        screenplay = normalize_document(extracted_text)
     except ValueError as exc:
         raise ImportVerificationRejected(
             ImportErrorCode.DOCUMENT_TEXT_UNAVAILABLE, str(exc)
@@ -49,7 +49,7 @@ def normalized_document(
             "document normalization exceeded its budget",
         )
     encoded = screenplay.text.encode("utf-8")
-    normalized_path = source_path.parent / "screenplay.md"
+    normalized_path = source_path.parent / "document.md"
     normalized_path.write_bytes(encoded)
     return VerifiedDocumentImport(
         original_sha256=original_sha256,
