@@ -37,7 +37,7 @@ export function StorageFileList({
               id: '文件',
               header: '文件',
               hideable: false,
-              className: 'whitespace-normal',
+              className: 'w-full whitespace-normal',
               cell: (item) => (
                 <div className="flex min-w-0 flex-col gap-1">
                   <span className="line-clamp-2 break-all" title={item.name}>
@@ -60,32 +60,34 @@ export function StorageFileList({
             {
               id: '类型',
               header: '类型',
-              className: 'hidden md:table-cell',
+              className: 'hidden whitespace-nowrap md:table-cell',
               cell: (item) => <> {storageCategoryLabels[item.category]} </>,
             },
             {
               id: '对象数',
               header: '对象数',
-              className: 'hidden text-right tabular-nums md:table-cell',
+              className:
+                'hidden text-right whitespace-nowrap tabular-nums md:table-cell',
               cell: (item) => <> {item.object_count} </>,
             },
             {
               id: '创建时间',
               header: '创建时间',
-              className: 'hidden tabular-nums md:table-cell',
+              className: 'hidden whitespace-nowrap tabular-nums md:table-cell',
               cell: (item) => <> {formatStorageDate(item.created_at)} </>,
             },
             {
               id: '大小',
               header: '大小',
-              className: 'hidden text-right tabular-nums md:table-cell',
+              className:
+                'hidden text-right whitespace-nowrap tabular-nums md:table-cell',
               cell: (item) => <> {formatStorageSize(item.size_bytes)} </>,
             },
             {
               id: '操作',
               header: '操作',
               hideable: false,
-              className: 'text-right',
+              className: 'text-right whitespace-nowrap',
               cell: (item) => (
                 <>
                   <Button
