@@ -2,6 +2,8 @@
 
 # FrameFetch
 
+Film Skills are being redesigned from scratch in the [new PRD](docs/design/PRD-影视Skill体系.md) (Chinese). The existing method and result catalogs below remain pending removal; they are not the new target. Script diagnosis, audiovisual study and subtitle correction have not been implemented by this documentation change.
+
 **An open-source, self-hosted video and screenplay workstation.** Bring in material, understand it, and produce analysis results you can export.
 
 [![CI](https://github.com/StephenQiu30/video-server/actions/workflows/ci.yml/badge.svg)](https://github.com/StephenQiu30/video-server/actions/workflows/ci.yml)
@@ -61,7 +63,7 @@ Results are validated against the selected contract before storage, including st
 
 **Skills, result structures and engines have separate roles.** A Skill defines the method, a result contract defines the deliverable, and an engine calls the model. Each job stores an immutable instruction snapshot; completed steps can be reused after interruption, while calls with unknown outcomes are not automatically repeated. An AI failure does not change successfully obtained material.
 
-Administrators can configure **Codex App Server, Claude CLI, DeepSeek, OpenRouter or OpenAI Chat Completions-compatible services**. Users choose the method, language and focus without configuring low-level provider parameters. See [AI analysis](docs/design/10-AI分析.md) and [Skill architecture](docs/design/16-Skill体系与结果契约.md) (Chinese).
+Administrators can configure **Codex App Server, Claude CLI, DeepSeek, OpenRouter or OpenAI Chat Completions-compatible services**. Users choose the method, language and focus without configuring low-level provider parameters. See [AI analysis](docs/design/10-AI分析.md) and [Film Skill PRD](docs/design/PRD-影视Skill体系.md) (Chinese).
 
 ## 12 video analysis methods
 
@@ -284,7 +286,7 @@ FrameFetch is in public preview. The 12 video and 8 screenplay methods form the 
 
 - Process authorized HTTP(S), non-DRM material. Registered integrations include YouTube, Bilibili, Douyin, TikTok, Xiaohongshu, Kuaishou and Weibo; actual links depend on content scope, identity, network and platform changes. WeChat Channels supports downloading official clear share files and requires an open, logged-in Yuanbao page; official-account articles provide source discovery. See [design 17](docs/design/17-解析引擎重建.md#8-平台能力与验证边界) for exact platform status and complete-file evidence.
 - Source and build workflows are self-hosted. The operator provides servers, infrastructure, storage, network and models. External models may incur charges and receive the text or frames needed for analysis.
-- Current capabilities cover intake, management, analysis and reports. Articles, packaging copy and screenplay rewrites are candidates for human review. ASR/OCR, DRM decryption, live recording, unbounded playlists, collaborative editing and automatic platform publishing are outside scope.
+- Current capabilities cover intake, management, analysis and reports. Articles, packaging copy and screenplay rewrites are candidates for human review. ASR/OCR are not supported by the current implementation; Mandarin transcription is a proposed target in the new PRD. DRM decryption, live recording, unbounded playlists, collaborative editing and automatic platform publishing remain outside scope.
 - Successful material and reports persist; plan capacity, backups and explicit cleanup. See the [Security Policy](SECURITY.md) and parsing design. Replace placeholder configuration and check network, storage and models before exposing a deployment.
 
 ## Development
@@ -309,7 +311,7 @@ pnpm build
 
 ## Roadmap
 
-Platform support and validation limits are described in [the parsing design](docs/design/17-解析引擎重建.md#8-平台能力与验证边界); other unfinished work is listed in [BACKLOG](BACKLOG.md) (Chinese); the planned creation and publishing flow is described in [content creation and publishing](docs/design/11-内容创作与发布.md). Discuss priorities in [Issues](https://github.com/StephenQiu30/video-server/issues) — tasks labeled `good first issue` or `help wanted` are a good place to start.
+Platform support and validation limits are described in [the parsing design](docs/design/17-解析引擎重建.md#8-平台能力与验证边界); other unfinished work is listed in [BACKLOG](BACKLOG.md) (Chinese); the proposed Film Skill redesign is defined in the [new PRD](docs/design/PRD-影视Skill体系.md) and has not been implemented. Discuss priorities in [Issues](https://github.com/StephenQiu30/video-server/issues) — tasks labeled `good first issue` or `help wanted` are a good place to start.
 
 ## Contributing
 

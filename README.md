@@ -4,6 +4,8 @@
 
 **开源、自托管的个人视频与剧本工作站。** 接入素材，理解内容，交付可导出的分析结果。
 
+影视 Skill 正按[全新 PRD](docs/design/PRD-影视Skill体系.md)重新规划。本文的现存方法和结果目录尚未清退，不代表新目标；新剧本诊断、视听拉片与字幕校订尚未实施。本轮只更新规格，运行代码保持原状。
+
 [![CI 状态](https://github.com/StephenQiu30/video-server/actions/workflows/ci.yml/badge.svg)](https://github.com/StephenQiu30/video-server/actions/workflows/ci.yml)
 [![MIT License](https://img.shields.io/badge/license-MIT-111111.svg)](LICENSE)
 [![Preview release](https://img.shields.io/github/v/release/StephenQiu30/video-server?include_prereleases&color=111111)](https://github.com/StephenQiu30/video-server/releases)
@@ -61,9 +63,11 @@ Web 工作区提供解析详情、下载记录、个人处理记录、视频播�
 
 **Skill、结果结构和模型引擎各司其职。** Skill 定义分析方法，结果契约定义交付物，引擎负责模型调用。每项任务保存不可变的方法指令快照；已完成分析步骤可在恢复时复用，结果不明的调用不会自动重发。下载成功和 AI 结果分别记录，AI 失败不会改变已经取得的素材。
 
-管理员可配置 **Codex App Server、Claude CLI、DeepSeek、OpenRouter、OpenAI Chat Completions 兼容服务**。普通用户选择方法、输出语言和分析重点，无需配置底层模型参数。设计与当前限制见 [AI 分析](docs/design/10-AI分析.md)与 [Skill 体系](docs/design/16-Skill体系与结果契约.md)。
+管理员可配置 **Codex App Server、Claude CLI、DeepSeek、OpenRouter、OpenAI Chat Completions 兼容服务**。普通用户选择方法、输出语言和分析重点，无需配置底层模型参数。设计与当前限制见 [AI 分析](docs/design/10-AI分析.md)与 [影视 Skill PRD](docs/design/PRD-影视Skill体系.md)。
 
 ## 12 种视频分析方法
+
+以下视频、剧本方法和结果表仅记录尚未清退的现存目录。新能力范围、选型及旧代码清退以[影视 Skill PRD](docs/design/PRD-影视Skill体系.md)为准，不继承这些数量和分类。
 
 | 方法 | 主要用途 |
 | --- | --- |
@@ -349,7 +353,7 @@ flowchart LR
 
 - 处理你有权获取和分析的 HTTP(S) 非 DRM 素材。平台接入包括 YouTube、哔哩哔哩、抖音、TikTok、小红书、快手、微博等；具体链接受内容范围、账号、网络和平台变化影响。视频号支持下载微信官方非加密分享文件，需要保持已登录元宝页面打开；公众号文章提供来源发现。准确平台状态与完整文件证据见 [设计 17](docs/design/17-解析引擎重建.md#8-平台能力与验证边界)。
 - 提供自托管源码与构建方式。服务器、基础服务、存储、网络和模型由部署者准备，外部模型可能计费；启用外部 AI 会向选定服务发送分析所需的文本或画面。
-- 当前能力覆盖素材获取、管理、分析和报告。文章、包装与剧本改写是候选内容，需要人工检查；不提供 ASR／OCR、DRM 解密、直播录制、无限播放列表、在线协作编辑或自动平台发布。
+- 当前能力覆盖素材获取、管理、分析和报告。文章、包装与剧本改写是候选内容，需要人工检查；现存实现未提供 ASR／OCR；新 PRD 将普通话转录列为待验证目标。DRM 解密、直播录制、无限播放列表、在线协作编辑和自动平台发布仍不在范围内。
 - 成功素材和报告持久保存，管理员应规划容量、备份与显式清理。详细安全要求见 [安全策略](SECURITY.md)与解析设计；对外部署前替换占位配置并核对网络、存储与模型服务。
 
 ## 本地开发
@@ -387,7 +391,7 @@ docker-compose-prod.yml  生产业务差异
 
 ## 路线图
 
-平台支持与验证限制见[解析引擎](docs/design/17-解析引擎重建.md#8-平台能力与验证边界)，其他未完成工作见[BACKLOG](BACKLOG.md)，规划中的创作与发布流程见[内容创作与发布](docs/design/11-内容创作与发布.md)。欢迎在 [Issues](https://github.com/StephenQiu30/video-server/issues) 中讨论优先级，带有 `good first issue` / `help wanted` 标签的任务适合首次参与。
+平台支持与验证限制见[解析引擎](docs/design/17-解析引擎重建.md#8-平台能力与验证边界)，其他未完成工作见[BACKLOG](BACKLOG.md)，待实施的影视 Skill 重建见[全新 PRD](docs/design/PRD-影视Skill体系.md)。欢迎在 [Issues](https://github.com/StephenQiu30/video-server/issues) 中讨论优先级，带有 `good first issue` / `help wanted` 标签的任务适合首次参与。
 
 ## 参与贡献
 
