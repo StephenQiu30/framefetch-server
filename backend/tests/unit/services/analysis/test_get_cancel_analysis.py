@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 from dataclasses import replace
+from datetime import UTC, datetime
+from uuid import UUID, uuid4
 
 import pytest
 from app.services.analysis.cancel_analysis import CancelAnalysis
@@ -18,14 +20,13 @@ from app.services.analysis.rules.result_models import (
     VideoAnalysisResult,
 )
 from app.services.analysis.rules.video_scene import VideoScene
+from tests.unit.repositories.analysis.factories import ArtifactSeed, analysis_command
 from tests.unit.services.analysis.fakes import FakeRepository
-from tests.unit.services.analysis.test_create_analysis import (
-    JOB_ID,
-    NOW,
-    OWNER,
-    artifact,
-    creator,
-)
+
+NOW = datetime(2026, 8, 6, 8, tzinfo=UTC)
+OWNER = "a" * 64
+JOB_ID = UUID("22222222-2222-4222-8222-222222222222")
+
 
 RESULT = VideoAnalysisResult(
     language="zh-CN",
@@ -76,10 +77,9 @@ RESULT = VideoAnalysisResult(
 
 
 async def saved_job(repository: FakeRepository) -> None:
-    source = artifact()
-    repository.artifacts[source.id] = source
-    await creator(repository)(
-        source.download_id, OWNER, "request", "director-breakdown", "zh-CN"
+    source = ArtifactSeed(uuid4(), uuid4(), OWNER, "b" * 64)
+    await repository.create_job_and_enqueue(
+        analysis_command(source, job_id=JOB_ID), now=NOW
     )
 
 

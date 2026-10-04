@@ -223,20 +223,3 @@ class AnalysisStoredReportFile:
     media_type: str
     size_bytes: int
     sha256: str
-
-
-@dataclass(frozen=True, slots=True)
-class AnalysisSkillView:
-    id: str
-    display_name: str
-    description: str
-    default_prompt: str
-    input_kinds: tuple[AnalysisInputKind, ...]
-    result_contract: AnalysisResultContract
-
-
-@dataclass(frozen=True, slots=True)
-class AnalysisSkillResolution:
-    view: AnalysisSkillView
-    instructions: str
-    instructions_sha256: str

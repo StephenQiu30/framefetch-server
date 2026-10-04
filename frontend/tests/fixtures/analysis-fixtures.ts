@@ -19,25 +19,6 @@ export const articleResult: API.VideoArticleResultResponse = {
   limitations: ['仅依据可见画面。'],
 };
 
-export const analysisSkills: API.AnalysisSkillResponse[] = [
-  {
-    id: 'director-breakdown',
-    display_name: '导演拉片',
-    description: '按真实 Cut 拆解镜头语言、叙事作用与高光价值。',
-    default_prompt: '逐镜头分析画面、叙事作用和高光价值。',
-    input_kinds: ['video'],
-    result_contract: 'video-visual-analysis',
-  },
-  {
-    id: 'highlights',
-    display_name: '高光提炼',
-    description: '识别传播力和情绪价值较高的片段。',
-    default_prompt: '识别高传播力和高情绪价值的片段。',
-    input_kinds: ['video'],
-    result_contract: 'video-visual-analysis',
-  },
-];
-
 export const analysisResult: API.VideoAnalysisResultResponse = {
   kind: 'video_visual_analysis',
   language: 'zh-CN',

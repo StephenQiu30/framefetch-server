@@ -57,9 +57,16 @@ OPENAPI_TAGS: list[dict[str, Any]] = [
     },
     {
         "name": "analyses",
-        "description": "创建、查询和取消视频 AI 分析任务。",
+        "description": "读取、取消和删除历史视频 AI 分析与报告。",
     },
 ]
+
+OPENAPI_TAGS.append(
+    {
+        "name": "creation",
+        "description": "影视分析与文章整理，固定材料、人工版本及文件交付。",
+    }
+)
 
 SWAGGER_UI_PARAMETERS: dict[str, Any] = {
     "displayRequestDuration": True,

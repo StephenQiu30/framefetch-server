@@ -24,9 +24,6 @@ from app.services.ai_providers import AiProviderService
 from app.services.analysis.analytics import GetAnalysisAnalytics
 from app.services.analysis.cancel_analysis import CancelAnalysis
 from app.services.analysis.content_versions import ListContentVersions
-from app.services.analysis.create_analysis import CreateAnalysis
-from app.services.analysis.create_content_analysis import CreateContentAnalysis
-from app.services.analysis.create_document_analysis import CreateDocumentAnalysis
 from app.services.analysis.delete_analysis import DeleteAnalysis
 from app.services.analysis.export_report import (
     ExportAnalysisMarkdown,
@@ -38,12 +35,11 @@ from app.services.analysis.get_latest_analysis import (
     GetLatestDocumentAnalysis,
     GetLatestDownloadAnalysis,
 )
-from app.services.analysis.models import AnalysisSkillView
-from app.services.analysis.retry_analysis import RetryAnalysis
-from app.services.analysis.rules.enums import AnalysisInputKind
 from app.services.auth.service import AuthService
 from app.services.auth.user_service import UserService
 from app.services.auth.web_sessions import WebSessionService
+from app.services.creation.export_service import CreationExportService
+from app.services.creation.service import CreationService
 from app.services.documents.service import DeleteDocument, GetDocument, ListDocuments
 from app.services.downloads.analytics import GetDownloadAnalytics
 from app.services.downloads.create_download import CreateDownload
@@ -109,18 +105,13 @@ class SourceDiscoveryUseCases:
 @dataclass(frozen=True, slots=True)
 class AnalysisUseCases:
     get_analysis_analytics: GetAnalysisAnalytics
-    list_analysis_skills: Callable[[AnalysisInputKind], tuple[AnalysisSkillView, ...]]
-    create_analysis: CreateAnalysis
-    create_document_analysis: CreateDocumentAnalysis
     delete_analysis: DeleteAnalysis
     get_analysis: GetAnalysis
     get_latest_download_analysis: GetLatestDownloadAnalysis
     get_latest_document_analysis: GetLatestDocumentAnalysis
     cancel_analysis: CancelAnalysis
-    retry_analysis: RetryAnalysis
     export_analysis_report: ExportAnalysisReport
     export_analysis_markdown: ExportAnalysisMarkdown
-    create_content_analysis: CreateContentAnalysis | None = None
     get_content_source: GetContentSource | None = None
     list_content_versions: ListContentVersions | None = None
 
@@ -148,6 +139,8 @@ class DocumentImportUseCases:
 
 @dataclass(slots=True)
 class ApiServices:
+    creation_service: CreationService | None = None
+    creation_export_service: CreationExportService | None = None
     engine_catalog_reader: Callable[[], Awaitable[EngineCatalogResponse]] | None = None
     intent_service: IntentService | None = None
     history_record_service: HistoryRecordService | None = None

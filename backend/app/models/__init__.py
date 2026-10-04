@@ -14,6 +14,13 @@ from app.models.analysis_run import (
 )
 from app.models.analysis_worker import AnalysisWorkerHeartbeatRow
 from app.models.auth import AuthSessionRow, UserRow
+from app.models.creation import (
+    CreationExportRow,
+    CreationMaterialRow,
+    CreationProjectRow,
+    CreationRevisionRow,
+    CreationTaskRow,
+)
 from app.models.dlq_replay import DlqReplayRow
 from app.models.document import (
     AnalysisDocumentLockRow,
@@ -41,6 +48,11 @@ from app.models.task_event import TaskEventRow
 from app.models.web_session import WebSessionRow
 
 __all__ = [
+    "CreationExportRow",
+    "CreationMaterialRow",
+    "CreationProjectRow",
+    "CreationRevisionRow",
+    "CreationTaskRow",
     "OperationLogRow",
     "WebSessionRow",
     "EmailVerificationRow",

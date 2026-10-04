@@ -4,4 +4,4 @@
 
 | 计划 | 来源 | 状态 |
 | --- | --- | --- |
-| [内容创作 Skill 体系执行计划](PLAN-内容创作Skill体系.md) | [内容创作 Skill PRD](../prd/PRD-内容创作Skill体系.md) | 已编制，覆盖 17 项能力、35 个工作包、72 项 checklist；实施与验收尚未开始 |
+| [内容创作 Skill 体系执行计划](PLAN-内容创作Skill体系.md) | [内容创作 Skill PRD](../prd/PRD-内容创作Skill体系.md) | 12 项功能已实现；工作包、功能／非功能追踪、checklist、真实证据与未完成的外部验收门槛 |

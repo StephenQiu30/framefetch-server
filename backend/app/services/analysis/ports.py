@@ -14,11 +14,9 @@ from app.services.analysis.models import (
     AnalysisPublish,
     AnalysisReportSnapshot,
     AnalysisRetry,
-    AnalysisSkillResolution,
-    AnalysisSkillView,
     AnalysisStoredReportFile,
 )
-from app.services.analysis.rules.enums import AnalysisInputKind, AnalysisResultKind
+from app.services.analysis.rules.enums import AnalysisResultKind
 from app.services.analysis.rules.result_types import AnalysisResult
 
 
@@ -84,11 +82,3 @@ class AnalysisReportRenderer(Protocol):
 
 class AnalysisReportObjectReader(Protocol):
     async def read(self, object_key: str) -> bytes: ...
-
-
-class AnalysisSkillCatalog(Protocol):
-    def list(self, input_kind: AnalysisInputKind) -> tuple[AnalysisSkillView, ...]: ...
-
-    def resolve(
-        self, skill_id: str, input_kind: AnalysisInputKind
-    ) -> AnalysisSkillResolution | None: ...

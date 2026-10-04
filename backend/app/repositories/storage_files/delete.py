@@ -12,8 +12,10 @@ from app.models import (
     AnalysisReportArtifactRow,
     AnalysisReportVersionRow,
     ArtifactRow,
+    CreationMaterialRow,
     DocumentArtifactRow,
     DocumentRow,
+    DownloadJobRow,
 )
 from app.services.analysis.rules.enums import (
     AnalysisReportArtifactStatus,
@@ -63,6 +65,22 @@ async def _delete_video(
             is not None
         ):
             raise StorageFileError(StorageFileErrorCode.IN_USE)
+        if (
+            await session.scalar(
+                select(CreationMaterialRow.id)
+                .join(
+                    DownloadJobRow,
+                    DownloadJobRow.owner_hash == CreationMaterialRow.owner_hash,
+                )
+                .where(
+                    CreationMaterialRow.artifact_id == artifact.id,
+                    DownloadJobRow.id == artifact.job_id,
+                )
+                .limit(1)
+            )
+            is not None
+        ):
+            raise StorageFileError(StorageFileErrorCode.IN_USE)
         await _delete_object(delete, artifact.object_key)
         artifact.deleted_at = now
 
@@ -90,6 +108,18 @@ async def _delete_document(
                 select(AnalysisDocumentLockRow.job_id).where(
                     AnalysisDocumentLockRow.document_id == document.id
                 )
+            )
+            is not None
+        ):
+            raise StorageFileError(StorageFileErrorCode.IN_USE)
+        if (
+            await session.scalar(
+                select(CreationMaterialRow.id)
+                .where(
+                    CreationMaterialRow.document_id == document.id,
+                    CreationMaterialRow.owner_hash == document.owner_hash,
+                )
+                .limit(1)
             )
             is not None
         ):

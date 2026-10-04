@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import base64
 import json
 from typing import Any
 
@@ -44,6 +45,8 @@ from app.services.analysis_execution.screenplay_rewrite_models import (
 
 
 class ApiAnalyzer:
+    supports_creation_images = True
+
     def __init__(
         self,
         config: ApiAdapterConfig,
@@ -56,6 +59,29 @@ class ApiAnalyzer:
         self._frames = frames or ApiFrameExtractor(config)
 
     async def generate_content(self, request: ContentModelRequest) -> object:
+        if request.image_paths:
+            content: list[dict[str, Any]] = [{"type": "text", "text": request.prompt}]
+            if len(request.image_paths) > 12:
+                raise ValueError("creation image limit")
+            for path in request.image_paths:
+                if (
+                    path.is_symlink()
+                    or not path.resolve().is_relative_to(request.workspace)
+                    or path.stat().st_size > self._config.max_image_bytes
+                ):
+                    raise ValueError("invalid creation frame")
+                content.append(
+                    {
+                        "type": "image_url",
+                        "image_url": {
+                            "url": "data:image/png;base64,"
+                            + base64.b64encode(path.read_bytes()).decode(),
+                        },
+                    }
+                )
+            return await self._invoke(
+                request.prompt, json.loads(request.schema_json), content
+            )
         return await self._invoke(request.prompt, json.loads(request.schema_json))
 
     async def analyze(self, request: VideoAnalysisRequest) -> object:

@@ -35,6 +35,7 @@ class CodexAppServerClient:
         prompt: str,
         schema: object,
         duration_ms: int | None,
+        image_paths: tuple[Path, ...] = (),
     ) -> object:
         process: asyncio.subprocess.Process | None = None
         stderr_task: asyncio.Task[bytes] | None = None
@@ -47,7 +48,7 @@ class CodexAppServerClient:
             )
             try:
                 result = await asyncio.wait_for(
-                    self._exchange(process, root, prompt, schema),
+                    self._exchange(process, root, prompt, schema, image_paths),
                     timeout=self._config.timeout_seconds,
                 )
             except TimeoutError:
@@ -120,6 +121,7 @@ class CodexAppServerClient:
         root: Path,
         prompt: str,
         schema: object,
+        image_paths: tuple[Path, ...] = (),
     ) -> object:
         await _send(
             process,
@@ -161,7 +163,13 @@ class CodexAppServerClient:
             "turn/start",
             {
                 "threadId": thread_id,
-                "input": [{"type": "text", "text": prompt}],
+                "input": [
+                    {"type": "text", "text": prompt},
+                    *[
+                        {"type": "localImage", "path": str(path)}
+                        for path in image_paths
+                    ],
+                ],
                 "outputSchema": schema,
             },
         )

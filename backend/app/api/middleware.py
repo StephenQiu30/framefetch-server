@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 from collections.abc import Awaitable, Callable
+from uuid import UUID
 
 from fastapi import Request, Response
 from fastapi.responses import JSONResponse
@@ -31,6 +32,25 @@ async def request_guard(
     settings = request.app.state.settings
     if request.url.path == "/api/users/me/avatar" and request.method == "PUT":
         max_body_bytes = max(max_body_bytes, MAX_AVATAR_UPLOAD_BYTES)
+    if request.method == "POST":
+        if request.url.path == "/api/creation/materials":
+            # A verified 10 MiB original is base64-encoded inside bounded JSON.
+            max_body_bytes = max(max_body_bytes, 16 * 1024 * 1024)
+        else:
+            parts = request.url.path.split("/")
+            if (
+                len(parts) == 6
+                and parts[:3] == ["", "api", "creation"]
+                and parts[3] in {"materials", "tasks"}
+                and parts[5] == "revisions"
+            ):
+                try:
+                    UUID(parts[4])
+                except ValueError:
+                    pass
+                else:
+                    # Saved preview data is independently limited to 1 MiB.
+                    max_body_bytes = max(max_body_bytes, 2 * 1024 * 1024)
     if requires_browser_origin(request, settings) and not same_browser_origin(
         request, settings
     ):

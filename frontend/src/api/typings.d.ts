@@ -186,15 +186,6 @@ declare namespace API {
     | "delete_pending"
     | "deleted";
 
-  type AnalysisRequest = {
-    /** Skill Id 分析 Skill 的稳定标识，由分析 Skill 清单接口提供。 */
-    skill_id: string;
-    /** Output Language 分析结果使用的 BCP 47 语言标签。 */
-    output_language: string;
-    /** Custom Prompt 用户可编辑的分析要求，仅影响观察重点和表达，不能覆盖工具、安全边界或结果结构。 */
-    custom_prompt?: string | null;
-  };
-
   type AnalysisResponse = {
     /** Id */
     id: string;
@@ -271,20 +262,6 @@ declare namespace API {
     /** Finished At */
     finished_at: string | null;
     error_code: AnalysisErrorCode | null;
-  };
-
-  type AnalysisSkillResponse = {
-    /** Id */
-    id: string;
-    /** Display Name */
-    display_name: string;
-    /** Description */
-    description: string;
-    /** Default Prompt */
-    default_prompt: string;
-    /** Input Kinds */
-    input_kinds: AnalysisInputKind[];
-    result_contract: AnalysisResultContract;
   };
 
   type AnalysisStage =
@@ -365,6 +342,33 @@ declare namespace API {
     message: string;
     /** 成功时为业务数据，错误时为 null。 */
     data: ContentSourceSet;
+  };
+
+  type ApiResponseCreationMaterialResponse_ = {
+    /** 稳定的业务结果码。 */
+    code: ErrorCode;
+    /** Message 安全的结果说明。 */
+    message: string;
+    /** 成功时为业务数据，错误时为 null。 */
+    data: CreationMaterialResponse;
+  };
+
+  type ApiResponseCreationProjectResponse_ = {
+    /** 稳定的业务结果码。 */
+    code: ErrorCode;
+    /** Message 安全的结果说明。 */
+    message: string;
+    /** 成功时为业务数据，错误时为 null。 */
+    data: CreationProjectResponse;
+  };
+
+  type ApiResponseCreationTaskResponse_ = {
+    /** 稳定的业务结果码。 */
+    code: ErrorCode;
+    /** Message 安全的结果说明。 */
+    message: string;
+    /** 成功时为业务数据，错误时为 null。 */
+    data: CreationTaskResponse;
   };
 
   type ApiResponseDocumentDetailResponse_ = {
@@ -601,15 +605,6 @@ declare namespace API {
     data: StoredFileListResponse;
   };
 
-  type ApiResponseTupleAnalysisSkillResponse_____ = {
-    /** 稳定的业务结果码。 */
-    code: ErrorCode;
-    /** Message 安全的结果说明。 */
-    message: string;
-    /** Data 成功时为业务数据，错误时为 null。 */
-    data: AnalysisSkillResponse[];
-  };
-
   type ApiResponseTupleContentVersion_____ = {
     /** 稳定的业务结果码。 */
     code: ErrorCode;
@@ -617,6 +612,51 @@ declare namespace API {
     message: string;
     /** Data 成功时为业务数据，错误时为 null。 */
     data: ContentVersion[];
+  };
+
+  type ApiResponseTupleCreationMaterialResponse_____ = {
+    /** 稳定的业务结果码。 */
+    code: ErrorCode;
+    /** Message 安全的结果说明。 */
+    message: string;
+    /** Data 成功时为业务数据，错误时为 null。 */
+    data: CreationMaterialResponse[];
+  };
+
+  type ApiResponseTupleCreationProjectResponse_____ = {
+    /** 稳定的业务结果码。 */
+    code: ErrorCode;
+    /** Message 安全的结果说明。 */
+    message: string;
+    /** Data 成功时为业务数据，错误时为 null。 */
+    data: CreationProjectResponse[];
+  };
+
+  type ApiResponseTupleCreationRevisionResponse_____ = {
+    /** 稳定的业务结果码。 */
+    code: ErrorCode;
+    /** Message 安全的结果说明。 */
+    message: string;
+    /** Data 成功时为业务数据，错误时为 null。 */
+    data: CreationRevisionResponse[];
+  };
+
+  type ApiResponseTupleCreationSkillResponse_____ = {
+    /** 稳定的业务结果码。 */
+    code: ErrorCode;
+    /** Message 安全的结果说明。 */
+    message: string;
+    /** Data 成功时为业务数据，错误时为 null。 */
+    data: CreationSkillResponse[];
+  };
+
+  type ApiResponseTupleCreationTaskResponse_____ = {
+    /** 稳定的业务结果码。 */
+    code: ErrorCode;
+    /** Message 安全的结果说明。 */
+    message: string;
+    /** Data 成功时为业务数据，错误时为 null。 */
+    data: CreationTaskResponse[];
   };
 
   type ApiResponseUnionAnalysisResponse_NoneType_ = {
@@ -654,6 +694,10 @@ declare namespace API {
 
   type cancelAnalysisParams = {
     analysis_id: string;
+  };
+
+  type cancelCreationTaskParams = {
+    task_id: string;
   };
 
   type cancelDocumentImportParams = {
@@ -695,13 +739,15 @@ declare namespace API {
     parts: CompletedPartRequest[];
   };
 
-  type ContainerPreference = "mp4" | "webm" | "source";
-
-  type ContentAnalysisRequest = {
-    source: ContentSourceSet;
-    /** Output Language */
-    output_language?: "zh-CN" | "en-US";
+  type confirmCreationMaterialParams = {
+    material_id: string;
   };
+
+  type confirmCreationTaskParams = {
+    task_id: string;
+  };
+
+  type ContainerPreference = "mp4" | "webm" | "source";
 
   type ContentBrief = {
     /** Document Type */
@@ -859,14 +905,6 @@ declare namespace API {
     api_key?: string | null;
   };
 
-  type createAnalysisParams = {
-    download_id: string;
-  };
-
-  type createDocumentAnalysisParams = {
-    document_id: string;
-  };
-
   type createDocumentUploadSessionParams = {
     document_id: string;
   };
@@ -884,6 +922,228 @@ declare namespace API {
     sort_order: number;
     /** Is Visible */
     is_visible?: boolean;
+  };
+
+  type CreationBudget = {
+    /** Max Calls */
+    max_calls?: number;
+    /** Max Tokens */
+    max_tokens?: number;
+    /** Timeout Seconds */
+    timeout_seconds?: number;
+    /** Max Cost Minor */
+    max_cost_minor?: number | null;
+    /** Currency */
+    currency?: string | null;
+  };
+
+  type CreationConfirmRequest = {
+    /** Expected Revision Id */
+    expected_revision_id: string;
+  };
+
+  type CreationMaterialCreateRequest = {
+    /** Project Id */
+    project_id?: string | null;
+    /** Source Revision Id */
+    source_revision_id?: string | null;
+    /** Kind */
+    kind: "text" | "screenplay" | "video" | "subtitle" | "image" | "reference";
+    /** Title */
+    title: string;
+    /** Text */
+    text?: string | null;
+    /** Data */
+    data?: Record<string, any>;
+    /** Artifact Id */
+    artifact_id?: string | null;
+    /** Download Id */
+    download_id?: string | null;
+    /** Document Id */
+    document_id?: string | null;
+    /** Document Filename */
+    document_filename?: string | null;
+    /** Document Data Base64 */
+    document_data_base64?: string | null;
+    /** Source Url */
+    source_url?: string | null;
+    /** Image Data Base64 */
+    image_data_base64?: string | null;
+    /** Rights Statement */
+    rights_statement: string;
+  };
+
+  type CreationMaterialResponse = {
+    /** Id */
+    id: string;
+    /** Project Id */
+    project_id: string | null;
+    /** Source Revision Id */
+    source_revision_id?: string | null;
+    /** Kind */
+    kind: "text" | "screenplay" | "video" | "subtitle" | "image" | "reference";
+    /** Title */
+    title: string;
+    /** Rights Statement */
+    rights_statement: string;
+    /** Artifact Id */
+    artifact_id: string | null;
+    /** Document Id */
+    document_id: string | null;
+    /** Source Url */
+    source_url: string | null;
+    current_revision: CreationRevisionResponse;
+    /** Created At */
+    created_at: string;
+    /** Updated At */
+    updated_at: string;
+  };
+
+  type CreationProjectCreateRequest = {
+    /** Title */
+    title: string;
+    /** Description */
+    description?: string;
+  };
+
+  type CreationProjectResponse = {
+    /** Title */
+    title: string;
+    /** Description */
+    description?: string;
+    /** Id */
+    id: string;
+    /** Created At */
+    created_at: string;
+    /** Updated At */
+    updated_at: string;
+  };
+
+  type CreationRetryRequest = {
+    /** Acknowledge Unknown Cost */
+    acknowledge_unknown_cost?: boolean;
+  };
+
+  type CreationRevisionResponse = {
+    /** Id */
+    id: string;
+    /** Number */
+    number: number;
+    /** Parent Revision Id */
+    parent_revision_id: string | null;
+    /** Text */
+    text: string;
+    /** Data */
+    data: Record<string, any>;
+    /** Sha256 */
+    sha256: string;
+    /** Confirmed */
+    confirmed: boolean;
+    /** Created At */
+    created_at: string;
+  };
+
+  type CreationRevisionSaveRequest = {
+    /** Expected Revision Id */
+    expected_revision_id: string;
+    /** Text */
+    text: string;
+    /** Data */
+    data?: Record<string, any>;
+  };
+
+  type CreationSkillResponse = {
+    /** Id */
+    id: string;
+    /** Code */
+    code: string;
+    /** Name */
+    name: string;
+    /** Route */
+    route: "film" | "article";
+    /** Priority */
+    priority: "P0" | "P1" | "P2";
+    /** Execution Kind */
+    execution_kind: "model" | "local" | "media";
+    /** Input Kinds */
+    input_kinds: string[];
+    /** Export Formats */
+    export_formats: string[];
+    /** Method Version */
+    method_version: string;
+    /** Method Sha256 */
+    method_sha256: string;
+    /** Available */
+    available: boolean;
+    /** Limitations */
+    limitations?: string[];
+  };
+
+  type CreationTaskCreateRequest = {
+    /** Project Id */
+    project_id?: string | null;
+    /** Skill Id */
+    skill_id: string;
+    /** Material Revision Ids */
+    material_revision_ids: string[];
+    /** Options */
+    options?: Record<string, any>;
+    budget?: CreationBudget;
+    /** Output Language */
+    output_language?: "zh-CN";
+  };
+
+  type CreationTaskResponse = {
+    /** Id */
+    id: string;
+    /** Project Id */
+    project_id: string | null;
+    /** Skill Id */
+    skill_id: string;
+    status: CreationTaskStatus;
+    /** Material Revision Ids */
+    material_revision_ids: string[];
+    /** Options */
+    options: Record<string, any>;
+    budget: CreationBudget;
+    usage: CreationUsage;
+    /** Output Language */
+    output_language: string;
+    /** Attempt */
+    attempt: number;
+    revision: CreationRevisionResponse | null;
+    /** Stale */
+    stale: boolean;
+    /** Limitations */
+    limitations: string[];
+    /** Error Code */
+    error_code: string | null;
+    /** Created At */
+    created_at: string;
+    /** Updated At */
+    updated_at: string;
+  };
+
+  type CreationTaskStatus =
+    | "queued"
+    | "processing"
+    | "awaiting_confirmation"
+    | "completed"
+    | "failed"
+    | "cancelled"
+    | "outcome_unknown";
+
+  type CreationUsage = {
+    /** Calls Reserved */
+    calls_reserved?: number;
+    /** Calls Used */
+    calls_used?: number;
+    /** Tokens Reserved */
+    tokens_reserved?: number;
+    /** Cost Minor Reserved */
+    cost_minor_reserved?: number;
+    /** Unknown Operations */
+    unknown_operations?: number;
   };
 
   type DeclaredOrigin = "user_file" | "wechat_channels";
@@ -1522,6 +1782,12 @@ declare namespace API {
     analysis_id: string;
   };
 
+  type exportCreationRevisionParams = {
+    task_id: string;
+    revision_id: string;
+    format: string;
+  };
+
   type FailureClass =
     | "network_blocked"
     | "challenge"
@@ -1565,6 +1831,22 @@ declare namespace API {
 
   type getContentSourceParams = {
     analysis_id: string;
+  };
+
+  type getCreationDocumentSourceParams = {
+    material_id: string;
+  };
+
+  type getCreationMaterialImageParams = {
+    material_id: string;
+  };
+
+  type getCreationMaterialParams = {
+    material_id: string;
+  };
+
+  type getCreationTaskParams = {
+    task_id: string;
   };
 
   type getDocumentImportParams = {
@@ -1850,10 +2132,6 @@ declare namespace API {
     limit?: number;
   };
 
-  type listAnalysisSkillsParams = {
-    input_kind: AnalysisInputKind;
-  };
-
   type ListBlock = {
     /** Id */
     id: string;
@@ -1867,6 +2145,29 @@ declare namespace API {
 
   type listContentVersionsParams = {
     analysis_id: string;
+  };
+
+  type listCreationMaterialRevisionsParams = {
+    material_id: string;
+  };
+
+  type listCreationMaterialsParams = {
+    project_id?: string | null;
+    limit?: number;
+  };
+
+  type listCreationProjectsParams = {
+    limit?: number;
+  };
+
+  type listCreationTaskRevisionsParams = {
+    task_id: string;
+  };
+
+  type listCreationTasksParams = {
+    project_id?: string | null;
+    status?: CreationTaskStatus | null;
+    limit?: number;
   };
 
   type listDocumentsParams = {
@@ -2274,8 +2575,8 @@ declare namespace API {
     verified?: boolean;
   };
 
-  type retryAnalysisParams = {
-    analysis_id: string;
+  type retryCreationTaskParams = {
+    task_id: string;
   };
 
   type retryDownloadParams = {
@@ -2287,6 +2588,14 @@ declare namespace API {
     | "owner_authorized_export"
     | "official_asset_grant"
     | "user_provided";
+
+  type saveCreationMaterialRevisionParams = {
+    material_id: string;
+  };
+
+  type saveCreationTaskRevisionParams = {
+    task_id: string;
+  };
 
   type ScreenplayAnalysisHistoryRecordResponse = {
     /** Updated At */

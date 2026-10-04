@@ -14,44 +14,36 @@ from app.core.security.url_cipher import URLCipher
 from app.integrations.object_storage import MinioObjectStorage
 from app.integrations.temporal_client import connect_temporal
 from app.repositories.ai_provider_repository import SqlAlchemyAiProviderRepository
-from app.repositories.analysis.execution import AnalysisExecutionPersistence
-from app.repositories.analysis.repository import SqlAlchemyAnalysisRepository
 from app.repositories.analysis.worker_registry import (
     ANALYSIS_MESSAGE_SCHEMA_VERSION,
     SqlAlchemyAnalysisWorkerRegistry,
 )
-from app.repositories.downloads.repository import SqlAlchemyDownloadRepository
-from app.services.analysis_execution.content_executor import ContentExecutor
-from app.services.analysis_execution.models import AnalysisExecutionSettings
-from app.services.analysis_execution.service import AnalysisExecution
-from app.workers.analysis.activities import SkillActivities
+from app.repositories.creation import CreationRepository
 from app.workers.analysis.agent_lock import (
     AnalysisAgentAlreadyRunning,
     analysis_agent_process_lock,
 )
 from app.workers.analysis.artifacts import LocalAnalysisArtifactLoader
+from app.workers.analysis.creation_activities import CreationActivities
+from app.workers.analysis.creation_workflow import CreationWorkflow
 from app.workers.analysis.heartbeat import AnalysisWorkerHeartbeat
 from app.workers.analysis.providers import ConfiguredAnalyzerResolver
-from app.workers.analysis.screenplay_runtime import (
-    ScreenplayWorkerComponents,
-    build_screenplay_components,
-)
 from app.workers.analysis.utilities import utc_now, worker_id
-from app.workers.analysis.workflows import SKILL_TASK_QUEUE, SkillWorkflow
 from app.workers.supervision import install_signal_handlers, run_resilient
 from sqlalchemy.ext.asyncio import AsyncEngine
 from temporalio.worker import Worker
 
+SKILL_TASK_QUEUE = "ff-skill"
+
 
 @dataclass(slots=True)
 class AnalysisWorkerRuntime:
-    activities: SkillActivities
+    creation: CreationActivities
     temporal_address: str
     temporal_namespace: str
     heartbeat: AnalysisWorkerHeartbeat
     storage: MinioObjectStorage
     loader: LocalAnalysisArtifactLoader
-    screenplay: ScreenplayWorkerComponents
     engine: AsyncEngine
     resolver: ConfiguredAnalyzerResolver
 
@@ -82,16 +74,12 @@ def build_runtime(settings: Settings) -> AnalysisWorkerRuntime:
             key_id=settings.url_encryption_key_id,
         ),
     )
-    analysis = SqlAlchemyAnalysisRepository(sessions)
     runtime_worker_id = worker_id()
     worker_registry = SqlAlchemyAnalysisWorkerRegistry(
         sessions,
         expected_app_version=settings.app_version,
         expected_message_schema_version=ANALYSIS_MESSAGE_SCHEMA_VERSION,
         stale_after=timedelta(seconds=settings.analysis_worker_stale_seconds),
-    )
-    persistence = AnalysisExecutionPersistence(
-        analysis, SqlAlchemyDownloadRepository(sessions)
     )
     storage = MinioObjectStorage(host_settings)
     loader = LocalAnalysisArtifactLoader(
@@ -100,33 +88,10 @@ def build_runtime(settings: Settings) -> AnalysisWorkerRuntime:
         bucket=settings.minio_bucket,
         max_source_bytes=settings.max_file_size_bytes,
     )
-    screenplay = build_screenplay_components(
-        settings,
-        storage=storage,
-        repository=persistence,
-        analyzer_resolver=resolver,
-        clock=utc_now,
-    )
-    execution = AnalysisExecution(
-        repository=persistence,
-        loader=loader,
-        resolver=resolver,
-        screenplay_executor=screenplay.executor,
-        content_executor=ContentExecutor(
-            resolver=resolver,
-            workspace_root=settings.analysis_workspace_root,
-            timeout_seconds=settings.analysis_timeout_seconds,
-        ),
-        clock=utc_now,
-        settings=AnalysisExecutionSettings(
-            bucket=settings.minio_bucket,
-            lease_for=timedelta(seconds=settings.job_lease_seconds),
-            heartbeat_interval=settings.heartbeat_interval_seconds,
-            max_source_bytes=settings.max_file_size_bytes,
-        ),
-    )
     return AnalysisWorkerRuntime(
-        activities=SkillActivities(execution, persistence, clock=utc_now),
+        creation=CreationActivities(
+            CreationRepository(sessions), resolver, loader, settings
+        ),
         temporal_address=settings.temporal_address,
         temporal_namespace=settings.temporal_namespace,
         heartbeat=AnalysisWorkerHeartbeat(
@@ -139,7 +104,6 @@ def build_runtime(settings: Settings) -> AnalysisWorkerRuntime:
         ),
         storage=storage,
         loader=loader,
-        screenplay=screenplay,
         engine=engine,
         resolver=resolver,
     )
@@ -151,8 +115,8 @@ async def run(settings: Settings | None = None) -> None:
     install_signal_handlers(stop)
     try:
         await runtime.loader.prepare_root()
-        await runtime.screenplay.prepare()
-        await runtime.resolver.resolve()
+        # Text formatting and card preparation remain usable without a model
+        # profile; each model task performs its own readiness check.
         await _serve(runtime, stop)
     finally:
         stop.set()
@@ -180,19 +144,19 @@ async def _serve(runtime: AnalysisWorkerRuntime, stop: asyncio.Event) -> None:
 async def _run_skill_worker(
     runtime: AnalysisWorkerRuntime, stop: asyncio.Event
 ) -> None:
-    """Serve ff-skill with one model slot; a lost Temporal link is reconnected."""
+    """Serve bounded activities; CreationActivities reserves one model slot."""
     client = await connect_temporal(
         runtime.temporal_address, runtime.temporal_namespace
     )
     worker = Worker(
         client,
         task_queue=SKILL_TASK_QUEUE,
-        workflows=[SkillWorkflow],
+        workflows=[CreationWorkflow],
         activities=[
-            runtime.activities.run_skill,
-            runtime.activities.finish_skill,
+            runtime.creation.run,
+            runtime.creation.reconcile,
         ],
-        max_concurrent_activities=1,
+        max_concurrent_activities=8,
         graceful_shutdown_timeout=timedelta(seconds=30),
         max_heartbeat_throttle_interval=timedelta(seconds=5),
     )

@@ -1,22 +1,3 @@
-export const screenplaySkills: API.AnalysisSkillResponse[] = [
-  {
-    id: 'screenplay-analysis',
-    display_name: '剧本综合分析',
-    description: '分析结构、人物、场景、对白与优先修改项。',
-    default_prompt: '重点分析故事结构、人物弧光、场景功能、节奏与对白。',
-    input_kinds: ['screenplay'],
-    result_contract: 'screenplay-analysis',
-  },
-  {
-    id: 'screenplay-rewrite',
-    display_name: '剧本改写',
-    description: '执行中文或英文改写、本地化与同语言润色。',
-    default_prompt: '保持故事意图与剧本格式，使用自然、可拍摄的表达。',
-    input_kinds: ['screenplay'],
-    result_contract: 'screenplay-rewrite',
-  },
-];
-
 const screenplayAnalysisResult: API.ScreenplayAnalysisResultResponse = {
   kind: 'screenplay_analysis',
   language: 'zh-CN',

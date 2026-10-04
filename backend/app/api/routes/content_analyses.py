@@ -3,13 +3,11 @@
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Response, status
+from fastapi import APIRouter, Depends, Response
 
-from app.api.admission import RateLimitAdmission
-from app.api.deps import IdempotencyKey, get_analysis_use_cases, get_current_user
+from app.api.deps import get_analysis_use_cases, get_current_user
 from app.api.responses import ApiResponseRoute
 from app.core.runtime import AnalysisUseCases
-from app.schemas.analyses import AnalysisResponse, ContentAnalysisRequest
 from app.services.analysis.content_versions import ContentVersion
 from app.services.analysis.errors import (
     AnalysisApplicationError,
@@ -21,35 +19,6 @@ from app.services.auth.models import CurrentUser
 router = APIRouter(route_class=ApiResponseRoute, tags=["analyses"])
 User = Annotated[CurrentUser, Depends(get_current_user)]
 UseCases = Annotated[AnalysisUseCases, Depends(get_analysis_use_cases)]
-
-
-@router.post(
-    "/content/analyses",
-    operation_id="createContentAnalysis",
-    response_model=AnalysisResponse,
-    status_code=status.HTTP_201_CREATED,
-    dependencies=[Depends(RateLimitAdmission("analysis"))],
-    summary="从文字材料创作文章、帖子或说明文档",
-)
-async def create_content_analysis(
-    body: ContentAnalysisRequest,
-    idempotency_key: IdempotencyKey,
-    response: Response,
-    user: User,
-    use_cases: UseCases,
-) -> AnalysisResponse:
-    if use_cases.create_content_analysis is None:
-        raise AnalysisApplicationError(AnalysisApplicationErrorCode.SERVICE_UNAVAILABLE)
-    view = await use_cases.create_content_analysis(
-        body.source,
-        body.output_language,
-        user.owner_hash,
-        idempotency_key,
-        quota=user.admission_quota,
-    )
-    response.headers["Cache-Control"] = "private, no-store"
-    response.headers["Location"] = f"/api/analyses/{view.id}"
-    return AnalysisResponse.from_view(view)
 
 
 @router.get(

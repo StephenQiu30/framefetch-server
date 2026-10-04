@@ -10,8 +10,10 @@ from app.models import (
     AnalysisArtifactLockRow,
     AnalysisDocumentLockRow,
     ArtifactRow,
+    CreationMaterialRow,
     DocumentArtifactRow,
     DocumentRow,
+    DownloadJobRow,
 )
 from app.services.storage_files.ports import DeleteStoredObject
 
@@ -36,6 +38,16 @@ async def cleanup_videos(
                 ArtifactRow.deleted_at.is_(None),
                 ArtifactRow.created_at < cutoff,
                 ~lock.exists(),
+                ~select(CreationMaterialRow.id)
+                .join(
+                    DownloadJobRow,
+                    DownloadJobRow.owner_hash == CreationMaterialRow.owner_hash,
+                )
+                .where(
+                    CreationMaterialRow.artifact_id == ArtifactRow.id,
+                    DownloadJobRow.id == ArtifactRow.job_id,
+                )
+                .exists(),
             )
             .order_by(ArtifactRow.created_at, ArtifactRow.id)
             .limit(1)
@@ -79,6 +91,12 @@ async def cleanup_documents(
                 DocumentRow.status == "ready",
                 DocumentRow.created_at < cutoff,
                 ~lock.exists(),
+                ~select(CreationMaterialRow.id)
+                .where(
+                    CreationMaterialRow.document_id == DocumentRow.id,
+                    CreationMaterialRow.owner_hash == DocumentRow.owner_hash,
+                )
+                .exists(),
             )
             .order_by(DocumentRow.created_at, DocumentRow.id)
             .limit(1)

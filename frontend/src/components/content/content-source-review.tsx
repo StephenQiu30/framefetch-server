@@ -65,11 +65,7 @@ export default function ContentSourceReview({
         </details>
       ))}
       <Button asChild variant="ghost" className="mt-4">
-        <Link
-          href={`/content?sourceAnalysisId=${encodeURIComponent(analysisId)}`}
-        >
-          调整材料与写作目的
-        </Link>
+        <Link href="/content">打开内容工作台</Link>
       </Button>
     </details>
   );

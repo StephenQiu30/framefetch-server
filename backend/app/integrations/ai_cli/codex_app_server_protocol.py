@@ -20,6 +20,7 @@ class CodexAppServerInvoker(Protocol):
         prompt: str,
         schema: object,
         duration_ms: int | None,
+        image_paths: tuple[Path, ...] = (),
     ) -> object: ...
 
 

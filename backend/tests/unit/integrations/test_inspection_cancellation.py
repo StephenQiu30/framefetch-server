@@ -39,7 +39,6 @@ def setup():
     publisher = CommandPublisher(
         AsyncMock(),
         repo,
-        AsyncMock(),
         address="localhost:7233",
         namespace="test",
         cancel_inspection=stopped,

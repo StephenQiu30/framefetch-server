@@ -7,7 +7,6 @@ from unittest.mock import AsyncMock
 import pytest
 from app.integrations.temporal_client import CommandPublisher
 from app.models import MediaInspectionRow, OutboxEventRow
-from app.repositories.analysis.repository import SqlAlchemyAnalysisRepository
 from app.repositories.outbox_repository import SqlAlchemyOutboxRepository
 from app.workers.download.workflows import InspectionCommand, InspectionWorkflow
 from app.workers.outbox.loop import OutboxPublisherLoop
@@ -40,7 +39,6 @@ def dispatch(repo, sessions, clock, client):
     publisher = CommandPublisher(
         AsyncMock(),
         repo,
-        SqlAlchemyAnalysisRepository(sessions),
         address=client.service_client.config.target_host,
         namespace="framefetch-test",
         cancel_inspection=AsyncMock(),

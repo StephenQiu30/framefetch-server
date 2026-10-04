@@ -11,10 +11,9 @@ from app.services.analysis.rules.content_document import (
     content_schema,
 )
 from app.services.analysis.rules.enums import AnalysisResultKind
-from app.services.analysis_execution.content_functions import ContentFunctions
 from docx import Document
 from pydantic import ValidationError
-from tests.unit.workers.analysis.test_content_execution import draft, review, source
+from tests.unit.workers.analysis.content_history_fixtures import draft, review, source
 
 
 def test_short_post_needs_no_title_or_headings():
@@ -109,31 +108,6 @@ def test_rendered_article_and_docx_exclude_review_and_evidence():
     assert "桌面上没有看到水滴" in visible
     assert all(not p.text for p in document.sections[0].header.paragraphs)
     assert all(not p.text for p in document.sections[0].footer.paragraphs)
-
-
-def test_source_functions_reject_injected_tools_and_other_tasks():
-    tools = ContentFunctions(source())
-    assert (
-        tools.dispatch(
-            {
-                "name": "read_material",
-                "arguments": {"material_id": "notes", "segment_id": "segment-000"},
-            }
-        )
-        == source().materials[0].text
-    )
-    for name, material in [
-        ("execute_script", "notes"),
-        ("read_material", "other-task"),
-        ("read_material", "../../secret"),
-    ]:
-        with pytest.raises(ValueError):
-            tools.dispatch(
-                {
-                    "name": name,
-                    "arguments": {"material_id": material, "segment_id": "segment-000"},
-                }
-            )
 
 
 def test_claimed_pass_requires_a_passing_independent_review():

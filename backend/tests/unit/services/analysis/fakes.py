@@ -18,73 +18,8 @@ from app.services.analysis.models import (
     AnalysisJobSnapshot,
     AnalysisPublish,
     AnalysisRetry,
-    AnalysisSkillResolution,
-    AnalysisSkillView,
 )
-from app.services.analysis.rules.enums import AnalysisInputKind, AnalysisResultContract
 from app.services.analysis.rules.result_types import AnalysisResult
-
-
-class FakeFingerprinter:
-    def fingerprint(self, namespace: str, *values: str) -> str:
-        return "|".join((namespace, *values))
-
-
-class FakeSkillCatalog:
-    def list(self, input_kind: AnalysisInputKind) -> tuple[AnalysisSkillView, ...]:
-        video = (
-            AnalysisSkillView(
-                id="director-breakdown",
-                display_name="导演拉片",
-                description="逐镜头分析",
-                default_prompt="逐镜头分析视频。",
-                input_kinds=(AnalysisInputKind.VIDEO,),
-                result_contract=AnalysisResultContract.VIDEO_VISUAL_ANALYSIS,
-            ),
-            AnalysisSkillView(
-                id="highlights",
-                display_name="高光提炼",
-                description="识别高光",
-                default_prompt="识别高光片段。",
-                input_kinds=(AnalysisInputKind.VIDEO,),
-                result_contract=AnalysisResultContract.VIDEO_VISUAL_ANALYSIS,
-            ),
-        )
-        screenplay = (
-            AnalysisSkillView(
-                id="screenplay-analysis",
-                display_name="剧本综合分析",
-                description="分析结构、人物、场景和对白",
-                default_prompt="分析完整剧本。",
-                input_kinds=(AnalysisInputKind.SCREENPLAY,),
-                result_contract=AnalysisResultContract.SCREENPLAY_ANALYSIS,
-            ),
-            AnalysisSkillView(
-                id="screenplay-rewrite",
-                display_name="剧本改写",
-                description="中英文改写和润色",
-                default_prompt="改写完整剧本。",
-                input_kinds=(AnalysisInputKind.SCREENPLAY,),
-                result_contract=AnalysisResultContract.SCREENPLAY_REWRITE,
-            ),
-        )
-        return video if input_kind is AnalysisInputKind.VIDEO else screenplay
-
-    def resolve(
-        self, skill_id: str, input_kind: AnalysisInputKind
-    ) -> AnalysisSkillResolution | None:
-        return next(
-            (
-                AnalysisSkillResolution(
-                    view=skill,
-                    instructions=f"{skill.display_name}完整指令",
-                    instructions_sha256="f" * 64,
-                )
-                for skill in self.list(input_kind)
-                if skill.id == skill_id
-            ),
-            None,
-        )
 
 
 class FakeRepository:

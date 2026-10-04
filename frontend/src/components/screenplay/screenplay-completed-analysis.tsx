@@ -1,4 +1,4 @@
-import { ArrowClockwise, DownloadSimple } from '@phosphor-icons/react';
+import { DownloadSimple } from '@phosphor-icons/react';
 
 import AnalysisDeleteDialog from '@/components/analysis/analysis-delete-dialog';
 import { AnalysisReportStatusCode } from '@/components/analysis/analysis-panel-model';
@@ -8,20 +8,15 @@ import { FeedbackNotice } from '@/components/layout/feedback-notice';
 import { ScreenplayResultView } from '@/components/screenplay/screenplay-result-view';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Spinner } from '@/components/ui/spinner';
 
 export function ScreenplayCompletedAnalysis({
   action,
   job,
   onDelete,
-  onRetry,
-  onNewAnalysis,
 }: {
   action: string | null;
   job: API.AnalysisResponse;
   onDelete: () => Promise<void>;
-  onRetry: () => Promise<void>;
-  onNewAnalysis: () => void;
 }) {
   if (
     !job.result ||
@@ -84,25 +79,6 @@ export function ScreenplayCompletedAnalysis({
               </Button>
             </>
           ) : null}
-          <Button
-            disabled={Boolean(action)}
-            onClick={() => void onRetry()}
-            variant="outline"
-          >
-            {action === 'retry' ? (
-              <Spinner aria-hidden data-icon="inline-start" />
-            ) : (
-              <ArrowClockwise aria-hidden data-icon="inline-start" />
-            )}
-            {action === 'retry' ? '正在重新执行' : '重新执行'}
-          </Button>
-          <Button
-            disabled={Boolean(action)}
-            onClick={onNewAnalysis}
-            variant="outline"
-          >
-            使用最新 Skill 新建任务
-          </Button>
           <AnalysisDeleteDialog
             disabled={Boolean(action)}
             busy={action === 'delete'}
@@ -113,7 +89,7 @@ export function ScreenplayCompletedAnalysis({
       {!reportAvailable ? (
         <FeedbackNotice
           className="mt-8"
-          description="结构化结果仍可查看；重新执行后会生成新的 Markdown 和 DOCX。"
+          description="结构化结果仍可查看；新任务请在内容工作台创建。"
           title="报告已清理或暂时不可用"
           tone="error"
         />

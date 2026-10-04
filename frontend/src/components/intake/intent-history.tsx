@@ -5,7 +5,6 @@ import { useQuery } from '@tanstack/react-query';
 import Link from 'next/link';
 import { useRef, useState } from 'react';
 import { listHistoryRecords } from '@/api/downloadIntents';
-import { useAnalysisSkills } from '@/components/analysis/use-analysis-skills';
 import {
   HistoryRecordFilters,
   useHistoryRecordFilters,
@@ -85,12 +84,17 @@ export function IntentHistory({
     JSON.stringify(filters.filters),
     eligible.map((item) => item.id),
   );
-  const analysisSkills = useAnalysisSkills();
-  const screenplaySkills = useAnalysisSkills('screenplay');
-  const skills = [...analysisSkills.skills, ...screenplaySkills.skills];
-  const skillNames = new Map(
-    skills.map((skill) => [skill.id, skill.display_name]),
-  );
+  const skills = [
+    ...new Set(
+      [
+        filters.search.get('skill'),
+        ...(history.data?.items ?? []).flatMap((item) =>
+          'skill_id' in item ? [item.skill_id] : [],
+        ),
+      ].filter((id): id is string => Boolean(id)),
+    ),
+  ];
+  const skillNames = new Map(skills.map((id) => [id, id]));
   return (
     <div className="inner-page">
       <PageNavigation fallbackHref="/" />
@@ -125,16 +129,7 @@ export function IntentHistory({
         description="查看链接解析、视频 AI 分析、剧本基础解析与 AI 分析的处理记录。"
         title="我的处理记录"
       />
-      <HistoryRecordFilters
-        state={filters}
-        skills={
-          filters.category === 'video'
-            ? analysisSkills.skills
-            : filters.category === 'screenplay'
-              ? screenplaySkills.skills
-              : skills
-        }
-      />
+      <HistoryRecordFilters state={filters} skills={skills} />
       <section aria-label="已提交的解析" className="mt-6">
         <div className="flex items-center justify-between gap-4">
           <h2 className="text-base font-medium">解析任务</h2>

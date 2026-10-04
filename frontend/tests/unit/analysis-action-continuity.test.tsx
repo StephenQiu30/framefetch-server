@@ -15,29 +15,25 @@ import { analysisJob } from '../fixtures/analysis-fixtures';
 
 const runtime = vi.hoisted(() => ({ create: vi.fn(), latest: vi.fn() }));
 vi.mock('@/api/analyses', () => ({
-  createAnalysis: runtime.create,
+  cancelAnalysis: runtime.create,
   getLatestDownloadAnalysis: runtime.latest,
+  getAnalysis: runtime.latest,
 }));
 vi.mock('@/lib/task-socket', async (importOriginal) => ({
   ...(await importOriginal()),
   taskSocket: { subscribe: () => () => undefined },
 }));
-const input: API.AnalysisRequest = {
-  skill_id: 'director-breakdown',
-  output_language: 'zh-CN',
-  custom_prompt: null,
-};
-
 function Detail({ id }: { id: string }) {
   const state = useAnalysisJob(id, 60_000);
   return (
     <>
       <output data-testid="action">{state.action ?? 'idle'}</output>
       <output data-testid="job">{state.job?.id ?? 'none'}</output>
+      <output data-testid="status">{state.job?.status ?? 'none'}</output>
       <output data-testid="loading">{String(state.loading)}</output>
       {state.error && <div role="alert">{state.error}</div>}
-      <button type="button" onClick={() => void state.start(input)}>
-        Start
+      <button type="button" onClick={() => void state.cancel()}>
+        Cancel
       </button>
     </>
   );
@@ -73,11 +69,11 @@ function deferred<T>() {
 describe('analysis operations across routes', () => {
   beforeEach(() => {
     runtime.create.mockReset();
-    runtime.latest.mockReset().mockResolvedValue(null);
+    runtime.latest.mockReset().mockResolvedValue(analysisJob('running'));
   });
   afterEach(() => onlineManager.setOnline(true));
 
-  it('keeps a pending creation visible and blocks duplicate writes after remount', async () => {
+  it('keeps a pending cancellation visible and blocks duplicate writes after remount', async () => {
     const pending = deferred<API.AnalysisResponse>();
     runtime.create.mockReturnValue(pending.promise);
     render(
@@ -88,14 +84,17 @@ describe('analysis operations across routes', () => {
     await waitFor(() =>
       expect(screen.getByTestId('loading')).toHaveTextContent('false'),
     );
-    fireEvent.click(screen.getByText('Start'));
+    await waitFor(() =>
+      expect(screen.getByTestId('loading')).toHaveTextContent('false'),
+    );
+    fireEvent.click(screen.getByText('Cancel'));
     await waitFor(() => expect(runtime.create).toHaveBeenCalledOnce());
     fireEvent.click(screen.getByText('Navigate'));
     fireEvent.click(screen.getByText('Navigate'));
-    expect(screen.getByTestId('action')).toHaveTextContent('start');
-    fireEvent.click(screen.getByText('Start'));
+    expect(screen.getByTestId('action')).toHaveTextContent('cancel');
+    fireEvent.click(screen.getByText('Cancel'));
     expect(runtime.create).toHaveBeenCalledOnce();
-    await act(async () => pending.resolve(analysisJob('running')));
+    await act(async () => pending.resolve(analysisJob('cancelled')));
     await waitFor(() =>
       expect(screen.getByTestId('job')).toHaveTextContent(analysisJob().id),
     );
@@ -104,27 +103,27 @@ describe('analysis operations across routes', () => {
     );
   });
 
-  it('retains an unmounted failure and its idempotency key for an explicit retry', async () => {
+  it('retains an unmounted cancellation failure for an explicit retry', async () => {
     const pending = deferred<API.AnalysisResponse>();
     runtime.create
       .mockReturnValueOnce(pending.promise)
-      .mockResolvedValueOnce(analysisJob('running'));
+      .mockResolvedValueOnce(analysisJob('cancelled'));
     render(
       <QueryProvider>
         <Routes />
       </QueryProvider>,
     );
-    fireEvent.click(screen.getByText('Start'));
+    await waitFor(() =>
+      expect(screen.getByTestId('loading')).toHaveTextContent('false'),
+    );
+    fireEvent.click(screen.getByText('Cancel'));
     await waitFor(() => expect(runtime.create).toHaveBeenCalledOnce());
     fireEvent.click(screen.getByText('Navigate'));
     await act(async () => pending.reject(new Error('response lost')));
     fireEvent.click(screen.getByText('Navigate'));
     await screen.findByRole('alert');
-    fireEvent.click(screen.getByText('Start'));
+    fireEvent.click(screen.getByText('Cancel'));
     await waitFor(() => expect(runtime.create).toHaveBeenCalledTimes(2));
-    expect(runtime.create.mock.calls[1][2]).toEqual(
-      runtime.create.mock.calls[0][2],
-    );
     await waitFor(() =>
       expect(screen.getByTestId('job')).toHaveTextContent(analysisJob().id),
     );
@@ -138,13 +137,20 @@ describe('analysis operations across routes', () => {
         <Routes />
       </QueryProvider>,
     );
-    fireEvent.click(screen.getByText('Start'));
+    await waitFor(() =>
+      expect(screen.getByTestId('loading')).toHaveTextContent('false'),
+    );
+    fireEvent.click(screen.getByText('Cancel'));
     await waitFor(() => expect(runtime.create).toHaveBeenCalledOnce());
     fireEvent.click(screen.getByText('Switch'));
-    await act(async () => pending.resolve(analysisJob('running')));
-    expect(screen.getByTestId('job')).toHaveTextContent('none');
+    await act(async () => pending.resolve(analysisJob('cancelled')));
+    await waitFor(() =>
+      expect(screen.getByTestId('status')).toHaveTextContent('running'),
+    );
     fireEvent.click(screen.getByText('Switch'));
-    expect(screen.getByTestId('job')).toHaveTextContent(analysisJob().id);
+    await waitFor(() =>
+      expect(screen.getByTestId('status')).toHaveTextContent('cancelled'),
+    );
   });
 
   it('does not publish a previous identity response into the new root', async () => {
@@ -155,11 +161,16 @@ describe('analysis operations across routes', () => {
         <Routes />
       </QueryProvider>,
     );
-    fireEvent.click(screen.getByText('Start'));
+    await waitFor(() =>
+      expect(screen.getByTestId('loading')).toHaveTextContent('false'),
+    );
+    fireEvent.click(screen.getByText('Cancel'));
     await waitFor(() => expect(runtime.create).toHaveBeenCalledOnce());
     act(() => advanceSessionGeneration());
-    await act(async () => pending.resolve(analysisJob('running')));
-    expect(screen.getByTestId('job')).toHaveTextContent('none');
+    await act(async () => pending.resolve(analysisJob('cancelled')));
+    await waitFor(() =>
+      expect(screen.getByTestId('status')).toHaveTextContent('running'),
+    );
     expect(screen.getByTestId('action')).toHaveTextContent('idle');
     expect(screen.queryByRole('alert')).not.toBeInTheDocument();
   });
@@ -175,7 +186,7 @@ describe('analysis operations across routes', () => {
       expect(screen.getByTestId('loading')).toHaveTextContent('false'),
     );
     onlineManager.setOnline(false);
-    fireEvent.click(screen.getByText('Start'));
+    fireEvent.click(screen.getByText('Cancel'));
     await screen.findByRole('alert');
     expect(runtime.create).toHaveBeenCalledOnce();
     await act(async () => onlineManager.setOnline(true));

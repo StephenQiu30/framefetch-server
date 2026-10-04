@@ -10,52 +10,28 @@ def test_analysis_openapi_is_current_and_excludes_internal_fields(
 ) -> None:
     schema = create_app(Settings(app_env="test")).openapi()
     paths = schema["paths"]
-    create_path = "/api/downloads/{download_id}/analyses"
-    create_document_path = "/api/documents/{document_id}/analyses"
-
     assert {
-        create_path,
-        create_document_path,
         "/api/documents/{document_id}/analysis",
         "/api/analyses/{analysis_id}",
         "/api/analyses/{analysis_id}/cancel",
-        "/api/analyses/{analysis_id}/retry",
         "/api/analyses/{analysis_id}/report.docx",
     } <= paths.keys()
-    assert paths[create_path]["post"]["operationId"] == "createAnalysis"
-    assert (
-        paths[create_document_path]["post"]["operationId"] == "createDocumentAnalysis"
-    )
+    for retired in (
+        "/api/analysis-skills",
+        "/api/downloads/{download_id}/analyses",
+        "/api/documents/{document_id}/analyses",
+        "/api/content/analyses",
+        "/api/analyses/{analysis_id}/retry",
+    ):
+        assert retired not in paths
     assert (
         paths["/api/documents/{document_id}/analysis"]["get"]["operationId"]
         == "getLatestDocumentAnalysis"
     )
-    create_response = paths[create_path]["post"]["responses"]["201"]
-    assert create_response["content"]["application/json"]["schema"] == {
-        "$ref": "#/components/schemas/ApiResponse_AnalysisResponse_"
-    }
-    header = next(
-        item
-        for item in paths[create_path]["post"]["parameters"]
-        if item["name"] == "Idempotency-Key"
-    )
-    assert header["required"] is True
-    retry = paths["/api/analyses/{analysis_id}/retry"]["post"]
-    assert retry["operationId"] == "retryAnalysis"
-
     delete = paths["/api/analyses/{analysis_id}"]["delete"]
     assert delete["operationId"] == "deleteAnalysis"
     assert "204" in delete["responses"]
-    assert retry["responses"]["201"]["content"]["application/json"]["schema"] == {
-        "$ref": "#/components/schemas/ApiResponse_AnalysisResponse_"
-    }
-    retry_header = next(
-        item for item in retry["parameters"] if item["name"] == "Idempotency-Key"
-    )
-    assert retry_header["required"] is True
-    assert "requestBody" not in retry
     components = schema["components"]["schemas"]
-    assert components["AnalysisRequest"]["additionalProperties"] is False
     fields = components["AnalysisResponse"]["properties"]
     report_fields = components["AnalysisReportResponse"]["properties"]
     assert report_fields["status"]["$ref"] == (
@@ -149,7 +125,6 @@ def test_analysis_openapi_is_current_and_excludes_internal_fields(
     )
     assert components["ContentSourceSet"]["additionalProperties"] is False
     for path, verb, operation in [
-        ("/api/content/analyses", "post", "createContentAnalysis"),
         ("/api/content/analyses/{analysis_id}/source", "get", "getContentSource"),
         ("/api/content/analyses/{analysis_id}/versions", "get", "listContentVersions"),
     ]:

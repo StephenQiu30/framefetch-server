@@ -10,8 +10,8 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from app.core.db import as_utc
 from app.models import AnalysisWorkerHeartbeatRow
 
-# 2: runs are SkillWorkflow commands on Temporal, not RabbitMQ deliveries.
-ANALYSIS_MESSAGE_SCHEMA_VERSION = 2
+# 3: CreationWorkflow replaces retired SkillWorkflow commands on Temporal.
+ANALYSIS_MESSAGE_SCHEMA_VERSION = 3
 
 
 class SqlAlchemyAnalysisWorkerRegistry:

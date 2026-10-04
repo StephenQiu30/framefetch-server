@@ -1,10 +1,12 @@
 from __future__ import annotations
 
 import json
+from pathlib import Path
 
 from app.integrations.ai_cli.codex_app_server_client import CodexAppServerClient
 from app.integrations.ai_cli.codex_app_server_protocol import CodexAppServerInvoker
 from app.integrations.ai_cli.config import CliAdapterConfig
+from app.integrations.ai_cli.errors import AnalysisCliError
 from app.integrations.ai_cli.screenplay_prompt import (
     screenplay_analysis_prompt,
     screenplay_analysis_synthesis_prompt,
@@ -62,7 +64,7 @@ class CodexAppServerScreenplayAnalyzer:
             prompt=request.prompt,
             manifest={"call": "content", "stage": request.stage},
         )
-        return await self._invoke(files, request.prompt)
+        return await self._invoke(files, request.prompt, request.image_paths)
 
     async def analyze(self, request: ScreenplayAnalysisRequest) -> object:
         schema = screenplay_analysis_output_schema(
@@ -129,8 +131,27 @@ class CodexAppServerScreenplayAnalyzer:
         )
         return await self._invoke(files, prompt)
 
-    async def _invoke(self, files: JobFiles, prompt: str) -> object:
+    async def _invoke(
+        self, files: JobFiles, prompt: str, image_paths: tuple[Path, ...] = ()
+    ) -> object:
         schema = json.loads(files.schema.read_text(encoding="utf-8"))
+        if image_paths:
+            for path in image_paths:
+                if path.is_symlink() or not path.resolve().is_relative_to(files.root):
+                    raise AnalysisCliError(
+                        "artifact_integrity_failed", no_model_execution=True
+                    )
+            return await run_with_workspace_policy(
+                self._client.invoke(
+                    root=files.root,
+                    prompt=prompt,
+                    schema=schema,
+                    duration_ms=None,
+                    image_paths=image_paths,
+                ),
+                root=files.root,
+                config=self._config,
+            )
         return await run_with_workspace_policy(
             self._client.invoke(
                 root=files.root,

@@ -15,7 +15,6 @@ import AnalysisVideoResult, {
   isVideoAnalysisResult,
 } from '@/components/analysis/analysis-video-result';
 import { useAnalysisJob } from '@/components/analysis/use-analysis-job';
-import { useAnalysisSkills } from '@/components/analysis/use-analysis-skills';
 import ContentResultView from '@/components/content/content-result-view';
 import { historyRecordLabel } from '@/components/intake/history-record-presentation';
 import { FeedbackNotice } from '@/components/layout/feedback-notice';
@@ -90,11 +89,7 @@ function AnalysisDetailContent({
         ? 'screenplay'
         : 'video';
   const state = useAnalysisJob('', 3000, kind, record.id);
-  const skills = useAnalysisSkills(kind);
-  const skillName =
-    skills.skills.find((skill) => skill.id === record.skill_id)?.display_name ??
-    record.skill_id;
-  const [confirmRetry, setConfirmRetry] = useState(false);
+  const skillName = record.skill_id;
   const job = state.job;
   const active =
     job && ['queued', 'running', 'retry_wait'].includes(job.status);
@@ -115,23 +110,23 @@ function AnalysisDetailContent({
         description={`${historyRecordLabel(record)} · ${skillName} · ${record.output_language}`}
       />
       <div className="mt-6 flex flex-wrap gap-3">
-        {kind === 'content' ? (
+        {
           <Button asChild variant="outline">
             <Link href="/content">新建创作</Link>
           </Button>
-        ) : null}
+        }
         <Button asChild variant="outline">
           <Link href={allHref}>查看本素材全部记录</Link>
         </Button>
         {sourceHref && record.source_availability === 'available' ? (
           <Button asChild variant="outline">
-            <Link href={sourceHref}>查看源文件 / 新建分析</Link>
+            <Link href={sourceHref}>查看源文件</Link>
           </Button>
         ) : null}
       </div>
       {record.source_availability === 'unavailable' ? (
         <p className="mt-4 text-sm text-muted-foreground">
-          源文件不可用，无法重新执行；已有分析结果仍可查看。
+          源文件不可用；已有分析结果仍可查看。
         </p>
       ) : null}
       {state.loading ? (
@@ -188,18 +183,7 @@ function AnalysisDetailContent({
               >
                 取消分析
               </Button>
-            ) : (
-              <Button
-                disabled={
-                  Boolean(state.action) ||
-                  record.source_availability !== 'available'
-                }
-                variant="outline"
-                onClick={() => setConfirmRetry(true)}
-              >
-                {job.status === 'succeeded' ? '重新运行' : '重试'}
-              </Button>
-            )}
+            ) : null}
             <AnalysisDeleteDialog
               busy={state.action === 'delete'}
               disabled={Boolean(state.action)}
@@ -219,32 +203,6 @@ function AnalysisDetailContent({
                 ))
               : null}
           </div>
-          {confirmRetry ? (
-            <FeedbackNotice
-              className="mt-5"
-              title="按原配置重新运行"
-              description="将保留任务编号并增加执行次数，可能消耗模型额度。调整材料或目的请新建任务。"
-              action={
-                <div className="flex gap-2">
-                  <Button
-                    disabled={Boolean(state.action)}
-                    onClick={() => {
-                      setConfirmRetry(false);
-                      void state.retry();
-                    }}
-                  >
-                    确认执行
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    onClick={() => setConfirmRetry(false)}
-                  >
-                    取消
-                  </Button>
-                </div>
-              }
-            />
-          ) : null}
           {job.error_code ? (
             <FeedbackNotice
               className="mt-4"

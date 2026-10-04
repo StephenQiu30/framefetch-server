@@ -92,25 +92,6 @@ export async function exportAnalysisMarkdown(
   });
 }
 
-/** 重试原视频分析任务 为同一分析任务创建下一执行代次，不改变任务资源 ID。
-
-Retry 是上一运行的无参数重放；带请求体的请求按校验错误拒绝。 POST /api/analyses/${param0}/retry */
-export async function retryAnalysis(
-  // 叠加生成的Param类型 (非body参数swagger默认没有生成对象)
-  params: API.retryAnalysisParams,
-  options?: RequestOptions
-) {
-  const { analysis_id: param0, ...queryParams } = params;
-  return request<API.ApiResponseAnalysisResponse_>(
-    `/api/analyses/${param0}/retry`,
-    {
-      method: "POST",
-      params: { ...queryParams },
-      ...(options || {}),
-    }
-  );
-}
-
 /** 分页读取分析运行记录 GET /api/analyses/${param0}/runs */
 export async function listAnalysisRuns(
   // 叠加生成的Param类型 (非body参数swagger默认没有生成对象)
@@ -130,39 +111,6 @@ export async function listAnalysisRuns(
       ...(options || {}),
     }
   );
-}
-
-/** 列出输入兼容的分析 Skill 按输入类型返回可选 Skill 及用户可编辑的默认提示词。 GET /api/analysis-skills */
-export async function listAnalysisSkills(
-  // 叠加生成的Param类型 (非body参数swagger默认没有生成对象)
-  params: API.listAnalysisSkillsParams,
-  options?: RequestOptions
-) {
-  return request<API.ApiResponseTupleAnalysisSkillResponse_____>(
-    "/api/analysis-skills",
-    {
-      method: "GET",
-      params: {
-        ...params,
-      },
-      ...(options || {}),
-    }
-  );
-}
-
-/** 从文字材料创作文章、帖子或说明文档 POST /api/content/analyses */
-export async function createContentAnalysis(
-  body: API.ContentAnalysisRequest,
-  options?: RequestOptions
-) {
-  return request<API.ApiResponseAnalysisResponse_>("/api/content/analyses", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    data: body,
-    ...(options || {}),
-  });
 }
 
 /** 回看本次创作的原始材料 GET /api/content/analyses/${param0}/source */
@@ -199,28 +147,6 @@ export async function listContentVersions(
   );
 }
 
-/** 创建剧本分析或改写任务 基于已规范化的剧本文档创建异步分析或改写任务。 POST /api/documents/${param0}/analyses */
-export async function createDocumentAnalysis(
-  // 叠加生成的Param类型 (非body参数swagger默认没有生成对象)
-  params: API.createDocumentAnalysisParams,
-  body: API.AnalysisRequest,
-  options?: RequestOptions
-) {
-  const { document_id: param0, ...queryParams } = params;
-  return request<API.ApiResponseAnalysisResponse_>(
-    `/api/documents/${param0}/analyses`,
-    {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      params: { ...queryParams },
-      data: body,
-      ...(options || {}),
-    }
-  );
-}
-
 /** 读取文档最近的剧本分析 恢复当前用户在该剧本文档上最近创建的分析与报告。 GET /api/documents/${param0}/analysis */
 export async function getLatestDocumentAnalysis(
   // 叠加生成的Param类型 (非body参数swagger默认没有生成对象)
@@ -233,28 +159,6 @@ export async function getLatestDocumentAnalysis(
     {
       method: "GET",
       params: { ...queryParams },
-      ...(options || {}),
-    }
-  );
-}
-
-/** 创建视频分析任务 基于已完成的下载制品创建异步 AI 分析任务。 POST /api/downloads/${param0}/analyses */
-export async function createAnalysis(
-  // 叠加生成的Param类型 (非body参数swagger默认没有生成对象)
-  params: API.createAnalysisParams,
-  body: API.AnalysisRequest,
-  options?: RequestOptions
-) {
-  const { download_id: param0, ...queryParams } = params;
-  return request<API.ApiResponseAnalysisResponse_>(
-    `/api/downloads/${param0}/analyses`,
-    {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      params: { ...queryParams },
-      data: body,
       ...(options || {}),
     }
   );

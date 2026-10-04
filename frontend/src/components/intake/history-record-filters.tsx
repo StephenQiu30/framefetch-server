@@ -128,7 +128,7 @@ export function HistoryRecordFilters({
   skills,
 }: {
   state: ReturnType<typeof useHistoryRecordFilters>;
-  skills: API.AnalysisSkillResponse[];
+  skills: string[];
 }) {
   const { search, update, category } = state;
   const categories = [
@@ -209,7 +209,7 @@ export function HistoryRecordFilters({
             onChange={(value) => update({ skill: value })}
             options={[
               ['all', '全部 Skill'],
-              ...skills.map((skill) => [skill.id, skill.display_name]),
+              ...skills.map((skill) => [skill, skill]),
             ]}
           />
         ) : null}

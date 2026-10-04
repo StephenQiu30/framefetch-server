@@ -11,6 +11,7 @@ from app.core.db import utc_now
 from app.models import (
     AnalysisArtifactLockRow,
     ArtifactRow,
+    CreationMaterialRow,
     DownloadJobRow,
     DownloadThumbnailRow,
     MediaImportAttemptRow,
@@ -57,6 +58,20 @@ class DownloadDeleteRepository(RepositoryBase):
                 )
                 if lock is not None:
                     raise RepositoryConflict("download is locked by analysis")
+                if (
+                    await session.scalar(
+                        select(CreationMaterialRow.id)
+                        .where(
+                            CreationMaterialRow.artifact_id == artifact.id,
+                            CreationMaterialRow.owner_hash == owner_hash,
+                        )
+                        .limit(1)
+                    )
+                    is not None
+                ):
+                    raise RepositoryConflict(
+                        "download is retained as a creation source"
+                    )
                 artifact.deleted_at = artifact.deleted_at or now
             thumbnail = await session.scalar(
                 select(DownloadThumbnailRow)

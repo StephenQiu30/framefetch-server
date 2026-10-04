@@ -3,8 +3,6 @@
 import asyncio
 from collections.abc import Awaitable, Callable
 from datetime import UTC, datetime, timedelta
-from typing import Protocol
-from uuid import UUID
 
 from temporalio.api.workflowservice.v1 import (
     DescribeNamespaceRequest,
@@ -16,10 +14,10 @@ from temporalio.exceptions import WorkflowAlreadyStartedError
 from temporalio.service import RPCError, RPCStatusCode
 
 from app.integrations.messaging.envelope import EventEnvelope, EventEnvelopeError
+from app.repositories.creation import CreationRepository
 from app.repositories.downloads.intent_repository import IntentRepository
-from app.services.analysis.models import AnalysisJobSnapshot
 from app.services.downloads.intent_models import IntentStatus
-from app.workers.analysis.workflows import SKILL_TASK_QUEUE, SkillCommand, SkillWorkflow
+from app.workers.analysis.creation_workflow import CreationCommand, CreationWorkflow
 from app.workers.download.workflows import InspectionCommand, InspectionWorkflow
 from app.workers.outbox.loop import EventPublisher
 
@@ -27,12 +25,7 @@ _INSPECTION_EVENTS = {
     "download.intent.requested",
     "download.intent.cancelled",
 }
-_ACTIVE_ANALYSIS_STATUSES = {"queued", "running", "retry_wait"}
 _RPC_TIMEOUT = timedelta(seconds=5)
-
-
-class AnalysisJobReader(Protocol):
-    async def get_job(self, job_id: UUID) -> AnalysisJobSnapshot | None: ...
 
 
 class CommandPublisher:
@@ -40,19 +33,19 @@ class CommandPublisher:
         self,
         fallback: EventPublisher,
         intents: IntentRepository,
-        analyses: AnalysisJobReader,
         *,
         address: str,
         namespace: str,
         cancel_inspection: Callable[[str], Awaitable[None]],
+        creation: CreationRepository | None = None,
         clock: Callable[[], datetime] = lambda: datetime.now(UTC),
     ) -> None:
         self._fallback = fallback
         self._intents = intents
-        self._analyses = analyses
         self._address = address
         self._namespace = namespace
         self._cancel_inspection = cancel_inspection
+        self._creation = creation
         self._clock = clock
         self._client: Client | None = None
 
@@ -60,7 +53,9 @@ class CommandPublisher:
         if envelope.event_type in _INSPECTION_EVENTS:
             await self._inspection(envelope)
         elif envelope.event_type == "analysis.requested":
-            await self._skill(envelope)
+            raise EventEnvelopeError("legacy analysis execution has been retired")
+        elif envelope.event_type == "creation.requested":
+            await self._creation_skill(envelope)
         else:
             await self._fallback.publish(envelope)
 
@@ -125,54 +120,45 @@ class CommandPublisher:
         except WorkflowAlreadyStartedError:
             await _require_binding(handle, binding, "inspection")
 
-    async def _skill(self, envelope: EventEnvelope) -> None:
+    async def _connect(self) -> Client:
+        if self._client is None:
+            self._client = await connect_temporal(self._address, self._namespace)
+        return self._client
+
+    async def _creation_skill(self, envelope: EventEnvelope) -> None:
         payload = envelope.payload
-        run_no = payload.get("run_no")
+        attempt = payload.get("attempt")
         if (
-            set(payload) != {"job_id", "run_id", "run_no", "version"}
-            or payload["job_id"] != str(envelope.aggregate_id)
-            or not isinstance(payload["run_id"], str)
-            or type(run_no) is not int
-            or run_no < 1
+            set(payload) != {"task_id", "attempt", "request_id"}
+            or payload["task_id"] != str(envelope.aggregate_id)
+            or type(attempt) is not int
+            or attempt < 1
+            or not isinstance(payload["request_id"], str)
         ):
-            raise EventEnvelopeError("invalid analysis command")
-        try:
-            run_id = UUID(payload["run_id"])
-        except ValueError:
-            raise EventEnvelopeError("invalid analysis command") from None
-        command = SkillCommand(str(envelope.aggregate_id), str(run_id), run_no)
-        job = await self._analyses.get_job(envelope.aggregate_id)
-        if (
-            job is None
-            or job.run_id != run_id
-            or job.status not in _ACTIVE_ANALYSIS_STATUSES
-        ):
-            return  # Superseded, cancelled or finished; also after history retention.
+            raise EventEnvelopeError("invalid creation command")
+        if self._creation is None:
+            raise EventEnvelopeError("creation execution is unavailable")
+        task = await self._creation.get_task(envelope.aggregate_id)
+        if task.status.value != "queued" or task.attempt != attempt:
+            return
+        command = CreationCommand(str(task.id), attempt)
         client = await self._connect()
-        binding: dict[str, object] = {
-            "job_id": command.job_id,
-            "run_id": command.run_id,
-            "run_no": command.run_no,
-        }
+        binding: dict[str, object] = {"task_id": command.task_id, "attempt": attempt}
         try:
             await client.start_workflow(
-                SkillWorkflow.run,
+                CreationWorkflow.run,
                 command,
                 id=command.workflow_id,
-                task_queue=SKILL_TASK_QUEUE,
+                task_queue="ff-skill",
                 memo=binding,
                 id_reuse_policy=WorkflowIDReusePolicy.REJECT_DUPLICATE,
                 id_conflict_policy=WorkflowIDConflictPolicy.FAIL,
                 rpc_timeout=_RPC_TIMEOUT,
             )
         except WorkflowAlreadyStartedError:
-            handle = client.get_workflow_handle(command.workflow_id)
-            await _require_binding(handle, binding, "skill")
-
-    async def _connect(self) -> Client:
-        if self._client is None:
-            self._client = await connect_temporal(self._address, self._namespace)
-        return self._client
+            await _require_binding(
+                client.get_workflow_handle(command.workflow_id), binding, "creation"
+            )
 
 
 async def _require_binding(

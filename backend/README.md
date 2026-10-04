@@ -42,7 +42,7 @@ Media Runner 从 `app/workers/runner/plugins/yt_dlp_plugins/` 加载可信站点
 
 管理员只读接口 `GET /api/admin/provider-runtime/engine-catalog` 查询 Runner 实际安装的提取器、插件与版本快照；不会访问平台或读取账号材料，提取器数量不代表可下载的平台数。
 
-视觉分析默认通过宿主机 Codex App Server stdio 协议运行，也支持 `claude -p` adapter 和 Web 管理的 DeepSeek/LangChain 视觉 API，以及 OpenRouter / OpenAI 兼容 Chat Completions API；各适配器统一实现 `VideoAnalyzer` 端口并返回唯一当前态结果契约。每个 Codex 调用创建独立 ephemeral thread，完成后关闭进程，不依赖长期连接。DeepSeek 由 Worker 使用 FFmpeg 均匀生成最多 64 张、总原始证据不超过 24 MiB 的顺序 JPEG，以 base64 内联图片调用视觉模型，不暴露对象地址或客户端文件路径。分析能力由 `app/services/analysis/skills/*/SKILL.md` 注册；不运行 ASR。第三方 Endpoint、模型与 Key 只通过管理员 Web Profile 配置，Key 使用 Fernet 加密后存入 PostgreSQL 并仅在 Worker 内存中解密，不使用第三方 AI `.env`。报告以 Markdown 为唯一内容源，可安全预览和导出 Markdown/DOCX。Worker 必须在可访问 FFmpeg、队列和对象存储的宿主机运行；默认 Codex 路径还要求同一系统用户已完成官方登录。
+内容能力通过 `/api/creation` 统一管理，当前范围是 6 项影视分析与 6 项文章整理。方法规范保存在 `app/services/creation/catalog.py 与 drama.py`，任务固定方法 SHA、用户确认的材料版本与预算。API 只在 PostgreSQL 事务内创建任务和 outbox；宿主 AI Worker 在 Temporal `ff-skill` 队列执行。可用性只接受新 Worker 协议版本 3 的新鲜心跳，旧版本 2 不进入新任务准入。文本格式整理、公众号导出和小红书图卡使用确定性工具；生成与改写沿用管理员配置的模型线路和宿主官方登录。活跃 Worker、实际模型与材料要求决定可用状态，模型结果仍需人工确认。未知调用保留预算占用并阻止重试。文字、DOCX/PDF 原文件与图片保存在所属用户的材料记录，人工改稿新增版本；以已确认结果作为母稿时固定引用指定版本，上游更新会标记下游过期。确认后的 Markdown、HTML、DOCX、字幕及图卡文件按版本持久保存，重复导出不调用模型。旧 Skill 树、导入器、创建和重试入口已经清退，历史任务、来源、报告及版本继续按原归属只读访问。
 
 内置 `local-codex` 不可删除或改造为第三方结构；模型和线路仅由数据库 Web Profile 决定，`.env` 只保留宿主机 CLI 二进制路径。
 
@@ -84,7 +84,7 @@ uv run python -m app.workers.analysis.agent_cli doctor --env-file ../.env.prod
 uv run python -m app.workers.analysis.agent_cli install --env-file ../.env.prod
 ```
 
-API 固定监听 `8111`，前端固定监听 `8101`。API `/health/live` 只证明进程存活；`/health/ready` 还会在有界超时内检查数据库结构、MinIO、RabbitMQ 与 Redis。宿主机 AI Worker 在 `ff-skill` 队列执行 SkillWorkflow，与 Temporal 断连时自动重连，并由系统服务监督进程；Worker 离线期间任务保持排队，恢复后继续执行，已完成的模型步骤不会重跑。没有 AI Worker 的部署必须显式设置 `ANALYSIS_ENABLED=false` 并重建 API。
+API 固定监听 `8111`，前端固定监听 `8101`。API `/health/live` 只证明进程存活；`/health/ready` 还会在有界超时内检查数据库结构、MinIO、RabbitMQ 与 Redis。宿主机 AI Worker 在 `ff-skill` 队列执行 CreationWorkflow，与 Temporal 断连时自动重连，并由系统服务监督进程；Worker 离线期间任务保持排队，恢复后继续观察，未知模型调用不会自动重发。没有 AI Worker 的部署必须显式设置 `ANALYSIS_ENABLED=false` 并重建 API。
 
 ## 测试目录
 

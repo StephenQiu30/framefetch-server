@@ -18,7 +18,6 @@ from app.services.analysis.models import (
     AnalysisJobView,
     AnalysisReportFile,
     AnalysisReportSnapshot,
-    AnalysisSkillView,
 )
 from app.services.analysis.report import render_analysis_report_markdown
 from app.services.analysis.rules.enums import (
@@ -186,28 +185,11 @@ def client(tmp_path: Path) -> tuple[TestClient, dict[str, StubUseCase]]:
     }
     application.state.services.analysis_use_cases = AnalysisUseCases(
         get_analysis_analytics=StubUseCase(None),
-        list_analysis_skills=lambda input_kind: (
-            (
-                AnalysisSkillView(
-                    id="director-breakdown",
-                    display_name="导演拉片",
-                    description="逐镜头分析",
-                    default_prompt="逐镜头分析视频。",
-                    input_kinds=(AnalysisInputKind.VIDEO,),
-                    result_contract=AnalysisResultContract.VIDEO_VISUAL_ANALYSIS,
-                ),
-            )
-            if input_kind is AnalysisInputKind.VIDEO
-            else ()
-        ),
-        create_analysis=stubs["create"],
-        create_document_analysis=stubs["create_document"],
         delete_analysis=stubs["delete"],
         get_analysis=stubs["get"],
         get_latest_download_analysis=stubs["get"],
         get_latest_document_analysis=stubs["latest_document"],
         cancel_analysis=stubs["cancel"],
-        retry_analysis=stubs["retry"],
         export_analysis_report=StubUseCase(
             AnalysisReportFile(
                 content=b"docx fixture",
@@ -234,121 +216,6 @@ def test_analysis_service_must_be_wired(tmp_path: Path) -> None:
 
     assert response.status_code == 503
     assert response.json()["code"] == "service_unavailable"
-
-
-def test_analysis_skills_are_listed_without_versioned_ids(tmp_path: Path) -> None:
-    test_client, _ = client(tmp_path)
-    with test_client:
-        response = test_client.get("/api/analysis-skills?input_kind=video")
-
-    assert response.status_code == 200
-    assert response.json()["data"] == [
-        {
-            "id": "director-breakdown",
-            "display_name": "导演拉片",
-            "description": "逐镜头分析",
-            "default_prompt": "逐镜头分析视频。",
-            "input_kinds": ["video"],
-            "result_contract": "video-visual-analysis",
-        }
-    ]
-
-    with test_client:
-        screenplay = test_client.get("/api/analysis-skills?input_kind=screenplay")
-        missing = test_client.get("/api/analysis-skills")
-
-    assert screenplay.json()["data"] == []
-    assert missing.status_code == 422
-
-
-def test_analysis_routes_share_owner_and_never_expose_internal_ids(
-    tmp_path: Path,
-) -> None:
-    test_client, stubs = client(tmp_path)
-    with test_client:
-        created = test_client.post(
-            f"/api/downloads/{DOWNLOAD_ID}/analyses",
-            headers={"Idempotency-Key": "analysis-1"},
-            json={
-                "skill_id": "director-breakdown",
-                "output_language": "zh-CN",
-                "custom_prompt": "重点识别产品演示。",
-            },
-        )
-        fetched = test_client.get(f"/api/analyses/{ANALYSIS_ID}")
-        restored = test_client.get(f"/api/downloads/{DOWNLOAD_ID}/analysis")
-        cancelled = test_client.post(f"/api/analyses/{ANALYSIS_ID}/cancel")
-        retried = test_client.post(
-            f"/api/analyses/{ANALYSIS_ID}/retry",
-            headers={"Idempotency-Key": "retry-1"},
-        )
-        mutable_retry = test_client.post(
-            f"/api/analyses/{ANALYSIS_ID}/retry",
-            headers={"Idempotency-Key": "retry-2"},
-            json={"skill_id": "highlights"},
-        )
-        deleted = test_client.delete(f"/api/analyses/{ANALYSIS_ID}")
-
-    assert created.status_code == 201
-    assert created.headers["location"] == f"/api/analyses/{ANALYSIS_ID}"
-    assert fetched.status_code == restored.status_code == cancelled.status_code == 200
-    assert retried.status_code == 201
-    assert mutable_retry.status_code == 422
-    assert deleted.status_code == 204
-    assert retried.headers["location"] == f"/api/analyses/{ANALYSIS_ID}"
-    assert retried.json()["data"]["run_no"] == 2
-    assert created.json()["data"]["result"] is None
-    assert cancelled.json()["data"]["status"] == "cancelled"
-    assert "artifact_id" not in created.text
-    assert "custom_prompt" not in created.text
-    assert stubs["create"].calls[0][3:] == (
-        "director-breakdown",
-        "zh-CN",
-        "重点识别产品演示。",
-    )
-    owners = (
-        stubs["create"].calls[0][1],
-        stubs["get"].calls[0][1],
-        stubs["cancel"].calls[0][1],
-        stubs["retry"].calls[0][1],
-        stubs["delete"].calls[0][1],
-    )
-    assert len(set(owners)) == 1
-
-
-def test_document_analysis_create_and_latest_reuse_analysis_resource(
-    tmp_path: Path,
-) -> None:
-    test_client, stubs = client(tmp_path)
-    with test_client:
-        created = test_client.post(
-            f"/api/documents/{DOCUMENT_ID}/analyses",
-            headers={"Idempotency-Key": "screenplay-1"},
-            json={
-                "skill_id": "screenplay-analysis",
-                "output_language": "en-US",
-                "custom_prompt": "Focus on dialogue.",
-            },
-        )
-        latest = test_client.get(f"/api/documents/{DOCUMENT_ID}/analysis")
-
-    assert created.status_code == 201
-    assert created.headers["location"] == f"/api/analyses/{ANALYSIS_ID}"
-    assert created.json()["data"]["input_kind"] == "screenplay"
-    assert created.json()["data"]["result_contract"] == "screenplay-analysis"
-    assert latest.status_code == 200
-    assert latest.json()["data"] is None
-    assert stubs["create_document"].calls == [
-        (
-            DOCUMENT_ID,
-            TEST_USER.owner_hash,
-            "screenplay-1",
-            "screenplay-analysis",
-            "en-US",
-            "Focus on dialogue.",
-        )
-    ]
-    assert stubs["latest_document"].calls == [(DOCUMENT_ID, TEST_USER.owner_hash)]
 
 
 def test_succeeded_analysis_returns_only_strict_structured_result(
@@ -403,49 +270,6 @@ def test_completed_analysis_report_can_be_exported_as_markdown(tmp_path: Path) -
     )
 
 
-def test_analysis_creation_rejects_invalid_or_extra_input(tmp_path: Path) -> None:
-    test_client, stubs = client(tmp_path)
-    requests = (
-        ({}, {"skill_id": "director-breakdown", "output_language": "zh-CN"}),
-        (
-            {"Idempotency-Key": "analysis-1"},
-            {"skill_id": "legacy.skill", "output_language": "zh-CN"},
-        ),
-        (
-            {"Idempotency-Key": "analysis-1"},
-            {"skill_id": "director-breakdown", "output_language": "not a language"},
-        ),
-        (
-            {"Idempotency-Key": "analysis-1"},
-            {
-                "skill_id": "director-breakdown",
-                "output_language": "zh-CN",
-                "prompt": "leak",
-            },
-        ),
-        (
-            {"Idempotency-Key": "analysis-1"},
-            {
-                "skill_id": "director-breakdown",
-                "output_language": "zh-CN",
-                "custom_prompt": "x" * 4_001,
-            },
-        ),
-    )
-    with test_client:
-        responses = [
-            test_client.post(
-                f"/api/downloads/{DOWNLOAD_ID}/analyses",
-                headers=headers,
-                json=body,
-            )
-            for headers, body in requests
-        ]
-
-    assert {response.status_code for response in responses} == {422}
-    assert stubs["create"].calls == []
-
-
 def test_analysis_errors_are_error_envelopes(tmp_path: Path) -> None:
     test_client, stubs = client(tmp_path)
     with test_client:
@@ -455,13 +279,47 @@ def test_analysis_errors_are_error_envelopes(tmp_path: Path) -> None:
             (AnalysisApplicationErrorCode.IDEMPOTENCY_CONFLICT, 409),
             (AnalysisApplicationErrorCode.SERVICE_UNAVAILABLE, 503),
         ):
-            stubs["create"].error = AnalysisApplicationError(code)
-            response = test_client.post(
-                f"/api/downloads/{DOWNLOAD_ID}/analyses",
-                headers={"Idempotency-Key": "analysis-1"},
-                json={"skill_id": "director-breakdown", "output_language": "zh-CN"},
-            )
+            stubs["get"].error = AnalysisApplicationError(code)
+            response = test_client.get(f"/api/analyses/{ANALYSIS_ID}")
             assert response.status_code == expected_status
             assert response.headers["content-type"].startswith("application/json")
             assert response.json()["code"] == code.value
             assert set(response.json()) == {"code", "message", "data"}
+
+
+def test_retired_skill_entries_cannot_create_or_retry_but_history_remains(tmp_path):
+    test_client, stubs = client(tmp_path)
+    with test_client:
+        assert (
+            test_client.get("/api/analysis-skills?input_kind=video").status_code == 404
+        )
+        for path in (
+            f"/api/downloads/{DOWNLOAD_ID}/analyses",
+            f"/api/documents/{DOCUMENT_ID}/analyses",
+            "/api/content/analyses",
+            f"/api/analyses/{ANALYSIS_ID}/retry",
+        ):
+            assert (
+                test_client.post(
+                    path, headers={"Idempotency-Key": "retired"}, json={}
+                ).status_code
+                == 404
+            )
+        assert test_client.get(f"/api/analyses/{ANALYSIS_ID}").status_code == 200
+        assert (
+            test_client.get(f"/api/downloads/{DOWNLOAD_ID}/analysis").status_code == 200
+        )
+        assert (
+            test_client.get(f"/api/documents/{DOCUMENT_ID}/analysis").json()["data"]
+            is None
+        )
+        assert (
+            test_client.post(f"/api/analyses/{ANALYSIS_ID}/cancel").status_code == 200
+        )
+        assert test_client.delete(f"/api/analyses/{ANALYSIS_ID}").status_code == 204
+    owners = (
+        stubs["get"].calls[0][1],
+        stubs["cancel"].calls[0][1],
+        stubs["delete"].calls[0][1],
+    )
+    assert set(owners) == {TEST_USER.owner_hash}

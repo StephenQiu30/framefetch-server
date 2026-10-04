@@ -9,6 +9,7 @@ from sqlalchemy import select
 
 from app.models import (
     AnalysisDocumentLockRow,
+    CreationMaterialRow,
     DocumentArtifactRow,
     DocumentImportAttemptRow,
     DocumentRow,
@@ -45,6 +46,20 @@ class SqlAlchemyDocumentDeleteRepository(RepositoryBase):
             )
             if lock is not None:
                 raise ImportPersistenceConflict("document is locked by analysis")
+            if (
+                await session.scalar(
+                    select(CreationMaterialRow.id)
+                    .where(
+                        CreationMaterialRow.document_id == document_id,
+                        CreationMaterialRow.owner_hash == owner_hash,
+                    )
+                    .limit(1)
+                )
+                is not None
+            ):
+                raise ImportPersistenceConflict(
+                    "document is retained as a creation source"
+                )
             attempt_rows = tuple(
                 await session.scalars(
                     select(DocumentImportAttemptRow)

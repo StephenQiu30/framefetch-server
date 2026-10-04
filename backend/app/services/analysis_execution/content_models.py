@@ -11,3 +11,4 @@ class ContentModelRequest:
     schema_json: str = field(repr=False)
     provider_binding_sha256: str
     stage: str
+    image_paths: tuple[Path, ...] = ()

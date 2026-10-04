@@ -2,42 +2,42 @@
 
 # FrameFetch
 
-Content creation Skills for film, articles, WeChat Official Account content and Xiaohongshu cards are being redesigned from scratch in the [new PRD](docs/prd/PRD-内容创作Skill体系.md) and [execution plan](docs/plan/PLAN-内容创作Skill体系.md) (Chinese). The existing method and result catalogs below remain pending removal; they are not the new target. The new film, writing, editing, WeChat handoff and Xiaohongshu card workflows have not been implemented by this documentation change.
+Content Skills have been rebuilt around 12 analysis and writing tasks, including Drama analysis, articles, WeChat handoff and Xiaohongshu cards. The old creation catalog is retired. See the [PRD](docs/prd/PRD-内容创作Skill体系.md) and [execution plan](docs/plan/PLAN-内容创作Skill体系.md) for scope and current verification evidence (Chinese).
 
-**An open-source, self-hosted video and screenplay workstation.** Bring in material, understand it, and produce analysis results you can export.
+**An open-source, self-hosted content analysis and writing workstation.** Confirm materials, inspect evidence, and deliver editable versions and actual files.
 
 [![CI](https://github.com/StephenQiu30/video-server/actions/workflows/ci.yml/badge.svg)](https://github.com/StephenQiu30/video-server/actions/workflows/ci.yml)
 [![MIT License](https://img.shields.io/badge/license-MIT-111111.svg)](LICENSE)
 [![Preview release](https://img.shields.io/github/v/release/StephenQiu30/video-server?include_prereleases&color=111111)](https://github.com/StephenQiu30/video-server/releases)
 
-[Overview](#what-is-framefetch) · [Workflow](#from-material-to-report) · [Video methods](#12-video-analysis-methods) · [Screenplay methods](#8-screenplay-analysis-methods) · [Clients](#one-workstation-multiple-clients) · [Quick start](#quick-start) · [Documentation](docs/design/README.md) · [简体中文](README.md)
+[Overview](#what-is-framefetch) · [Workflow](#from-material-to-report) · [Analysis and writing Skills](#analysis-and-writing-skills) · [Clients](#one-workstation-multiple-clients) · [Quick start](#quick-start) · [Documentation](docs/design/README.md) · [简体中文](README.md)
 
 ![Shared FrameFetch Web/desktop workspace: links, local video and screenplay inputs](docs/images/current-web-workspace.png)
 
-> Shared Web/desktop pages captured from the current Electron Renderer. Records and analysis use demo data.
+> Shared Web/desktop page demonstration from a released version. See the execution plan for the current workspace and real acceptance evidence.
 
 ## What is FrameFetch?
 
-FrameFetch brings media acquisition, video review, screenplay coverage and report preparation into one personal workstation for creators, content researchers and developers. Paste an authorized media link to obtain a single video, image gallery or bounded video collection according to the platform's actual capabilities, or import your own MP4 footage or screenplay. Video and screenplay inputs can then use a method, output language and focus to produce structured results with time or scene references and Markdown/DOCX exports. Galleries and video collections are delivered as ZIP files with an embedded manifest.
+FrameFetch brings material acquisition, film analysis and article preparation into one personal workstation. Obtain authorized videos, galleries or bounded collections according to each platform's actual capabilities, or import your own video, screenplay, article, subtitles and images. Confirm materials, select a task, inspect its source quotations or real sampled frames, edit and confirm a version, then export the formats available for that task. Galleries and collections retain ZIP delivery with an embedded manifest.
 
 This repository provides the **FastAPI server, Next.js Web application and background processing components**. The [Electron desktop client](https://github.com/StephenQiu30/video-electron) and [Flutter App](https://github.com/StephenQiu30/video-app) connect to the same server and share accounts, material, jobs and reports. The operator controls the infrastructure, storage and model configuration.
 
 ### Five core features
 
 - **Complete material intake**: obtain single videos, image galleries and bounded video collections according to the platform's actual capabilities. Original images or collection videos are delivered as ZIP files containing `manifest.json`; local MP4 files and DOCX, text-based PDF, TXT, Markdown and Fountain screenplays enter the same workspace.
-- **Evidence-based review**: technical metadata, interval overviews and exact frames from complete video artifacts support consecutive shots, scenes, highlights and visual assets. Screenplay findings refer to normalized scenes for checking against the source.
-- **Methods for real work**: 12 video methods cover breakdowns, narrative, editing, quality review and content preparation; 8 screenplay methods cover story, characters, dialogue, structure, continuity and Chinese/English rewriting.
-- **Useful deliverables**: five structured result types and Markdown/DOCX exports support further editing in external tools and handoff. Article drafts, packaging copy and screenplay rewrites remain editable candidates for human review.
+- **Traceable evidence**: Drama findings refer to fixed text units; video observations refer to actual frames and source times. Later edits do not replace the material versions or hashes behind earlier results.
+- **Independent tasks**: six film-analysis tasks and six writing/image tasks cover Drama, shots, supplied subtitles, comparison, continuity, research, articles, WeChat packages, Xiaohongshu cards and original assets.
+- **Confirmed deliverables**: edit, compare, restore and confirm versions, then export documents, subtitles, CSV, HTML and actual image packages. Reuse confirmed manuscripts while preserving older versions and files.
 - **Shared clients and self-hosting**: browser, native desktop and mobile clients use one backend, persistent background jobs and centrally managed material and reports. The operator configures model services and maintains the deployment.
 
 ## Use cases
 
 | Your task | How FrameFetch helps |
 | --- | --- |
-| Study or review finished videos | Director breakdowns, storyboard tables, narrative and editing-rhythm review connect production choices to specific time ranges |
-| Check your own footage | Continuity/finished-video QA and opening-hook review produce findings you can verify and revise |
-| Organize material and publication copy | Extract scenes, highlights and assets; reorganize video into an article draft or title, cover-text and publication-copy candidates |
-| Review and revise screenplays | Keep originals and normalized text, then review story, characters, scenes, dialogue, structure and continuity |
+| Study finished videos | Check candidate cuts, actual frames and source times; add your own visual and sound notes |
+| Compare screenplays and videos | Review candidate matches, continuity findings and uncovered ranges against fixed text and sampled frames |
+| Analyze stories and screenplays | Review characters, causality, pacing and editorial suggestions against fixed text units and exact quotations |
+| Prepare articles and channel files | Edit and confirm a manuscript, then prepare WeChat files or editable Xiaohongshu pages using your own images |
 | Build a personal toolchain | Extend providers, methods or clients through self-hosted storage, configurable models and OpenAPI |
 
 ## From material to report
@@ -46,8 +46,8 @@ This repository provides the **FastAPI server, Next.js Web application and backg
 2. **Confirm**: inspect metadata, access decisions and actual formats. Choose video quality, container, codecs and audio, or check gallery/collection counts and confirm the ZIP download. Explicitly refresh expired results and reconfirm changed formats.
 3. **Obtain**: download and import jobs run in the background with queue states, progress, cancellation, retry and history. Local video uses restricted multipart upload followed by Worker verification.
 4. **Manage**: verified video artifacts provide details, previews and file delivery. Galleries and bounded collections deliver original-image/video ZIP files with `manifest.json` recording the title, media kind and item count. Screenplays retain originals and normalized scene text. All clients use the same server data.
-5. **Analyze**: choose a Skill, Chinese or English output, and a focus for a video or screenplay. These inputs use their own tools, methods and result structures; analysis status is separate from acquisition status.
-6. **Deliver**: review findings alongside time evidence or screenplay scenes, then export Markdown/DOCX. Report content and export status are separate, so export recovery reuses the existing analysis.
+5. **Analyze or organize**: confirm film, article or reference materials in the content workspace and choose an independent task. Results, human confirmation and exports have separate states; processing failure does not change acquisition success.
+6. **Deliver**: review, edit and confirm a version, then export the available documents, tables, subtitles or image packages. Export recovery reuses the saved result without another model call.
 
 ### Pages and daily management
 
@@ -55,57 +55,16 @@ The Web workspace includes inspection details, download history, personal activi
 
 Administrators manage users, files, provider catalog entries and AI services, and read download/analysis statistics and operation logs. Material and reports persist; expiration of an access URL does not delete the stored file. Deletion and storage cleanup are explicit operations.
 
-## How AI understands the material
+## Analysis and writing Skills
 
-**Video analysis starts with the complete media artifact.** FFmpeg/ffprobe reads technical metadata. Restricted CLI observation tools provide a whole-video or interval overview and exact frames; API model routes receive bounded, time-ordered JPEG evidence. Methods distinguish observed facts, interpretation and advice, using real edit boundaries and continuous visual beats to organize shots.
+At /content, confirm your materials, select an independent task, review its evidence, edit and confirm a version, then export actual files. Originals and previous files remain available. Confirmed results can become fixed source manuscripts for channel packages; upstream edits mark dependent results stale without rewriting them.
 
-Results are validated against the selected contract before storage, including structure, output language and evidence fields. Visual video analysis additionally checks the complete duration, consecutive shot timeline and shot references; articles and general reports use time-range evidence, while screenplay results refer to normalized scenes. Structural validation does not replace human review. Reports retain scope and limitations for checking against the video or source text; long screenplays use bounded chunks and synthesis.
-
-**Skills, result structures and engines have separate roles.** A Skill defines the method, a result contract defines the deliverable, and an engine calls the model. Each job stores an immutable instruction snapshot; completed steps can be reused after interruption, while calls with unknown outcomes are not automatically repeated. An AI failure does not change successfully obtained material.
-
-Administrators can configure **Codex App Server, Claude CLI, DeepSeek, OpenRouter or OpenAI Chat Completions-compatible services**. Users choose the method, language and focus without configuring low-level provider parameters. See [AI analysis](docs/design/10-AI分析.md) and [Content Creation Skill PRD](docs/prd/PRD-内容创作Skill体系.md) (Chinese).
-
-## 12 video analysis methods
-
-| Method | Main use |
+| Route | Tasks |
 | --- | --- |
-| Director breakdown | Review staging, framing, shot motivation and editing relationships, with production advice |
-| Comprehensive analysis | Connect shot evidence, content segments, highlights, assets and priority revisions |
-| Storyboard tables | Organize edit boundaries, start/end states, action, framing, lighting and continuity |
-| Scene extraction | Group segments by space, events, narrative tasks and visual rules |
-| Narrative structure review | Check progression, turns, fulfilled promises and causal clarity |
-| Editing rhythm review | Review dwell time, information density, cut motivation and action connections |
-| Highlights | Select candidate clips by visual impact, information turns, emotional changes and editability |
-| Continuity and finished-video QA | Check subject state, screen direction, action, on-screen text and visible technical issues |
-| Asset catalog | Group people, locations, objects, products, logos and on-screen text with appearance references |
-| Article draft | Reorganize video into a title, lead, sections and closing for further editorial work |
-| Short-video packaging | Produce title, cover-text, opening-hook and publication-copy candidates grounded in the material |
-| Opening-hook review | Check attention anchors, promises and body connections in the first 3, 5 and 15 seconds |
+| Film analysis | Drama/script analysis, shot study, user-subtitle editing, script/video comparison, visual continuity, film-reference research |
+| Writing and cards | Article outline/writing, format or editorial revision, WeChat packaging, Xiaohongshu editable pages and actual cards, original-image assets, reference excerpts |
 
-## 8 screenplay analysis methods
-
-| Method | Main use |
-| --- | --- |
-| Story coverage | Review story mechanisms, major issues and effective choices |
-| Short-drama coverage | Review promises, character choices, local payoff and repeated mechanisms |
-| Character and conflict review | Check goals, obstacles, tactics, choices and character change |
-| Scene review | Check scene goals, beats, state changes and neighboring scenes |
-| Dialogue review | Check intention, verbal tactics, character voice and information release |
-| Structure review | Check overall progression, turns and rhythm |
-| Continuity review | Check character knowledge, object states, chronology, space and causality across scenes |
-| Chinese/English rewriting | Produce cross-language or same-language revision candidates while preserving scenes, characters and terminology |
-
-## Five result types and two export formats
-
-| Result type | Contents and use |
-| --- | --- |
-| Visual video analysis | Main findings, scenes, shot evidence, highlights, assets and revision advice for breakdowns and video review |
-| Video article | Title, lead, sections, key points and closing, with editorial evidence and limitations |
-| General structured report | Summary, sections, candidate items and time evidence for packaging and focused review |
-| Screenplay analysis | Coverage findings, story overview, structure, characters, dialogue, scene appendix and revision advice |
-| Screenplay rewrite | Target-language candidates and glossary for author review and further revision |
-
-**Markdown** fits notes, knowledge bases and version control; **DOCX** fits Word editing, comments and handoff. Both exports come from the same structured result without another model call.
+Formats depend on the task: MD, DOCX, safe HTML, CSV, SRT/VTT, and actual image/card ZIPs. Formatting, packaging and exports do not secretly call a model. Model candidates require human review. Video findings cover only the supplied real sampled frames, with no claim of complete motion or sound analysis. The current scope excludes editing timelines, rendered films, media generation, automatic transcription and account publishing.
 
 ## One workstation, multiple clients
 
@@ -311,7 +270,7 @@ pnpm build
 
 ## Roadmap
 
-Platform support and validation limits are described in [the parsing design](docs/design/17-解析引擎重建.md#8-平台能力与验证边界); other unfinished work is listed in [BACKLOG](BACKLOG.md) (Chinese); the proposed content creation Skill redesign is defined in the [new PRD](docs/prd/PRD-内容创作Skill体系.md), with work packages and acceptance checklists in the [execution plan](docs/plan/PLAN-内容创作Skill体系.md), and has not been implemented. Discuss priorities in [Issues](https://github.com/StephenQiu30/video-server/issues) — tasks labeled `good first issue` or `help wanted` are a good place to start.
+Platform support and validation limits are described in [the parsing design](docs/design/17-解析引擎重建.md#8-平台能力与验证边界); other unfinished work is listed in [BACKLOG](BACKLOG.md) (Chinese); the content analysis and writing Skill system is defined in the [new PRD](docs/prd/PRD-内容创作Skill体系.md), with work packages and acceptance checklists in the [execution plan](docs/plan/PLAN-内容创作Skill体系.md). Implementation and verification evidence are recorded in that plan. Discuss priorities in [Issues](https://github.com/StephenQiu30/video-server/issues) — tasks labeled `good first issue` or `help wanted` are a good place to start.
 
 ## Contributing
 

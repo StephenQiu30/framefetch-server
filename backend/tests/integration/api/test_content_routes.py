@@ -4,48 +4,24 @@ from app.services.analysis.errors import (
     AnalysisApplicationError,
     AnalysisApplicationErrorCode,
 )
-from app.services.analysis.rules.enums import AnalysisInputKind, AnalysisResultContract
 from tests.integration.api.test_analysis_routes import (
     ANALYSIS_ID,
     TEST_USER,
     StubUseCase,
-    analysis_view,
     client,
 )
-from tests.unit.workers.analysis.test_content_execution import draft, source
+from tests.unit.workers.analysis.content_history_fixtures import draft, source
 
 
-def test_content_routes_dispatch_owner_and_preserve_private_sources(tmp_path):
+def test_legacy_content_sources_and_versions_remain_owner_scoped(tmp_path):
     test_client, _ = client(tmp_path)
     use_cases = test_client.app.state.services.analysis_use_cases
-    view = replace(
-        analysis_view(),
-        skill_id="content-article",
-        input_kind=AnalysisInputKind.CONTENT,
-        result_contract=AnalysisResultContract.CONTENT_DOCUMENT,
-    )
-    create = StubUseCase(view)
     original = StubUseCase(source())
     versions = StubUseCase(())
     test_client.app.state.services.analysis_use_cases = replace(
-        use_cases,
-        create_content_analysis=create,
-        get_content_source=original,
-        list_content_versions=versions,
+        use_cases, get_content_source=original, list_content_versions=versions
     )
     with test_client:
-        response = test_client.post(
-            "/api/content/analyses",
-            headers={"Idempotency-Key": "content-1"},
-            json={
-                "source": source().model_dump(mode="json"),
-                "output_language": "zh-CN",
-            },
-        )
-        assert response.status_code == 201
-        assert response.headers["location"] == f"/api/analyses/{ANALYSIS_ID}"
-        assert response.json()["data"]["input_kind"] == "content"
-        assert create.calls[0][2:] == (TEST_USER.owner_hash, "content-1")
         fetched = test_client.get(f"/api/content/analyses/{ANALYSIS_ID}/source")
         assert fetched.json()["data"] == source().model_dump(mode="json")
         assert fetched.headers["cache-control"] == "private, no-store"
@@ -54,13 +30,12 @@ def test_content_routes_dispatch_owner_and_preserve_private_sources(tmp_path):
         assert listed.status_code == 200 and listed.json()["data"] == []
         assert listed.headers["cache-control"] == "private, no-store"
         assert versions.calls == [(ANALYSIS_ID, TEST_USER.owner_hash)]
-        malformed = test_client.post(
-            "/api/content/analyses",
-            headers={"Idempotency-Key": "bad-1"},
-            json={"source": {"brief": {}, "materials": []}, "output_language": "zh-CN"},
+        assert (
+            test_client.post(
+                "/api/content/analyses", headers={"Idempotency-Key": "retired"}, json={}
+            ).status_code
+            == 404
         )
-        assert malformed.status_code == 422
-        assert len(create.calls) == 1
         original.error = AnalysisApplicationError(
             AnalysisApplicationErrorCode.NOT_FOUND
         )

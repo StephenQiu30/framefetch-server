@@ -347,6 +347,7 @@ class Settings(BaseSettings):
     analysis_codex_binary: Path = Path("codex")
     analysis_claude_binary: Path = Path("claude")
     analysis_ffmpeg_binary: Path = Path("ffmpeg")
+    creation_card_font_path: Path | None = None
     analysis_ffprobe_binary: Path = Path("ffprobe")
     analysis_timeout_seconds: float = Field(default=900, ge=1, le=3600)
     analysis_max_stdout_bytes: int = Field(default=2 * 1024**2, ge=1024)

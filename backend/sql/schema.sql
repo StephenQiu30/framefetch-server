@@ -1726,3 +1726,115 @@ FOR EACH ROW EXECUTE FUNCTION record_system_task_operation('剧本文档');
 DROP TRIGGER IF EXISTS operation_log_state_trigger ON media_imports;
 CREATE TRIGGER operation_log_state_trigger AFTER INSERT OR UPDATE OR DELETE ON media_imports
 FOR EACH ROW EXECUTE FUNCTION record_system_task_operation('视频导入');
+
+-- Creation product facts: originals and human revisions are retained separately
+-- from model attempts. This is the sole, repeatable current-state schema.
+CREATE TABLE IF NOT EXISTS creation_projects (
+    id UUID PRIMARY KEY,
+    owner_hash VARCHAR(64) NOT NULL,
+    idempotency_key VARCHAR(128) NOT NULL,
+    request_sha256 VARCHAR(64) NOT NULL,
+    title VARCHAR(200) NOT NULL,
+    description TEXT NOT NULL DEFAULT '',
+    created_at TIMESTAMPTZ NOT NULL,
+    updated_at TIMESTAMPTZ NOT NULL,
+    CONSTRAINT uq_creation_project_key UNIQUE (owner_hash, idempotency_key)
+);
+CREATE INDEX IF NOT EXISTS ix_creation_projects_owner ON creation_projects (owner_hash, created_at);
+
+CREATE TABLE IF NOT EXISTS creation_materials (
+    id UUID PRIMARY KEY,
+    project_id UUID REFERENCES creation_projects(id) ON DELETE RESTRICT,
+    owner_hash VARCHAR(64) NOT NULL,
+    idempotency_key VARCHAR(128) NOT NULL,
+    request_sha256 VARCHAR(64) NOT NULL,
+    kind VARCHAR(24) NOT NULL,
+    title VARCHAR(200) NOT NULL,
+    rights_statement TEXT NOT NULL,
+    artifact_id UUID REFERENCES artifacts(id) ON DELETE RESTRICT,
+    document_id UUID REFERENCES documents(id) ON DELETE RESTRICT,
+    source_url VARCHAR(2048),
+    source_revision_id UUID,
+    binary_data BYTEA,
+    current_revision_id UUID NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL,
+    updated_at TIMESTAMPTZ NOT NULL,
+    CONSTRAINT uq_creation_material_key UNIQUE (owner_hash, idempotency_key),
+    CONSTRAINT ck_creation_material_kind CHECK (kind IN ('text','screenplay','video','subtitle','image','reference')),
+    CONSTRAINT ck_creation_material_bytes CHECK (binary_data IS NULL OR octet_length(binary_data) <= 10485760)
+);
+CREATE INDEX IF NOT EXISTS ix_creation_materials_owner ON creation_materials (owner_hash, created_at);
+
+CREATE TABLE IF NOT EXISTS creation_tasks (
+    id UUID PRIMARY KEY,
+    project_id UUID REFERENCES creation_projects(id) ON DELETE RESTRICT,
+    owner_hash VARCHAR(64) NOT NULL,
+    idempotency_key VARCHAR(128) NOT NULL,
+    request_sha256 VARCHAR(64) NOT NULL,
+    skill_id VARCHAR(128) NOT NULL,
+    method_sha256 VARCHAR(64) NOT NULL,
+    material_revision_ids JSONB NOT NULL,
+    options JSONB NOT NULL,
+    budget JSONB NOT NULL,
+    usage JSONB NOT NULL,
+    output_language VARCHAR(35) NOT NULL,
+    status VARCHAR(32) NOT NULL DEFAULT 'queued',
+    attempt INTEGER NOT NULL DEFAULT 1,
+    current_revision_id UUID,
+    stale BOOLEAN NOT NULL DEFAULT FALSE,
+    limitations JSONB NOT NULL DEFAULT '[]'::jsonb,
+    error_code VARCHAR(64),
+    worker_id VARCHAR(128),
+    deadline_at TIMESTAMPTZ,
+    created_at TIMESTAMPTZ NOT NULL,
+    updated_at TIMESTAMPTZ NOT NULL,
+    CONSTRAINT uq_creation_task_key UNIQUE (owner_hash, idempotency_key),
+    CONSTRAINT ck_creation_task_status CHECK (status IN ('queued','processing','awaiting_confirmation','completed','failed','cancelled','outcome_unknown')),
+    CONSTRAINT ck_creation_task_attempt CHECK (attempt > 0)
+);
+CREATE INDEX IF NOT EXISTS ix_creation_tasks_owner ON creation_tasks (owner_hash, created_at);
+
+CREATE TABLE IF NOT EXISTS creation_revisions (
+    id UUID PRIMARY KEY,
+    owner_hash VARCHAR(64) NOT NULL,
+    material_id UUID REFERENCES creation_materials(id) ON DELETE RESTRICT,
+    task_id UUID REFERENCES creation_tasks(id) ON DELETE RESTRICT,
+    parent_revision_id UUID REFERENCES creation_revisions(id) ON DELETE RESTRICT,
+    idempotency_key VARCHAR(128),
+    request_sha256 VARCHAR(64),
+    number INTEGER NOT NULL,
+    text TEXT NOT NULL,
+    data JSONB NOT NULL,
+    sha256 VARCHAR(64) NOT NULL,
+    confirmed BOOLEAN NOT NULL DEFAULT FALSE,
+    created_at TIMESTAMPTZ NOT NULL,
+    CONSTRAINT ck_creation_revision_parent CHECK ((material_id IS NULL) <> (task_id IS NULL)),
+    CONSTRAINT ck_creation_revision_number CHECK (number > 0),
+    CONSTRAINT ck_creation_revision_sha CHECK (length(sha256) = 64),
+    CONSTRAINT uq_creation_material_revision UNIQUE (material_id, number),
+    CONSTRAINT uq_creation_task_revision UNIQUE (task_id, number),
+    CONSTRAINT uq_creation_revision_key UNIQUE (owner_hash, idempotency_key)
+);
+
+ALTER TABLE creation_materials ADD COLUMN IF NOT EXISTS source_revision_id UUID;
+DO $$ BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'fk_creation_material_source_revision' AND conrelid = 'creation_materials'::regclass) THEN
+        ALTER TABLE creation_materials ADD CONSTRAINT fk_creation_material_source_revision FOREIGN KEY (source_revision_id) REFERENCES creation_revisions(id) ON DELETE RESTRICT;
+    END IF;
+END $$;
+
+CREATE TABLE IF NOT EXISTS creation_exports (
+    id UUID PRIMARY KEY,
+    task_id UUID NOT NULL REFERENCES creation_tasks(id) ON DELETE RESTRICT,
+    revision_id UUID NOT NULL REFERENCES creation_revisions(id) ON DELETE RESTRICT,
+    format VARCHAR(32) NOT NULL,
+    filename VARCHAR(200) NOT NULL,
+    media_type VARCHAR(128) NOT NULL,
+    sha256 VARCHAR(64) NOT NULL,
+    binary_data BYTEA NOT NULL,
+    metadata JSONB NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL,
+    CONSTRAINT uq_creation_export_revision_format UNIQUE (revision_id, format),
+    CONSTRAINT ck_creation_export_bytes CHECK (octet_length(binary_data) BETWEEN 1 AND 67108864),
+    CONSTRAINT ck_creation_export_sha CHECK (length(sha256) = 64)
+);

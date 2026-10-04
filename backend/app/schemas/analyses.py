@@ -1,10 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Literal
 from uuid import UUID
-
-from pydantic import Field, field_validator
 
 from app.schemas.analysis_results import (
     ANALYSIS_RESULT_RESPONSE_ADAPTER,
@@ -12,7 +9,6 @@ from app.schemas.analysis_results import (
 )
 from app.schemas.common import StrictModel
 from app.services.analysis.models import AnalysisJobView
-from app.services.analysis.rules.content_document import ContentSourceSet
 from app.services.analysis.rules.enums import (
     AnalysisErrorCode,
     AnalysisInputKind,
@@ -21,40 +17,6 @@ from app.services.analysis.rules.enums import (
     AnalysisStage,
     AnalysisStatus,
 )
-
-
-class AnalysisRequest(StrictModel):
-    skill_id: str = Field(
-        description="分析 Skill 的稳定标识，由分析 Skill 清单接口提供。",
-        examples=["director-breakdown"],
-        min_length=1,
-        max_length=128,
-        pattern=r"^[a-z0-9]+(?:-[a-z0-9]+)*$",
-    )
-    output_language: str = Field(
-        description="分析结果使用的 BCP 47 语言标签。",
-        examples=["zh-CN"],
-        min_length=2,
-        max_length=35,
-        pattern=r"^[A-Za-z]{2,3}(?:-[A-Za-z0-9]{2,8})*$",
-    )
-    custom_prompt: str | None = Field(
-        default=None,
-        description=(
-            "用户可编辑的分析要求，仅影响观察重点和表达，不能覆盖工具、"
-            "安全边界或结果结构。"
-        ),
-        max_length=4_000,
-        examples=["重点识别产品功能演示和界面切换。"],
-    )
-
-    @field_validator("custom_prompt")
-    @classmethod
-    def normalize_custom_prompt(cls, value: str | None) -> str | None:
-        if value is None:
-            return None
-        normalized = value.strip()
-        return normalized or None
 
 
 class AnalysisReportArtifactResponse(StrictModel):
@@ -155,17 +117,3 @@ class AnalysisResponse(StrictModel):
         if result is None:
             return None
         return ANALYSIS_RESULT_RESPONSE_ADAPTER.validate_python(result)
-
-
-class AnalysisSkillResponse(StrictModel):
-    id: str
-    display_name: str
-    description: str
-    default_prompt: str
-    input_kinds: tuple[AnalysisInputKind, ...]
-    result_contract: AnalysisResultContract
-
-
-class ContentAnalysisRequest(StrictModel):
-    source: ContentSourceSet
-    output_language: Literal["zh-CN", "en-US"] = "zh-CN"
