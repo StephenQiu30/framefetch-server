@@ -2,7 +2,7 @@
 
 # FrameFetch
 
-Film Skills are being redesigned from scratch in the [new PRD](docs/prd/PRD-影视Skill体系.md) (Chinese). The existing method and result catalogs below remain pending removal; they are not the new target. Script diagnosis, audiovisual study and subtitle correction have not been implemented by this documentation change.
+Film Skills are being redesigned from scratch in the [new PRD](docs/prd/PRD-影视Skill体系.md) and [execution plan](docs/plan/PLAN-影视Skill体系.md) (Chinese). The existing method and result catalogs below remain pending removal; they are not the new target. Script diagnosis, audiovisual study and subtitle correction have not been implemented by this documentation change.
 
 **An open-source, self-hosted video and screenplay workstation.** Bring in material, understand it, and produce analysis results you can export.
 
@@ -311,7 +311,7 @@ pnpm build
 
 ## Roadmap
 
-Platform support and validation limits are described in [the parsing design](docs/design/17-解析引擎重建.md#8-平台能力与验证边界); other unfinished work is listed in [BACKLOG](BACKLOG.md) (Chinese); the proposed Film Skill redesign is defined in the [new PRD](docs/prd/PRD-影视Skill体系.md) and has not been implemented. Discuss priorities in [Issues](https://github.com/StephenQiu30/video-server/issues) — tasks labeled `good first issue` or `help wanted` are a good place to start.
+Platform support and validation limits are described in [the parsing design](docs/design/17-解析引擎重建.md#8-平台能力与验证边界); other unfinished work is listed in [BACKLOG](BACKLOG.md) (Chinese); the proposed Film Skill redesign is defined in the [new PRD](docs/prd/PRD-影视Skill体系.md), with work packages and acceptance checklists in the [execution plan](docs/plan/PLAN-影视Skill体系.md), and has not been implemented. Discuss priorities in [Issues](https://github.com/StephenQiu30/video-server/issues) — tasks labeled `good first issue` or `help wanted` are a good place to start.
 
 ## Contributing
 

@@ -4,7 +4,7 @@
 
 **开源、自托管的个人视频与剧本工作站。** 接入素材，理解内容，交付可导出的分析结果。
 
-影视 Skill 正按[全新 PRD](docs/prd/PRD-影视Skill体系.md)重新规划。本文的现存方法和结果目录尚未清退，不代表新目标；新剧本诊断、视听拉片与字幕校订尚未实施。本轮只更新规格，运行代码保持原状。
+影视 Skill 正按[全新 PRD](docs/prd/PRD-影视Skill体系.md)与[执行计划](docs/plan/PLAN-影视Skill体系.md)重新规划。本文的现存方法和结果目录尚未清退，不代表新目标；新剧本诊断、视听拉片与字幕校订尚未实施。本轮只更新文档，运行代码保持原状。
 
 [![CI 状态](https://github.com/StephenQiu30/video-server/actions/workflows/ci.yml/badge.svg)](https://github.com/StephenQiu30/video-server/actions/workflows/ci.yml)
 [![MIT License](https://img.shields.io/badge/license-MIT-111111.svg)](LICENSE)
@@ -391,7 +391,7 @@ docker-compose-prod.yml  生产业务差异
 
 ## 路线图
 
-平台支持与验证限制见[解析引擎](docs/design/17-解析引擎重建.md#8-平台能力与验证边界)，其他未完成工作见[BACKLOG](BACKLOG.md)，待实施的影视 Skill 重建见[全新 PRD](docs/prd/PRD-影视Skill体系.md)。欢迎在 [Issues](https://github.com/StephenQiu30/video-server/issues) 中讨论优先级，带有 `good first issue` / `help wanted` 标签的任务适合首次参与。
+平台支持与验证限制见[解析引擎](docs/design/17-解析引擎重建.md#8-平台能力与验证边界)，其他未完成工作见[BACKLOG](BACKLOG.md)，待实施的影视 Skill 重建见[全新 PRD](docs/prd/PRD-影视Skill体系.md)与[执行计划](docs/plan/PLAN-影视Skill体系.md)。欢迎在 [Issues](https://github.com/StephenQiu30/video-server/issues) 中讨论优先级，带有 `good first issue` / `help wanted` 标签的任务适合首次参与。
 
 ## 参与贡献
 

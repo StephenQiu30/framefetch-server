@@ -6,7 +6,8 @@
 | 文档状态 | 待产品评审的目标规格；调研与需求已整理，功能未实施、未验收 |
 | 调研日期 | 2026-10-04，Asia/Shanghai；网页、价格和许可证需在实际接入前复核 |
 | 本次授权 | 从零调研、重写 Skill 产品规格和 PRD；旧代码清退写入实施要求 |
-| 规格关系 | 本文取代原 Skill 设计，成为新影视 Skill 产品范围、选型、实施与验收的唯一规格；其他文档只记录通用工程边界或尚未清退的运行行为 |
+| 规格关系 | 本文取代原 Skill 设计，成为新影视 Skill 产品范围、选型、成功标准与产品验收的唯一规格；系统设计记录技术约束或尚未清退的运行行为，执行计划记录需求落实、依赖与证据状态 |
+| 执行计划 | [影视 Skill 体系 PLAN](../plan/PLAN-影视Skill体系.md)：功能与非功能要求、工作包、阶段门槛、风险及 checklist；实施与验收未开始 |
 | 方法 | pm-market-research 的 competitor-analysis、customer-journey-map；pm-execution 的 create-prd、prioritization-frameworks、user-stories、test-scenarios |
 
 ## 1. 摘要

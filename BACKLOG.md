@@ -3,5 +3,5 @@
 - [平台解析](docs/design/17-解析引擎重建.md#8-平台能力与验证边界)：视频号完整链路、Dailymotion 清单网络、WPC 真正例、保护负例及当前全量矩阵。
 - [身份生命周期](docs/design/17-解析引擎重建.md#82-身份生命周期)：Chrome 生命周期与真实认证负例组合。
 - [Skill 执行](docs/design/15-工作流与平台下载目标.md#skill-执行与断点)：供应商可查询幂等回执与实际恢复证据。
-- [影视 Skill 重建](docs/prd/PRD-影视Skill体系.md#8-发布清退与验收)：从零选型、用户与素材 POC、三项 P0 工作流、人工校订和跨端独立验收；新能力均未实施。
-- [旧 Skill 清退](docs/prd/PRD-影视Skill体系.md#82-旧代码清退要求)：旧目录、入口、契约、依赖和失效引用清理，同时保护原件与历史报告；本轮只清理产品规格。
+- [影视 Skill 重建](docs/plan/PLAN-影视Skill体系.md#4-工作包依赖与里程碑)：按 [PRD](docs/prd/PRD-影视Skill体系.md) 的 11 项能力推进；功能、非功能、工作包、验收与 checklist 已规划，实施与验收未开始。
+- [旧 Skill 清退](docs/plan/PLAN-影视Skill体系.md#74-跨端清退与发布)：按 [PRD 清退要求](docs/prd/PRD-影视Skill体系.md#82-旧代码清退要求)关闭入口、排空／取消、保护历史制品、停止旧写入后切换；尚未执行运行代码清退。
