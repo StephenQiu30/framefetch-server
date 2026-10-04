@@ -194,10 +194,46 @@ async def test_existing_manual_reports_remain_readable_without_a_write_use_case(
     assert versions[1].result == original
     assert versions[0].result.review_status == "needs_review"
     assert versions[0].markdown == versions[1].markdown
+    async with db.sessions() as session, session.begin():
+        unpublished = await session.get(AnalysisResultRow, report_id)
+        unpublished.status = "validated"
+        unpublished.published_at = None
+    assert [
+        item.run_no for item in await db.repository.content_versions(job.id, OWNER)
+    ] == [1]
+    async with db.sessions() as session, session.begin():
+        published = await session.get(AnalysisResultRow, report_id)
+        published.status = "available"
+        published.published_at = NOW
     current = await db.repository.get_latest_report(job.id)
     assert {item.format for item in current.artifacts} == {"markdown", "docx"}
     assert (await db.repository.get_result(job.id)).review_status == "needs_review"
     assert all(storage.values[key] == value for key, value in original_files.items())
+    # Removing export files does not remove the retained report prose.
+    async with db.sessions() as session, session.begin():
+        reports = (
+            await session.scalars(
+                select(AnalysisResultRow).where(AnalysisResultRow.job_id == job.id)
+            )
+        ).all()
+        for report in reports:
+            report.status = "deleted"
+        artifacts = (
+            await session.scalars(
+                select(AnalysisReportArtifactRow).where(
+                    AnalysisReportArtifactRow.report_id.in_(
+                        [job.current_report_id, report_id]
+                    )
+                )
+            )
+        ).all()
+        for artifact in artifacts:
+            artifact.status = "deleted"
+            artifact.deleted_at = NOW
+    assert [
+        item.run_no for item in await db.repository.content_versions(job.id, OWNER)
+    ] == [2, 1]
+    assert (await db.repository.get_latest_report(job.id)).artifacts == ()
     with pytest.raises(PersistenceNotFound):
         await db.repository.content_versions(job.id, "b" * 64)
     async with db.sessions() as session, session.begin():

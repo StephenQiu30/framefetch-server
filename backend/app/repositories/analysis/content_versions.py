@@ -32,7 +32,8 @@ class ContentVersionsRepository(AnalysisRepositoryBase):
                     .join(AnalysisRunRow, AnalysisRunRow.id == AnalysisResultRow.run_id)
                     .where(
                         AnalysisResultRow.job_id == job_id,
-                        AnalysisResultRow.status == "available",
+                        # File cleanup must not hide previously published prose.
+                        AnalysisResultRow.published_at.is_not(None),
                     )
                     .order_by(AnalysisRunRow.run_no.desc())
                     .limit(50)
