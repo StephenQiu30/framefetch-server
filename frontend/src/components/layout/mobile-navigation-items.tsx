@@ -40,10 +40,6 @@ export function MobileNavigationItems({
           <ClockCounterClockwiseIcon aria-hidden />
           下载记录
         </MobileLink>
-        <MobileLink active={pathname.startsWith('/content')} href="/content">
-          <FileTextIcon aria-hidden />
-          内容创作
-        </MobileLink>
         <MobileLink
           active={pathname.startsWith('/documents')}
           href="/documents"

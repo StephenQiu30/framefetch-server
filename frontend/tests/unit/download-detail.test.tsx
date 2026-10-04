@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import DownloadJobView from '@/components/downloads/download-job-view';
 import { httpClient } from '@/lib/request';
 import { ApiError } from '@/lib/request-error';
+import { analysisSkills } from '../fixtures/analysis-fixtures';
 import {
   galleryJob,
   inspection,
@@ -85,6 +86,7 @@ describe('DownloadJobView', () => {
       { ...job('running'), ...channels },
       { ...job('succeeded'), ...channels },
       null,
+      analysisSkills,
     );
     render(<DownloadJobView jobId={job().id} pollIntervalMs={5} />);
 
@@ -132,7 +134,7 @@ describe('DownloadJobView', () => {
     expect(frame).not.toBeNull();
     expect(frame?.parentElement).toHaveStyle({ paddingBottom: '56.25%' });
     expect(
-      await screen.findByRole('heading', { name: '历史视频分析' }),
+      await screen.findByRole('heading', { name: 'AI 智能分析' }),
     ).toBeInTheDocument();
     expect(screen.getByRole('link', { name: '返回上一步' })).toHaveAttribute(
       'href',
@@ -173,7 +175,7 @@ describe('DownloadJobView', () => {
   });
 
   it('deletes the task and returns to download history', async () => {
-    mockHttpResponses(job('succeeded'), null, null);
+    mockHttpResponses(job('succeeded'), null, analysisSkills, null);
     render(<DownloadJobView jobId={job().id} />);
 
     fireEvent.click(await screen.findByRole('button', { name: '删除任务' }));
@@ -292,9 +294,11 @@ describe('DownloadJobView', () => {
           ? job('succeeded')
           : url === `/api/downloads/${job().id}/analysis`
             ? null
-            : url === `/api/downloads/${job().id}/download-url`
-              ? signedVideoUrl
-              : undefined;
+            : url === '/api/analysis-skills'
+              ? analysisSkills
+              : url === `/api/downloads/${job().id}/download-url`
+                ? signedVideoUrl
+                : undefined;
       if (data === undefined) throw new Error(`Unexpected request: ${url}`);
       return { data: { code: 'ok', message: 'OK', data } } as never;
     });
@@ -318,7 +322,12 @@ describe('DownloadJobView', () => {
   });
 
   it('presents a completed image note as a ZIP instead of a video preview', async () => {
-    mockHttpResponses(galleryJob('succeeded'), null, signedVideoUrl);
+    mockHttpResponses(
+      galleryJob('succeeded'),
+      null,
+      analysisSkills,
+      signedVideoUrl,
+    );
     render(<DownloadJobView jobId={galleryJob().id} />);
 
     expect(
@@ -333,7 +342,12 @@ describe('DownloadJobView', () => {
   });
 
   it('presents a completed multi-video source as a ZIP', async () => {
-    mockHttpResponses(videoCollectionJob('succeeded'), null, signedVideoUrl);
+    mockHttpResponses(
+      videoCollectionJob('succeeded'),
+      null,
+      analysisSkills,
+      signedVideoUrl,
+    );
     render(<DownloadJobView jobId={videoCollectionJob().id} />);
 
     expect(
@@ -348,12 +362,16 @@ describe('DownloadJobView', () => {
       }),
     ).not.toBeInTheDocument();
     expect(
-      screen.queryByRole('heading', { name: '历史视频分析' }),
+      screen.queryByRole('heading', { name: 'AI 智能分析' }),
     ).not.toBeInTheDocument();
   });
 
   it('offers a new download when a completed file has been cleaned', async () => {
-    mockHttpResponses({ ...job('succeeded'), file_available: false }, null);
+    mockHttpResponses(
+      { ...job('succeeded'), file_available: false },
+      null,
+      analysisSkills,
+    );
     render(<DownloadJobView jobId={job().id} />);
 
     expect(
@@ -368,7 +386,7 @@ describe('DownloadJobView', () => {
   it('offers to reload an unavailable preview', async () => {
     runtime.preview.error = '预览地址已失效。';
     runtime.preview.source = null;
-    mockHttpResponses(job('succeeded'), null);
+    mockHttpResponses(job('succeeded'), null, analysisSkills);
     render(<DownloadJobView jobId={job().id} />);
 
     const warning = await screen.findByText('暂时无法预览视频');
@@ -383,7 +401,7 @@ describe('DownloadJobView', () => {
   it('keeps the preview loading state in the shared media frame', async () => {
     runtime.preview.loading = true;
     runtime.preview.source = null;
-    mockHttpResponses(job('succeeded'), null);
+    mockHttpResponses(job('succeeded'), null, analysisSkills);
     render(<DownloadJobView jobId={job().id} />);
 
     const loading = await screen.findByLabelText('正在准备视频预览');
@@ -405,7 +423,7 @@ describe('DownloadJobView', () => {
       source_label: '用户提供的视频号来源文件',
       title: null,
     };
-    mockHttpResponses(imported, null);
+    mockHttpResponses(imported, null, analysisSkills);
     render(<DownloadJobView jobId={imported.id} />);
 
     expect(
@@ -420,7 +438,7 @@ describe('DownloadJobView', () => {
   });
 
   it('keeps a completed task usable after inspection metadata expires', async () => {
-    mockHttpResponses(job('succeeded'), null);
+    mockHttpResponses(job('succeeded'), null, analysisSkills);
     render(<DownloadJobView jobId={job().id} />);
 
     await screen.findByRole('heading', { level: 1, name: inspection.title });
@@ -439,7 +457,7 @@ describe('DownloadJobView', () => {
     ).toBeInTheDocument();
     expect(screen.getByText(/1920×1080/)).toBeInTheDocument();
     expect(
-      await screen.findByRole('heading', { name: '历史视频分析' }),
+      await screen.findByRole('heading', { name: 'AI 智能分析' }),
     ).toBeInTheDocument();
   });
 

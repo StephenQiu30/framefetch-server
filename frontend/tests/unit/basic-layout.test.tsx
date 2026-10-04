@@ -150,10 +150,12 @@ describe('BasicLayout', () => {
     expect(
       screen.queryByRole('link', { name: /解析中心/ }),
     ).not.toBeInTheDocument();
-    expect(screen.getByRole('link', { name: /剧本文档/ })).toHaveAttribute(
-      'href',
-      '/documents',
-    );
+    expect(
+      within(screen.getByRole('navigation', { name: '主要导航' })).getByRole(
+        'link',
+        { name: '剧本文档' },
+      ),
+    ).toHaveAttribute('href', '/documents');
     expect(screen.getByRole('link', { name: /平台状态/ })).toHaveAttribute(
       'href',
       '/providers',
@@ -182,11 +184,15 @@ describe('BasicLayout', () => {
       within(mobileNavigation).getByRole('link', { name: '下载记录' }),
     ).not.toHaveAttribute('aria-current');
     expect(
-      within(mobileNavigation).getByRole('link', { name: '剧本文档' }),
+      within(mobileNavigation)
+        .getAllByRole('link', { name: '剧本文档' })
+        .find((link) => link.getAttribute('href') === '/documents'),
     ).toHaveAttribute('href', '/documents');
     expect(
       within(mobileNavigation).getByRole('link', { name: '平台状态' }),
     ).toHaveAttribute('aria-current', 'page');
+    expect(desktopNavigation.querySelector('a[href^="/content"]')).toBeNull();
+    expect(mobileNavigation.querySelector('a[href^="/content"]')).toBeNull();
   });
 
   it('does not advertise anonymous login while identity recovery is unavailable', () => {

@@ -261,7 +261,7 @@ export default function DownloadJobView({
             ) : null
           ) : isTerminalDownloadStatus(state.job.status) ? null : (
             <p className="mt-14 py-8 text-sm text-muted-foreground sm:mt-20">
-              下载并验证完成后，可在内容工作台核对材料并进行影视分析。
+              下载并验证完成后，可继续生成视觉分镜、高光与资产目录。
             </p>
           )}
         </>

@@ -11,10 +11,12 @@ import {
   statusLabels,
 } from '@/components/analysis/analysis-panel-model';
 import AnalysisReportDownloadLink from '@/components/analysis/analysis-report-download-link';
+import AnalysisReportPreview from '@/components/analysis/analysis-report-preview';
 import AnalysisVideoResult, {
   isVideoAnalysisResult,
 } from '@/components/analysis/analysis-video-result';
 import { useAnalysisJob } from '@/components/analysis/use-analysis-job';
+import { useAnalysisSkills } from '@/components/analysis/use-analysis-skills';
 import ContentResultView from '@/components/content/content-result-view';
 import { historyRecordLabel } from '@/components/intake/history-record-presentation';
 import { FeedbackNotice } from '@/components/layout/feedback-notice';
@@ -80,16 +82,23 @@ function AnalysisDetailContent({
   record:
     | API.VideoAnalysisHistoryRecordResponse
     | API.ScreenplayAnalysisHistoryRecordResponse
-    | API.ContentCreationHistoryRecordResponse;
+    | API.ContentCreationHistoryRecordResponse
+    | API.SkillAnalysisHistoryRecordResponse;
 }) {
   const kind =
-    record.record_type === 'content_creation'
-      ? 'content'
-      : record.record_type === 'screenplay_analysis'
-        ? 'screenplay'
-        : 'video';
+    record.record_type === 'skill_analysis'
+      ? 'skill'
+      : record.record_type === 'content_creation'
+        ? 'content'
+        : record.record_type === 'screenplay_analysis'
+          ? 'screenplay'
+          : 'video';
   const state = useAnalysisJob('', 3000, kind, record.id);
-  const skillName = record.skill_id;
+  const skills = useAnalysisSkills(kind);
+  const skillName =
+    skills.skills.find((skill) => skill.id === record.skill_id)?.display_name ??
+    record.skill_id;
+  const [confirmRetry, setConfirmRetry] = useState(false);
   const job = state.job;
   const active =
     job && ['queued', 'running', 'retry_wait'].includes(job.status);
@@ -110,23 +119,18 @@ function AnalysisDetailContent({
         description={`${historyRecordLabel(record)} · ${skillName} · ${record.output_language}`}
       />
       <div className="mt-6 flex flex-wrap gap-3">
-        {
-          <Button asChild variant="outline">
-            <Link href="/content">新建创作</Link>
-          </Button>
-        }
         <Button asChild variant="outline">
           <Link href={allHref}>查看本素材全部记录</Link>
         </Button>
         {sourceHref && record.source_availability === 'available' ? (
           <Button asChild variant="outline">
-            <Link href={sourceHref}>查看源文件</Link>
+            <Link href={sourceHref}>查看源文件 / 新建分析</Link>
           </Button>
         ) : null}
       </div>
       {record.source_availability === 'unavailable' ? (
         <p className="mt-4 text-sm text-muted-foreground">
-          源文件不可用；已有分析结果仍可查看。
+          源文件不可用，无法重新执行；已有分析结果仍可查看。
         </p>
       ) : null}
       {state.loading ? (
@@ -183,7 +187,21 @@ function AnalysisDetailContent({
               >
                 取消分析
               </Button>
-            ) : null}
+            ) : (
+              <Button
+                disabled={
+                  Boolean(state.action) ||
+                  job.error_code === 'analysis_outcome_unknown' ||
+                  record.record_type === 'skill_analysis' ||
+                  record.record_type === 'content_creation' ||
+                  record.source_availability !== 'available'
+                }
+                variant="outline"
+                onClick={() => setConfirmRetry(true)}
+              >
+                {job.status === 'succeeded' ? '重新运行' : '重试'}
+              </Button>
+            )}
             <AnalysisDeleteDialog
               busy={state.action === 'delete'}
               disabled={Boolean(state.action)}
@@ -203,6 +221,35 @@ function AnalysisDetailContent({
                 ))
               : null}
           </div>
+          {confirmRetry ? (
+            <FeedbackNotice
+              className="mt-5"
+              title="按原配置重新运行"
+              description="将保留任务编号并增加执行次数，可能消耗模型额度。调整材料或目的请新建任务。"
+              action={
+                <div className="flex gap-2">
+                  <Button
+                    disabled={
+                      Boolean(state.action) ||
+                      job.error_code === 'analysis_outcome_unknown'
+                    }
+                    onClick={() => {
+                      setConfirmRetry(false);
+                      void state.retry();
+                    }}
+                  >
+                    确认执行
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    onClick={() => setConfirmRetry(false)}
+                  >
+                    取消
+                  </Button>
+                </div>
+              }
+            />
+          ) : null}
           {job.error_code ? (
             <FeedbackNotice
               className="mt-4"
@@ -214,7 +261,11 @@ function AnalysisDetailContent({
               tone="error"
             />
           ) : null}
-          {isVideoAnalysisResult(job.result) ? (
+          {job.result?.kind === 'skill_report' ? (
+            <AnalysisReportPreview
+              markdown={job.report_markdown ?? job.result.body}
+            />
+          ) : isVideoAnalysisResult(job.result, job.input_kind) ? (
             <AnalysisVideoResult
               result={job.result}
               reportMarkdown={job.report_markdown}

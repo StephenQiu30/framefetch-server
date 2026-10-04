@@ -33,7 +33,7 @@ export default function ContentResultView({
           <AlertDescription>
             {historicalEdit
               ? '这份历史稿件经过人工改动，原自动审校结论不适用于改动后的正文。'
-              : '具体问题见下方审校意见。请补充材料或调整创作要求后，新建创作任务。'}
+              : '具体问题见下方审校意见。需要继续处理时，返回来源并重新选择 Skill。'}
           </AlertDescription>
         </Alert>
       ) : null}

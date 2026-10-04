@@ -15,7 +15,6 @@ import * as downloads from "./downloads";
 import * as documents from "./documents";
 import * as analyses from "./analyses";
 import * as mediaImports from "./mediaImports";
-import * as creation from "./creation";
 export default {
   system,
   appAuth,
@@ -30,5 +29,4 @@ export default {
   documents,
   analyses,
   mediaImports,
-  creation,
 };

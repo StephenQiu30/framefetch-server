@@ -100,7 +100,6 @@ function SiteHeader() {
                     data-slot="header-navigation"
                   >
                     <DesktopNavigation
-                      contentActive={pathname.startsWith('/content')}
                       documentsActive={documentsActive}
                       historyActive={historyActive}
                       homeActive={homeActive}

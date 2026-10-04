@@ -1,7 +1,6 @@
 'use client';
 
 import { useQuery } from '@tanstack/react-query';
-import Link from 'next/link';
 import { useState } from 'react';
 import { getContentSource } from '@/api/analyses';
 import { FeedbackNotice } from '@/components/layout/feedback-notice';
@@ -64,9 +63,6 @@ export default function ContentSourceReview({
           </p>
         </details>
       ))}
-      <Button asChild variant="ghost" className="mt-4">
-        <Link href="/content">打开内容工作台</Link>
-      </Button>
     </details>
   );
 }

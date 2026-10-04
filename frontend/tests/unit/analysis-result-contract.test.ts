@@ -16,6 +16,8 @@ function resultMetric(result: PublicResult): number {
       return result.blocks.length;
     case 'structured_report':
       return result.sections.length;
+    case 'skill_report':
+      return result.body.length;
     default: {
       const exhaustive: never = result;
       return exhaustive;

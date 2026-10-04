@@ -1,11 +1,12 @@
 'use client';
 
-import Link from 'next/link';
+import { useRouter } from 'next/navigation';
+import { useState } from 'react';
+import AnalysisConfigurator from '@/components/analysis/analysis-configurator';
 import { AnalysisStatusCode } from '@/components/analysis/analysis-panel-model';
 import { isVideoAnalysisResult } from '@/components/analysis/analysis-video-result';
 import { useAnalysisJob } from '@/components/analysis/use-analysis-job';
 import { FeedbackNotice } from '@/components/layout/feedback-notice';
-import { PageEmptyNotice } from '@/components/layout/page-empty-notice';
 import { PageErrorNotice } from '@/components/layout/page-error-notice';
 import { ScreenplayAnalysisJobState } from '@/components/screenplay/screenplay-analysis-job-state';
 import { ScreenplayCompletedAnalysis } from '@/components/screenplay/screenplay-completed-analysis';
@@ -21,20 +22,35 @@ export default function ScreenplayAnalysisPanel({
   analysisId?: string;
   pollIntervalMs?: number;
 }) {
+  const router = useRouter();
   const state = useAnalysisJob(
     documentId,
     pollIntervalMs,
     'screenplay',
     analysisId,
   );
-  if (state.loading)
+  const [newAnalysisForJobId, setNewAnalysisForJobId] = useState<string | null>(
+    null,
+  );
+  function beginNewAnalysis() {
+    if (analysisId) {
+      router.push(
+        `/documents/detail?documentId=${encodeURIComponent(documentId)}`,
+      );
+      return;
+    }
+    setNewAnalysisForJobId(state.job?.id ?? null);
+  }
+
+  if (state.loading && state.action !== 'start') {
     return (
       <div className="py-12" role="status">
         <Spinner aria-hidden className="mr-2 inline" />
         正在读取分析记录
       </div>
     );
-  if (state.errorKind === 'load' && state.error)
+  }
+  if (state.errorKind === 'load' && state.error) {
     return (
       <PageErrorNotice
         compact
@@ -43,48 +59,104 @@ export default function ScreenplayAnalysisPanel({
         onRetry={() => void state.retryPoll()}
       />
     );
+  }
   const succeeded =
     state.job?.status === AnalysisStatusCode.Succeeded &&
     state.job.result &&
-    !isVideoAnalysisResult(state.job.result);
+    !isVideoAnalysisResult(state.job.result, state.job.input_kind);
+
   return (
-    <section className="grid gap-6 py-12 sm:py-16" aria-label="历史剧本分析">
-      <div className="flex flex-wrap items-center gap-3">
-        <h2 className="text-xl font-semibold tracking-tight">历史剧本分析</h2>
-        <Button asChild variant="outline">
-          <Link href="/content">到内容工作台新建任务</Link>
-        </Button>
-      </div>
-      <p className="text-sm text-muted-foreground">
-        保留原有剧本分析与报告。新任务请在内容工作台导入或选择剧本文档，核对版本后开始分析。
-      </p>
-      {state.error ? (
-        <FeedbackNotice
-          title="操作未完成"
-          description={state.error}
-          tone="error"
-          action={
-            <Button variant="outline" onClick={() => void state.retryPoll()}>
-              恢复同步
-            </Button>
-          }
-        />
-      ) : null}
+    <div className="mt-14 py-12 sm:mt-16 sm:py-16">
       {succeeded && state.job ? (
-        <ScreenplayCompletedAnalysis
-          action={state.action}
-          job={state.job}
-          onDelete={state.remove}
-        />
-      ) : state.job ? (
-        <ScreenplayAnalysisJobState job={state.job} state={state} />
+        <>
+          {state.error ? (
+            <FeedbackNotice
+              action={
+                state.errorKind === 'sync' ? (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => void state.retryPoll()}
+                  >
+                    恢复同步
+                  </Button>
+                ) : undefined
+              }
+              className="mb-8"
+              presentation={state.errorKind === 'action' ? 'toast' : 'inline'}
+              description={state.error}
+              title="操作未完成"
+              tone="error"
+            />
+          ) : null}
+          <ScreenplayCompletedAnalysis
+            action={state.action}
+            job={state.job}
+            onDelete={state.remove}
+            onRetry={state.retry}
+            onNewAnalysis={beginNewAnalysis}
+          />
+        </>
       ) : (
-        <PageEmptyNotice
-          compact
-          title="暂无旧剧本分析"
-          description="新任务在内容工作台中开始。"
-        />
+        <>
+          <div className="max-w-3xl">
+            <h2
+              className="text-xl font-semibold tracking-tight"
+              id="screenplay-analysis-title"
+            >
+              文档分析
+            </h2>
+            <p className="mt-4 max-w-2xl leading-7 text-muted-foreground">
+              审阅故事结构、人物和对白，或整理已有文章、公众号和小红书文档。任务使用这份文档，原文保留。
+            </p>
+          </div>
+          {state.error ? (
+            <FeedbackNotice
+              action={
+                state.errorKind === 'sync' ? (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => void state.retryPoll()}
+                  >
+                    恢复同步
+                  </Button>
+                ) : undefined
+              }
+              className="mt-6"
+              presentation={state.errorKind === 'action' ? 'toast' : 'inline'}
+              description={state.error}
+              title="操作未完成"
+              tone="error"
+            />
+          ) : null}
+          {!state.job && !analysisId ? (
+            <AnalysisConfigurator
+              inputId={documentId}
+              busy={state.action === 'start'}
+              inputKind="screenplay"
+              onStart={state.start}
+            />
+          ) : state.job ? (
+            <ScreenplayAnalysisJobState
+              job={state.job}
+              state={state}
+              onNewAnalysis={beginNewAnalysis}
+            />
+          ) : null}
+        </>
       )}
-    </section>
+      {state.job && newAnalysisForJobId === state.job.id ? (
+        <div className="mt-10 max-w-3xl" id="new-screenplay-analysis">
+          <h3 className="mb-4 text-xl font-medium">使用最新 Skill 新建任务</h3>
+          <AnalysisConfigurator
+            inputId={documentId}
+            busy={state.action === 'start'}
+            inputKind="screenplay"
+            onStart={state.start}
+          />
+        </div>
+      ) : null}
+    </div>
   );
 }

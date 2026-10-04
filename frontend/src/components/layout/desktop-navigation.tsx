@@ -19,7 +19,6 @@ import { siteConfig } from '@/lib/site';
 
 type DesktopNavigationProps = {
   documentsActive: boolean;
-  contentActive?: boolean;
   historyActive: boolean;
   homeActive: boolean;
   providersActive: boolean;
@@ -28,7 +27,6 @@ type DesktopNavigationProps = {
 
 export function DesktopNavigation({
   documentsActive,
-  contentActive,
   historyActive,
   homeActive,
   providersActive,
@@ -60,10 +58,6 @@ export function DesktopNavigation({
             <NavigationLink active={historyActive} href="/history">
               <ClockCounterClockwiseIcon aria-hidden />
               下载记录
-            </NavigationLink>
-            <NavigationLink active={contentActive} href="/content">
-              <FileTextIcon aria-hidden />
-              内容创作
             </NavigationLink>
             <NavigationLink active={documentsActive} href="/documents">
               <FileTextIcon aria-hidden />

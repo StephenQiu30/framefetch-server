@@ -7,11 +7,14 @@ import {
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   cancelAnalysis,
+  createAnalysis,
+  createDocumentAnalysis,
   deleteAnalysis,
   getAnalysis,
   getAnalysisHistoryRecord,
   getLatestDocumentAnalysis,
   getLatestDownloadAnalysis,
+  retryAnalysis,
 } from '@/api/analyses';
 import { isTerminalAnalysisStatus } from '@/components/analysis/analysis-panel-model';
 import { privateQueryKey } from '@/lib/query-keys';
@@ -19,7 +22,12 @@ import { ApiError, displayError } from '@/lib/request-error';
 import { sessionGeneration } from '@/lib/session-events';
 import { TaskSocketStatusCode, taskSocket } from '@/lib/task-socket';
 
-type Operation = { action: 'cancel' | 'delete'; analysisId: string };
+import { createUuid as createIdempotencyKey } from '@/lib/uuid';
+
+type Operation =
+  | { action: 'start'; input: API.AnalysisRequest; key: string }
+  | { action: 'retry'; analysisId: string; runNo: number; key: string }
+  | { action: 'cancel' | 'delete'; analysisId: string };
 
 export function useAnalysisJob(
   inputId: string,
@@ -75,7 +83,25 @@ export function useAnalysisJob(
       await queries.cancelQueries({ queryKey });
       if (queryKey[1] !== sessionGeneration())
         throw new Error('Session changed');
+      if (operation.action === 'start') {
+        const options = { headers: { 'Idempotency-Key': operation.key } };
+        return inputKind === 'screenplay'
+          ? createDocumentAnalysis(
+              { document_id: encodeURIComponent(inputId) },
+              operation.input,
+              options,
+            )
+          : createAnalysis(
+              { download_id: encodeURIComponent(inputId) },
+              operation.input,
+              options,
+            );
+      }
       const params = { analysis_id: encodeURIComponent(operation.analysisId) };
+      if (operation.action === 'retry')
+        return retryAnalysis(params, {
+          headers: { 'Idempotency-Key': operation.key },
+        });
       if (operation.action === 'cancel') return cancelAnalysis(params);
       await deleteAnalysis(params);
       return null;
@@ -193,6 +219,37 @@ export function useAnalysisJob(
     );
   }, [action, analysisId, refetch, shouldSync]);
 
+  function requestKey(
+    operation: Exclude<Operation, { action: 'cancel' | 'delete' }>,
+  ) {
+    const previous = queries
+      .getMutationCache()
+      .findAll({ mutationKey, exact: true });
+    for (const candidate of previous.toReversed()) {
+      const value = candidate.state.variables as Operation | undefined;
+      if (value?.action === 'delete' && candidate.state.status === 'success')
+        break;
+      if (
+        operation.action === 'start' &&
+        value?.action === 'start' &&
+        JSON.stringify(value.input) === JSON.stringify(operation.input)
+      ) {
+        if (candidate.state.status === 'error') return value.key;
+        break;
+      }
+      if (
+        operation.action === 'retry' &&
+        value?.action === 'retry' &&
+        value.analysisId === operation.analysisId &&
+        value.runNo === operation.runNo
+      ) {
+        if (candidate.state.status === 'error') return value.key;
+        break;
+      }
+    }
+    return createIdempotencyKey();
+  }
+
   async function execute(operation: Operation) {
     // Pending is recorded synchronously, before another click or route mount.
     if (queries.isMutating({ mutationKey, exact: true })) return;
@@ -202,12 +259,32 @@ export function useAnalysisJob(
       /* Shared state owns the visible error. */
     }
   }
+  const start = async (input: API.AnalysisRequest) => {
+    const operation: Operation = { action: 'start', input, key: '' };
+    await execute({ ...operation, key: requestKey(operation) });
+  };
   const cancel = async () => {
     if (analysisId) await execute({ action: 'cancel', analysisId });
   };
   const retryPoll = useCallback(async () => {
     if (!action) await refetch({ cancelRefetch: false });
   }, [action, refetch]);
+  const retry = async () => {
+    if (
+      !job ||
+      job.error_code === 'analysis_outcome_unknown' ||
+      job.input_kind === 'skill' ||
+      job.input_kind === 'content'
+    )
+      return;
+    const operation: Operation = {
+      action: 'retry',
+      analysisId: job.id,
+      runNo: job.run_no,
+      key: '',
+    };
+    await execute({ ...operation, key: requestKey(operation) });
+  };
   const remove = async () => {
     if (analysisId) await execute({ action: 'delete', analysisId });
   };
@@ -226,8 +303,10 @@ export function useAnalysisJob(
     job,
     loading: snapshot.isPending,
     remove,
+    retry,
     retryPoll,
     socketStatus,
+    start,
   };
 }
 

@@ -34,9 +34,11 @@ import { TaskSocketStatusCode } from '@/lib/task-socket';
 export function ScreenplayAnalysisJobState({
   job,
   state,
+  onNewAnalysis,
 }: {
   job: API.AnalysisResponse;
   state: ReturnType<typeof useAnalysisJob>;
+  onNewAnalysis: () => void;
 }) {
   const cancellable = isActiveAnalysisStatus(job.status);
   return (
@@ -81,13 +83,38 @@ export function ScreenplayAnalysisJobState({
       </p>
       <div className="mt-7 flex flex-wrap gap-3">
         {cancellable ? <CancelControl state={state} /> : null}
+        {job.status === AnalysisStatusCode.Failed ||
+        job.status === AnalysisStatusCode.Cancelled ? (
+          <Button
+            disabled={
+              Boolean(state.action) ||
+              job.error_code === 'analysis_outcome_unknown'
+            }
+            onClick={() => void state.retry()}
+          >
+            {state.action === 'retry' ? (
+              <Spinner aria-hidden data-icon="inline-start" />
+            ) : null}
+            {state.action === 'retry' ? '正在重试' : '重试任务'}
+          </Button>
+        ) : null}
+        {job.status === AnalysisStatusCode.Failed ||
+        job.status === AnalysisStatusCode.Cancelled ? (
+          <Button
+            disabled={Boolean(state.action)}
+            onClick={onNewAnalysis}
+            variant="outline"
+          >
+            使用最新 Skill 新建任务
+          </Button>
+        ) : null}
         <AnalysisDeleteDialog
           disabled={Boolean(state.action)}
           busy={state.action === 'delete'}
           onDelete={state.remove}
         />
       </div>
-      {job.result && !isVideoAnalysisResult(job.result) ? (
+      {job.result && !isVideoAnalysisResult(job.result, job.input_kind) ? (
         <div className="mt-10 pt-10">
           <Badge variant="secondary">上一版本结果</Badge>
           <ScreenplayResultView

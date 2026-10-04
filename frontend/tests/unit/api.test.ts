@@ -9,7 +9,12 @@ import {
   updateProviderCatalogEntry,
   updateUserAccess,
 } from '@/api/admin';
-import { cancelAnalysis, getAnalysis } from '@/api/analyses';
+import {
+  cancelAnalysis,
+  createAnalysis,
+  getAnalysis,
+  listAnalysisSkills,
+} from '@/api/analyses';
 import {
   getCurrentUser,
   loginUser as login,
@@ -35,7 +40,7 @@ import {
 import { createSourceDiscovery } from '@/api/sourceDiscoveries';
 import { getLiveness, getReadiness } from '@/api/system';
 import { updateCurrentUser } from '@/api/users';
-import { analysisJob } from '../fixtures/analysis-fixtures';
+import { analysisJob, analysisSkills } from '../fixtures/analysis-fixtures';
 import {
   documentId,
   screenplayDocument,
@@ -282,14 +287,49 @@ describe('typed API client', () => {
     });
   });
 
-  it('reads and cancels historical owner-scoped analyses', async () => {
-    mockHttpResponses(analysisJob('running'), analysisJob('cancelled'));
-    await getAnalysis({ analysis_id: analysisJob().id });
-    await cancelAnalysis({ analysis_id: analysisJob().id });
+  it('creates, queries and cancels analysis resources', async () => {
+    mockHttpResponses(
+      analysisJob(),
+      analysisJob('running'),
+      analysisJob('cancelled'),
+    );
+    await createAnalysis(
+      { download_id: encodeURIComponent(job().id) },
+      {
+        skill_id: 'highlights',
+        output_language: 'en-US',
+        custom_prompt: 'Focus on product reveals.',
+      },
+      {
+        headers: { 'Idempotency-Key': 'analysis-key' },
+      },
+    );
+    await getAnalysis({ analysis_id: encodeURIComponent(analysisJob().id) });
+    await cancelAnalysis({ analysis_id: encodeURIComponent(analysisJob().id) });
+
     expect(httpRequests()).toMatchObject([
+      { url: `/api/downloads/${job().id}/analyses`, method: 'POST' },
       { url: `/api/analyses/${analysisJob().id}`, method: 'GET' },
       { url: `/api/analyses/${analysisJob().id}/cancel`, method: 'POST' },
     ]);
+    expect(httpRequests()[0]?.data).toEqual({
+      skill_id: 'highlights',
+      output_language: 'en-US',
+      custom_prompt: 'Focus on product reveals.',
+    });
+  });
+
+  it('lists server-defined analysis skills', async () => {
+    mockHttpResponses(analysisSkills);
+
+    await expect(listAnalysisSkills({ input_kind: 'video' })).resolves.toEqual(
+      analysisSkills,
+    );
+    expect(httpRequests()[0]).toMatchObject({
+      url: '/api/analysis-skills',
+      method: 'GET',
+      params: { input_kind: 'video' },
+    });
   });
 
   it('covers profile and administrator user management endpoints', async () => {

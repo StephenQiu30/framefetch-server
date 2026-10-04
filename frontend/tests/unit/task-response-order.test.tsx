@@ -192,5 +192,8 @@ vi.mock('@/api/analyses', async (original) => ({
   getLatestDownloadAnalysis: runtime.latest,
   getLatestDocumentAnalysis: runtime.latest,
   cancelAnalysis: runtime.cancel,
+  createAnalysis: vi.fn(),
+  createDocumentAnalysis: vi.fn(),
   deleteAnalysis: runtime.remove,
+  retryAnalysis: vi.fn(),
 }));

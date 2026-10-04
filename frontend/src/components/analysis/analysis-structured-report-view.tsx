@@ -17,14 +17,24 @@ export default function AnalysisStructuredReportView({
   reportMarkdown?: string | null;
   result: API.StructuredReportResultResponse;
 }) {
+  const sourceDigests = [
+    ...new Set(
+      result.sections.flatMap(
+        (section) =>
+          section.citations?.map((citation) => citation.source_sha256) ?? [],
+      ),
+    ),
+  ];
   return (
     <Tabs className="mt-10 gap-0" defaultValue="report-sections">
       <AnalysisEditorialReview result={result} />
       <div className="grid grid-cols-2 gap-3 py-4 sm:gap-5">
         <Metric label="报告章节" value={`${result.sections.length}`} />
         <Metric
-          label="视频时长"
-          value={formatMilliseconds(result.media.duration_ms)}
+          label={result.media ? '视频时长' : '来源类型'}
+          value={
+            result.media ? formatMilliseconds(result.media.duration_ms) : '文档'
+          }
         />
       </div>
       <div className="mt-8 w-full">
@@ -50,9 +60,15 @@ export default function AnalysisStructuredReportView({
                   章节 {index + 1}
                 </p>
                 <h4 className="mt-2 text-xl font-medium">{section.heading}</h4>
-                <p className="mt-4 whitespace-pre-line leading-8 text-muted-foreground">
-                  {section.body}
-                </p>
+                {result.media ? (
+                  <p className="mt-4 whitespace-pre-line leading-8 text-muted-foreground">
+                    {section.body}
+                  </p>
+                ) : (
+                  <div className="mt-4 min-w-0">
+                    <AnalysisReportPreview markdown={section.body} />
+                  </div>
+                )}
                 {section.items.length ? (
                   <ul className="mt-4 flex flex-col gap-2 list-disc pl-5 leading-7">
                     {section.items.map((item) => (
@@ -60,7 +76,7 @@ export default function AnalysisStructuredReportView({
                     ))}
                   </ul>
                 ) : null}
-                {section.evidence.length ? (
+                {result.media && section.evidence.length ? (
                   <div className="mt-5 flex flex-col gap-1 text-sm text-muted-foreground">
                     {section.evidence.map((evidence) => (
                       <p
@@ -84,10 +100,30 @@ export default function AnalysisStructuredReportView({
                     ))}
                   </div>
                 ) : null}
+                {section.citations?.length ? (
+                  <div className="mt-5 flex min-w-0 flex-col gap-3 text-sm text-muted-foreground">
+                    {section.citations.map((citation) => (
+                      <p
+                        key={`${citation.source_sha256}-${citation.start}-${citation.end}`}
+                      >
+                        原文第 {citation.start + 1}–{citation.end} 个字符
+                      </p>
+                    ))}
+                  </div>
+                ) : null}
               </li>
             </Item>
           ))}
         </ol>
+        {sourceDigests.length ? (
+          <div className="mt-8 min-w-0 text-xs text-muted-foreground">
+            {sourceDigests.map((sha) => (
+              <p key={sha}>
+                原文 SHA-256：<code className="break-all">{sha}</code>
+              </p>
+            ))}
+          </div>
+        ) : null}
         {result.limitations.length ? (
           <div className="mt-8 py-6">
             <h4 className="font-medium">事实边界与待核验项</h4>

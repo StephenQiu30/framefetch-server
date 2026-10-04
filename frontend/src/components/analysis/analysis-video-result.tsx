@@ -11,17 +11,16 @@ export type VideoAnalysisResult = Extract<
   { kind: 'video_visual_analysis' | 'video_article' | 'structured_report' }
 >;
 
-const VIDEO_RESULT_KINDS: ReadonlySet<AnyAnalysisResult['kind']> = new Set([
-  'video_visual_analysis',
-  'video_article',
-  'structured_report',
-]);
-
 /** Video results have timecoded evidence and video report exports. */
 export function isVideoAnalysisResult(
   result: AnyAnalysisResult | null | undefined,
+  inputKind?: API.AnalysisInputKind,
 ): result is VideoAnalysisResult {
-  return result != null && VIDEO_RESULT_KINDS.has(result.kind);
+  if (!result || (inputKind != null && inputKind !== 'video')) return false;
+  if (result.kind === 'structured_report') return result.media != null;
+  return (
+    result.kind === 'video_visual_analysis' || result.kind === 'video_article'
+  );
 }
 
 /** The one place that maps a video result contract to its view. */

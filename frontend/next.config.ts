@@ -11,11 +11,6 @@ const nextConfig: NextConfig = {
   skipTrailingSlashRedirect: true,
   trailingSlash: true,
   output: 'standalone',
-  experimental: {
-    // A 10 MiB document/image becomes about 14 MiB in its JSON base64 envelope.
-    // FastAPI still enforces the smaller per-route limits and validates files.
-    proxyClientMaxBodySize: '16mb',
-  },
   images: {
     unoptimized: true,
     remotePatterns: [

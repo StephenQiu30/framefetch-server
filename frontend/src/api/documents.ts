@@ -2,7 +2,7 @@
 /* eslint-disable */
 import { request, type RequestOptions } from "@/lib/request";
 
-/** 查询剧本文档列表 GET /api/documents */
+/** 查询文档列表 GET /api/documents */
 export async function listDocuments(
   // 叠加生成的Param类型 (非body参数swagger默认没有生成对象)
   params: API.listDocumentsParams,
@@ -21,7 +21,7 @@ export async function listDocuments(
   });
 }
 
-/** 创建剧本文档导入 POST /api/documents */
+/** 创建文档导入 POST /api/documents */
 export async function createDocumentImport(
   body: API.DocumentImportRequest,
   options?: RequestOptions
@@ -36,7 +36,7 @@ export async function createDocumentImport(
   });
 }
 
-/** 查询剧本文档导入 GET /api/documents/${param0} */
+/** 查询文档导入 GET /api/documents/${param0} */
 export async function getDocumentImport(
   // 叠加生成的Param类型 (非body参数swagger默认没有生成对象)
   params: API.getDocumentImportParams,
@@ -53,7 +53,7 @@ export async function getDocumentImport(
   );
 }
 
-/** 删除剧本文档及其制品 DELETE /api/documents/${param0} */
+/** 删除文档及其制品 DELETE /api/documents/${param0} */
 export async function deleteDocument(
   // 叠加生成的Param类型 (非body参数swagger默认没有生成对象)
   params: API.deleteDocumentParams,
@@ -67,7 +67,7 @@ export async function deleteDocument(
   });
 }
 
-/** 取消剧本文档导入 POST /api/documents/${param0}/cancel */
+/** 取消文档导入 POST /api/documents/${param0}/cancel */
 export async function cancelDocumentImport(
   // 叠加生成的Param类型 (非body参数swagger默认没有生成对象)
   params: API.cancelDocumentImportParams,

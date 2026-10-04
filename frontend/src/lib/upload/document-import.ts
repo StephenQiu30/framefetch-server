@@ -15,6 +15,8 @@ import {
 const formats = new Map<string, API.DocumentSourceFormat>([
   ['.docx', 'docx'],
   ['.fountain', 'fountain'],
+  ['.srt', 'srt'],
+  ['.vtt', 'vtt'],
   ['.markdown', 'markdown'],
   ['.md', 'markdown'],
   ['.pdf', 'pdf'],
@@ -26,7 +28,7 @@ export function validateScreenplayDocument(file: File): string | null {
   // The deployment's document_import_max_bytes is enforced when creating
   // the import, before an upload session can be issued.
   if (!documentSourceFormat(file.name)) {
-    return '支持 DOCX、PDF、TXT、Markdown 和 Fountain 文件。';
+    return '支持 DOCX、PDF、TXT、Markdown、Fountain、SRT 和 WebVTT 文件。';
   }
   return null;
 }

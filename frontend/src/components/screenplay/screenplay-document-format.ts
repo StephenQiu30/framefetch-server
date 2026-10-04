@@ -60,6 +60,8 @@ export const documentFormatLabels: Record<API.DocumentSourceFormat, string> = {
   txt: '纯文本',
   markdown: 'Markdown',
   fountain: 'Fountain',
+  srt: 'SRT 字幕',
+  vtt: 'WebVTT 字幕',
 };
 
 const errorLabels: Record<API.ImportErrorCode, string> = {
