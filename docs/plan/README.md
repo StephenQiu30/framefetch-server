@@ -4,4 +4,4 @@
 
 | 计划 | 来源 | 状态 |
 | --- | --- | --- |
-| [内容创作 Skill 体系执行计划](PLAN-内容创作Skill体系.md) | [内容创作 Skill PRD](../prd/PRD-内容创作Skill体系.md) | 12 项功能已实现；工作包、功能／非功能追踪、checklist、真实证据与未完成的外部验收门槛 |
+| [内置 Skill 能力整合执行计划](PLAN-内置Skill能力整合.md) | [内置 Skill PRD](../prd/PRD-内置Skill能力整合.md) | 原页面恢复、调用／Skill／产出优化，需求追踪、依赖、checklist与真实验收 |

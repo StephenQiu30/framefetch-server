@@ -42,7 +42,9 @@ Media Runner 从 `app/workers/runner/plugins/yt_dlp_plugins/` 加载可信站点
 
 管理员只读接口 `GET /api/admin/provider-runtime/engine-catalog` 查询 Runner 实际安装的提取器、插件与版本快照；不会访问平台或读取账号材料，提取器数量不代表可下载的平台数。
 
-内容能力通过 `/api/creation` 统一管理，当前范围是 6 项影视分析与 6 项文章整理。方法规范保存在 `app/services/creation/catalog.py 与 drama.py`，任务固定方法 SHA、用户确认的材料版本与预算。API 只在 PostgreSQL 事务内创建任务和 outbox；宿主 AI Worker 在 Temporal `ff-skill` 队列执行。可用性只接受新 Worker 协议版本 3 的新鲜心跳，旧版本 2 不进入新任务准入。文本格式整理、公众号导出和小红书图卡使用确定性工具；生成与改写沿用管理员配置的模型线路和宿主官方登录。活跃 Worker、实际模型与材料要求决定可用状态，模型结果仍需人工确认。未知调用保留预算占用并阻止重试。文字、DOCX/PDF 原文件与图片保存在所属用户的材料记录，人工改稿新增版本；以已确认结果作为母稿时固定引用指定版本，上游更新会标记下游过期。确认后的 Markdown、HTML、DOCX、字幕及图卡文件按版本持久保存，重复导出不调用模型。旧 Skill 树、导入器、创建和重试入口已经清退，历史任务、来源、报告及版本继续按原归属只读访问。
+本轮保留原页面与表单，恢复 `GET /api/analysis-skills` 及视频／文档原分析创建语义。目录保留默认提示词等原字段，请求支持中／英文与4000字自定义提示词；实际正式契约由OpenAPI生成。优化内置方法加载、完整来源、依据及输出内容，使用适合任务的原结果契约和报告布局，不建立双源工作台。实现及真实验收状态见执行计划。
+
+API 在 PostgreSQL 事务内保存 AnalysisJob／Run、固定来源与 Outbox，宿主 Worker 在 Temporal `ff-skill` 执行；模型调用复用 Step 日志，未知回执不自动重发，方法实际执行类型与资源约束由内置定义控制。没有作品、母稿、人工版本确认、预算表单、文章写作或图卡制作。活动 creation 接口与执行注册清退，原数据库数据保留；既有 analysis 历史 reader 仍校验 owner。正式实现状态和重新验收见[执行计划](../docs/plan/PLAN-内置Skill能力整合.md)。
 
 内置 `local-codex` 不可删除或改造为第三方结构；模型和线路仅由数据库 Web Profile 决定，`.env` 只保留宿主机 CLI 二进制路径。
 
@@ -84,7 +86,7 @@ uv run python -m app.workers.analysis.agent_cli doctor --env-file ../.env.prod
 uv run python -m app.workers.analysis.agent_cli install --env-file ../.env.prod
 ```
 
-API 固定监听 `8111`，前端固定监听 `8101`。API `/health/live` 只证明进程存活；`/health/ready` 还会在有界超时内检查数据库结构、MinIO、RabbitMQ 与 Redis。宿主机 AI Worker 在 `ff-skill` 队列执行 CreationWorkflow，与 Temporal 断连时自动重连，并由系统服务监督进程；Worker 离线期间任务保持排队，恢复后继续观察，未知模型调用不会自动重发。没有 AI Worker 的部署必须显式设置 `ANALYSIS_ENABLED=false` 并重建 API。
+API 固定监听 `8111`，前端固定监听 `8101`。API `/health/live` 只证明进程存活；`/health/ready` 还会在有界超时内检查数据库结构、MinIO、RabbitMQ 与 Redis。宿主机 AI Worker 在 `ff-skill` 队列执行内置 Skill 分析 Workflow，使用协议版本 4 的心跳，与 Temporal 断连时自动重连，并由系统服务监督进程；Worker 离线期间任务保持排队，恢复后继续观察，未知模型调用不会自动重发。没有 AI Worker 的部署必须显式设置 `ANALYSIS_ENABLED=false` 并重建 API。
 
 ## 测试目录
 
@@ -116,7 +118,7 @@ Web JSON 响应及全局异常统一遵循 [PROJECT.md §3.1](../PROJECT.md#31-�
 管理员日志入口、记录范围、故障语义和部署验证见[解析与处理记录](../docs/design/06-解析中心.md)。
 
 
-Temporal 回归默认复用已有服务：地址来自 `TEST_TEMPORAL_ADDRESS`，未设置时使用 `Settings.temporal_address`（默认 `127.0.0.1:7233`）。例如执行 `TEST_TEMPORAL_ADDRESS=127.0.0.1:7233 uv run pytest tests/integration/test_intent_messaging.py tests/integration/test_skill_workflow.py`。本地测试不启动另一套 Temporal；仅显式设置 `TEST_TEMPORAL_START_LOCAL=true` 时，SDK 才启动隔离测试服务，复用已有 CLI，无 CLI 时下载 v1.8.2；GitHub CI 使用此选项。测试只使用 `framefetch-test` 命名空间和 PostgreSQL 隔离 schema，不消费业务命名空间。测试覆盖确认丢失、Worker 重启、取消、History replay 以及模型调用中断后不重发，不替代真实平台与模型验收。
+Temporal 回归默认复用已有服务：地址来自 `TEST_TEMPORAL_ADDRESS`，未设置时使用 `Settings.temporal_address`（默认 `127.0.0.1:7233`）。例如执行 `TEST_TEMPORAL_ADDRESS=127.0.0.1:7233 uv run pytest tests/integration/test_intent_messaging.py tests/integration/test_builtin_skill_workflow.py`。本地测试不启动另一套 Temporal；仅显式设置 `TEST_TEMPORAL_START_LOCAL=true` 时，SDK 才启动隔离测试服务，复用已有 CLI，无 CLI 时下载 v1.8.2；GitHub CI 使用此选项。测试只使用 `framefetch-test` 命名空间和 PostgreSQL 隔离 schema，不消费业务命名空间。测试覆盖确认丢失、Worker 重启、取消、History replay 以及模型调用中断后不重发，不替代真实平台与模型验收。
 
 ## 冷启动矩阵（设计 17）
 

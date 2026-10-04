@@ -2,23 +2,23 @@
 
 # FrameFetch
 
-Content Skills have been rebuilt around 12 analysis and writing tasks, including Drama analysis, articles, WeChat handoff and Xiaohongshu cards. The old creation catalog is retired. See the [PRD](docs/prd/PRD-内容创作Skill体系.md) and [execution plan](docs/plan/PLAN-内容创作Skill体系.md) for scope and current verification evidence (Chinese).
+Built-in Skill improvements preserve the original pages and forms while improving invocation, film-analysis methods and existing article, WeChat and Xiaohongshu document organization. Implementation and renewed acceptance are in progress. See the [PRD](docs/prd/PRD-内置Skill能力整合.md) and [execution plan](docs/plan/PLAN-内置Skill能力整合.md) for implementation and renewed acceptance evidence (Chinese).
 
-**An open-source, self-hosted content analysis and writing workstation.** Confirm materials, inspect evidence, and deliver editable versions and actual files.
+**An open-source, self-hosted material acquisition and analysis tool.** Obtain authorized sources, invoke built-in Skills, and read or export reports.
 
 [![CI](https://github.com/StephenQiu30/video-server/actions/workflows/ci.yml/badge.svg)](https://github.com/StephenQiu30/video-server/actions/workflows/ci.yml)
 [![MIT License](https://img.shields.io/badge/license-MIT-111111.svg)](LICENSE)
 [![Preview release](https://img.shields.io/github/v/release/StephenQiu30/video-server?include_prereleases&color=111111)](https://github.com/StephenQiu30/video-server/releases)
 
-[Overview](#what-is-framefetch) · [Workflow](#from-material-to-report) · [Analysis and writing Skills](#analysis-and-writing-skills) · [Clients](#one-workstation-multiple-clients) · [Quick start](#quick-start) · [Documentation](docs/design/README.md) · [简体中文](README.md)
+[Overview](#what-is-framefetch) · [Workflow](#from-material-to-report) · [Built-in Skills](#built-in-skills) · [Clients](#one-workstation-multiple-clients) · [Quick start](#quick-start) · [Documentation](docs/design/README.md) · [简体中文](README.md)
 
 ![Shared FrameFetch Web/desktop workspace: links, local video and screenplay inputs](docs/images/current-web-workspace.png)
 
-> Shared Web/desktop page demonstration from a released version. See the execution plan for the current workspace and real acceptance evidence.
+> Shared Web/desktop page demonstration from a released version. See the execution plan for the current Skill scope and real acceptance evidence.
 
 ## What is FrameFetch?
 
-FrameFetch brings material acquisition, film analysis and article preparation into one personal workstation. Obtain authorized videos, galleries or bounded collections according to each platform's actual capabilities, or import your own video, screenplay, article, subtitles and images. Confirm materials, select a task, inspect its source quotations or real sampled frames, edit and confirm a version, then export the formats available for that task. Galleries and collections retain ZIP delivery with an embedded manifest.
+FrameFetch connects material acquisition, film analysis and document organization. Obtain authorized videos, galleries or bounded collections according to each platform's actual capabilities, or import your own video, screenplay or article. Select a built-in Skill from the source details, use the original language and prompt controls, and read or export its report. Galleries and collections retain ZIP delivery with an embedded manifest.
 
 This repository provides the **FastAPI server, Next.js Web application and background processing components**. The [Electron desktop client](https://github.com/StephenQiu30/video-electron) and [Flutter App](https://github.com/StephenQiu30/video-app) connect to the same server and share accounts, material, jobs and reports. The operator controls the infrastructure, storage and model configuration.
 
@@ -26,8 +26,8 @@ This repository provides the **FastAPI server, Next.js Web application and backg
 
 - **Complete material intake**: obtain single videos, image galleries and bounded video collections according to the platform's actual capabilities. Original images or collection videos are delivered as ZIP files containing `manifest.json`; local MP4 files and DOCX, text-based PDF, TXT, Markdown and Fountain screenplays enter the same workspace.
 - **Traceable evidence**: Drama findings refer to fixed text units; video observations refer to actual frames and source times. Later edits do not replace the material versions or hashes behind earlier results.
-- **Independent tasks**: six film-analysis tasks and six writing/image tasks cover Drama, shots, supplied subtitles, comparison, continuity, research, articles, WeChat packages, Xiaohongshu cards and original assets.
-- **Confirmed deliverables**: edit, compare, restore and confirm versions, then export documents, subtitles, CSV, HTML and actual image packages. Reuse confirmed manuscripts while preserving older versions and files.
+- **Built-in Skill improvements**: preserve original pages and analysis forms while improving invocation, professional film methods and existing article/WeChat/Xiaohongshu document organization.
+- **Report delivery**: reuse existing analysis jobs and history, read results and export MD/DOCX without creating projects or confirming manuscripts.
 - **Shared clients and self-hosting**: browser, native desktop and mobile clients use one backend, persistent background jobs and centrally managed material and reports. The operator configures model services and maintains the deployment.
 
 ## Use cases
@@ -37,7 +37,7 @@ This repository provides the **FastAPI server, Next.js Web application and backg
 | Study finished videos | Check candidate cuts, actual frames and source times; add your own visual and sound notes |
 | Compare screenplays and videos | Review candidate matches, continuity findings and uncovered ranges against fixed text and sampled frames |
 | Analyze stories and screenplays | Review characters, causality, pacing and editorial suggestions against fixed text units and exact quotations |
-| Prepare articles and channel files | Edit and confirm a manuscript, then prepare WeChat files or editable Xiaohongshu pages using your own images |
+| Organize articles and channel documents | Format existing text and structure while preserving code, quotations, links and viewpoints |
 | Build a personal toolchain | Extend providers, methods or clients through self-hosted storage, configurable models and OpenAPI |
 
 ## From material to report
@@ -46,8 +46,8 @@ This repository provides the **FastAPI server, Next.js Web application and backg
 2. **Confirm**: inspect metadata, access decisions and actual formats. Choose video quality, container, codecs and audio, or check gallery/collection counts and confirm the ZIP download. Explicitly refresh expired results and reconfirm changed formats.
 3. **Obtain**: download and import jobs run in the background with queue states, progress, cancellation, retry and history. Local video uses restricted multipart upload followed by Worker verification.
 4. **Manage**: verified video artifacts provide details, previews and file delivery. Galleries and bounded collections deliver original-image/video ZIP files with `manifest.json` recording the title, media kind and item count. Screenplays retain originals and normalized scene text. All clients use the same server data.
-5. **Analyze or organize**: confirm film, article or reference materials in the content workspace and choose an independent task. Results, human confirmation and exports have separate states; processing failure does not change acquisition success.
-6. **Deliver**: review, edit and confirm a version, then export the available documents, tables, subtitles or image packages. Export recovery reuses the saved result without another model call.
+5. **Analyze or organize**: choose a built-in Skill from existing video or document details and use the original language and prompt controls. Processing failure does not change acquisition success.
+6. **Deliver**: read the report and inspect its sources and evidence, then export MD/DOCX. Export recovery reuses the saved result without another model call.
 
 ### Pages and daily management
 
@@ -55,16 +55,13 @@ The Web workspace includes inspection details, download history, personal activi
 
 Administrators manage users, files, provider catalog entries and AI services, and read download/analysis statistics and operation logs. Material and reports persist; expiration of an access URL does not delete the stored file. Deletion and storage cleanup are explicit operations.
 
-## Analysis and writing Skills
+## Built-in Skills
 
-At /content, confirm your materials, select an independent task, review its evidence, edit and confirm a version, then export actual files. Originals and previous files remain available. Confirmed results can become fixed source manuscripts for channel packages; upstream edits mark dependent results stale without rewriting them.
+This work preserves original pages, navigation and analysis forms. Skill selection, Chinese/English output, editable default prompts, reset and report actions remain. Improvements target invocation, Skill methods and output quality.
 
-| Route | Tasks |
-| --- | --- |
-| Film analysis | Drama/script analysis, shot study, user-subtitle editing, script/video comparison, visual continuity, film-reference research |
-| Writing and cards | Article outline/writing, format or editorial revision, WeChat packaging, Xiaohongshu editable pages and actual cards, original-image assets, reference excerpts |
+Film work prioritizes video review, breakdown and screenplay analysis. Article, WeChat and Xiaohongshu organization works on existing text while protecting facts, quotations, code and links. Reports connect findings to evidence, coverage and limitations and use the original MD/DOCX actions.
 
-Formats depend on the task: MD, DOCX, safe HTML, CSV, SRT/VTT, and actual image/card ZIPs. Formatting, packaging and exports do not secretly call a model. Model candidates require human review. Video findings cover only the supplied real sampled frames, with no claim of complete motion or sound analysis. The current scope excludes editing timelines, rendered films, media generation, automatic transcription and account publishing.
+Page restoration and real method/output acceptance are in progress. Catalog counts, valid schemas and screenshots from the superseded redesign do not establish completion. See the [PRD](docs/prd/PRD-内置Skill能力整合.md) and [execution plan](docs/plan/PLAN-内置Skill能力整合.md).
 
 ## One workstation, multiple clients
 
@@ -102,7 +99,7 @@ This README describes the current main branch. For a fixed version, use its Rele
 
 ![Shared FrameFetch Web/desktop pages: City Walk demo analysis, shots and time evidence](docs/images/current-web-ai-report.png)
 
-**Screenplay workspace.** Read normalized scenes and start focused coverage or rewriting.
+**Document reader.** Read existing text and invoke a supported built-in analysis or formatting Skill.
 
 ![Shared FrameFetch Web/desktop pages: Midnight Visitor demo screenplay, scenes and analysis entry](docs/images/current-web-screenplay.png)
 
@@ -241,11 +238,11 @@ Local Compose reuses existing PostgreSQL, RabbitMQ, Redis, MinIO and Temporal se
 
 ## Scope and deployment requirements
 
-FrameFetch is in public preview. The 12 video and 8 screenplay methods form the built-in catalog; they do not establish real-model acceptance for every method. Provider registration and successful inspection do not establish complete-file delivery. CI covers deterministic engineering checks, while full cold-start acceptance remains incomplete. Physical-device/account workflows and complete desktop workflows against a real Server require each client's own acceptance evidence. Screenshots illustrate interfaces and result structures, without replacing that validation.
+FrameFetch is in public preview. Built-in Skill work is restoring original pages and improving invocation, methods and output quality. Implementation and acceptance evidence are tracked in the [execution plan](docs/plan/PLAN-内置Skill能力整合.md). CI covers deterministic engineering checks; actual model execution, native file delivery, physical devices and platform cold starts require their own evidence. Screenshots illustrate interfaces and do not establish that validation.
 
 - Process authorized HTTP(S), non-DRM material. Registered integrations include YouTube, Bilibili, Douyin, TikTok, Xiaohongshu, Kuaishou and Weibo; actual links depend on content scope, identity, network and platform changes. WeChat Channels supports downloading official clear share files and requires an open, logged-in Yuanbao page; official-account articles provide source discovery. See [design 17](docs/design/17-解析引擎重建.md#8-平台能力与验证边界) for exact platform status and complete-file evidence.
 - Source and build workflows are self-hosted. The operator provides servers, infrastructure, storage, network and models. External models may incur charges and receive the text or frames needed for analysis.
-- Current capabilities cover intake, management, analysis and reports. Articles, packaging copy and screenplay rewrites are candidates for human review. ASR/OCR are not supported by the current implementation; Mandarin transcription is a proposed target in the new PRD. DRM decryption, live recording, unbounded playlists, collaborative editing and automatic platform publishing remain outside scope.
+- Current capabilities cover intake, management, built-in Skill analysis/document formatting, and reports. Method and output acceptance is in progress; mechanical wrapping or initial excerpts do not establish useful document organization. Model conclusions require review. Content writing, screenplay rewriting, card production, ASR/OCR, editing timelines and publishing are outside this scope.
 - Successful material and reports persist; plan capacity, backups and explicit cleanup. See the [Security Policy](SECURITY.md) and parsing design. Replace placeholder configuration and check network, storage and models before exposing a deployment.
 
 ## Development
@@ -270,7 +267,7 @@ pnpm build
 
 ## Roadmap
 
-Platform support and validation limits are described in [the parsing design](docs/design/17-解析引擎重建.md#8-平台能力与验证边界); other unfinished work is listed in [BACKLOG](BACKLOG.md) (Chinese); the content analysis and writing Skill system is defined in the [new PRD](docs/prd/PRD-内容创作Skill体系.md), with work packages and acceptance checklists in the [execution plan](docs/plan/PLAN-内容创作Skill体系.md). Implementation and verification evidence are recorded in that plan. Discuss priorities in [Issues](https://github.com/StephenQiu30/video-server/issues) — tasks labeled `good first issue` or `help wanted` are a good place to start.
+Platform support and validation limits are described in [the parsing design](docs/design/17-解析引擎重建.md#8-平台能力与验证边界); other unfinished work is listed in [BACKLOG](BACKLOG.md) (Chinese); built-in Skills are defined in the [PRD](docs/prd/PRD-内置Skill能力整合.md), with work packages and acceptance checklists in the [execution plan](docs/plan/PLAN-内置Skill能力整合.md). Implementation and verification evidence are recorded in that plan. Discuss priorities in [Issues](https://github.com/StephenQiu30/video-server/issues) — tasks labeled `good first issue` or `help wanted` are a good place to start.
 
 ## Contributing
 
