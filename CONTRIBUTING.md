@@ -9,7 +9,7 @@
 - `docs/`：当前产品和架构事实。
 - 根 `Dockerfile`、`docker-compose-env.yml`、`docker-compose.yml` 与 `docker-compose-prod.yml`：维护业务运行与 CI 验证，不建立独立部署目录。业务与生产 Compose 只启动应用容器；环境 Compose 仅供 GitHub CI 使用。
 
-功能交付先更新 `docs/design/README.md`，并保持测试、契约、文档和实际运行方式一致。具体目录、依赖、安全、配置和测试规则以 `AGENTS.md` 为准。提交前分别运行后端与前端质量门禁；涉及运行时变更时还需验证环境 Compose、业务 Compose、生产 Compose 和统一镜像构建。
+功能交付按文档类型更新索引：产品需求维护在 `docs/prd/` 并更新 `docs/prd/README.md`，系统设计维护在 `docs/design/` 并更新 `docs/design/README.md`；保持测试、契约、文档和实际运行方式一致。具体目录、依赖、安全、配置和测试规则以 `AGENTS.md` 为准。提交前分别运行后端与前端质量门禁；涉及运行时变更时还需验证环境 Compose、业务 Compose、生产 Compose 和统一镜像构建。
 
 ## Docker 使用规范
 
