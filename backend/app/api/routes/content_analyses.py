@@ -1,4 +1,4 @@
-"""Content intake and revision use existing durable task/report ownership."""
+"""Content intake and read-only reports use existing task ownership."""
 
 from typing import Annotated
 from uuid import UUID
@@ -9,11 +9,7 @@ from app.api.admission import RateLimitAdmission
 from app.api.deps import IdempotencyKey, get_analysis_use_cases, get_current_user
 from app.api.responses import ApiResponseRoute
 from app.core.runtime import AnalysisUseCases
-from app.schemas.analyses import (
-    AnalysisResponse,
-    ContentAnalysisRequest,
-    ContentRevisionRequest,
-)
+from app.schemas.analyses import AnalysisResponse, ContentAnalysisRequest
 from app.services.analysis.content_versions import ContentVersion
 from app.services.analysis.errors import (
     AnalysisApplicationError,
@@ -71,42 +67,11 @@ async def get_content_source(
     return await use_cases.get_content_source(analysis_id, user.owner_hash)
 
 
-@router.post(
-    "/content/analyses/{analysis_id}/revisions",
-    operation_id="reviseContent",
-    response_model=AnalysisResponse,
-    status_code=201,
-    dependencies=[Depends(RateLimitAdmission("analysis"))],
-    summary="保存人工修订稿，保留原版本",
-)
-async def revise_content(
-    analysis_id: UUID,
-    body: ContentRevisionRequest,
-    idempotency_key: IdempotencyKey,
-    response: Response,
-    user: User,
-    use_cases: UseCases,
-) -> AnalysisResponse:
-    if use_cases.revise_content is None:
-        raise AnalysisApplicationError(AnalysisApplicationErrorCode.SERVICE_UNAVAILABLE)
-    response.headers["Cache-Control"] = "private, no-store"
-    return AnalysisResponse.from_view(
-        await use_cases.revise_content(
-            analysis_id,
-            user.owner_hash,
-            body.base_report_id,
-            body.draft,
-            idempotency_key,
-            quota=user.admission_quota,
-        )
-    )
-
-
 @router.get(
     "/content/analyses/{analysis_id}/versions",
     operation_id="listContentVersions",
     response_model=tuple[ContentVersion, ...],
-    summary="回看已保存的正文版本",
+    summary="只读回看已发布的历史报告",
 )
 async def list_content_versions(
     analysis_id: UUID, response: Response, user: User, use_cases: UseCases

@@ -35,7 +35,7 @@ describe('analysis run history', () => {
     expect(await screen.findByText('分析已完成')).toBeInTheDocument();
     expect(httpRequests()).toHaveLength(2);
   });
-  it('labels manual revisions and translates failure reasons for readers', async () => {
+  it('identifies retained historical drafts and translates failure reasons', async () => {
     mockHttpResponses({
       items: [
         { ...run, trigger: 'manual_edit', status: 'succeeded' },
@@ -50,7 +50,9 @@ describe('analysis run history', () => {
       next_before_run_no: null,
     });
     render(<AnalysisRuns id="task-1" runNo={1} active={false} />);
-    expect(await screen.findByText('第 1 版 · 人工修订')).toBeInTheDocument();
+    expect(
+      await screen.findByText('第 1 份报告 · 历史人工稿'),
+    ).toBeInTheDocument();
     expect(screen.getByText(/为避免重复计费未自动重试/)).toBeInTheDocument();
     expect(
       screen.queryByText('analysis_outcome_unknown'),

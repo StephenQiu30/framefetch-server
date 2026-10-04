@@ -1,9 +1,8 @@
 'use client';
 
 import AnalysisReportPreview from '@/components/analysis/analysis-report-preview';
-import ContentEditor from '@/components/content/content-editor';
+import ContentReportHistory from '@/components/content/content-report-history';
 import ContentSourceReview from '@/components/content/content-source-review';
-import ContentVersions from '@/components/content/content-versions';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 
 export default function ContentResultView({
@@ -11,45 +10,32 @@ export default function ContentResultView({
   markdown,
   analysisId,
   reportId,
-  editable,
-  manualRevision = false,
-  onSaved,
+  historicalEdit = false,
 }: {
   analysisId: string;
   reportId: string | null;
-  editable: boolean;
-  manualRevision?: boolean;
-  onSaved: () => Promise<unknown>;
+  historicalEdit?: boolean;
   result: API.ContentDocumentResult;
   markdown?: string | null;
 }) {
   const review = result.review_history.at(-1);
   return (
     <div className="mt-8 grid gap-6">
-      {result.review_status !== 'passed' ? (
+      {historicalEdit || result.review_status !== 'passed' ? (
         <Alert>
           <AlertTitle>
-            {manualRevision
-              ? '人工修订版，请核对修改内容'
+            {historicalEdit
+              ? '历史保存稿'
               : result.review_status === 'needs_material'
                 ? '请补充材料后再采用'
-                : '稿件仍有待修改之处'}
+                : '审校发现问题'}
           </AlertTitle>
           <AlertDescription>
-            {manualRevision
-              ? '新版本已保存，原自动审校结论已失效。'
-              : '下方审阅意见列出了具体问题。可修改正文，或补充材料后重新生成。'}
+            {historicalEdit
+              ? '这份历史稿件经过人工改动，原自动审校结论不适用于改动后的正文。'
+              : '具体问题见下方审校意见。请补充材料或调整创作要求后，新建创作任务。'}
           </AlertDescription>
         </Alert>
-      ) : null}
-      {editable && reportId ? (
-        <ContentEditor
-          key={reportId}
-          analysisId={analysisId}
-          reportId={reportId}
-          result={result}
-          onSaved={onSaved}
-        />
       ) : null}
       <section aria-label="正文">
         {markdown ? (
@@ -94,12 +80,12 @@ export default function ContentResultView({
           </article>
         )}
       </section>
-      <details className="text-sm">
-        <summary className="cursor-pointer py-2 font-medium">
-          审阅意见
-          {review?.findings.length ? `（${review.findings.length}）` : ''}
-        </summary>
-        {review?.findings.length ? (
+      {review?.findings.length ? (
+        <details className="text-sm">
+          <summary className="cursor-pointer py-2 font-medium">
+            {historicalEdit ? '历史审校记录' : '审校意见'}（
+            {review.findings.length}）
+          </summary>
           <ul className="mt-3 grid gap-4">
             {review.findings.map((finding) => (
               <li
@@ -112,11 +98,12 @@ export default function ContentResultView({
               </li>
             ))}
           </ul>
-        ) : (
-          <p className="mt-3 text-muted-foreground">本轮审阅未提出修改项。</p>
-        )}
-      </details>
-      <ContentVersions analysisId={analysisId} currentReportId={reportId} />
+        </details>
+      ) : null}
+      <ContentReportHistory
+        analysisId={analysisId}
+        currentReportId={reportId}
+      />
       <ContentSourceReview
         analysisId={analysisId}
         citations={result.evidence_index}

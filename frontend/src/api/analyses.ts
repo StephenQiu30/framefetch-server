@@ -165,28 +165,6 @@ export async function createContentAnalysis(
   });
 }
 
-/** 保存人工修订稿，保留原版本 POST /api/content/analyses/${param0}/revisions */
-export async function reviseContent(
-  // 叠加生成的Param类型 (非body参数swagger默认没有生成对象)
-  params: API.reviseContentParams,
-  body: API.ContentRevisionRequest,
-  options?: RequestOptions
-) {
-  const { analysis_id: param0, ...queryParams } = params;
-  return request<API.ApiResponseAnalysisResponse_>(
-    `/api/content/analyses/${param0}/revisions`,
-    {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      params: { ...queryParams },
-      data: body,
-      ...(options || {}),
-    }
-  );
-}
-
 /** 回看本次创作的原始材料 GET /api/content/analyses/${param0}/source */
 export async function getContentSource(
   // 叠加生成的Param类型 (非body参数swagger默认没有生成对象)
@@ -204,7 +182,7 @@ export async function getContentSource(
   );
 }
 
-/** 回看已保存的正文版本 GET /api/content/analyses/${param0}/versions */
+/** 只读回看已发布的历史报告 GET /api/content/analyses/${param0}/versions */
 export async function listContentVersions(
   // 叠加生成的Param类型 (非body参数swagger默认没有生成对象)
   params: API.listContentVersionsParams,

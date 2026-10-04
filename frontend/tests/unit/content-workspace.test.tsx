@@ -1,6 +1,11 @@
-import { fireEvent, screen, waitFor, within } from '@testing-library/react';
+import {
+  act,
+  fireEvent,
+  screen,
+  waitFor,
+  within,
+} from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import ContentEditor from '@/components/content/content-editor';
 import ContentResultView from '@/components/content/content-result-view';
 import ContentWorkspace from '@/components/content/content-workspace';
 import { httpClient } from '@/lib/request';
@@ -102,8 +107,6 @@ describe('content workspace and reader output', () => {
         result={result}
         analysisId="task-1"
         reportId="report-1"
-        editable={false}
-        onSaved={async () => {}}
       />,
     );
     const reader = screen.getByRole('region', { name: '正文' });
@@ -118,51 +121,80 @@ describe('content workspace and reader output', () => {
     expect(screen.getByText('请补充材料后再采用')).toBeInTheDocument();
   });
 
-  it('invalidates automatic review after a manual edit', () => {
+  it('keeps historical drafts read-only without an editing action', () => {
     render(
       <ContentResultView
         result={{ ...result, review_status: 'needs_review' }}
         analysisId="task-1"
         reportId="report-2"
-        editable={false}
-        manualRevision
-        onSaved={async () => {}}
+        historicalEdit
       />,
     );
-    expect(screen.getByText('人工修订版，请核对修改内容')).toBeInTheDocument();
+    expect(screen.getByText('历史保存稿')).toBeInTheDocument();
     expect(
-      screen.getByText('新版本已保存，原自动审校结论已失效。'),
-    ).toBeInTheDocument();
-    expect(screen.queryByText('稿件仍有待修改之处')).not.toBeInTheDocument();
+      screen.queryByRole('button', { name: '修改正文' }),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByRole('textbox')).not.toBeInTheDocument();
+    expect(screen.getByRole('region', { name: '正文' })).toHaveTextContent(
+      '短暂倒置期间，桌面未见水滴。',
+    );
   });
 
-  it('preserves the revision base and drops obsolete citations on changed prose', async () => {
-    const saved = vi.fn(async () => {});
+  it('does not add a review warning or empty editorial section to a passing result', () => {
     render(
-      <ContentEditor
+      <ContentResultView
+        result={{
+          ...result,
+          review_status: 'passed',
+          review_history: [{ findings: [], needs_material: false }],
+        }}
         analysisId="task-1"
         reportId="report-1"
-        result={result}
-        onSaved={saved}
       />,
     );
-    fireEvent.click(screen.getByRole('button', { name: '修改正文' }));
-    fireEvent.change(screen.getByLabelText('第 1 段'), {
-      target: { value: '这次只观察了短暂倒置。' },
-    });
-    stubCryptoUuids('22222222-2222-4222-8222-222222222222');
-    mockHttpResponses({ status: 'running' });
-    fireEvent.click(screen.getByRole('button', { name: '保存新版本' }));
-    await waitFor(() => expect(saved).toHaveBeenCalledOnce());
-    const request = httpRequests()[0];
-    expect((request.data as API.ContentRevisionRequest).base_report_id).toBe(
-      'report-1',
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    expect(screen.queryByText(/审校意见/)).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole('button', { name: '修改正文' }),
+    ).not.toBeInTheDocument();
+  });
+
+  it('reads historical report prose without enabling writes', async () => {
+    mockHttpResponses([
+      {
+        id: 'report-1',
+        run_no: 1,
+        created_at: '2026-10-04T00:00:00Z',
+        markdown: '## 原始报告\n\n原稿正文',
+      },
+      {
+        id: 'report-2',
+        run_no: 2,
+        created_at: '2026-10-04T00:01:00Z',
+        markdown: '## 历史保存稿\n\n历史稿正文',
+      },
+    ]);
+    render(
+      <ContentResultView
+        result={result}
+        analysisId="task-1"
+        reportId="report-2"
+        historicalEdit
+      />,
     );
-    expect(
-      (request.data as API.ContentRevisionRequest).draft.evidence_index,
-    ).toEqual([]);
-    expect(
-      (request.data as API.ContentRevisionRequest).draft.blocks[0].id,
-    ).toBe('opening');
+    const history = screen.getByText('报告历史').closest('details');
+    if (!history) throw new Error('Report history missing');
+    await act(async () => {
+      history.open = true;
+      fireEvent(history, new Event('toggle'));
+    });
+    expect(await screen.findByText('原稿正文')).toBeInTheDocument();
+    expect(screen.getByText('历史稿正文')).toBeInTheDocument();
+    expect(httpRequests()).toHaveLength(1);
+    expect(httpRequests()[0]).toMatchObject({
+      method: 'GET',
+      url: '/api/content/analyses/task-1/versions',
+    });
+    expect(screen.queryByRole('textbox')).not.toBeInTheDocument();
   });
 });

@@ -788,19 +788,6 @@ declare namespace API {
     review_history: ContentReview[];
   };
 
-  type ContentDraft = {
-    /** Document Type */
-    document_type: "article" | "post" | "guide";
-    /** Language */
-    language: "zh-CN" | "en-US";
-    /** Title */
-    title: string | null;
-    /** Blocks */
-    blocks: (ParagraphBlock | HeadingBlock | ListBlock | QuoteBlock)[];
-    /** Evidence Index */
-    evidence_index: ContentCitation[];
-  };
-
   type ContentFinding = {
     /** Block Id */
     block_id: string;
@@ -835,12 +822,6 @@ declare namespace API {
     needs_material: boolean;
     /** Findings */
     findings: ContentFinding[];
-  };
-
-  type ContentRevisionRequest = {
-    /** Base Report Id */
-    base_report_id: string;
-    draft: ContentDraft;
   };
 
   type ContentSourceSet = {
@@ -2299,10 +2280,6 @@ declare namespace API {
 
   type retryDownloadParams = {
     job_id: string;
-  };
-
-  type reviseContentParams = {
-    analysis_id: string;
   };
 
   type RightsBasis =

@@ -23,7 +23,6 @@ from app.schemas.engine_catalog import EngineCatalogResponse
 from app.services.ai_providers import AiProviderService
 from app.services.analysis.analytics import GetAnalysisAnalytics
 from app.services.analysis.cancel_analysis import CancelAnalysis
-from app.services.analysis.content_revision import ReviseContent
 from app.services.analysis.content_versions import ListContentVersions
 from app.services.analysis.create_analysis import CreateAnalysis
 from app.services.analysis.create_content_analysis import CreateContentAnalysis
@@ -123,7 +122,6 @@ class AnalysisUseCases:
     export_analysis_markdown: ExportAnalysisMarkdown
     create_content_analysis: CreateContentAnalysis | None = None
     get_content_source: GetContentSource | None = None
-    revise_content: ReviseContent | None = None
     list_content_versions: ListContentVersions | None = None
 
 

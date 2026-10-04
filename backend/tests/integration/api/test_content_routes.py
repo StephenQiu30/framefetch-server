@@ -1,5 +1,4 @@
 from dataclasses import replace
-from uuid import uuid4
 
 from app.services.analysis.errors import (
     AnalysisApplicationError,
@@ -26,13 +25,11 @@ def test_content_routes_dispatch_owner_and_preserve_private_sources(tmp_path):
         result_contract=AnalysisResultContract.CONTENT_DOCUMENT,
     )
     create = StubUseCase(view)
-    revise = StubUseCase(view)
     original = StubUseCase(source())
     versions = StubUseCase(())
     test_client.app.state.services.analysis_use_cases = replace(
         use_cases,
         create_content_analysis=create,
-        revise_content=revise,
         get_content_source=original,
         list_content_versions=versions,
     )
@@ -53,14 +50,6 @@ def test_content_routes_dispatch_owner_and_preserve_private_sources(tmp_path):
         assert fetched.json()["data"] == source().model_dump(mode="json")
         assert fetched.headers["cache-control"] == "private, no-store"
         assert original.calls == [(ANALYSIS_ID, TEST_USER.owner_hash)]
-        saved = test_client.post(
-            f"/api/content/analyses/{ANALYSIS_ID}/revisions",
-            headers={"Idempotency-Key": "edit-1"},
-            json={"base_report_id": str(uuid4()), "draft": draft()},
-        )
-        assert saved.status_code == 201
-        assert revise.calls[0][:2] == (ANALYSIS_ID, TEST_USER.owner_hash)
-        assert revise.calls[0][-1] == "edit-1"
         listed = test_client.get(f"/api/content/analyses/{ANALYSIS_ID}/versions")
         assert listed.status_code == 200 and listed.json()["data"] == []
         assert listed.headers["cache-control"] == "private, no-store"
@@ -87,6 +76,19 @@ def test_removed_html_export_is_not_routed(tmp_path):
         assert (
             test_client.get(
                 f"/api/content/analyses/{ANALYSIS_ID}/report.html"
+            ).status_code
+            == 404
+        )
+
+
+def test_manual_revision_is_not_routed(tmp_path):
+    test_client, _ = client(tmp_path)
+    with test_client:
+        assert (
+            test_client.post(
+                f"/api/content/analyses/{ANALYSIS_ID}/revisions",
+                headers={"Idempotency-Key": "retired-edit"},
+                json={"base_report_id": str(ANALYSIS_ID), "draft": draft()},
             ).status_code
             == 404
         )

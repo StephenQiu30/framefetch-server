@@ -1,20 +1,21 @@
+from copy import deepcopy
 from uuid import uuid4
 
 import pytest
 from app.integrations.analysis_report_docx import PythonDocxAnalysisReportRenderer
 from app.integrations.object_storage import StoredObjectStat
-from app.models import AnalysisReportArtifactRow, AnalysisResultRow, AnalysisRunRow
+from app.models import (
+    AnalysisJobRow,
+    AnalysisReportArtifactRow,
+    AnalysisResultRow,
+    AnalysisRunRow,
+)
 from app.repositories.analysis.execution import AnalysisExecutionPersistence
 from app.repositories.analysis.report_repository import (
     SqlAlchemyAnalysisReportRepository,
 )
 from app.repositories.downloads.repository import SqlAlchemyDownloadRepository
-from app.services.analysis.errors import (
-    PersistenceConflict,
-    PersistenceIdempotencyConflict,
-    PersistenceNotFound,
-)
-from app.services.analysis.rules.content_document import ContentDraft
+from app.services.analysis.errors import PersistenceNotFound
 from app.services.analysis_execution.content_executor import ContentExecutor
 from app.services.analysis_execution.service import AnalysisExecution
 from app.workers.report.message import ReportRequested
@@ -95,60 +96,115 @@ async def completed(db, tmp_path):
     return job, storage
 
 
-async def test_content_publication_and_revision_preserve_original(
+async def test_published_content_is_read_only_and_retains_its_formats(
+    analysis_db, tmp_path
+):
+    job, storage = await completed(analysis_db, tmp_path)
+    assert len(storage.values) == 2
+    assert {key.rsplit(".", 1)[-1] for key in storage.values} == {"md", "docx"}
+    assert not hasattr(analysis_db.repository, "revise_content")
+    versions = await analysis_db.repository.content_versions(job.id, OWNER)
+    assert [item.run_no for item in versions] == [1]
+    assert versions[0].result.review_status == "passed"
+    assert versions[0].result.review_history[-1].findings == ()
+
+
+async def test_existing_manual_reports_remain_readable_without_a_write_use_case(
     analysis_db, tmp_path
 ):
     db = analysis_db
     job, storage = await completed(db, tmp_path)
     original_files = dict(storage.values)
-    assert len(original_files) == 2
-    assert {key.rsplit(".", 1)[-1] for key in original_files} == {"md", "docx"}
     original = await db.repository.get_result(job.id)
-    edited = draft()
-    edited["blocks"][1]["text"] = "这次观察只覆盖短暂倒置。"
-    content = ContentDraft.model_validate(edited)
-    key = str(uuid4())
-    next_job = await db.repository.revise_content(
-        job.id, OWNER, job.current_report_id, content, key, now=NOW
-    )
-    assert next_job.run_trigger == "manual_edit"
-    assert next_job.current_report_id == job.current_report_id
-    replay = await db.repository.revise_content(
-        job.id, OWNER, job.current_report_id, content, key, now=NOW
-    )
-    assert replay.run_id == next_job.run_id
-    with pytest.raises(PersistenceIdempotencyConflict):
-        await db.repository.revise_content(
-            job.id,
-            OWNER,
-            job.current_report_id,
-            ContentDraft.model_validate(draft()),
-            key,
-            now=NOW,
+    run_id, report_id = uuid4(), uuid4()
+    # Seed a previously saved manual report; the retired writer is not used.
+    async with db.sessions() as session, session.begin():
+        old_run = await session.get(AnalysisRunRow, job.run_id)
+        old_report = await session.get(AnalysisResultRow, job.current_report_id)
+        run_fields = {
+            column.name: deepcopy(getattr(old_run, column.name))
+            for column in AnalysisRunRow.__table__.columns
+        }
+        run_fields.update(
+            id=run_id,
+            run_no=2,
+            trigger="manual_edit",
+            model_calls_used=0,
+            provider="manual",
+            model="none",
+            cli_version="none",
         )
-    with pytest.raises(PersistenceNotFound):
-        await db.repository.revise_content(
-            job.id, "b" * 64, job.current_report_id, content, str(uuid4()), now=NOW
+        session.add(AnalysisRunRow(**run_fields))
+        await session.flush()
+        report_fields = {
+            column.name: deepcopy(getattr(old_report, column.name))
+            for column in AnalysisResultRow.__table__.columns
+        }
+        result_json = report_fields["result_json"]
+        result_json["review_status"] = "needs_review"
+        result_json["evidence_index"] = []
+        result_json["review_history"].append(
+            {
+                "needs_material": False,
+                "findings": [
+                    {
+                        "block_id": "title",
+                        "severity": "major",
+                        "category": "fact",
+                        "problem": "历史稿件经过人工改动",
+                        "correction": "原自动审校结论不适用",
+                    }
+                ],
+            }
         )
-    final = await publish(db, storage, next_job)
-    assert final.current_report_id != job.current_report_id
-    assert all(storage.values[key] == value for key, value in original_files.items())
-    assert len(storage.values) == 4
-    result = await db.repository.get_result(job.id)
-    assert result.review_status == "needs_review" and original.review_status == "passed"
-    async with db.sessions() as session:
-        run = await session.get(AnalysisRunRow, next_job.run_id)
-        assert run.model_calls_used == 0
+        report_fields.update(
+            id=report_id,
+            run_id=run_id,
+            provider="manual",
+            model="none",
+            cli_version="none",
+        )
+        session.add(AnalysisResultRow(**report_fields))
+        await session.flush()
+        stored = await session.get(AnalysisJobRow, job.id)
+        stored.active_run_id = run_id
+        stored.current_run_no = 2
+        stored.current_run_trigger = "manual_edit"
+        stored.current_report_id = report_id
+        artifacts = (
+            await session.scalars(
+                select(AnalysisReportArtifactRow).where(
+                    AnalysisReportArtifactRow.report_id == job.current_report_id
+                )
+            )
+        ).all()
+        for artifact in artifacts:
+            fields = {
+                column.name: deepcopy(getattr(artifact, column.name))
+                for column in AnalysisReportArtifactRow.__table__.columns
+            }
+            key = artifact.object_key.replace("/runs/1/", "/runs/2/").replace(
+                str(job.current_report_id), str(report_id)
+            )
+            fields.update(id=uuid4(), report_id=report_id, object_key=key)
+            session.add(AnalysisReportArtifactRow(**fields))
+            storage.values[key] = storage.values[artifact.object_key]
     versions = await db.repository.content_versions(job.id, OWNER)
     assert [item.run_no for item in versions] == [2, 1]
     assert versions[1].result == original
-    assert versions[1].content_sha256 != versions[0].content_sha256
+    assert versions[0].result.review_status == "needs_review"
+    assert versions[0].markdown == versions[1].markdown
+    current = await db.repository.get_latest_report(job.id)
+    assert {item.format for item in current.artifacts} == {"markdown", "docx"}
+    assert (await db.repository.get_result(job.id)).review_status == "needs_review"
+    assert all(storage.values[key] == value for key, value in original_files.items())
     with pytest.raises(PersistenceNotFound):
         await db.repository.content_versions(job.id, "b" * 64)
-    with pytest.raises(PersistenceConflict):
-        await db.repository.revise_content(
-            job.id, OWNER, job.current_report_id, content, str(uuid4()), now=NOW
-        )
+    async with db.sessions() as session, session.begin():
+        stored = await session.get(AnalysisJobRow, job.id)
+        stored.deleted_at = NOW
+    with pytest.raises(PersistenceNotFound):
+        await db.repository.content_versions(job.id, OWNER)
 
 
 async def test_retired_format_is_hidden_but_its_stored_object_keeps_ownership(

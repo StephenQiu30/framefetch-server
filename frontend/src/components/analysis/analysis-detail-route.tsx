@@ -115,6 +115,11 @@ function AnalysisDetailContent({
         description={`${historyRecordLabel(record)} · ${skillName} · ${record.output_language}`}
       />
       <div className="mt-6 flex flex-wrap gap-3">
+        {kind === 'content' ? (
+          <Button asChild variant="outline">
+            <Link href="/content">新建创作</Link>
+          </Button>
+        ) : null}
         <Button asChild variant="outline">
           <Link href={allHref}>查看本素材全部记录</Link>
         </Button>
@@ -167,7 +172,7 @@ function AnalysisDetailContent({
             </Badge>
             <span className="text-sm text-muted-foreground">
               {job.run_trigger === 'manual_edit'
-                ? `第 ${job.run_no} 版 · 人工修订`
+                ? `第 ${job.run_no} 份报告 · 历史人工稿`
                 : `第 ${job.run_no} 次执行`}
               {active
                 ? ` · ${job.progress}%${job.stage ? ` · ${stageLabels[job.stage]}` : ''}`
@@ -262,9 +267,7 @@ function AnalysisDetailContent({
               markdown={job.report_markdown}
               analysisId={job.id}
               reportId={job.current_report_id}
-              editable={!active && job.status === 'succeeded'}
-              manualRevision={job.run_trigger === 'manual_edit'}
-              onSaved={state.retryPoll}
+              historicalEdit={job.run_trigger === 'manual_edit'}
             />
           ) : job.result ? (
             <ScreenplayResultView
@@ -330,7 +333,7 @@ export function AnalysisRuns({
           <li key={run.id} className="flex flex-wrap gap-4 py-4 text-sm">
             <span>
               {run.trigger === 'manual_edit'
-                ? `第 ${run.run_no} 版 · 人工修订`
+                ? `第 ${run.run_no} 份报告 · 历史人工稿`
                 : `第 ${run.run_no} 次`}
             </span>
             <span>{statusLabels[run.status]}</span>

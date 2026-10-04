@@ -2,7 +2,7 @@
 
 # FrameFetch
 
-**An open-source, self-hosted video and screenplay workstation.** Bring in material, understand it, and produce reports you can keep editing.
+**An open-source, self-hosted video and screenplay workstation.** Bring in material, understand it, and produce analysis results you can export.
 
 [![CI](https://github.com/StephenQiu30/video-server/actions/workflows/ci.yml/badge.svg)](https://github.com/StephenQiu30/video-server/actions/workflows/ci.yml)
 [![MIT License](https://img.shields.io/badge/license-MIT-111111.svg)](LICENSE)
@@ -25,7 +25,7 @@ This repository provides the **FastAPI server, Next.js Web application and backg
 - **Complete material intake**: obtain single videos, image galleries and bounded video collections according to the platform's actual capabilities. Original images or collection videos are delivered as ZIP files containing `manifest.json`; local MP4 files and DOCX, text-based PDF, TXT, Markdown and Fountain screenplays enter the same workspace.
 - **Evidence-based review**: technical metadata, interval overviews and exact frames from complete video artifacts support consecutive shots, scenes, highlights and visual assets. Screenplay findings refer to normalized scenes for checking against the source.
 - **Methods for real work**: 12 video methods cover breakdowns, narrative, editing, quality review and content preparation; 8 screenplay methods cover story, characters, dialogue, structure, continuity and Chinese/English rewriting.
-- **Useful deliverables**: five structured result types and Markdown/DOCX exports support editing and handoff. Article drafts, packaging copy and screenplay rewrites remain editable candidates for human review.
+- **Useful deliverables**: five structured result types and Markdown/DOCX exports support further editing in external tools and handoff. Article drafts, packaging copy and screenplay rewrites remain editable candidates for human review.
 - **Shared clients and self-hosting**: browser, native desktop and mobile clients use one backend, persistent background jobs and centrally managed material and reports. The operator configures model services and maintains the deployment.
 
 ## Use cases

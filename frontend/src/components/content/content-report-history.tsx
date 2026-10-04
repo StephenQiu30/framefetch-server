@@ -9,7 +9,7 @@ import { Button } from '@/components/ui/button';
 import { privateQueryKey } from '@/lib/query-keys';
 import { displayError } from '@/lib/request-error';
 
-export default function ContentVersions({
+export default function ContentReportHistory({
   analysisId,
   currentReportId,
 }: {
@@ -28,11 +28,11 @@ export default function ContentVersions({
       className="text-sm"
       onToggle={(event) => setOpen(event.currentTarget.open)}
     >
-      <summary className="cursor-pointer py-2 font-medium">正文版本</summary>
-      {query.isFetching ? <p role="status">正在读取版本…</p> : null}
+      <summary className="cursor-pointer py-2 font-medium">报告历史</summary>
+      {query.isFetching ? <p role="status">正在读取报告历史…</p> : null}
       {query.error ? (
         <FeedbackNotice
-          title="版本读取失败"
+          title="报告历史读取失败"
           description={displayError(query.error)}
           tone="error"
           action={<Button onClick={() => void query.refetch()}>重试</Button>}
@@ -42,8 +42,8 @@ export default function ContentVersions({
         {query.data?.map((version) => (
           <details key={version.id}>
             <summary className="cursor-pointer">
-              第 {version.run_no} 版
-              {version.id === currentReportId ? ' · 当前版本' : ''} ·{' '}
+              第 {version.run_no} 份报告
+              {version.id === currentReportId ? ' · 当前报告' : ''} ·{' '}
               {new Date(version.created_at).toLocaleString('zh-CN', {
                 hour12: false,
               })}

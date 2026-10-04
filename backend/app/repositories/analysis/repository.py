@@ -3,7 +3,7 @@
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.repositories.analysis.analytics_repository import AnalysisAnalyticsRepository
-from app.repositories.analysis.content_revision import ContentRevisionRepository
+from app.repositories.analysis.content_versions import ContentVersionsRepository
 from app.repositories.analysis.repository_base import AnalysisRepositoryBase
 from app.repositories.analysis.repository_create import AnalysisCreationRepository
 from app.repositories.analysis.repository_inputs import AnalysisInputRepository
@@ -56,8 +56,7 @@ class SqlAlchemyAnalysisRepository:
         self.fail_step = steps.fail_step
         self.has_started_step = steps.has_started_step
         self.purge_steps = steps.purge_steps
-        revisions = ContentRevisionRepository(sessions, quota_policy=quota_policy)
-        self.revise_content = revisions.revise_content
-        self.content_versions = revisions.content_versions
+        versions = ContentVersionsRepository(sessions, quota_policy=quota_policy)
+        self.content_versions = versions.content_versions
         retry = AnalysisRetryRepository(sessions, quota_policy=quota_policy)
         self.retry_job_and_enqueue = retry.retry_job_and_enqueue

@@ -74,7 +74,6 @@ from app.repositories.task_event_store import TaskEventStore
 from app.services.ai_providers import AiProviderService
 from app.services.analysis.analytics import GetAnalysisAnalytics
 from app.services.analysis.cancel_analysis import CancelAnalysis
-from app.services.analysis.content_revision import ReviseContent
 from app.services.analysis.content_versions import ListContentVersions
 from app.services.analysis.create_analysis import CreateAnalysis
 from app.services.analysis.create_content_analysis import CreateContentAnalysis
@@ -427,7 +426,6 @@ def build_api_runtime(settings: Settings) -> ApiRuntime:
     skill_catalog = BuiltinAnalysisSkillCatalog()
     analysis_use_cases = AnalysisUseCases(
         get_content_source=GetContentSource(analysis_repository),
-        revise_content=ReviseContent(analysis_repository, clock),
         list_content_versions=ListContentVersions(analysis_repository),
         create_content_analysis=CreateContentAnalysis(
             repository=analysis_repository,
