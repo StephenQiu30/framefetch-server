@@ -138,6 +138,10 @@ class VideoAnalysisRequest:
         AnalysisResultContract.VIDEO_VISUAL_ANALYSIS
     )
     custom_prompt: str | None = None
+    stage: str = "draft"
+    stage_prompt: str | None = field(default=None, repr=False)
+    schema_json: str | None = field(default=None, repr=False)
+    observation_ms: tuple[int, ...] = ()
 
     def __post_init__(self) -> None:
         if self.duration_ms <= 0 or self.size_bytes <= 0:

@@ -1,5 +1,6 @@
 'use client';
 
+import AnalysisEditorialReview from '@/components/analysis/analysis-editorial-review';
 import AnalysisReportPreview from '@/components/analysis/analysis-report-preview';
 import { Button } from '@/components/ui/button';
 import { Item } from '@/components/ui/item';
@@ -18,6 +19,7 @@ export default function AnalysisStructuredReportView({
 }) {
   return (
     <Tabs className="mt-10 gap-0" defaultValue="report-sections">
+      <AnalysisEditorialReview result={result} />
       <div className="grid grid-cols-2 gap-3 py-4 sm:gap-5">
         <Metric label="报告章节" value={`${result.sections.length}`} />
         <Metric

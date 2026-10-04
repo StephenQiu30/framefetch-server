@@ -26,6 +26,11 @@ from app.services.analysis.rules.errors import AnalysisValidationError
 from app.services.analysis_execution.content_functions import ContentFunctions
 from app.services.analysis_execution.content_methods import content_method
 from app.services.analysis_execution.content_models import ContentModelRequest
+from app.services.analysis_execution.editorial_plan import (
+    ContentPlan,
+    has_stage,
+    stage_method,
+)
 from app.services.analysis_execution.errors import (
     AnalysisExecutionError,
     AnalysisSourceUnavailable,
@@ -68,6 +73,10 @@ class ContentExecutor:
             "draft": content_schema(ContentDraft),
             "review": content_schema(ContentReview),
         }
+        planned = has_stage(job.skill_instructions, "plan")
+        planner = stage_method(job.skill_instructions, "plan") if planned else ""
+        if planned:
+            schemas["plan"] = content_schema(ContentPlan)
         selection = await monitor.run(
             self._resolver.resolve, stage=AnalysisStage.PREPARING, progress=10
         )
@@ -82,6 +91,7 @@ class ContentExecutor:
                 ).encode()
             ).hexdigest()
         )
+        max_calls = 5 if planned else 4
         binding = {
             "source_sha256": source.sha256,
             "method_sha256": job.skill_instructions_sha256,
@@ -92,8 +102,9 @@ class ContentExecutor:
             "language": job.output_language,
             "writer": writer,
             "editor": editor,
+            "planner": planner,
             "schemas": schemas,
-            "max_model_calls": 4,
+            "max_model_calls": max_calls,
             "timeout_seconds": self._timeout,
             "prompt_template": _TEMPLATE,
             "source_functions": {
@@ -103,7 +114,7 @@ class ContentExecutor:
             },
         }
         await monitor.bind_execution(
-            binding, deadline_for=timedelta(seconds=self._timeout * 4)
+            binding, deadline_for=timedelta(seconds=self._timeout * max_calls)
         )
         self._workspace_root.mkdir(parents=True, exist_ok=True, mode=0o700)
         workspace = Path(
@@ -111,6 +122,60 @@ class ContentExecutor:
         )
         workspace.chmod(0o700)
         try:
+            plan = None
+            if planned:
+                request = self._request(
+                    workspace,
+                    stamp,
+                    "plan",
+                    planner,
+                    self._context(source, job.output_language),
+                    schemas["plan"],
+                )
+
+                def parse_plan(payload: object) -> ContentPlan:
+                    try:
+                        result = ContentPlan.model_validate(payload)
+                        refs = [
+                            (item.material_id, item.segment_id)
+                            for item in result.material_refs
+                        ]
+                        if len(refs) != len(set(refs)):
+                            raise ValueError(
+                                "editorial plan repeats a material segment"
+                            )
+                        functions = ContentFunctions(source)
+                        for reference in result.material_refs:
+                            functions.dispatch(
+                                {
+                                    "name": "read_material",
+                                    "arguments": reference.model_dump(),
+                                }
+                            )
+                        factual = {
+                            item.id
+                            for item in source.materials
+                            if item.role == "source"
+                        }
+                        if not any(
+                            item.material_id in factual for item in result.material_refs
+                        ):
+                            raise ValueError("editorial plan needs factual materials")
+                        return result
+                    except (ValidationError, ValueError) as error:
+                        raise AnalysisValidationError(
+                            AnalysisValidationCode.INVALID_SCHEMA,
+                            "invalid editorial plan",
+                        ) from error
+
+                plan = await monitor.step(
+                    "plan",
+                    request,
+                    lambda: self._generate(analyzer, request),
+                    parse_plan,
+                    stage=AnalysisStage.PREPARING,
+                    progress=15,
+                )
             draft = await self._draft(
                 job,
                 source,
@@ -124,6 +189,7 @@ class ContentExecutor:
                 None,
                 None,
                 25,
+                plan,
             )
             review = await self._review(
                 job,
@@ -153,6 +219,7 @@ class ContentExecutor:
                     draft,
                     review,
                     65,
+                    plan,
                 )
                 review = await self._review(
                     job,
@@ -199,8 +266,9 @@ class ContentExecutor:
         draft: ContentDraft | None,
         review: ContentReview | None,
         progress: int,
+        plan: ContentPlan | None = None,
     ) -> ContentDraft:
-        context = self._context(source, job.output_language)
+        context = self._context(source, job.output_language, plan)
         if draft is not None and review is not None:
             context["draft"] = draft.model_dump(mode="json")
             context["findings"] = review.model_dump(mode="json")
@@ -295,12 +363,19 @@ class ContentExecutor:
             return await analyzer.generate_content(request)
 
     @staticmethod
-    def _context(source: ContentSourceSet, language: str) -> dict[str, object]:
-        return {
+    def _context(
+        source: ContentSourceSet, language: str, plan: ContentPlan | None = None
+    ) -> dict[str, object]:
+        context: dict[str, object] = {
             "brief": source.brief.model_dump(),
             "output_language": language,
-            "materials": ContentFunctions(source).material_context(),
+            "materials": ContentFunctions(source).material_context(
+                plan.material_refs if plan else None
+            ),
         }
+        if plan is not None:
+            context["editorial_plan"] = plan.model_dump(mode="json")
+        return context
 
     @staticmethod
     def _request(

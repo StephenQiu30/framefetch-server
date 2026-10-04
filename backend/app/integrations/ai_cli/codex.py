@@ -1,15 +1,17 @@
 from __future__ import annotations
 
+import json
+
 from app.integrations.ai_cli.codex_app_server_client import CodexAppServerClient
 from app.integrations.ai_cli.codex_app_server_protocol import CodexAppServerInvoker
 from app.integrations.ai_cli.codex_screenplay import CodexAppServerScreenplayAnalyzer
 from app.integrations.ai_cli.config import CliAdapterConfig
 from app.integrations.ai_cli.prompt import analysis_prompt
-from app.integrations.ai_cli.schema import analysis_output_schema
 from app.integrations.ai_cli.workspace import (
     prepare_job_files,
     run_with_workspace_policy,
 )
+from app.services.analysis.rules.model_schema import analysis_output_schema
 from app.services.analysis_execution.content_models import ContentModelRequest
 from app.services.analysis_execution.models import (
     ScreenplayAnalysisRequest,
@@ -37,8 +39,12 @@ class CodexAppServerVideoAnalyzer:
         return await self._screenplay.generate_content(request)
 
     async def analyze(self, request: VideoAnalysisRequest) -> object:
-        schema = analysis_output_schema(
-            request.output_language, request.result_contract
+        schema = (
+            json.loads(request.schema_json)
+            if request.schema_json
+            else analysis_output_schema(
+                request.output_language, request.result_contract
+            )
         )
         prompt = analysis_prompt(
             request,

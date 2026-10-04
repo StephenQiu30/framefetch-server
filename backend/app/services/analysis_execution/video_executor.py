@@ -7,6 +7,7 @@ from app.services.analysis.models import AnalysisJobSnapshot
 from app.services.analysis.rules.enums import AnalysisResultContract, AnalysisStage
 from app.services.analysis.rules.result_models import AnalysisMedia
 from app.services.analysis.rules.result_parser import parse_analysis_result
+from app.services.analysis_execution.editorial_plan import has_stage
 from app.services.analysis_execution.models import (
     AnalysisExecutionOutput,
     LocalAnalysisArtifact,
@@ -21,6 +22,7 @@ from app.services.analysis_execution.ports import (
     Clock,
     VideoAnalyzer,
 )
+from app.services.analysis_execution.video_editorial import execute_video_editorial
 
 
 class VideoAnalysisExecutor:
@@ -63,13 +65,23 @@ class VideoAnalysisExecutor:
                 custom_prompt=job.custom_prompt,
             )
             selection = await monitor.run(
-                self._resolver.resolve, stage=AnalysisStage.ANALYZING, progress=15
+                self._resolver.resolve, stage=AnalysisStage.PREPARING, progress=15
             )
             media = AnalysisMedia(
                 duration_ms=source.duration_ms,
                 container=source.container,
                 size_bytes=source.size_bytes,
             )
+            if has_stage(job.skill_instructions, "plan"):
+                editorial = await execute_video_editorial(
+                    job, request, selection, monitor, media
+                )
+                return AnalysisExecutionOutput(
+                    editorial,
+                    selection.provider,
+                    selection.model,
+                    selection.cli_version,
+                )
             result = await monitor.step(
                 "video",
                 request,

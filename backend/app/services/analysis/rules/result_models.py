@@ -2,6 +2,11 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
+from app.services.analysis.rules.content_document import ContentReview
+from app.services.analysis.rules.editorial_review import (
+    ReviewStatus,
+    validate_editorial_review,
+)
 from app.services.analysis.rules.enums import AnalysisResultKind, AnalysisValidationCode
 from app.services.analysis.rules.errors import AnalysisValidationError
 from app.services.analysis.rules.result_items import (
@@ -158,7 +163,9 @@ class VideoArticleSection:
             self, "id", required_text(self.id, "article section id", maximum=128)
         )
         object.__setattr__(
-            self, "title", required_text(self.title, "article section title")
+            self,
+            "title",
+            required_text(self.title, "article section title", allow_empty=True),
         )
         object.__setattr__(
             self, "body", required_text(self.body, "article section body")
@@ -183,15 +190,21 @@ class VideoArticleResult:
     kind: AnalysisResultKind = field(
         init=False, default=AnalysisResultKind.VIDEO_ARTICLE
     )
+    review_status: ReviewStatus = "not_reviewed"
+    review_history: tuple[ContentReview, ...] = ()
 
     def __post_init__(self) -> None:
         object.__setattr__(
             self, "language", required_text(self.language, "language", maximum=35)
         )
         object.__setattr__(self, "title", required_text(self.title, "title"))
-        object.__setattr__(self, "lead", required_text(self.lead, "article lead"))
         object.__setattr__(
-            self, "closing", required_text(self.closing, "article closing")
+            self, "lead", required_text(self.lead, "article lead", allow_empty=True)
+        )
+        object.__setattr__(
+            self,
+            "closing",
+            required_text(self.closing, "article closing", allow_empty=True),
         )
         if not self.sections or len(self.sections) > 12:
             raise AnalysisValidationError(
@@ -204,10 +217,10 @@ class VideoArticleResult:
                 AnalysisValidationCode.DUPLICATE_IDENTIFIER,
                 "article section ids must be unique",
             )
-        if not self.key_points or len(self.key_points) > 24:
+        if len(self.key_points) > 24:
             raise AnalysisValidationError(
                 AnalysisValidationCode.INVALID_SCHEMA,
-                "article must contain 1 to 24 key points",
+                "article key points exceed the limit",
             )
         if len(self.limitations) > 12:
             raise AnalysisValidationError(
@@ -227,3 +240,6 @@ class VideoArticleResult:
                         AnalysisValidationCode.INVALID_TIME_RANGE,
                         "article evidence exceeds the authoritative media duration",
                     )
+        validate_editorial_review(
+            self.review_history, self.review_status, len(self.sections)
+        )

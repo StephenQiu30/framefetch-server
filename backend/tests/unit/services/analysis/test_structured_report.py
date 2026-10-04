@@ -5,7 +5,6 @@ from pathlib import Path
 
 import pytest
 from app.integrations.ai_cli.prompt import analysis_prompt
-from app.integrations.ai_cli.schema import analysis_output_schema
 from app.repositories.analysis.repository_serialization import (
     analysis_result_document,
     analysis_result_from_document,
@@ -14,6 +13,7 @@ from app.schemas.analysis_results import ANALYSIS_RESULT_RESPONSE_ADAPTER
 from app.services.analysis.report import render_analysis_report_markdown
 from app.services.analysis.rules.enums import AnalysisInputKind, AnalysisResultContract
 from app.services.analysis.rules.errors import AnalysisValidationError
+from app.services.analysis.rules.model_schema import analysis_output_schema
 from app.services.analysis.rules.result_models import AnalysisMedia
 from app.services.analysis.rules.result_parser import parse_analysis_result
 from app.services.analysis.rules.structured_report import StructuredReportResult
@@ -152,12 +152,13 @@ def test_packaging_skill_sample_uses_the_generic_report_pipeline(
         skill_id=skill.id,
         skill_instructions=skill.instructions,
         result_contract=skill.result_contract,
+        stage_prompt=skill.instructions,
     )
     prompt = analysis_prompt(request, ffmpeg="ffmpeg", ffprobe="ffprobe")
-    assert "# Reference: references/packaging-method.md" in prompt
+    assert "# Draft" in prompt and "# Plan" in prompt
     assert "Source module: marketing" not in prompt
-    assert "不声称听到台词" in prompt
-    assert "不引用未经核实的平台算法" in prompt
+    assert "没有音频证据，不能引用对白" in prompt
+    assert "未经证明的效果保证" in prompt
     sample = {
         "language": "zh-CN",
         "title": "桌面收纳视频包装",

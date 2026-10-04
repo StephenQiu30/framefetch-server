@@ -62,7 +62,7 @@ describe('ScreenplayAnalysisPanel', () => {
     );
     render(<ScreenplayAnalysisPanel documentId={documentId} />);
 
-    expect(await screen.findByLabelText('剧本 Skill')).toHaveAttribute(
+    expect(await screen.findByLabelText('剧本任务')).toHaveAttribute(
       'id',
       'screenplay-analysis-skill',
     );
@@ -71,8 +71,10 @@ describe('ScreenplayAnalysisPanel', () => {
         '重点分析故事结构、人物弧光、场景功能、节奏与对白。',
       ),
     );
-    expect(screen.getByText(/规范化剧本文本、任务指令/)).toBeInTheDocument();
-    expect(screen.getByText(/不能使用文件、Shell、网络/)).toBeInTheDocument();
+    expect(
+      screen.getByText(/剧本文本和任务要求会发送到所选云端模型/),
+    ).toBeInTheDocument();
+    expect(screen.getByText(/需要统一的术语和相邻场景/)).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: '开始剧本分析' }));
     expect(await screen.findByText('等待分析')).toBeInTheDocument();
@@ -95,9 +97,9 @@ describe('ScreenplayAnalysisPanel', () => {
     render(<ScreenplayAnalysisPanel documentId={documentId} />);
 
     await waitFor(() =>
-      expect(screen.getByLabelText('剧本 Skill')).toBeEnabled(),
+      expect(screen.getByLabelText('剧本任务')).toBeEnabled(),
     );
-    fireEvent.click(screen.getByLabelText('剧本 Skill'));
+    fireEvent.click(screen.getByLabelText('剧本任务'));
     fireEvent.click(await screen.findByRole('option', { name: '剧本改写' }));
 
     expect(screen.getByRole('button', { name: '开始剧本改写' })).toBeEnabled();

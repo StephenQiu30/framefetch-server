@@ -1,5 +1,6 @@
 'use client';
 
+import AnalysisEditorialReview from '@/components/analysis/analysis-editorial-review';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
@@ -26,21 +27,41 @@ export default function AnalysisArticleResultView({
           <h2 className="text-2xl font-medium tracking-tight sm:text-3xl">
             {result.title}
           </h2>
-          <p className="mt-6 whitespace-pre-line">{result.lead}</p>
+          {result.lead ? (
+            <p className="mt-6 whitespace-pre-line">{result.lead}</p>
+          ) : null}
           {result.sections.map((section) => (
-            <section className="mt-10" key={section.id}>
-              <h3 className="text-xl font-medium">{section.title}</h3>
-              <p className="mt-4 whitespace-pre-line">{section.body}</p>
+            <section
+              className={section.title ? 'mt-10' : 'mt-6'}
+              key={section.id}
+            >
+              {section.title ? (
+                <h3 className="text-xl font-medium">{section.title}</h3>
+              ) : null}
+              <p
+                className={
+                  section.title
+                    ? 'mt-4 whitespace-pre-line'
+                    : 'whitespace-pre-line'
+                }
+              >
+                {section.body}
+              </p>
             </section>
           ))}
-          <p className="mt-8 whitespace-pre-line">{result.closing}</p>
+          {result.closing ? (
+            <p className="mt-8 whitespace-pre-line">{result.closing}</p>
+          ) : null}
         </article>
+        <AnalysisEditorialReview result={result} />
       </TabsContent>
       <TabsContent value="evidence">
         <div className="mt-8 max-w-3xl break-words">
-          {result.sections.map((section) => (
+          {result.sections.map((section, index) => (
             <section className="mb-8" key={section.id}>
-              <h3 className="text-lg font-medium">{section.title}</h3>
+              <h3 className="text-lg font-medium">
+                {section.title || `段落 ${index + 1}`}
+              </h3>
               <ul className="mt-3 flex flex-col gap-3 text-sm leading-7 text-muted-foreground">
                 {section.evidence.map((evidence) => (
                   <li
@@ -63,12 +84,16 @@ export default function AnalysisArticleResultView({
               </ul>
             </section>
           ))}
-          <h3 className="text-lg font-medium">要点核对</h3>
-          <ul className="mt-3 flex flex-col gap-3 list-disc pl-5 leading-7 text-muted-foreground">
-            {result.key_points.map((point) => (
-              <li key={point}>{point}</li>
-            ))}
-          </ul>
+          {result.key_points.length ? (
+            <>
+              <h3 className="text-lg font-medium">要点核对</h3>
+              <ul className="mt-3 flex flex-col gap-3 list-disc pl-5 leading-7 text-muted-foreground">
+                {result.key_points.map((point) => (
+                  <li key={point}>{point}</li>
+                ))}
+              </ul>
+            </>
+          ) : null}
           {result.limitations.length ? (
             <section className="mt-8">
               <h3 className="text-lg font-medium">待核验信息</h3>

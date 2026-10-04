@@ -32,6 +32,41 @@ describe('article delivery', () => {
     expect(screen.queryByRole('tab', { name: '报告预览' })).toBeNull();
   });
 
+  it('renders paragraph-only articles without empty headings or editorial metadata', () => {
+    const result = {
+      ...articleResult,
+      lead: '',
+      closing: '',
+      key_points: [],
+      sections: articleResult.sections.map((section) => ({
+        ...section,
+        title: '',
+      })),
+      review_status: 'needs_review' as const,
+      review_history: [
+        {
+          needs_material: false,
+          findings: [
+            {
+              block_id: 'section-000',
+              severity: 'major' as const,
+              category: 'expression' as const,
+              problem: '开头重复解释材料',
+              correction: '直接写具体对象',
+            },
+          ],
+        },
+      ],
+    };
+    render(<AnalysisVideoResult result={result} />);
+    const article = within(screen.getByRole('article', { name: '文章正文' }));
+    expect(article.getAllByRole('heading')).toHaveLength(1);
+    expect(article.queryByText('开头重复解释材料')).toBeNull();
+    expect(screen.getByText('审校仍有问题')).toBeTruthy();
+    fireEvent.click(screen.getByText('审校意见（1）'));
+    expect(screen.getByText('直接写具体对象')).toBeTruthy();
+  });
+
   it('keeps evidence and review notes available in their own tab with playback', () => {
     const onSelectTime = vi.fn();
     render(

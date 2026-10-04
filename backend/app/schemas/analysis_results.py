@@ -1,11 +1,20 @@
 from __future__ import annotations
 
-from typing import Annotated, Literal, TypeAlias
+from typing import Annotated, Any, Literal, TypeAlias
 
 from pydantic import Field, TypeAdapter
 
 from app.schemas.common import StrictModel
-from app.services.analysis.rules.content_document import ContentDocumentResult
+from app.services.analysis.rules.content_document import (
+    ContentDocumentResult,
+    ContentReview,
+)
+from app.services.analysis.rules.editorial_review import ReviewStatus
+
+
+def _omit_default(schema: dict[str, Any]) -> None:
+    # dart-dio enum defaults use Python wire names as Dart identifiers.
+    schema.pop("default", None)
 
 
 class AnalysisMediaResponse(StrictModel):
@@ -116,6 +125,10 @@ class VideoArticleResultResponse(StrictModel):
     closing: str
     limitations: tuple[str, ...]
     media: AnalysisMediaResponse
+    review_status: ReviewStatus = Field(
+        default="not_reviewed", json_schema_extra=_omit_default
+    )
+    review_history: tuple[ContentReview, ...] = ()
 
 
 class ScreenplayFindingResponse(StrictModel):
@@ -200,6 +213,10 @@ class StructuredReportResultResponse(StrictModel):
     sections: tuple[StructuredReportSectionResponse, ...]
     limitations: tuple[str, ...]
     media: AnalysisMediaResponse
+    review_status: ReviewStatus = Field(
+        default="not_reviewed", json_schema_extra=_omit_default
+    )
+    review_history: tuple[ContentReview, ...] = ()
 
 
 AnalysisResultResponse: TypeAlias = Annotated[  # noqa: UP040

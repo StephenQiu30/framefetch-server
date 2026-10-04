@@ -9,6 +9,11 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
+from app.services.analysis.rules.content_document import ContentReview
+from app.services.analysis.rules.editorial_review import (
+    ReviewStatus,
+    validate_editorial_review,
+)
 from app.services.analysis.rules.enums import AnalysisResultKind, AnalysisValidationCode
 from app.services.analysis.rules.errors import AnalysisValidationError
 from app.services.analysis.rules.result_models import (
@@ -67,6 +72,8 @@ class StructuredReportResult:
     kind: AnalysisResultKind = field(
         init=False, default=AnalysisResultKind.STRUCTURED_REPORT
     )
+    review_status: ReviewStatus = "not_reviewed"
+    review_history: tuple[ContentReview, ...] = ()
 
     def __post_init__(self) -> None:
         object.__setattr__(
@@ -101,6 +108,9 @@ class StructuredReportResult:
                         AnalysisValidationCode.INVALID_TIME_RANGE,
                         "report evidence exceeds the authoritative media duration",
                     )
+        validate_editorial_review(
+            self.review_history, self.review_status, len(self.sections)
+        )
 
 
 def _bounded_items(

@@ -3,12 +3,12 @@ name: screenplay-analysis
 description: 对已上传的中英文剧本做完整故事审稿，先找主要问题和有效机制，再审阅结构、人物、场景与对白；不代写剧情，也不推断未提供的媒体。
 license: MIT
 metadata:
-  video-server-display-name: 剧本故事审稿
+  video-server-display-name: 剧本审阅
   video-server-default-prompt: 先找出影响故事理解和人物选择的主要问题与有效机制，再按原文审阅结构、人物、场景和对白；修改建议写清问题、影响与目标。
   video-server-order: "60"
   video-server-input-kinds: screenplay
   video-server-output-contract: screenplay-analysis
-  video-server-modules: drama-story-script, drama-anti-template, sw-story-structure, sw-character-conflict, sw-scene-craft, sw-dialogue, humanizer-zh, zh-copywriting-guidelines
+  video-server-modules: drama-story-script, drama-anti-template, sw-story-structure, sw-character-conflict, sw-scene-craft, sw-dialogue, sw-premise-theme, sw-truby-anatomy, humanizer-zh, zh-copywriting-guidelines
   video-server-references: references/output-contract.md, shared/report-writing.md, shared/screenplay-coverage-writing.md
 ---
 
@@ -19,6 +19,10 @@ metadata:
 ## 上游方法的用法
 
 上文的 drama-skills 与 screenwriting-skills 章节是诊断工具箱，不是剧情公式。固定页码、幕数、场场反转、主角必须成长、反派必须更坏等说法，只在上传文本自身的目标适用时参考；上游的写作练习、工作流程和其他文档都不在本任务执行。
+
+## 按问题选择方法
+
+用户关注人物、对白、结构、场景、连续性或短剧时，将相应方法作为关注项；不需要切换到另一个产品 Skill。先根据文本确认问题，再选择适用的诊断方法，不逐项填完所有量表。
 
 ## 阅读顺序
 

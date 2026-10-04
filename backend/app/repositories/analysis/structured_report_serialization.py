@@ -1,3 +1,5 @@
+from typing import cast
+
 from app.repositories.analysis.storage_fields import (
     array,
     integer,
@@ -5,6 +7,8 @@ from app.repositories.analysis.storage_fields import (
     string,
     strings,
 )
+from app.services.analysis.rules.content_document import ContentReview
+from app.services.analysis.rules.editorial_review import ReviewStatus
 from app.services.analysis.rules.enums import AnalysisResultKind
 from app.services.analysis.rules.result_models import (
     AnalysisMedia,
@@ -19,7 +23,12 @@ _FIELDS = {"kind", "language", "title", "summary", "sections", "limitations", "m
 
 
 def structured_report_from_document(document: object) -> StructuredReportResult:
-    root = mapping(document, _FIELDS, "structured report result")
+    optional = (
+        set(document) & {"review_status", "review_history"}
+        if isinstance(document, dict)
+        else set()
+    )
+    root = mapping(document, _FIELDS | optional, "structured report result")
     if root["kind"] != AnalysisResultKind.STRUCTURED_REPORT.value:
         raise ValueError("stored structured report kind is invalid")
     media = mapping(root["media"], {"duration_ms", "container", "size_bytes"}, "media")
@@ -29,6 +38,11 @@ def structured_report_from_document(document: object) -> StructuredReportResult:
         summary=string(root["summary"], "summary"),
         sections=tuple(_section(item) for item in array(root["sections"], "sections")),
         limitations=tuple(strings(root["limitations"], "limitations")),
+        review_status=cast(ReviewStatus, root.get("review_status", "not_reviewed")),
+        review_history=tuple(
+            ContentReview.model_validate(item)
+            for item in array(root.get("review_history", []), "review_history")
+        ),
         media=AnalysisMedia(
             duration_ms=integer(media["duration_ms"], "media.duration_ms"),
             container=string(media["container"], "media.container"),

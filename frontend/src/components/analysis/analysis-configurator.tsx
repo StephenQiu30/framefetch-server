@@ -81,7 +81,7 @@ export default function AnalysisConfigurator({
       <FieldGroup className="grid gap-5 sm:grid-cols-2">
         <Field>
           <FieldLabel htmlFor={controlId(inputKind, 'skill')}>
-            {inputKind === 'screenplay' ? '剧本 Skill' : '分析 Skill'}
+            {inputKind === 'screenplay' ? '剧本任务' : '创作任务'}
           </FieldLabel>
           <Select
             disabled={catalog.loading || catalog.skills.length === 0}
@@ -100,8 +100,8 @@ export default function AnalysisConfigurator({
                     : catalog.loading
                       ? '正在加载…'
                       : catalog.skills.length === 0
-                        ? '暂无可用 Skill'
-                        : '请选择 Skill'
+                        ? '暂无可用任务'
+                        : '请选择任务'
                 }
               />
             </SelectTrigger>
@@ -118,7 +118,7 @@ export default function AnalysisConfigurator({
           <FieldDescription id={controlId(inputKind, 'skill-description')}>
             {catalog.error ? (
               <>
-                Skill 清单加载失败。{' '}
+                任务清单加载失败。{' '}
                 <Button
                   className="align-baseline"
                   onClick={() => void catalog.retry()}
@@ -129,10 +129,10 @@ export default function AnalysisConfigurator({
                 </Button>
               </>
             ) : catalog.loading ? (
-              '正在加载可用的分析 Skill…'
+              '正在加载可用的创作任务…'
             ) : catalog.skills.length === 0 ? (
               <>
-                当前没有可用的分析 Skill。{' '}
+                当前没有可用的创作任务。{' '}
                 <Button
                   className="align-baseline"
                   onClick={() => void catalog.retry()}
@@ -143,7 +143,7 @@ export default function AnalysisConfigurator({
                 </Button>
               </>
             ) : !selected ? (
-              '之前选择的 Skill 已不可用，请重新选择。'
+              '之前选择的任务 已不可用，请重新选择。'
             ) : (
               selected.description
             )}
@@ -175,7 +175,7 @@ export default function AnalysisConfigurator({
           <FieldDescription>
             {selected?.result_contract === 'screenplay-rewrite'
               ? '与原文语言相同表示润色，不同表示跨语言改写。'
-              : '分析结构保持一致，仅改变模型输出文字。'}
+              : '使用所选语言撰写结果。'}
           </FieldDescription>
         </Field>
       </FieldGroup>
@@ -209,7 +209,7 @@ export default function AnalysisConfigurator({
         />
         <div className="flex items-start justify-between gap-4 text-sm text-muted-foreground">
           <span>
-            可修改或清空分析重点；工具权限、安全边界与结果结构不可修改。
+            可补充读者、写作角度或希望重点处理的问题，也可以清空使用任务默认要求。
           </span>
           <span aria-live="polite" className="shrink-0 tabular-nums">
             {prompt.length}/{MAX_PROMPT_LENGTH}

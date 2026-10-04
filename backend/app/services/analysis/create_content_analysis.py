@@ -25,11 +25,7 @@ from app.services.analysis.validation import (
 from app.services.analysis.views import analysis_job_view
 from app.services.quotas import DEFAULT_USER_QUOTA, UserQuota
 
-CONTENT_SKILLS = {
-    "article": "content-article",
-    "post": "content-post",
-    "guide": "content-guide",
-}
+CONTENT_SKILL = "content-writing"
 
 
 class CreateContentAnalysis:
@@ -68,7 +64,7 @@ class CreateContentAnalysis:
         idempotency_key = validate_idempotency_key(idempotency_key)
         if output_language not in {"zh-CN", "en-US"}:
             raise AnalysisApplicationError(AnalysisApplicationErrorCode.INVALID_REQUEST)
-        skill_id = CONTENT_SKILLS[source.brief.document_type]
+        skill_id = CONTENT_SKILL
         skill = self._catalog.resolve(skill_id, AnalysisInputKind.CONTENT)
         if skill is None:
             raise AnalysisApplicationError(AnalysisApplicationErrorCode.INVALID_REQUEST)

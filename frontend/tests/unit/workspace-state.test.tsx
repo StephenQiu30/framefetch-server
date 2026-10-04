@@ -123,9 +123,9 @@ describe('private workspace view state', () => {
       </QueryProvider>,
     );
     await waitFor(() =>
-      expect(screen.getByLabelText('分析 Skill')).toBeEnabled(),
+      expect(screen.getByLabelText('创作任务')).toBeEnabled(),
     );
-    fireEvent.click(screen.getByLabelText('分析 Skill'));
+    fireEvent.click(screen.getByLabelText('创作任务'));
     fireEvent.click(await screen.findByRole('option', { name: '高光提炼' }));
     fireEvent.click(screen.getByLabelText('输出语言'));
     fireEvent.click(await screen.findByRole('option', { name: 'English' }));
@@ -138,7 +138,7 @@ describe('private workspace view state', () => {
       '只保留这个素材的要求',
     );
     expect(screen.getByLabelText('输出语言')).toHaveTextContent('English');
-    expect(screen.getByLabelText('分析 Skill')).toHaveTextContent('高光提炼');
+    expect(screen.getByLabelText('创作任务')).toHaveTextContent('高光提炼');
     fireEvent.click(screen.getByText('Change input'));
     expect(screen.getByLabelText('分析提示词')).toHaveValue(
       analysisSkills[0].default_prompt,
@@ -187,9 +187,9 @@ describe('private workspace view state', () => {
       </QueryProvider>,
     );
     await waitFor(() =>
-      expect(screen.getByLabelText('分析 Skill')).toBeEnabled(),
+      expect(screen.getByLabelText('创作任务')).toBeEnabled(),
     );
-    fireEvent.click(screen.getByLabelText('分析 Skill'));
+    fireEvent.click(screen.getByLabelText('创作任务'));
     fireEvent.click(await screen.findByRole('option', { name: '高光提炼' }));
     fireEvent.change(screen.getByLabelText('分析提示词'), {
       target: { value: '保留我为这个素材编辑的要求' },
@@ -198,13 +198,9 @@ describe('private workspace view state', () => {
     fireEvent.click(screen.getByText('Refresh skills'));
     fireEvent.click(screen.getByText('Navigate'));
 
-    await screen.findByText('之前选择的 Skill 已不可用，请重新选择。');
-    expect(screen.getByLabelText('分析 Skill')).toHaveTextContent(
-      '请选择 Skill',
-    );
-    expect(screen.getByLabelText('分析 Skill')).not.toHaveTextContent(
-      '导演拉片',
-    );
+    await screen.findByText('之前选择的任务 已不可用，请重新选择。');
+    expect(screen.getByLabelText('创作任务')).toHaveTextContent('请选择任务');
+    expect(screen.getByLabelText('创作任务')).not.toHaveTextContent('导演拉片');
     expect(screen.getByLabelText('分析提示词')).toHaveValue(
       '保留我为这个素材编辑的要求',
     );
@@ -212,7 +208,7 @@ describe('private workspace view state', () => {
     expect(startButton).toBeDisabled();
     fireEvent.click(startButton);
     expect(start).not.toHaveBeenCalled();
-    fireEvent.click(screen.getByLabelText('分析 Skill'));
+    fireEvent.click(screen.getByLabelText('创作任务'));
     fireEvent.click(await screen.findByRole('option', { name: '导演拉片' }));
     expect(startButton).toBeEnabled();
     expect(screen.getByLabelText('分析提示词')).toHaveValue(

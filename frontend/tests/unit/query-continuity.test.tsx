@@ -90,8 +90,8 @@ describe('root query continuity', () => {
         />
       </QueryProvider>,
     );
-    expect(screen.getByText('正在加载可用的分析 Skill…')).toBeInTheDocument();
-    expect(screen.getByLabelText('分析 Skill')).toBeDisabled();
+    expect(screen.getByText('正在加载可用的创作任务…')).toBeInTheDocument();
+    expect(screen.getByLabelText('创作任务')).toBeDisabled();
     expect(screen.getByRole('button', { name: '开始 AI 分析' })).toBeDisabled();
     fireEvent.change(screen.getByLabelText('分析提示词'), {
       target: { value: '保留我输入的要求' },
@@ -124,9 +124,9 @@ describe('root query continuity', () => {
       </QueryProvider>,
     );
 
-    await screen.findByText('当前没有可用的分析 Skill。');
-    expect(screen.queryByText('正在加载可用的分析 Skill…')).toBeNull();
-    expect(screen.getByLabelText('分析 Skill')).toBeDisabled();
+    await screen.findByText('当前没有可用的创作任务。');
+    expect(screen.queryByText('正在加载可用的创作任务…')).toBeNull();
+    expect(screen.getByLabelText('创作任务')).toBeDisabled();
     const startButton = screen.getByRole('button', { name: '开始 AI 分析' });
     expect(startButton).toBeDisabled();
     fireEvent.click(startButton);
@@ -136,7 +136,7 @@ describe('root query continuity', () => {
     });
     fireEvent.click(screen.getByRole('button', { name: '刷新清单' }));
     await waitFor(() => expect(startButton).toBeEnabled());
-    expect(screen.getByLabelText('分析 Skill')).toHaveTextContent('导演拉片');
+    expect(screen.getByLabelText('创作任务')).toHaveTextContent('导演拉片');
     expect(screen.getByLabelText('分析提示词')).toHaveValue(
       '等待清单时保留的要求',
     );
@@ -164,12 +164,10 @@ describe('root query continuity', () => {
       </QueryProvider>,
     );
 
-    await screen.findByText('Skill 清单加载失败。');
-    expect(screen.getByLabelText('分析 Skill')).toHaveTextContent(
-      '清单加载失败',
-    );
-    expect(screen.queryByText('当前没有可用的分析 Skill。')).toBeNull();
-    expect(screen.queryByText('正在加载可用的分析 Skill…')).toBeNull();
+    await screen.findByText('任务清单加载失败。');
+    expect(screen.getByLabelText('创作任务')).toHaveTextContent('清单加载失败');
+    expect(screen.queryByText('当前没有可用的创作任务。')).toBeNull();
+    expect(screen.queryByText('正在加载可用的创作任务…')).toBeNull();
     expect(screen.getByRole('button', { name: '开始 AI 分析' })).toBeDisabled();
     fireEvent.click(screen.getByRole('button', { name: '重试' }));
     await waitFor(() =>
@@ -177,7 +175,7 @@ describe('root query continuity', () => {
         screen.getByRole('button', { name: '开始 AI 分析' }),
       ).toBeEnabled(),
     );
-    expect(screen.queryByText('Skill 清单加载失败。')).toBeNull();
+    expect(screen.queryByText('任务清单加载失败。')).toBeNull();
   });
 
   it('keeps loaded data across route unmounts without a loading flash', async () => {

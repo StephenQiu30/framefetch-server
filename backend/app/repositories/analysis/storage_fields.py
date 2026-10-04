@@ -4,6 +4,8 @@ from dataclasses import fields, is_dataclass
 from enum import Enum
 from typing import Any, cast
 
+from pydantic import BaseModel
+
 
 def dataclass_document(value: object) -> dict[str, Any]:
     result = _document_value(value)
@@ -18,6 +20,8 @@ def _document_value(value: object) -> Any:
             item.name: _document_value(getattr(value, item.name))
             for item in fields(value)
         }
+    if isinstance(value, BaseModel):
+        return value.model_dump(mode="json")
     if isinstance(value, tuple):
         return [_document_value(item) for item in value]
     if isinstance(value, Enum):

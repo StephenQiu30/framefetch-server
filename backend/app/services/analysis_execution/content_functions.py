@@ -53,11 +53,21 @@ class ContentFunctions:
             call.arguments.material_id, call.arguments.segment_id
         )
 
-    def material_context(self) -> list[dict[str, object]]:
+    def material_context(
+        self, references: tuple[MaterialArguments, ...] | None = None
+    ) -> list[dict[str, object]]:
         result = []
         for material in self.list_materials():
             segments = material["segments"]
             assert isinstance(segments, list)
+            if references is not None:
+                segments = [
+                    item.segment_id
+                    for item in references
+                    if item.material_id == material["id"]
+                ]
+                if not segments:
+                    continue
             result.append(
                 {
                     **material,

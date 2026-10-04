@@ -55,6 +55,37 @@ describe('AnalysisPanel', () => {
     await screen.findByRole('heading', { name: analysisResult.title });
   });
 
+  it('starts a current task without deleting or retrying the historical result', async () => {
+    vi.mocked(httpClient.request).mockReset();
+    mockHttpResponses(analysisJob('succeeded'), analysisSkills);
+    render(<AnalysisPanel downloadId={job().id} />);
+    fireEvent.click(
+      await screen.findByRole('button', { name: '新建创作任务' }),
+    );
+    await screen.findByLabelText('创作任务');
+    expect(
+      screen.getByRole('heading', { name: analysisResult.title }),
+    ).toBeInTheDocument();
+    await waitFor(() =>
+      expect(
+        screen.getByRole('button', { name: '开始 AI 分析' }),
+      ).toBeEnabled(),
+    );
+    mockHttpResponses({ ...analysisJob('queued'), id: 'new-analysis' });
+    fireEvent.click(screen.getByRole('button', { name: '开始 AI 分析' }));
+    await screen.findByText('等待分析');
+    expect(httpRequests().at(-1)).toMatchObject({
+      method: 'POST',
+      url: `/api/downloads/${job().id}/analyses`,
+    });
+    expect(
+      httpRequests().some(
+        (request) =>
+          request.method === 'DELETE' || request.url?.endsWith('/retry'),
+      ),
+    ).toBe(false);
+  });
+
   it('keeps retry errors visible beside the completed result', async () => {
     vi.mocked(httpClient.request).mockReset();
     mockHttpResponses(analysisJob('succeeded'));
@@ -189,7 +220,7 @@ describe('AnalysisPanel', () => {
     expect(
       await screen.findByRole('heading', { name: 'AI 智能分析' }),
     ).toBeInTheDocument();
-    expect(await screen.findByLabelText('分析 Skill')).toHaveAttribute(
+    expect(await screen.findByLabelText('创作任务')).toHaveAttribute(
       'id',
       'analysis-skill',
     );
@@ -203,16 +234,12 @@ describe('AnalysisPanel', () => {
       ),
     );
     expect(screen.getByText('导演拉片')).toBeInTheDocument();
+    expect(screen.getByText(/应用会读取视频画面/)).toBeInTheDocument();
     expect(
-      screen.getByText(/完整视频文件会交给本机 Agent/),
+      screen.getByText(/画面、任务要求和必要上下文会发送到所选云端模型/),
     ).toBeInTheDocument();
     expect(
-      screen.getByText(
-        /实际查看的画面帧、任务指令和必要上下文会发送到所选云端模型/,
-      ),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByText(/不会把原始视频容器直接上传给模型服务/),
+      screen.getByText(/原视频文件不会直接上传给模型服务/),
     ).toBeInTheDocument();
     expect(screen.getByRole('button', { name: '开始 AI 分析' })).toBeEnabled();
   });

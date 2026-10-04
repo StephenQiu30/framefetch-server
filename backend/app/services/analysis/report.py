@@ -21,22 +21,15 @@ def render_analysis_report_markdown(result: AnalysisResult) -> str:
 
 
 def _render_video_article_report_markdown(result: VideoArticleResult) -> str:
-    lines = [
-        f"# {_markdown_text(result.title)}",
-        "",
-        _markdown_block(result.lead),
-        "",
-    ]
+    lines = [f"# {_markdown_text(result.title)}", ""]
+    if result.lead:
+        lines.extend((_markdown_block(result.lead), ""))
     for section in result.sections:
-        lines.extend(
-            (
-                f"## {_markdown_text(section.title)}",
-                "",
-                _markdown_block(section.body),
-                "",
-            )
-        )
-    lines.extend((_markdown_block(result.closing), ""))
+        if section.title:
+            lines.extend((f"## {_markdown_text(section.title)}", ""))
+        lines.extend((_markdown_block(section.body), ""))
+    if result.closing:
+        lines.extend((_markdown_block(result.closing), ""))
     return "\n".join(lines).rstrip() + "\n"
 
 

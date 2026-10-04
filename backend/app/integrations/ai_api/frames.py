@@ -40,11 +40,22 @@ class ApiFrameExtractor:
         )
 
     async def extract(
-        self, video: Path, *, workspace: Path, duration_ms: int
+        self,
+        video: Path,
+        *,
+        workspace: Path,
+        duration_ms: int,
+        observation_ms: tuple[int, ...] = (),
     ) -> tuple[FrameEvidence, ...]:
+        limit = min(_FRAME_LIMIT, self._config.max_frames)
+        if any(
+            type(value) is not int or not 0 <= value < duration_ms
+            for value in observation_ms
+        ):
+            raise AnalysisCliError("analysis_media_invalid")
+        targets = tuple(dict.fromkeys(observation_ms))[: limit // 2]
         count = min(
-            _FRAME_LIMIT,
-            self._config.max_frames,
+            limit - len(targets),
             max(4, math.ceil(duration_ms / 1_000)),
         )
         output = workspace / "work" / "api-frames"
@@ -84,7 +95,53 @@ class ApiFrameExtractor:
             raise AnalysisCliError("analysis_cli_unavailable") from exc
         if result.returncode != 0:
             raise AnalysisCliError("analysis_media_invalid")
-        return await asyncio.to_thread(self._read_frames, output, count, duration_ms)
+        evidence = list(
+            await asyncio.to_thread(self._read_frames, output, count, duration_ms)
+        )
+        for index, timestamp in enumerate(targets):
+            target = output / f"revisit-{index:03d}.jpg"
+            try:
+                result = await self._supervisor.run(
+                    (
+                        str(self._config.ffmpeg),
+                        "-hide_banner",
+                        "-nostdin",
+                        "-loglevel",
+                        "error",
+                        "-ss",
+                        f"{timestamp / 1000:.3f}",
+                        "-i",
+                        str(video),
+                        "-an",
+                        "-sn",
+                        "-frames:v",
+                        "1",
+                        "-vf",
+                        "scale=960:-2:force_original_aspect_ratio=decrease",
+                        "-q:v",
+                        "4",
+                        "-y",
+                        str(target),
+                    ),
+                    cwd=workspace,
+                    timeout_seconds=self._config.timeout_seconds,
+                )
+                if result.returncode != 0:
+                    raise AnalysisCliError("analysis_media_invalid")
+                raw = await asyncio.to_thread(target.read_bytes)
+            except ProcessTimeoutError as exc:
+                raise AnalysisCliError("analysis_cli_timeout") from exc
+            except OSError as exc:
+                raise AnalysisCliError("analysis_media_invalid") from exc
+            if (
+                not raw
+                or len(raw) > min(self._config.max_image_bytes, 4 * 1024**2)
+                or sum(len(item.jpeg) for item in evidence) + len(raw)
+                > _TOTAL_EVIDENCE_LIMIT
+            ):
+                raise AnalysisCliError("analysis_resource_limit")
+            evidence.append(FrameEvidence(timestamp, raw))
+        return tuple(sorted(evidence, key=lambda item: item.timestamp_ms))
 
     def _read_frames(
         self, output: Path, requested: int, duration_ms: int

@@ -45,11 +45,18 @@ class ParseContext:
             raise AnalysisValidationError(code, f"{path} has an invalid item count")
         return array
 
-    def text(self, value: object, path: str, *, maximum: int | None = None) -> str:
+    def text(
+        self,
+        value: object,
+        path: str,
+        *,
+        maximum: int | None = None,
+        allow_empty: bool = False,
+    ) -> str:
         limit = maximum or self.limits.max_string_characters
         if (
             not isinstance(value, str)
-            or not value.strip()
+            or (not value.strip() and not allow_empty)
             or len(value.strip()) > limit
         ):
             raise AnalysisValidationError(

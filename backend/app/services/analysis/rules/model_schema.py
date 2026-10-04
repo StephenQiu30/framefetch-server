@@ -98,7 +98,7 @@ def video_article_output_schema(language: str) -> dict[str, Any]:
             "title": _text(),
             "lead": _text(),
             "sections": {"type": "array", "minItems": 1, "items": section},
-            "key_points": {"type": "array", "minItems": 1, "items": _text()},
+            "key_points": {"type": "array", "items": _text()},
             "closing": _text(),
             "limitations": {"type": "array", "items": _text()},
         },

@@ -1,6 +1,7 @@
 """SkillWorkflow on a real Temporal server and PostgreSQL."""
 
 import asyncio
+from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from unittest.mock import AsyncMock
@@ -15,6 +16,7 @@ from app.repositories.downloads.intent_repository import IntentRepository
 from app.repositories.downloads.repository import SqlAlchemyDownloadRepository
 from app.repositories.outbox_repository import SqlAlchemyOutboxRepository
 from app.services.analysis.create_content_analysis import CreateContentAnalysis
+from app.services.analysis.rules.enums import AnalysisInputKind
 from app.services.analysis_execution.content_executor import ContentExecutor
 from app.services.analysis_execution.models import VideoAnalysisRequest
 from app.services.analysis_execution.service import AnalysisExecution
@@ -36,6 +38,7 @@ from tests.unit.workers.analysis.test_content_execution import (
     Analyzer,
     Resolver,
     draft,
+    plan,
     review,
     source,
 )
@@ -98,7 +101,7 @@ def worker(client, skill: SkillActivities) -> Worker:
     )
 
 
-async def submit(sessions, client) -> SkillCommand:
+async def submit(sessions, client, skill_id=None) -> SkillCommand:
     analyses = SqlAlchemyAnalysisRepository(sessions)
     source = await seed_artifact(sessions, now())
     async with sessions() as session, session.begin():
@@ -109,6 +112,15 @@ async def submit(sessions, client) -> SkillCommand:
             .values(duration_ms=2_000)
         )
     command = analysis_command(source)
+    if skill_id is not None:
+        skill = BuiltinAnalysisSkillCatalog().resolve(skill_id, AnalysisInputKind.VIDEO)
+        command = replace(
+            command,
+            skill_id=skill_id,
+            skill_instructions=skill.instructions,
+            skill_instructions_sha256=skill.instructions_sha256,
+            result_contract=skill.view.result_contract,
+        )
     await analyses.create_job_and_enqueue(command, now=now())
     loop = OutboxPublisherLoop(
         repository=SqlAlchemyOutboxRepository(sessions),
@@ -224,7 +236,7 @@ async def test_content_workflow_drafts_and_reviews_with_durable_budget(
     assert await loop.run_once() == 1
     output = draft()
     output["blocks"][1]["text"] = MARKER
-    analyzer = Analyzer([output, review()])
+    analyzer = Analyzer([plan(), output, review()])
     resolver = Resolver(analyzer)
     persistence = AnalysisExecutionPersistence(
         analyses, SqlAlchemyDownloadRepository(sessions)
@@ -245,18 +257,57 @@ async def test_content_workflow_drafts_and_reviews_with_durable_budget(
     async with worker(temporal_client, skill):
         outcome = await asyncio.wait_for(handle.result(), 30)
     assert outcome["status"] == "publishing"
-    assert len(analyzer.requests) == 2
+    assert len(analyzer.requests) == 3
     result = await analyses.get_result(job.id)
     assert result.kind == "content_document"
     from app.models import AnalysisRunRow
 
     async with sessions() as session:
         run = await session.get(AnalysisRunRow, job.run_id)
-        assert run.model_calls_used == 2
-        assert run.execution_binding["max_model_calls"] == 4
+        assert run.model_calls_used == 3
+        assert run.execution_binding["max_model_calls"] == 5
     assert await step_rows(sessions) == 0
     history = await handle.fetch_history()
     await Replayer(workflows=[SkillWorkflow]).replay_workflow(history)
     assert MARKER.encode() not in b"".join(
         event.SerializeToString() for event in history.events
     )
+
+
+async def test_video_editorial_stages_publish_with_real_pg_and_temporal(
+    postgres_engine, temporal_client, tmp_path
+):
+    from app.models import AnalysisRunRow
+    from tests.unit.services.analysis.rules.test_video_article import article_payload
+    from tests.unit.workers.analysis.test_video_editorial import (
+        Analyzer as VideoAnalyzer,
+    )
+    from tests.unit.workers.analysis.test_video_editorial import (
+        plan as video_plan,
+    )
+
+    sessions = async_sessionmaker(postgres_engine, expire_on_commit=False)
+    command = await submit(sessions, temporal_client, "video-to-article")
+    payload = article_payload()
+    payload["sections"][0]["evidence"][0]["end_ms"] = 1000
+    payload["sections"][1]["evidence"][0].update(start_ms=1000, end_ms=2000)
+    analyzer = VideoAnalyzer([video_plan(), payload, review()])
+    handle = temporal_client.get_workflow_handle(command.workflow_id)
+    async with worker(temporal_client, activities(sessions, analyzer, tmp_path)):
+        outcome = await asyncio.wait_for(handle.result(), 30)
+    assert outcome["status"] == "publishing"
+    assert [request.stage for request in analyzer.requests] == [
+        "plan",
+        "draft",
+        "review",
+    ]
+    async with sessions() as session:
+        run = await session.get(AnalysisRunRow, UUID(command.run_id))
+        assert run.model_calls_used == 3
+        assert run.execution_binding["max_model_calls"] == 5
+    result = await SqlAlchemyAnalysisRepository(sessions).get_result(
+        UUID(command.job_id)
+    )
+    assert result.review_status == "passed"
+    history = await handle.fetch_history()
+    await Replayer(workflows=[SkillWorkflow]).replay_workflow(history)

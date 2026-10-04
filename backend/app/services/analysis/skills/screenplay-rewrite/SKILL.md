@@ -3,7 +3,7 @@ name: screenplay-rewrite
 description: 执行中文和英文剧本的跨语言改写或同语言润色，并保持场景、人物、事实与术语一致。用于 zh-CN 和 en-US 剧本改写任务。
 license: MIT
 metadata:
-  video-server-display-name: 剧本中英改写
+  video-server-display-name: 剧本改写
   video-server-default-prompt: 在不改变情节事实和场景顺序的前提下完成中英文改写或同语言润色，并保持人物声音与术语一致。
   video-server-order: "80"
   video-server-input-kinds: screenplay

@@ -39,6 +39,16 @@ def source(document_type="article"):
     )
 
 
+def plan():
+    return {
+        "reader_question": "杯盖旋紧后怎么样",
+        "angle": "一次具体观察",
+        "movement": ["动作", "结果"],
+        "omit": ["品牌"],
+        "material_refs": [{"material_id": "notes", "segment_id": "segment-000"}],
+    }
+
+
 def draft(document_type="article"):
     return {
         "document_type": document_type,
@@ -130,7 +140,7 @@ class Resolver:
 def setup(tmp_path, outputs, document_type="article"):
     materials = source(document_type)
     catalog = BuiltinAnalysisSkillCatalog()
-    skill = catalog.resolve(f"content-{document_type}", AnalysisInputKind.CONTENT)
+    skill = catalog.resolve("content-writing", AnalysisInputKind.CONTENT)
     assert skill is not None
     job = replace(
         running_job(),
@@ -143,7 +153,7 @@ def setup(tmp_path, outputs, document_type="article"):
         skill_instructions_sha256=skill.instructions_sha256,
     )
     repository = ContentRepository(job)
-    analyzer = Analyzer(outputs)
+    analyzer = Analyzer([plan(), *outputs])
     executor = ContentExecutor(resolver=Resolver(analyzer), workspace_root=tmp_path)
     monitor = AnalysisLeaseMonitor(
         repository=repository,
@@ -160,7 +170,7 @@ def setup(tmp_path, outputs, document_type="article"):
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize("document_type", ["article", "post", "guide"])
-async def test_two_calls_publish_clean_body_and_replay_without_call(
+async def test_three_calls_publish_clean_body_and_replay_without_call(
     tmp_path, document_type
 ):
     job, repository, analyzer, executor, monitor = setup(
@@ -169,18 +179,22 @@ async def test_two_calls_publish_clean_body_and_replay_without_call(
     output = await executor.execute(job, monitor)
     assert isinstance(output.result, ContentDocumentResult)
     assert output.result.review_status == "passed"
-    assert [request.stage for request in analyzer.requests] == ["draft", "review"]
-    assert "# Review" not in analyzer.requests[0].prompt
-    assert "# Draft" not in analyzer.requests[1].prompt
+    assert [request.stage for request in analyzer.requests] == [
+        "plan",
+        "draft",
+        "review",
+    ]
+    assert "# Review" not in analyzer.requests[1].prompt
+    assert "# Draft" not in analyzer.requests[2].prompt
     assert list(tmp_path.iterdir()) == []
     replay = await executor.execute(job, monitor)
     assert replay == output
-    assert len(analyzer.requests) == 2
-    assert repository.binding["max_model_calls"] == 4
+    assert len(analyzer.requests) == 3
+    assert repository.binding["max_model_calls"] == 5
 
 
 @pytest.mark.asyncio
-async def test_revision_keeps_untargeted_blocks_and_stops_after_four_calls(tmp_path):
+async def test_revision_keeps_untargeted_blocks_and_stops_after_five_calls(tmp_path):
     revised = draft()
     revised["blocks"][1]["text"] = "这次观察只覆盖短暂倒置。"
     job, _, analyzer, executor, monitor = setup(
@@ -188,7 +202,7 @@ async def test_revision_keeps_untargeted_blocks_and_stops_after_four_calls(tmp_p
     )
     output = await executor.execute(job, monitor)
     assert output.result.review_status == "needs_review"
-    assert len(analyzer.requests) == 4
+    assert len(analyzer.requests) == 5
     assert output.result.blocks[0].text == draft()["blocks"][0]["text"]
 
 
@@ -201,7 +215,7 @@ async def test_revision_cannot_rewrite_untargeted_opening(tmp_path):
     )
     with pytest.raises(AnalysisValidationError):
         await executor.execute(job, monitor)
-    assert len(analyzer.requests) == 3
+    assert len(analyzer.requests) == 4
 
 
 @pytest.mark.asyncio
@@ -214,7 +228,7 @@ async def test_missing_material_retains_actionable_review_without_regeneration(
     output = await executor.execute(job, monitor)
     assert output.result.review_status == "needs_material"
     assert output.result.review_history[-1].findings[0].correction
-    assert len(analyzer.requests) == 2
+    assert len(analyzer.requests) == 3
 
 
 @pytest.mark.asyncio
@@ -225,5 +239,52 @@ async def test_unknown_call_is_not_reissued(tmp_path):
     for _ in range(2):
         with pytest.raises(AnalysisOutcomeUnknown):
             await executor.execute(job, monitor)
-    assert len(analyzer.requests) == 1
+    assert len(analyzer.requests) == 2
     assert list(tmp_path.iterdir()) == []
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "reference",
+    [
+        {"material_id": "missing", "segment_id": "segment-000"},
+        {"material_id": "notes", "segment_id": "segment-099"},
+    ],
+)
+async def test_invalid_plan_reference_is_not_regenerated(tmp_path, reference):
+    job, repository, analyzer, executor, monitor = setup(tmp_path, [])
+    invalid = plan()
+    invalid["material_refs"] = [reference]
+    analyzer.outputs = iter([invalid])
+    for _ in range(2):
+        with pytest.raises(AnalysisValidationError):
+            await executor.execute(job, monitor)
+    assert len(analyzer.requests) == 1
+    assert "plan" in repository.steps
+
+
+@pytest.mark.asyncio
+async def test_draft_reads_selected_segment_and_reviewer_sees_full_source(tmp_path):
+    job, _, analyzer, executor, monitor = setup(tmp_path, [])
+    original = source()
+    selected_source = original.model_copy(
+        update={
+            "materials": (
+                original.materials[0].model_copy(
+                    update={"text": "舍弃片段" * 500 + original.materials[0].text}
+                ),
+            )
+        }
+    )
+    job = replace(
+        job, content_source=selected_source, input_sha256=selected_source.sha256
+    )
+    decision = plan()
+    decision["material_refs"][0]["segment_id"] = "segment-001"
+    output = draft()
+    output["evidence_index"][0]["segment_id"] = "segment-001"
+    analyzer.outputs = iter([decision, output, review()])
+    await executor.execute(job, monitor)
+    assert "舍弃片段" not in analyzer.requests[1].prompt
+    assert "桌面未见水滴" in analyzer.requests[1].prompt
+    assert "舍弃片段" in analyzer.requests[2].prompt

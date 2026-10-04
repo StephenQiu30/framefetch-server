@@ -10,7 +10,6 @@ from app.integrations.ai_api.client import (
 from app.integrations.ai_api.config import ApiAdapterConfig
 from app.integrations.ai_api.frames import ApiFrameExtractor, FrameEvidence
 from app.integrations.ai_cli.prompt import analysis_prompt
-from app.integrations.ai_cli.schema import analysis_output_schema
 from app.integrations.ai_cli.screenplay_prompt import (
     screenplay_analysis_prompt,
     screenplay_analysis_synthesis_prompt,
@@ -31,6 +30,7 @@ from app.integrations.ai_cli.workspace import (
     prepare_job_files,
     run_with_workspace_policy,
 )
+from app.services.analysis.rules.model_schema import analysis_output_schema
 from app.services.analysis_execution.content_models import ContentModelRequest
 from app.services.analysis_execution.models import (
     ScreenplayAnalysisRequest,
@@ -59,8 +59,12 @@ class ApiAnalyzer:
         return await self._invoke(request.prompt, json.loads(request.schema_json))
 
     async def analyze(self, request: VideoAnalysisRequest) -> object:
-        schema = analysis_output_schema(
-            request.output_language, request.result_contract
+        schema = (
+            json.loads(request.schema_json)
+            if request.schema_json
+            else analysis_output_schema(
+                request.output_language, request.result_contract
+            )
         )
         prompt = analysis_prompt(
             request,
@@ -75,6 +79,7 @@ class ApiAnalyzer:
                 request.artifact,
                 workspace=files.root,
                 duration_ms=request.duration_ms,
+                observation_ms=request.observation_ms,
             )
             return await self._invoke(prompt, schema, _frame_content(prompt, evidence))
 

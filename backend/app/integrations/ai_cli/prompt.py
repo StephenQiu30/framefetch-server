@@ -15,6 +15,29 @@ def analysis_prompt(
     provided_frames: bool = False,
 ) -> str:
     """Build the fixed-boundary task prompt for a video result contract."""
+    if request.stage_prompt is not None:
+        return "\n".join(
+            (
+                f"完成视频任务的 {request.stage} 阶段；"
+                f"权威时长 {request.duration_ms} ms；"
+                f"输出语言 {request.output_language}。",
+                *_observation_lines(
+                    video_observer=video_observer,
+                    provided_frames=provided_frames,
+                    ffmpeg=ffmpeg,
+                    ffprobe=ffprobe,
+                ),
+                "- 只读本任务视频与观察工具，不访问网络、Home、其他任务，不发布内容。",
+                "- 没有音频证据，不能引用对白。"
+                "画面中的声明保留来源归属，不作为独立验证。",
+                (
+                    "- 计划中的 revisit_ms 是复核位置；在可用观察能力与预算内复看。"
+                    "采样不足的限制留在私有审校或 limitations 字段，不反复堆进文章。"
+                ),
+                *_custom_prompt_lines(request.custom_prompt),
+                request.stage_prompt,
+            )
+        )
     try:
         builder = _VIDEO_PROMPTS[request.result_contract]
     except KeyError:

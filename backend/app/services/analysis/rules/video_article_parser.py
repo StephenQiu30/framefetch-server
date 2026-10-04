@@ -48,7 +48,7 @@ def parse_video_article_result(
     key_points = tuple(
         context.text(value, f"key_points[{index}]")
         for index, value in enumerate(
-            context.array(root["key_points"], "key_points", allow_empty=False)
+            context.array(root["key_points"], "key_points", allow_empty=True)
         )
     )
     limitations = tuple(
@@ -60,10 +60,10 @@ def parse_video_article_result(
     return VideoArticleResult(
         language=language,
         title=context.text(root["title"], "title"),
-        lead=context.text(root["lead"], "lead"),
+        lead=context.text(root["lead"], "lead", allow_empty=True),
         sections=sections,
         key_points=key_points,
-        closing=context.text(root["closing"], "closing"),
+        closing=context.text(root["closing"], "closing", allow_empty=True),
         limitations=limitations,
         media=media,
     )
@@ -80,7 +80,7 @@ def _section(context: ParseContext, value: object, index: int) -> VideoArticleSe
     )
     return VideoArticleSection(
         id=context.text(source["id"], f"{path}.id", maximum=128),
-        title=context.text(source["title"], f"{path}.title"),
+        title=context.text(source["title"], f"{path}.title", allow_empty=True),
         body=context.text(source["body"], f"{path}.body"),
         evidence=evidence,
     )

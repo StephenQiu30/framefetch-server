@@ -27,6 +27,7 @@ from tests.unit.workers.analysis.test_content_execution import (
     Analyzer,
     Resolver,
     draft,
+    plan,
     review,
     source,
 )
@@ -73,7 +74,7 @@ async def publish(db, storage, job):
 
 async def completed(db, tmp_path):
     admitted = await creator(db)(source(), "zh-CN", OWNER, str(uuid4()))
-    resolver = Resolver(Analyzer([draft(), review()]))
+    resolver = Resolver(Analyzer([plan(), draft(), review()]))
     persistence = AnalysisExecutionPersistence(
         db.repository, SqlAlchemyDownloadRepository(db.sessions)
     )

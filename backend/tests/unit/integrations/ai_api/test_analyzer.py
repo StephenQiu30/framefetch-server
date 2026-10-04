@@ -46,7 +46,12 @@ class FakeModel:
 
 class FakeFrames:
     async def extract(
-        self, video: Path, *, workspace: Path, duration_ms: int
+        self,
+        video: Path,
+        *,
+        workspace: Path,
+        duration_ms: int,
+        observation_ms: tuple[int, ...] = (),
     ) -> tuple[FrameEvidence, ...]:
         assert video == workspace / "input" / "video.bin"
         assert duration_ms == 2_000

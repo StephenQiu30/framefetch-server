@@ -1,15 +1,23 @@
 ---
-name: video-to-article
-description: 从视频可见材料选择读者关心的角度，写成独立文章；适用于素材转文章，不承担可靠语音转写。
+name: content-writing
+description: 用用户提供的文字材料和作者偏好创作文章、短帖或使用说明；文章按意思推进，说明按实际任务组织。
 license: MIT
 metadata:
-  video-server-display-name: 视频写作
-  video-server-default-prompt: 围绕视频中有依据、对读者有价值的一个问题写成文章。自然展开，不按画面逐条复述，不强加导语、小标题和结尾。
-  video-server-order: "20"
-  video-server-input-kinds: video
-  video-server-output-contract: video-article
+  video-server-display-name: 文字写作
+  video-server-default-prompt: 根据材料、读者与目的完成相应文体，保留作者表达。
+  video-server-order: "1"
+  video-server-input-kinds: content
+  video-server-output-contract: content-document
   video-server-modules: baoyu-article-title, humanizer-zh, zh-copywriting-guidelines
 ---
+
+# Purpose
+
+## 文体选择
+
+article：建立中心判断或读者问题，优先连续自然段；小标题和列表按内容决定，不写成事实核查报告。
+post：抓住一个具体信息或感受，允许一句话、无标题、无结尾；不把短帖扩写成迷你文章。
+guide：让读者完成实际操作，顺序确有依赖时使用步骤；参数、错误恢复和前置条件只在操作需要时出现，不为了追求“文章感”破坏说明的清楚性。
 
 # Plan
 
@@ -28,3 +36,4 @@ metadata:
 独立以读者身份读成稿，再对照原材料。先检查文章有没有一个值得阅读的问题，以及各段是否真的推进了它；将按截图/时间顺序复述、连续解释证据、参数罗列和反复留边界判断为结构或表达问题。检查事实是否超出来源、来源说法是否被误写成实际验证、作者范文是否被借用为事实。只有具体影响采用的问题才写 findings，无问题可以为空。
 
 对每个重大问题写明位置、原因及修正目标，保留已有好句和事实。证据不足但可以缩小陈述时提出该修改；核心问题无法回答时标为缺材料。审校记录不进入正文。复核时检查指出的问题是否解决，以及修订是否引入了新事实或破坏作者表达。
+

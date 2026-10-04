@@ -2572,6 +2572,14 @@ declare namespace API {
     /** Limitations */
     limitations: string[];
     media: AnalysisMediaResponse;
+    /** Review Status */
+    review_status?:
+      | "not_reviewed"
+      | "passed"
+      | "needs_review"
+      | "needs_material";
+    /** Review History */
+    review_history?: ContentReview[];
   };
 
   type StructuredReportSectionResponse = {
@@ -2764,6 +2772,14 @@ declare namespace API {
     /** Limitations */
     limitations: string[];
     media: AnalysisMediaResponse;
+    /** Review Status */
+    review_status?:
+      | "not_reviewed"
+      | "passed"
+      | "needs_review"
+      | "needs_material";
+    /** Review History */
+    review_history?: ContentReview[];
   };
 
   type VideoArticleSectionResponse = {

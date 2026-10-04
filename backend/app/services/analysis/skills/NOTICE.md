@@ -14,14 +14,14 @@ Most built-in analysis skills are original, project-specific rewrites. The sourc
 - Source: https://github.com/wuwangzhang1216/DirectorSKILL
 - Reviewed commit: `47db7d9b951a9f27f7b4b727a6ca0e01ab56f7c6`
 - License: MIT; copyright 2026 wangzhang-wu.
-- Local use: the screenplay and director-breakdown rules independently express evidence-based scene function, observable blocking, shot purpose, edit relationships, continuity anchors, and actionable production thinking. Upstream examples, exact templates, tool adapters, assets, generation workflows, risk formulas, and pipeline orchestration were excluded.
+- Local use: the screenplay and video-review rules independently express evidence-based scene function, observable blocking, shot purpose, edit relationships, continuity anchors, and actionable production thinking. Upstream examples, exact templates, tool adapters, assets, generation workflows, risk formulas, and pipeline orchestration were excluded.
 
 ## SeaArt storyboard-prompt-assistant
 
 - Source: https://github.com/seaartpublic/skills/tree/main/storyboard-prompt-assistant
 - Reviewed commit: `a3edc17605d525b54b2a5f61a4800f2dd8dd8b30`
 - License: MIT; copyright 2026 Seaart AI.
-- Local use: the local storyboard, editing-rhythm and continuity references independently adopt explicit shot purpose, concrete camera language, start/end states, motivated changes and continuity checks. Product-specific prompt templates, negative prompts, generation modes, platform routing, and execution workflows were excluded.
+- Local use: the local video-breakdown and video-review methods independently adopt explicit shot purpose, concrete camera language, start/end states, motivated changes and continuity checks. Product-specific prompt templates, negative prompts, generation modes, platform routing, and execution workflows were excluded.
 
 ## cutmap
 
@@ -70,21 +70,21 @@ Most built-in analysis skills are original, project-specific rewrites. The sourc
 - Source: https://github.com/oxbshw/watch-skill
 - Reviewed commit: `994ee7514c64a9ec4980eeabef789b5e10ea28be`
 - License: MIT; copyright 2026 oxbshw.
-- Local use: the opening-hook and continuity-quality reviews independently adopt bounded observation, visible change and on-screen-text review, evidence-backed creator feedback, and an explicit distinction between observation, risk and verified outcomes. The upstream runtime, scoring formulas, CLI, MCP, REST API, capture/index stores, OCR, ASR, model integrations, scripts, examples, tests, and assets were excluded.
+- Local use: the video-review and packaging methods independently adopt bounded observation, visible change and on-screen-text review, evidence-backed creator feedback, and an explicit distinction between observation, risk and verified outcomes. The upstream runtime, scoring formulas, CLI, MCP, REST API, capture/index stores, OCR, ASR, model integrations, scripts, examples, tests, and assets were excluded.
 
 ## drama-skills
 
 - Source: https://github.com/zenstory-ai/drama-skills
 - Reviewed commit: `3ab6b8550bbccef71001d2187e2b2ac9a74ab917`
 - License: MIT; copyright 2026 drama-skills contributors.
-- Local use: the opening-hook review independently separates bounded evidence, viewer or production impact, and the required revision outcome. Upstream review wording, templates, rubrics, scripts, examples, production adapters, assets, generation workflow, and cross-Skill orchestration were excluded.
+- Local use: the video-review independently separates bounded evidence, viewer or production impact, and the required revision outcome. Upstream review wording, templates, rubrics, scripts, examples, production adapters, assets, generation workflow, and cross-Skill orchestration were excluded.
 
 ## video-shotcraft
 
 - Source: https://github.com/Vincentwei1021/video-shotcraft
 - Reviewed commit: `b0cb89173c9278042db78c3fb9c339814966f874`
 - License: Apache-2.0; copyright 2026 Wei Yihao.
-- Local use: the opening-hook review independently emphasizes reviewing rendered evidence before delivery, legible on-screen text, a clear initial subject, purposeful visual progression, and shot-specific handoff checks. Upstream wording, shot cards, recipes, demos, media, Remotion templates, source code, gallery, generation workflow, sound library, examples, and assets were excluded.
+- Local use: the video-review independently emphasizes reviewing rendered evidence before delivery, legible on-screen text, a clear initial subject, purposeful visual progression, and shot-specific handoff checks. Upstream wording, shot cards, recipes, demos, media, Remotion templates, source code, gallery, generation workflow, sound library, examples, and assets were excluded.
 
 ## Vendored source modules
 
@@ -94,13 +94,13 @@ Each repository's original license is kept beside its files. `modules/manifest.j
 
 - Source: https://github.com/zenstory-ai/drama-skills (MIT; copyright 2026 drama-skills contributors)
 - Commit `b71cb3ca9343eaf6c0375725ccc9261a4e79021e`:
-  - `drama-story-script` ← `skills/short-drama-review/references/rubric-story-script.md`: story promise, entry and character memory, scene test, dialogue. Used by `screenplay-analysis`, `screenplay-drama-review`, `screenplay-character-review`, `screenplay-scene-review`, `screenplay-dialogue-review`, `screenplay-continuity-review`.
-  - `drama-anti-template` ← `skills/short-drama-review/references/anti-template-repair.md`: four diagnostic layers and false-positive counterexamples. Used by `screenplay-analysis`, `screenplay-drama-review`.
+  - `drama-story-script` ← `skills/short-drama-review/references/rubric-story-script.md`: story promise, entry and character memory, scene test, dialogue. Used by `screenplay-analysis`.
+  - `drama-anti-template` ← `skills/short-drama-review/references/anti-template-repair.md`: four diagnostic layers and false-positive counterexamples. Used by `screenplay-analysis`.
 - Commit `4e48ccbf0f77da757d7cacc6937b1cc59c124845`:
-  - `drama-edit-cut-craft` ← `skills/short-drama-edit/references/cut-craft.md`: shot order and adjacency only. Used by `editing-rhythm-review`.
-  - `drama-shot-craft` ← `skills/short-drama-storyboard/references/shot-craft.md`: shot purpose, blocking and geography, connected boundaries, common problems, review questions. Used by `director-breakdown`.
-  - `drama-shot-grammar` ← `skills/short-drama-storyboard/references/production-shot-grammar.md`: narrative photography questions and scene-type diagnosis. Used by `director-breakdown`.
-  - `drama-blocking-playbooks` ← `skills/short-drama-storyboard/references/blocking-playbooks.md`: axis and screen direction, single-room dialogue, evidence reveals, observation boundaries. Used by `director-breakdown`, `continuity-quality-review`.
+  - `drama-edit-cut-craft` ← `skills/short-drama-edit/references/cut-craft.md`: shot order and adjacency only. Used by `video-review`.
+  - `drama-shot-craft` ← `skills/short-drama-storyboard/references/shot-craft.md`: shot purpose, blocking and geography, connected boundaries, common problems, review questions. Used by `video-breakdown` or `video-review`.
+  - `drama-shot-grammar` ← `skills/short-drama-storyboard/references/production-shot-grammar.md`: narrative photography questions and scene-type diagnosis. Used by `video-breakdown` or `video-review`.
+  - `drama-blocking-playbooks` ← `skills/short-drama-storyboard/references/blocking-playbooks.md`: axis and screen direction, single-room dialogue, evidence reveals, observation boundaries. Used by `video-review`.
 
 ### screenwriting-skills
 
@@ -115,13 +115,13 @@ Each repository's original license is kept beside its files. `modules/manifest.j
 
 - Source: https://github.com/op7418/Humanizer-zh (MIT), commit `f4518a8eab97b8bfebc66a89d34320a89bef6930`, file `SKILL.md`.
 - `humanizer-zh`: editing constraints, register, pattern usage, patterns A–F and the pre-delivery check. The file workflow, file protection, full example and source links are not compiled. Import scan findings (the `allowed-tools` frontmatter and source links) lie outside the selection.
-- Used by every analysis Skill except `screenplay-rewrite`, through `shared/report-writing.md`, as a self-review checklist for the Skill's own report prose. It is never used to judge the analysed screenplay or on-screen text and never licenses adding facts.
+- Used by writing tasks in their independent Review stage and by screenplay-analysis for its report prose. It is never used to judge the analysed screenplay or on-screen text and never licenses adding facts.
 
 ### chinese-copywriting-guidelines
 
 - Source: https://github.com/sparanoid/chinese-copywriting-guidelines (MIT), commit `9a5fbeb842f39644352fd79b5d8c6764718105cc`, file `README.zh-Hans.md`.
 - `zh-copywriting-guidelines`: spacing, punctuation, full-width and half-width characters, proper nouns. The disputed rules, tool list, adopters and references are not compiled; import scan findings are links in those excluded sections.
-- Used by every analysis Skill for report prose; `screenplay-rewrite` applies it to narration and stage directions and keeps characters' intentional speech as written.
+- Used by the seven product tasks for prose; `screenplay-rewrite` applies it to narration and stage directions and keeps characters' intentional speech as written.
 
 Updating any reviewed commit requires a fresh license and prompt-injection review, static fixtures, and real-provider E2E before release.
 
@@ -134,4 +134,6 @@ Updating any reviewed commit requires a fresh license and prompt-injection revie
 - Registered modules: `baoyu-article-title`
 - Dropped, never vendored or executed: none
 - Prompt-injection scan: no findings
-- Local use: `video-to-article` compiles only `Straightforward Style`: descriptive titles state topic and scope; declarative titles state a supported conclusion. Hook formulas, the five-character hook rule, negation preference, title length targets, publishing workflows, scripts, account preferences and all other sections are excluded. The file is unmodified; `modules/manifest.json` selects the only compiled section. No upstream plugin, script or publishing connector was installed or executed.
+- Local use: `video-to-article`, `content-writing` and `short-video-packaging` compile only `Straightforward Style`: descriptive titles state topic and scope; declarative titles state a supported conclusion. Hook formulas, the five-character hook rule, negation preference, title length targets, publishing workflows, scripts, account preferences and all other sections are excluded. The file is unmodified; `modules/manifest.json` selects the only compiled section. No upstream plugin, script or publishing connector was installed or executed.
+
+The local writing methods independently adopt baoyu-format-markdown's preservation of author voice and headings only at actual topic changes. Drafting and independent editorial review are implemented by this project; upstream formatting is not represented as an authoring engine.

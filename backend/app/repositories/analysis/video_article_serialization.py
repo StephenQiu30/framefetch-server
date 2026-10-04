@@ -1,3 +1,5 @@
+from typing import cast
+
 from app.repositories.analysis.storage_fields import (
     array,
     integer,
@@ -5,6 +7,8 @@ from app.repositories.analysis.storage_fields import (
     string,
     strings,
 )
+from app.services.analysis.rules.content_document import ContentReview
+from app.services.analysis.rules.editorial_review import ReviewStatus
 from app.services.analysis.rules.enums import AnalysisResultKind
 from app.services.analysis.rules.result_models import (
     AnalysisMedia,
@@ -27,7 +31,12 @@ _FIELDS = {
 
 
 def video_article_from_document(document: object) -> VideoArticleResult:
-    root = mapping(document, _FIELDS, "video article result")
+    optional = (
+        set(document) & {"review_status", "review_history"}
+        if isinstance(document, dict)
+        else set()
+    )
+    root = mapping(document, _FIELDS | optional, "video article result")
     if root["kind"] != AnalysisResultKind.VIDEO_ARTICLE.value:
         raise ValueError("stored video article kind is invalid")
     media = mapping(root["media"], {"duration_ms", "container", "size_bytes"}, "media")
@@ -39,6 +48,11 @@ def video_article_from_document(document: object) -> VideoArticleResult:
         key_points=tuple(strings(root["key_points"], "key_points")),
         closing=string(root["closing"], "closing"),
         limitations=tuple(strings(root["limitations"], "limitations")),
+        review_status=cast(ReviewStatus, root.get("review_status", "not_reviewed")),
+        review_history=tuple(
+            ContentReview.model_validate(item)
+            for item in array(root.get("review_history", []), "review_history")
+        ),
         media=AnalysisMedia(
             duration_ms=integer(media["duration_ms"], "media.duration_ms"),
             container=string(media["container"], "media.container"),

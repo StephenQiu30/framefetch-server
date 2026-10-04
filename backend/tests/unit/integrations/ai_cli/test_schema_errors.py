@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 
 from app.integrations.ai_cli.errors import classify_cli_failure
-from app.integrations.ai_cli.schema import analysis_output_schema
+from app.services.analysis.rules.model_schema import analysis_output_schema
 
 
 def test_schema_uses_codex_and_claude_supported_subset() -> None:

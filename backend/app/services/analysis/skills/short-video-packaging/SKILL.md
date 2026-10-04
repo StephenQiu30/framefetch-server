@@ -1,41 +1,24 @@
 ---
 name: short-video-packaging
-description: 基于视频可见证据生成短视频标题、封面文字、开头钩子和发布文案候选，区分素材事实与创作建议，供发布前人工选用。
+description: 从已有视频选出适合传播的角度、开头或候选片段，依据素材提出可执行方案。
 license: MIT
 metadata:
-  video-server-display-name: 短视频包装
-  video-server-default-prompt: 观察完整视频，围绕素材实际兑现的主题提供标题、封面文字、开头钩子与发布文案候选，说明各方案的依据与发布前待核验事项。
-  video-server-order: "27"
+  video-server-display-name: 传播策划
+  video-server-default-prompt: 选择素材里最值得传播的一点，给出适合用途的开头、标题或片段方案。区分现有内容和拟新增文案，不承诺传播效果。
+  video-server-order: "40"
   video-server-input-kinds: video
-  video-server-modules: humanizer-zh, zh-copywriting-guidelines
   video-server-output-contract: structured-report
-  video-server-references: references/packaging-method.md, shared/report-writing.md
+  video-server-modules: baoyu-article-title, zh-copywriting-guidelines
 ---
-# 短视频包装
 
-为已经存在的视频提出可供编辑选择的包装草稿。先完整观察素材，确定主题、观众能得到什么，以及视频实际兑现了什么承诺；所有包装都只能承诺素材已经兑现的内容。不生成或发布视频，不调用平台、调度或剪辑工具。
+# Plan
 
-## 边界
+先确定受众和传播目的，从真实素材中寻找具体利益、冲突、反差、过程或解释。选择一个主角度，比较候选片段的上下文是否独立成立；无有效候选就说明原因，不凭空制造冲突。
 
-- 用户没有指定平台和受众时，给出通用版本，并在 `limitations` 中写明待确认；不推断观众年龄、地域、账号表现或商业效果，也不引用未经核实的平台算法、最佳发布时间或流量说法。
-- 没有可靠音频证据时，不声称听到台词、音乐或音效；画面文字也不自动当作已核实的事实。口播钩子只能写成建议文案。
-- 观察描述与建议文案分开：前者说明原视频里发生了什么，后者明确是拟新增、需要编辑或补拍的内容。
+# Draft
 
-## 报告结构
+按用户所需交付开头、标题、候选片段或剪辑方案，可只交付一种。描述方案为何适合这个素材，标明现有片段和拟新增文字。数量由可用素材决定，不强制两条标题、三套钩子或固定长度。新文案不能冒充原对白、真实经历或已测效果。
 
-报告由服务端按章节编号排版：`body` 是每章的说明段落，`items` 渲染为候选条目，`evidence` 渲染为回看依据。固定使用以下五章：
+# Review
 
-1. 内容定位（id=positioning）：主题、素材兑现的价值和适用场景，至少一条时间证据。
-2. 标题备选（id=titles）：三条不同角度的标题，绑定相关时间证据。
-3. 封面文字（id=covers）：两条候选，并指出可用的原视频画面及其时间证据。
-4. 开头钩子（id=hooks）：两种方案，每种写清保留或前置的真实画面、拟新增的文字和需要的编辑动作，并绑定素材证据。
-5. 发布文案（id=posting-copy）：一段准确的简介和一个与内容相关的互动问题；本章可以没有 evidence。
-
-## 成稿重点
-
-- `title` 写出本次包装的方向，例如“围绕‘三步去除咖啡渍’的标题与封面方案”，不写“短视频包装报告”。
-- `summary` 用 2–3 句交代核心主题、素材最能兑现的价值、最需要人工确认的前提。
-- 每章 `body` 写 1–2 个短段落，先说本章的取舍原则，再说依据，不复述条目。
-- 缺少支撑时减少候选并说明原因，不为凑数制造事实。`limitations` 写明音频缺口、平台与受众假设，以及身份、数字、画面文字等发布前需要核实的事项。
-
-标题、封面、钩子和文案的具体方法见 `references/packaging-method.md`，通用文字要求见《报告写作规范》。最终只返回 structured-report 契约要求的 JSON。
+检查候选片段是否脱离语境，标题和开头是否兑现正文，拟新增内容是否有事实支持。无意义的悬念、泛化口号和未经证明的效果保证属于重大问题；创作选择本身不是缺陷。

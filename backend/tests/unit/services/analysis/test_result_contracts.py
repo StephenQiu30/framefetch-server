@@ -1,9 +1,10 @@
 from __future__ import annotations
 
 import pytest
-from app.integrations.ai_cli import prompt, schema
+from app.integrations.ai_cli import prompt
 from app.repositories.analysis import repository_serialization
 from app.services.analysis import report
+from app.services.analysis.rules import model_schema as schema
 from app.services.analysis.rules import result_parser
 from app.services.analysis.rules.contracts import (
     RESULT_CONTRACTS,

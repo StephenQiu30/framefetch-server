@@ -57,38 +57,24 @@ def test_builtin_skills_are_filtered_ordered_and_contract_bound() -> None:
     screenplay = catalog.list(AnalysisInputKind.SCREENPLAY)
 
     assert [skill.id for skill in video] == [
-        "director-breakdown",
-        "comprehensive",
+        "video-review",
         "video-to-article",
+        "video-breakdown",
         "short-video-packaging",
-        "visual-shots",
-        "scene-extraction",
-        "narrative-structure-review",
-        "highlights",
-        "editing-rhythm-review",
-        "opening-hook-review",
-        "continuity-quality-review",
-        "asset-catalog",
     ]
     assert [skill.id for skill in screenplay] == [
         "screenplay-analysis",
-        "screenplay-drama-review",
-        "screenplay-character-review",
-        "screenplay-scene-review",
-        "screenplay-dialogue-review",
-        "screenplay-structure-review",
-        "screenplay-continuity-review",
         "screenplay-rewrite",
     ]
+    assert [skill.id for skill in catalog.list(AnalysisInputKind.CONTENT)] == [
+        "content-writing"
+    ]
     assert {skill.result_contract for skill in video} == {
-        AnalysisResultContract.VIDEO_VISUAL_ANALYSIS,
         AnalysisResultContract.VIDEO_ARTICLE,
         AnalysisResultContract.STRUCTURED_REPORT,
     }
-    assert [skill.result_contract for skill in screenplay] == [
-        *([AnalysisResultContract.SCREENPLAY_ANALYSIS] * 7),
-        AnalysisResultContract.SCREENPLAY_REWRITE,
-    ]
+    assert catalog.resolve("director-breakdown", AnalysisInputKind.VIDEO) is None
+    assert catalog.resolve("content-article", AnalysisInputKind.CONTENT) is None
 
 
 def test_builtin_resolution_compiles_allowlisted_reference_and_sha256() -> None:
@@ -109,78 +95,24 @@ def test_builtin_resolution_compiles_allowlisted_reference_and_sha256() -> None:
 
 
 @pytest.mark.parametrize(
-    ("skill_id", "reference_heading"),
-    (
-        ("director-breakdown", "# 导演拉片方法"),
-        ("comprehensive", "# 综合分析证据规范"),
-        ("video-to-article", "# 微信公众号文章编辑规范"),
-        ("visual-shots", "# 分镜表字段规范"),
-        ("scene-extraction", "# 场景边界与提炼规范"),
-        ("narrative-structure-review", "# 成片叙事结构量表"),
-        ("highlights", "# 高光候选量表"),
-        ("editing-rhythm-review", "# 剪辑节奏量表"),
-        ("opening-hook-review", "# 开场钩子审查量表"),
-        ("continuity-quality-review", "# 连续性与成片 QA 量表"),
-        ("asset-catalog", "# 资产身份与状态规范"),
-    ),
+    "skill_id",
+    ["video-review", "video-to-article", "video-breakdown", "short-video-packaging"],
 )
-def test_video_skills_compile_professional_reference_methods(
-    skill_id: str, reference_heading: str
-) -> None:
+def test_video_methods_have_real_stage_boundaries(skill_id):
+    from app.services.analysis_execution.editorial_plan import stage_method
+
     skill = BUILTIN_ANALYSIS_SKILLS.get(skill_id, AnalysisInputKind.VIDEO)
-
     assert skill is not None
-    assert reference_heading in skill.instructions
-
-
-def test_builtin_skills_expose_the_current_production_boundary() -> None:
-    expected_phrases = {
-        "director-breakdown": ("镜头动机", "production_advice"),
-        "comprehensive": ("观察、解释、建议", "覆盖矩阵"),
-        "visual-shots": ("反向分镜表", "起始帧"),
-        "scene-extraction": ("场景大纲", "全部镜头"),
-        "narrative-structure-review": ("结构主线", "不评价台词逻辑"),
-        "highlights": ("同一量表", "主选"),
-        "editing-rhythm-review": ("无目的快切", "固定秒数"),
-        "opening-hook-review": ("0–3 秒", "不预测平台留存率"),
-        "continuity-quality-review": ("交付前看片", "不声称完成了逐帧"),
-        "asset-catalog": ("资产身份候选", "证据等级"),
-        "video-to-article": ("中心命题", "limitations"),
-        "short-video-packaging": ("拟新增", "limitations"),
-        "screenplay-analysis": ("汇总调用", "source_scene_id"),
-        "screenplay-structure-review": ("连续性", "priority_revisions"),
-        "screenplay-rewrite": ("不可变文本版本候选", "source_sha256"),
-    }
-
-    for skill_id, phrases in expected_phrases.items():
-        skill = BUILTIN_ANALYSIS_SKILLS.get(
-            skill_id,
-            AnalysisInputKind.SCREENPLAY
-            if skill_id.startswith("screenplay-")
-            else AnalysisInputKind.VIDEO,
+    for stage in ("plan", "draft", "review"):
+        method = stage_method(skill.instructions, stage)
+        assert f"# {stage.capitalize()}" in method
+        assert all(
+            f"# {other.capitalize()}\n" not in method
+            for other in {"plan", "draft", "review"} - {stage}
         )
-        assert skill is not None
-        assert all(phrase in skill.instructions for phrase in phrases), skill_id
-
-
-def test_article_and_screenplay_skills_preserve_stage_boundaries() -> None:
     article = BUILTIN_ANALYSIS_SKILLS.get("video-to-article", AnalysisInputKind.VIDEO)
-    screenplay = BUILTIN_ANALYSIS_SKILLS.get(
-        "screenplay-analysis", AnalysisInputKind.SCREENPLAY
-    )
-    structure = BUILTIN_ANALYSIS_SKILLS.get(
-        "screenplay-structure-review", AnalysisInputKind.SCREENPLAY
-    )
-    rewrite = BUILTIN_ANALYSIS_SKILLS.get(
-        "screenplay-rewrite", AnalysisInputKind.SCREENPLAY
-    )
-
-    assert article is not None
-    assert "连续长镜头" in article.instructions
-    assert "不把时码写进正文" in article.instructions
-    assert screenplay is not None and "镜头数量" in screenplay.instructions
-    assert structure is not None and "镜头数量" in structure.instructions
-    assert rewrite is not None and "新增场景或镜头" in rewrite.instructions
+    assert "可以全文没有小标题" in article.instructions
+    assert "审校记录不进入正文" in article.instructions
 
 
 def test_article_uses_baoyu_title_method_without_hook_or_execution_instructions() -> (
@@ -201,20 +133,6 @@ def test_article_uses_baoyu_title_method_without_hook_or_execution_instructions(
     assert "scripts/main.ts" not in article.instructions
     assert "baoyu-post-to-wechat" not in article.instructions
     assert not (SKILLS_ROOT / "modules" / "baoyu-skills" / "scripts").exists()
-
-
-def test_opening_hook_review_preserves_visual_evidence_boundaries() -> None:
-    skill = BUILTIN_ANALYSIS_SKILLS.get("opening-hook-review", AnalysisInputKind.VIDEO)
-
-    assert skill is not None
-    assert skill.result_contract is AnalysisResultContract.VIDEO_VISUAL_ANALYSIS
-    assert "覆盖完整时间轴" in skill.instructions
-    assert "0–3s" in skill.instructions
-    assert "0–5s" in skill.instructions
-    assert "0–15s" in skill.instructions
-    assert "不评价开场台词、语速、音乐卡点" in skill.instructions
-    assert "不表示停留、完播、点击、转化" in skill.instructions
-    assert "分镜 002" in skill.instructions
 
 
 @pytest.mark.parametrize(
@@ -288,7 +206,7 @@ def test_registry_rejects_duplicate_yaml_keys(tmp_path: Path) -> None:
 
 
 def test_registry_rejects_duplicate_ids() -> None:
-    skill = BUILTIN_ANALYSIS_SKILLS.get("director-breakdown", AnalysisInputKind.VIDEO)
+    skill = BUILTIN_ANALYSIS_SKILLS.get("video-review", AnalysisInputKind.VIDEO)
     assert skill is not None
 
     with pytest.raises(ValueError, match="duplicate"):
@@ -363,74 +281,19 @@ def test_registry_rejects_missing_or_nested_shared_references(tmp_path: Path) ->
             AnalysisSkillRegistry.from_directory(root)
 
 
-def test_every_builtin_skill_carries_the_writing_standard() -> None:
-    for input_kind in (AnalysisInputKind.VIDEO, AnalysisInputKind.SCREENPLAY):
-        for skill in BUILTIN_ANALYSIS_SKILLS.list(input_kind):
+def test_compiled_modules_stay_pinned_and_omit_execution_instructions():
+    for kind in AnalysisInputKind:
+        for skill in BUILTIN_ANALYSIS_SKILLS.list(kind):
             text = skill.instructions
-            assert "# Source module: zh-copywriting-guidelines" in text, skill.id
-            if skill.id == "screenplay-rewrite":
-                assert "# Source module: humanizer-zh" not in text
-                continue
-            assert "# Source module: humanizer-zh" in text, skill.id
-            assert "# Reference: shared/report-writing.md" in text, skill.id
-            assert "## 输出与文件保护" not in text, skill.id
-            assert "## 争议" not in text, skill.id
-            if input_kind is AnalysisInputKind.SCREENPLAY:
-                assert "# Reference: shared/screenplay-coverage-writing.md" in text
-
-
-@pytest.mark.parametrize(
-    ("skill_id", "input_kind", "modules", "excluded"),
-    [
-        (
-            "director-breakdown",
-            AnalysisInputKind.VIDEO,
-            ("drama-shot-craft", "drama-shot-grammar", "drama-blocking-playbooks"),
-            ("## 时长与切镜", "## 景别与摄影机动机", "## 十一、反模式"),
-        ),
-        (
-            "editing-rhythm-review",
-            AnalysisInputKind.VIDEO,
-            ("drama-edit-cut-craft",),
-            ("## 入出点", "## 时长与完成"),
-        ),
-        (
-            "continuity-quality-review",
-            AnalysisInputKind.VIDEO,
-            ("drama-blocking-playbooks",),
-            ("## 5. 动态对象与竞赛",),
-        ),
-        (
-            "screenplay-structure-review",
-            AnalysisInputKind.SCREENPLAY,
-            (
-                "sw-story-structure",
-                "sw-scene-craft",
-                "sw-premise-theme",
-                "sw-truby-anatomy",
-            ),
-            (
-                "## 四、九节拍",
-                "## 九、场景编排",
-                "## 十二、反模式",
-                "## 十二、从想法到前提：工作流程",
-            ),
-        ),
-    ],
-)
-def test_product_skills_compile_only_selected_upstream_sections(
-    skill_id: str,
-    input_kind: AnalysisInputKind,
-    modules: tuple[str, ...],
-    excluded: tuple[str, ...],
-) -> None:
-    skill = BUILTIN_ANALYSIS_SKILLS.get(skill_id, input_kind)
-    assert skill is not None
-    text = skill.instructions
-    for module in modules:
-        assert f"# Source module: {module}\nPinned source: https://github.com/" in text
-    assert all(heading not in text for heading in excluded)
-    assert text.rindex("# Source module:") < text.index("## 上游方法的用法")
+            assert "# Source module: zh-copywriting-guidelines" in text
+            assert "scripts/main.ts" not in text
+            assert "## 输出与文件保护" not in text
+            assert "## 争议" not in text
+    screenplay = BUILTIN_ANALYSIS_SKILLS.get(
+        "screenplay-analysis", AnalysisInputKind.SCREENPLAY
+    )
+    assert "# Source module: sw-story-structure" in screenplay.instructions
+    assert "## 四、九节拍" not in screenplay.instructions
 
 
 def test_builtin_skills_contain_no_off_topic_or_leaked_material() -> None:

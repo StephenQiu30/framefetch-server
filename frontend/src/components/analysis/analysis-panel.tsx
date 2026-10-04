@@ -1,6 +1,7 @@
 'use client';
 
 import { ArrowClockwise, DownloadSimple, Robot } from '@phosphor-icons/react';
+import { useState } from 'react';
 import AnalysisConfigurator from '@/components/analysis/analysis-configurator';
 import AnalysisDeleteDialog from '@/components/analysis/analysis-delete-dialog';
 import {
@@ -52,6 +53,7 @@ export default function AnalysisPanel({
   pollIntervalMs?: number;
 }) {
   const state = useAnalysisJob(downloadId, pollIntervalMs, 'video', analysisId);
+  const [creating, setCreating] = useState(false);
 
   if (state.loading && state.action !== 'start') {
     return (
@@ -153,6 +155,13 @@ export default function AnalysisPanel({
               )}
               {state.action === 'retry' ? '正在重新分析' : '重新分析'}
             </Button>
+            <Button
+              disabled={Boolean(state.action)}
+              onClick={() => setCreating(!creating)}
+              variant="outline"
+            >
+              {creating ? '收起新建任务' : '新建创作任务'}
+            </Button>
             <AnalysisDeleteDialog
               disabled={Boolean(state.action)}
               busy={state.action === 'delete'}
@@ -176,6 +185,16 @@ export default function AnalysisPanel({
             {playbackUnavailableReason}
           </p>
         ) : null}
+        {creating ? (
+          <AnalysisConfigurator
+            inputId={downloadId}
+            busy={state.action === 'start'}
+            onStart={(input) => {
+              setCreating(false);
+              void state.start(input);
+            }}
+          />
+        ) : null}
         <AnalysisVideoResult
           onSelectTime={onSelectTime}
           reportMarkdown={state.job.report_markdown}
@@ -197,8 +216,7 @@ export default function AnalysisPanel({
             AI 智能分析
           </h2>
           <p className="mt-4 max-w-2xl leading-7 text-muted-foreground">
-            由 AI
-            观察视频画面，生成连续分镜、视觉高光、资产目录，或将视频整理成文章。
+            根据视频材料撰写文章、审阅成片、拆解素材，或制定传播方案。
           </p>
         </div>
       </div>
@@ -346,7 +364,7 @@ function AnalysisJobState({
         />
       </div>
       <p className="mt-8 text-sm text-muted-foreground">
-        分析结果会经过连续时间轴、严格结构与分镜证据校验。
+        结果会按所选任务检查结构、材料引用与事实范围。
       </p>
       {isVideoAnalysisResult(job.result) ? (
         <div className="mt-10">

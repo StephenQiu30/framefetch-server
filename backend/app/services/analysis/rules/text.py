@@ -4,13 +4,15 @@ from app.services.analysis.rules.enums import AnalysisValidationCode
 from app.services.analysis.rules.errors import AnalysisValidationError
 
 
-def required_text(value: str, field: str, *, maximum: int = 8_000) -> str:
+def required_text(
+    value: str, field: str, *, maximum: int = 8_000, allow_empty: bool = False
+) -> str:
     if not isinstance(value, str):
         raise AnalysisValidationError(
             AnalysisValidationCode.INVALID_TEXT, f"{field} must be a string"
         )
     normalized = value.strip()
-    if not normalized or len(normalized) > maximum:
+    if (not normalized and not allow_empty) or len(normalized) > maximum:
         raise AnalysisValidationError(
             AnalysisValidationCode.INVALID_TEXT,
             f"{field} must contain 1 to {maximum} characters",
