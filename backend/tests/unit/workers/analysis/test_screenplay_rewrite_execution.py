@@ -133,7 +133,7 @@ async def test_rewrite_exhausts_current_chunk_without_partial_publish(
 
     assert repository.published == []
     assert repository.failures[0]["error_code"] == "invalid_model_output"
-    assert repository.failures[0]["retryable"] is True
+    assert repository.failures[0]["retryable"] is False
     assert len(analyzer.chunk_requests) == 3
     assert analyzer.chunk_requests[1] == analyzer.chunk_requests[2]
     assert analyzer.retry_delays == [0.0]
@@ -192,7 +192,7 @@ async def test_rewrite_output_limit_fails_without_partial_publish(
 
 
 @pytest.mark.asyncio
-async def test_rewrite_glossary_drift_retries_without_partial_publish(
+async def test_rewrite_glossary_drift_fails_without_partial_publish(
     tmp_path: Path,
 ) -> None:
     execution, repository, loader, analyzer, _ = build_rewrite_execution(tmp_path)
@@ -203,7 +203,7 @@ async def test_rewrite_glossary_drift_retries_without_partial_publish(
 
     assert repository.published == []
     assert repository.failures[0]["error_code"] == "invalid_model_output"
-    assert repository.failures[0]["retryable"] is True
+    assert repository.failures[0]["retryable"] is False
     assert len(analyzer.chunk_requests) > 1
     assert loader.cleaned is True
 

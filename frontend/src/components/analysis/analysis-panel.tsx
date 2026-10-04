@@ -256,6 +256,27 @@ export default function AnalysisPanel({
           playbackUnavailableReason={playbackUnavailableReason}
         />
       )}
+      {state.job && !isActiveAnalysisStatus(state.job.status) ? (
+        <div className="mt-6">
+          <Button
+            disabled={Boolean(state.action)}
+            onClick={() => setCreating(!creating)}
+            variant="outline"
+          >
+            {creating ? '收起新建任务' : '新建创作任务'}
+          </Button>
+          {creating ? (
+            <AnalysisConfigurator
+              inputId={downloadId}
+              busy={state.action === 'start'}
+              onStart={(input) => {
+                setCreating(false);
+                void state.start(input);
+              }}
+            />
+          ) : null}
+        </div>
+      ) : null}
     </div>
   );
 }

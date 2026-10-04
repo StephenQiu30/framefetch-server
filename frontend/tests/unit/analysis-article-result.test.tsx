@@ -67,6 +67,24 @@ describe('article delivery', () => {
     expect(screen.getByText('直接写具体对象')).toBeTruthy();
   });
 
+  it('seeks a single-frame reference without inventing a time interval', () => {
+    const seek = vi.fn();
+    const result = {
+      ...articleResult,
+      sections: articleResult.sections.map((section) => ({
+        ...section,
+        evidence: [{ start_ms: 30000, end_ms: 30000, note: '单帧文字' }],
+      })),
+    };
+    render(<AnalysisVideoResult result={result} onSelectTime={seek} />);
+    fireEvent.mouseDown(screen.getByRole('tab', { name: '回查依据' }), {
+      button: 0,
+      ctrlKey: false,
+    });
+    fireEvent.click(screen.getByRole('button', { name: '查看视频依据 0:30' }));
+    expect(seek).toHaveBeenCalledWith(30000);
+  });
+
   it('keeps evidence and review notes available in their own tab with playback', () => {
     const onSelectTime = vi.fn();
     render(

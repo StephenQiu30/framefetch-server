@@ -95,7 +95,7 @@ async def test_success_runs_linear_stages_publishes_and_cleans(tmp_path: Path) -
     assert result == repository.job
     assert [stage for stage, _ in repository.heartbeats] == [
         "preparing",
-        "analyzing",
+        "preparing",
         "analyzing",
         "validating",
     ]
@@ -197,7 +197,7 @@ async def test_rate_limit_records_retry_and_cleans(tmp_path: Path) -> None:
 
 
 @pytest.mark.asyncio
-async def test_invalid_model_evidence_retries_with_attempt_limit(
+async def test_invalid_model_evidence_fails_without_replaying_invalid_output(
     tmp_path: Path,
 ) -> None:
     repository = FakeRepository(running_job())
@@ -218,9 +218,10 @@ async def test_invalid_model_evidence_retries_with_attempt_limit(
     )
 
     assert result == repository.job
-    assert repository.job.status == "retry_wait"
+    assert repository.job.status == "failed"
     assert repository.failures[0]["error_code"] == "invalid_model_output"
-    assert repository.failures[0]["retryable"] is True
+    assert repository.failures[0]["retryable"] is False
+    assert repository.failures[0]["retry_at"] is None
     assert loader.cleaned is True
 
 

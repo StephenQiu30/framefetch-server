@@ -103,7 +103,10 @@ class StructuredReportResult:
         )
         for section in self.sections:
             for evidence in section.evidence:
-                if evidence.end_ms > self.media.duration_ms:
+                if (
+                    evidence.start_ms >= self.media.duration_ms
+                    or evidence.end_ms > self.media.duration_ms
+                ):
                     raise AnalysisValidationError(
                         AnalysisValidationCode.INVALID_TIME_RANGE,
                         "report evidence exceeds the authoritative media duration",

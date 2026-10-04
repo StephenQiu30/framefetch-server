@@ -158,7 +158,7 @@ async def test_screenplay_unknown_source_scene_retries_as_invalid_output(
     ).execute(job.id, job.run_id, job.run_no, "run:1:1")
 
     assert repository.failures[0]["error_code"] == "invalid_model_output"
-    assert repository.failures[0]["retryable"] is True
+    assert repository.failures[0]["retryable"] is False
 
 
 class ChunkedScreenplayAnalyzer(FakeScreenplayAnalyzer):

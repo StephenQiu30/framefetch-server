@@ -139,10 +139,10 @@ class VideoArticleEvidence:
     def __post_init__(self) -> None:
         start = non_negative_integer(self.start_ms, "article evidence start_ms")
         end = non_negative_integer(self.end_ms, "article evidence end_ms")
-        if start >= end:
+        if start > end:
             raise AnalysisValidationError(
                 AnalysisValidationCode.INVALID_TIME_RANGE,
-                "article evidence must have a positive time range",
+                "article evidence must not have a reversed time range",
             )
         object.__setattr__(self, "start_ms", start)
         object.__setattr__(self, "end_ms", end)
@@ -235,7 +235,10 @@ class VideoArticleResult:
         )
         for section in self.sections:
             for evidence in section.evidence:
-                if evidence.end_ms > self.media.duration_ms:
+                if (
+                    evidence.start_ms >= self.media.duration_ms
+                    or evidence.end_ms > self.media.duration_ms
+                ):
                     raise AnalysisValidationError(
                         AnalysisValidationCode.INVALID_TIME_RANGE,
                         "article evidence exceeds the authoritative media duration",

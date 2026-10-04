@@ -11,6 +11,11 @@ export function formatMilliseconds(milliseconds: number): string {
   return formatDuration(Math.floor(milliseconds / 1000));
 }
 
+export function formatMillisecondRange(start: number, end: number): string {
+  const first = formatMilliseconds(start);
+  return start === end ? first : `${first}–${formatMilliseconds(end)}`;
+}
+
 export function formatFileSize(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
   const units = ['KB', 'MB', 'GB'];

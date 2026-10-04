@@ -4,7 +4,7 @@ import AnalysisEditorialReview from '@/components/analysis/analysis-editorial-re
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
-import { formatMilliseconds } from '@/lib/format';
+import { formatMillisecondRange } from '@/lib/format';
 
 export default function AnalysisArticleResultView({
   onSelectTime,
@@ -73,10 +73,12 @@ export default function AnalysisArticleResultView({
                       onClick={() => onSelectTime?.(evidence.start_ms)}
                       type="button"
                       variant="link"
-                      aria-label={`查看视频依据 ${formatMilliseconds(evidence.start_ms)}–${formatMilliseconds(evidence.end_ms)}`}
+                      aria-label={`查看视频依据 ${formatMillisecondRange(evidence.start_ms, evidence.end_ms)}`}
                     >
-                      {formatMilliseconds(evidence.start_ms)}–
-                      {formatMilliseconds(evidence.end_ms)}
+                      {formatMillisecondRange(
+                        evidence.start_ms,
+                        evidence.end_ms,
+                      )}
                     </Button>{' '}
                     {evidence.note}
                   </li>

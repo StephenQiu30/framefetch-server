@@ -91,7 +91,6 @@ class AnalysisErrorCode(StrEnum):
             self.PROVIDER_RATE_LIMITED,
             self.CLI_TIMEOUT,
             self.CLI_FAILED,
-            self.INVALID_MODEL_OUTPUT,
             self.SCREENPLAY_OUTPUT_INCOMPLETE,
             self.WORKER_LOST,
         }

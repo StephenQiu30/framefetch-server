@@ -65,3 +65,27 @@ def test_video_article_result_requires_bounded_evidence() -> None:
             AnalysisMedia(duration_ms=3_000, container="mp4", size_bytes=1_024),
             expected_language="zh-CN",
         )
+
+
+@pytest.mark.parametrize(
+    "start,end,valid",
+    [(0, 0, True), (2999, 2999, True), (3000, 3000, False), (1500, 1000, False)],
+)
+def test_article_frame_evidence_is_a_bounded_point(
+    start: int, end: int, valid: bool
+) -> None:
+    value = article_payload()
+    value["sections"][0]["evidence"][0].update(start_ms=start, end_ms=end)
+
+    def parse():
+        return parse_video_article_result(
+            value,
+            AnalysisMedia(duration_ms=3000, container="mp4", size_bytes=1024),
+            expected_language="zh-CN",
+        )
+
+    if valid:
+        assert parse().sections[0].evidence[0].start_ms == start
+    else:
+        with pytest.raises(AnalysisValidationError):
+            parse()
