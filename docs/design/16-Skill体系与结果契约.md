@@ -61,7 +61,7 @@
 | 上游能力 | 核对结果 | 项目采用方式 |
 | --- | --- | --- |
 | [format-markdown](https://github.com/JimLiu/baoyu-skills/blob/1567581c26ec29f4216c6e6835415bf30343b0e3/skills/baoyu-format-markdown/SKILL.md) | 核心规则保持原文，主要整理排版；不是从材料创作文章的引擎 | 借鉴读者视角和清楚标题；写作、审校与排版分别承担职责 |
-| [markdown-to-html](https://github.com/JimLiu/baoyu-skills/blob/1567581c26ec29f4216c6e6835415bf30343b0e3/skills/baoyu-markdown-to-html/SKILL.md) | 提供公众号主题和 inline CSS；复杂图表转换含额外工具或网络依赖 | 后续实现受控 HTML 渲染，先支持普通内容；不把整个 CLI 定义为离线纯函数 |
+| [markdown-to-html](https://github.com/JimLiu/baoyu-skills/blob/1567581c26ec29f4216c6e6835415bf30343b0e3/skills/baoyu-markdown-to-html/SKILL.md) | 提供公众号主题和 inline CSS；复杂图表转换含额外工具或网络依赖 | 仅参考公众号内部排版方法；不提供 HTML 文件导出，不把整个 CLI 定义为离线纯函数 |
 | [post-to-wechat](https://github.com/JimLiu/baoyu-skills/blob/1567581c26ec29f4216c6e6835415bf30343b0e3/skills/baoyu-post-to-wechat/SKILL.md) | 从已有正文准备 HTML、素材与公众号草稿 | 参考渠道字段与操作拆分，连接器由项目实现；成功写入草稿不表示公开发布 |
 | [cover-image](https://github.com/JimLiu/baoyu-skills/blob/1567581c26ec29f4216c6e6835415bf30343b0e3/skills/baoyu-cover-image/SKILL.md) | 将封面画面、色彩、文字和情绪拆成制作规格 | 后续按文稿、账号品牌和预算生成资产，允许无生成封面 |
 | [article-illustrator](https://github.com/JimLiu/baoyu-skills/blob/1567581c26ec29f4216c6e6835415bf30343b0e3/skills/baoyu-article-illustrator/SKILL.md) | 先判断图片解释什么，再决定位置 | 借鉴信息目的与位置策划；不强制每节有图，生成插画不冒充资料证据 |
@@ -82,7 +82,7 @@
 
 通过现有项目导入器保存原始 title-formulas.md 和 MIT LICENSE，固定文件 SHA-256，仅编译其 Straightforward Style 章节为 baoyu-article-title，由 video-to-article 使用。描述型标题说明对象与范围，判断型标题直接表达正文支持的结论。钩子公式、强制前五字冲突、否定优先等章节不进入运行指令。
 
-来源、原文与章节选择见 [manifest](../../backend/app/services/analysis/skills/modules/manifest.json)、[NOTICE](../../backend/app/services/analysis/skills/NOTICE.md)与[上游模块说明](../../backend/app/services/analysis/skills/modules/README.md)。当前共十五个源模块，文章、帖子、说明文档均按阶段采用已审查方法。普通文稿和离线 HTML 的项目实现见后文；图片与公众号连接器仍待实现。
+来源、原文与章节选择见 [manifest](../../backend/app/services/analysis/skills/modules/manifest.json)、[NOTICE](../../backend/app/services/analysis/skills/NOTICE.md)与[上游模块说明](../../backend/app/services/analysis/skills/modules/README.md)。当前共十五个源模块，文章、帖子、说明文档均按阶段采用已审查方法。普通文稿的项目实现见后文；图片与公众号连接器仍待实现。
 
 ### 维护规则
 
@@ -118,7 +118,7 @@ flowchart TD
     I -->|有| E[只修改被指出的块或标题]
     E --> V[独立复核]
     V --> C[保存稿件和实际审校状态]
-    S --> F[Outbox 发布 Markdown、DOCX、HTML]
+    S --> F[Outbox 发布 Markdown、DOCX]
     P --> F
     C --> F
 ```
@@ -167,7 +167,7 @@ Temporal 只编排解析与 Skill 两条工作流。模型与业务原文保存 
 
 ## 8. 编辑、版本与成品
 
-Web `/content` 提供材料、目的、文章／帖子／说明文档选择；结果页先展示读者正文，材料引用、原文、审校和旧版本分别展开。导出 Markdown、DOCX、离线 HTML 只包含正文，没有编辑摘要、附录、Prompt、时间码清单或发布前删除提醒。正常引语和必要事实限制应自然融入文稿。
+Web `/content` 提供材料、目的、文章／帖子／说明文档选择；结果页先展示读者正文，材料引用、原文、审校和旧版本分别展开。导出 Markdown、DOCX 只包含正文，没有编辑摘要、附录、Prompt、时间码清单或发布前删除提醒。正常引语和必要事实限制应自然融入文稿。
 
 `POST /api/content/analyses/{id}/revisions` 以当前 report ID 为比较条件保存人工修订。相同幂等键和同样稿件复用版本，相同键不同稿件拒绝；基准版本过时拒绝。人工修订不调用模型，清除变更块的旧引用，取消原自动审校通过状态；由报告 Worker 产生新文件，旧文件字节保持不变。未完成发布时继续显示旧的可用版本。
 
@@ -175,7 +175,7 @@ Web `/content` 提供材料、目的、文章／帖子／说明文档选择；�
 
 Electron 同步 Web 组件，增加相同内容入口和结果路径。App 已同步新结果、历史契约和生成阶段，提供阅读、私有审校／引用展开和现有 Markdown／DOCX 导出；App 原生材料创建、编辑和版本选择尚未接入，不以只读兼容宣称全流程一致。
 
-HTML 是项目受控的普通文本渲染，没有上游平台脚本、远程字体、追踪或自动生成图片。它目前是离线正文文件；真实公众号编辑器复制、图片上传和账号草稿交接另行验收。
+成品只提供 Markdown 与可编辑 Word 文档，不提供 HTML 文件导出。真实公众号编辑器交接、图片上传和账号草稿写入另行规划与验收。已存历史文件的对象记录仅用于所有权与删除生命周期，不恢复已移除的导出入口。
 
 ## 9. 验收与后续工作
 
@@ -183,17 +183,17 @@ HTML 是项目受控的普通文本渲染，没有上游平台脚本、远程字
 
 | 验收层 | 可执行证据 | 结论边界 |
 | --- | --- | --- |
-| 结构、权限与恢复 | 内容契约／精确引用／有限修订单测；真实 PostgreSQL 准入、预算、取消、版本、三种制品 | 能证明确定性约束，不能证明写作质量 |
+| 结构、权限与恢复 | 内容契约／精确引用／有限修订单测；真实 PostgreSQL 准入、预算、取消、版本、两种制品 | 能证明确定性约束，不能证明写作质量 |
 | Temporal | 真实 Temporal + PostgreSQL 起草／审校、历史重放、未知调用与不重复模型执行 | 不替代供应商实测 |
-| Web | 真实登录材料提交、生成、人工编辑、版本、三种下载；桌面／390px、明暗主题 | 单次文章成功不能覆盖全部题材与文体 |
+| Web | 真实登录材料提交、生成、人工编辑、版本、两种下载；桌面／390px、明暗主题 | 单次文章成功不能覆盖全部题材与文体 |
 | App／Electron | 生成契约、类型／静态检查、单测与构建，独立 UI／原生验收 | 测试夹具不能代替真实设备鉴权与文件导出 |
 
 后续顺序以可使用结果为目标：先扩大真实文章、短帖、说明文档及中英文样本；再增加可读剧本、可靠字幕／转写、参考网页和真实资料图的材料绑定；随后完成视觉规格和版本化资产；最后实现用户明确触发的公众号草稿连接器。每项先更新本主题的实际边界，再实现必要协议，不通过堆 Skill 数量或添加通用 Agent 控制台宣称完成。
 
 2026-10-04 实测：现有 Codex Provider（gpt-6-sol）分别完成文章、无标题短帖和说明文档，三次任务均为起草与审校两次调用。文章审校指出“杯盖旋到不再转动”可能扩张原意，人工改为“旋盖动作结束后，杯盖停止转动”，保存新版本的模型调用计数为零。短帖素材声明维护通知仅用于示例，审校据此保留 needs_material，未把示例当成可发送的真实公告。说明文档审校通过，无强加的摘要、附录或结尾模板。
 
-三类结果和文章人工修订版共 12 个文件从真实登录页面下载，分别核对 Markdown、DOCX 和离线 HTML 的正文、标题与旧版字节；文件不携带审校、来源 ID、编辑摘要或生成说明，DOCX 无生成系统页眉／页脚。私有材料、版本与 HTML 接口禁止缓存。Web 另覆盖同一运行结束后的历史刷新、内容历史重复查询参数与人工修订提示。
+三类结果和文章人工修订版的 Markdown 与 DOCX 共 8 个文件从真实登录页面下载，分别核对正文、标题与旧版字节；文件不携带审校、来源 ID、编辑摘要或生成说明，DOCX 无生成系统页眉／页脚。私有材料与版本接口禁止缓存。Web 另覆盖同一运行结束后的历史刷新、内容历史重复查询参数与人工修订提示。
 
-后端本轮单元／契约及相关 API、Temporal、SQL 集成合计 3517 项检查通过（含新增第六结果的契约快照修订）；Web 完整回归 584 项。App 375 项测试、静态检查及 iOS arm64 模拟器原生内容阅读测试通过；Android debug 与 iOS arm64 正式入口构建独立验证。Electron 的类型、受控前端同步、单测与原有端到端测试通过。App 原生实测使用明确的内容夹具，不能替代真实账号和文件分享验收；iOS 通用双架构构建仍受已记录的 Flutter 工具链问题阻断。
+内容契约、权限、步骤日志、有限修订、版本与两种导出由单元及 PostgreSQL 集成测试覆盖；Temporal 起草／审校与历史重放单独验证。HTML 删除同时覆盖路由不存在、公开报告格式收敛与历史对象所有权保留。App 与 Electron 各自执行客户端契约、静态检查与相关测试，夹具不能替代真实账号和文件分享验收。iOS 通用双架构构建仍受已记录的 Flutter 工具链问题阻断。
 
 真实模型样本只能证明这三次流程和文件可用，不提供跨题材写作质量、编辑采用率、平台复制或公众号账号能力的统计结论。

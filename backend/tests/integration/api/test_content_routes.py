@@ -5,7 +5,6 @@ from app.services.analysis.errors import (
     AnalysisApplicationError,
     AnalysisApplicationErrorCode,
 )
-from app.services.analysis.models import AnalysisReportFile
 from app.services.analysis.rules.enums import AnalysisInputKind, AnalysisResultContract
 from tests.integration.api.test_analysis_routes import (
     ANALYSIS_ID,
@@ -82,31 +81,9 @@ def test_content_routes_dispatch_owner_and_preserve_private_sources(tmp_path):
         )
 
 
-def test_content_html_is_an_owner_scoped_attachment(tmp_path):
+def test_removed_html_export_is_not_routed(tmp_path):
     test_client, _ = client(tmp_path)
-    export = StubUseCase(
-        AnalysisReportFile(
-            content=b"<!doctype html><p>Reader prose</p>",
-            filename="article.html",
-            media_type="text/html",
-        )
-    )
-    test_client.app.state.services.analysis_use_cases = replace(
-        test_client.app.state.services.analysis_use_cases,
-        export_analysis_html=export,
-    )
     with test_client:
-        response = test_client.get(f"/api/content/analyses/{ANALYSIS_ID}/report.html")
-        assert response.status_code == 200 and b"Reader prose" in response.content
-        assert (
-            response.headers["content-disposition"]
-            == 'attachment; filename="article.html"'
-        )
-        assert response.headers["cache-control"] == "private, no-store"
-        assert response.headers["x-content-type-options"] == "nosniff"
-        assert "default-src 'none'" in response.headers["content-security-policy"]
-        assert export.calls == [(ANALYSIS_ID, TEST_USER.owner_hash)]
-        export.error = AnalysisApplicationError(AnalysisApplicationErrorCode.NOT_FOUND)
         assert (
             test_client.get(
                 f"/api/content/analyses/{ANALYSIS_ID}/report.html"

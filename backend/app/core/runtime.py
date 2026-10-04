@@ -30,7 +30,6 @@ from app.services.analysis.create_content_analysis import CreateContentAnalysis
 from app.services.analysis.create_document_analysis import CreateDocumentAnalysis
 from app.services.analysis.delete_analysis import DeleteAnalysis
 from app.services.analysis.export_report import (
-    ExportAnalysisHtml,
     ExportAnalysisMarkdown,
     ExportAnalysisReport,
 )
@@ -126,7 +125,6 @@ class AnalysisUseCases:
     get_content_source: GetContentSource | None = None
     revise_content: ReviseContent | None = None
     list_content_versions: ListContentVersions | None = None
-    export_analysis_html: ExportAnalysisHtml | None = None
 
 
 @dataclass(frozen=True, slots=True)

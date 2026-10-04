@@ -137,6 +137,7 @@ class AnalysisReportLifecycleRepository(AnalysisRepositoryBase):
                         report.result_json.get("kind")
                         == AnalysisResultKind.CONTENT_DOCUMENT.value
                     ):
+                        # Clean up a previously uploaded retired format as well.
                         await delete(f"{prefix}/report.html")
                 except Exception:
                     failed += 1
@@ -155,7 +156,6 @@ class AnalysisReportLifecycleRepository(AnalysisRepositoryBase):
                         AnalysisResultRow.id,
                         AnalysisResultRow.job_id,
                         AnalysisRunRow.run_no,
-                        AnalysisResultRow.result_json["kind"].as_string(),
                     )
                     .join(AnalysisRunRow, AnalysisRunRow.id == AnalysisResultRow.run_id)
                     .where(
@@ -163,14 +163,18 @@ class AnalysisReportLifecycleRepository(AnalysisRepositoryBase):
                     )
                 )
             ).all()
-        return frozenset(
+            # Stored objects from retired formats remain owned until task deletion.
+            recorded = (
+                await session.scalars(
+                    select(AnalysisReportArtifactRow.object_key).where(
+                        AnalysisReportArtifactRow.deleted_at.is_(None)
+                    )
+                )
+            ).all()
+        return frozenset(recorded) | frozenset(
             f"analyses/{job_id}/runs/{run_no}/reports/{report_id}/report.{suffix}"
-            for report_id, job_id, run_no, kind in rows
-            for suffix in (
-                ("md", "docx", "html")
-                if kind == AnalysisResultKind.CONTENT_DOCUMENT.value
-                else ("md", "docx")
-            )
+            for report_id, job_id, run_no in rows
+            for suffix in ("md", "docx")
         )
 
     @staticmethod

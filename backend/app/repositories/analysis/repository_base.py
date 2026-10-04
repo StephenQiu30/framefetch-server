@@ -86,6 +86,7 @@ class AnalysisRepositoryBase(RepositoryBase):
                     await session.scalars(
                         select(AnalysisReportArtifactRow).where(
                             AnalysisReportArtifactRow.report_id == report.id,
+                            AnalysisReportArtifactRow.format.in_(("markdown", "docx")),
                             AnalysisReportArtifactRow.status
                             == AnalysisReportArtifactStatus.AVAILABLE.value,
                         )

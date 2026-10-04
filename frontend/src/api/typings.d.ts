@@ -1541,10 +1541,6 @@ declare namespace API {
     analysis_id: string;
   };
 
-  type exportContentHtmlParams = {
-    analysis_id: string;
-  };
-
   type FailureClass =
     | "network_blocked"
     | "challenge"

@@ -165,20 +165,6 @@ export async function createContentAnalysis(
   });
 }
 
-/** 导出文章正文 HTML GET /api/content/analyses/${param0}/report.html */
-export async function exportContentHtml(
-  // 叠加生成的Param类型 (非body参数swagger默认没有生成对象)
-  params: API.exportContentHtmlParams,
-  options?: RequestOptions
-) {
-  const { analysis_id: param0, ...queryParams } = params;
-  return request<Blob>(`/api/content/analyses/${param0}/report.html`, {
-    method: "GET",
-    params: { ...queryParams },
-    ...(options || {}),
-  });
-}
-
 /** 保存人工修订稿，保留原版本 POST /api/content/analyses/${param0}/revisions */
 export async function reviseContent(
   // 叠加生成的Param类型 (非body参数swagger默认没有生成对象)

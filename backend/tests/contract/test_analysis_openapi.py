@@ -153,6 +153,6 @@ def test_analysis_openapi_is_current_and_excludes_internal_fields(
         ("/api/content/analyses/{analysis_id}/source", "get", "getContentSource"),
         ("/api/content/analyses/{analysis_id}/revisions", "post", "reviseContent"),
         ("/api/content/analyses/{analysis_id}/versions", "get", "listContentVersions"),
-        ("/api/content/analyses/{analysis_id}/report.html", "get", "exportContentHtml"),
     ]:
         assert paths[path][verb]["operationId"] == operation
+    assert "/api/content/analyses/{analysis_id}/report.html" not in paths

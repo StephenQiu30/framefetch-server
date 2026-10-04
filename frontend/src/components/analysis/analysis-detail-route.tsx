@@ -201,22 +201,14 @@ function AnalysisDetailContent({
               onDelete={state.remove}
             />
             {job.report?.status === 'available'
-              ? (kind === 'content'
-                  ? (['md', 'docx', 'html'] as const)
-                  : (['md', 'docx'] as const)
-                ).map((format) => (
+              ? (['md', 'docx'] as const).map((format) => (
                   <Button key={format} asChild variant="outline">
                     <AnalysisReportDownloadLink
                       analysisId={job.id}
                       format={format}
                       download={`analysis-${job.id}.${format}`}
                     >
-                      导出{' '}
-                      {format === 'md'
-                        ? 'Markdown'
-                        : format === 'html'
-                          ? 'HTML'
-                          : 'DOCX'}
+                      导出 {format === 'md' ? 'Markdown' : 'DOCX'}
                     </AnalysisReportDownloadLink>
                   </Button>
                 ))

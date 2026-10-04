@@ -138,7 +138,6 @@ def test_swagger_ui_and_openapi_contract_are_available(tmp_path: Path) -> None:
         "getContentSource",
         "reviseContent",
         "listContentVersions",
-        "exportContentHtml",
         "getAnalysis",
         "getLatestDownloadAnalysis",
         "getLatestDocumentAnalysis",

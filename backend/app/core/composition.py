@@ -81,7 +81,6 @@ from app.services.analysis.create_content_analysis import CreateContentAnalysis
 from app.services.analysis.create_document_analysis import CreateDocumentAnalysis
 from app.services.analysis.delete_analysis import DeleteAnalysis
 from app.services.analysis.export_report import (
-    ExportAnalysisHtml,
     ExportAnalysisMarkdown,
     ExportAnalysisReport,
 )
@@ -428,9 +427,6 @@ def build_api_runtime(settings: Settings) -> ApiRuntime:
     skill_catalog = BuiltinAnalysisSkillCatalog()
     analysis_use_cases = AnalysisUseCases(
         get_content_source=GetContentSource(analysis_repository),
-        export_analysis_html=ExportAnalysisHtml(
-            get_analysis, analysis_repository, storage
-        ),
         revise_content=ReviseContent(analysis_repository, clock),
         list_content_versions=ListContentVersions(analysis_repository),
         create_content_analysis=CreateContentAnalysis(

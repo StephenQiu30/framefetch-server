@@ -2,9 +2,8 @@ from uuid import uuid4
 
 import pytest
 from app.integrations.analysis_report_docx import PythonDocxAnalysisReportRenderer
-from app.integrations.content_html import render_content_html
 from app.integrations.object_storage import StoredObjectStat
-from app.models import AnalysisResultRow, AnalysisRunRow
+from app.models import AnalysisReportArtifactRow, AnalysisResultRow, AnalysisRunRow
 from app.repositories.analysis.execution import AnalysisExecutionPersistence
 from app.repositories.analysis.report_repository import (
     SqlAlchemyAnalysisReportRepository,
@@ -102,8 +101,8 @@ async def test_content_publication_and_revision_preserve_original(
     db = analysis_db
     job, storage = await completed(db, tmp_path)
     original_files = dict(storage.values)
-    assert len(original_files) == 3
-    assert any(key.endswith("report.html") for key in original_files)
+    assert len(original_files) == 2
+    assert {key.rsplit(".", 1)[-1] for key in original_files} == {"md", "docx"}
     original = await db.repository.get_result(job.id)
     edited = draft()
     edited["blocks"][1]["text"] = "这次观察只覆盖短暂倒置。"
@@ -134,7 +133,7 @@ async def test_content_publication_and_revision_preserve_original(
     final = await publish(db, storage, next_job)
     assert final.current_report_id != job.current_report_id
     assert all(storage.values[key] == value for key, value in original_files.items())
-    assert len(storage.values) == 6
+    assert len(storage.values) == 4
     result = await db.repository.get_result(job.id)
     assert result.review_status == "needs_review" and original.review_status == "passed"
     async with db.sessions() as session:
@@ -152,16 +151,25 @@ async def test_content_publication_and_revision_preserve_original(
         )
 
 
-def test_html_is_offline_and_escapes_untrusted_markup():
-    html = render_content_html(
-        '# 正文\n\n<script>偷取账户</script>\n\n<img src="https://outside.example/pixel">\n'
-    ).decode()
-    assert "<script>" not in html and "<img " not in html
-    assert "default-src" in html and "&lt;script&gt;" in html
-    assert "编辑附录" not in html
-
-
-def test_html_uses_the_document_language():
-    assert b'lang="en-US"' in render_content_html("# User guide", language="en-US")
-    with pytest.raises(ValueError, match="unsupported document language"):
-        render_content_html("# Guide", language="unsupported")
+async def test_retired_format_is_hidden_but_its_stored_object_keeps_ownership(
+    analysis_db, tmp_path
+):
+    job, _ = await completed(analysis_db, tmp_path)
+    key = f"analyses/{job.id}/runs/1/reports/{job.current_report_id}/report.html"
+    async with analysis_db.sessions() as session, session.begin():
+        session.add(
+            AnalysisReportArtifactRow(
+                report_id=job.current_report_id,
+                format="html",
+                bucket="private-test",
+                object_key=key,
+                content_type="text/html",
+                size_bytes=20,
+                sha256="a" * 64,
+                status="available",
+            )
+        )
+    current = await analysis_db.repository.get_latest_report(job.id)
+    assert {item.format for item in current.artifacts} == {"markdown", "docx"}
+    reports = SqlAlchemyAnalysisReportRepository(analysis_db.sessions)
+    assert key in await reports.expected_report_object_keys()

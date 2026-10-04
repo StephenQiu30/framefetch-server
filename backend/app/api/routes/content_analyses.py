@@ -103,42 +103,6 @@ async def revise_content(
 
 
 @router.get(
-    "/content/analyses/{analysis_id}/report.html",
-    operation_id="exportContentHtml",
-    response_class=Response,
-    responses={
-        200: {
-            "description": "可离线打开的文章 HTML",
-            "content": {
-                "text/html": {"schema": {"type": "string", "format": "binary"}}
-            },
-        }
-    },
-    summary="导出文章正文 HTML",
-)
-async def export_content_html(
-    analysis_id: UUID,
-    user: Annotated[CurrentUser, Depends(get_current_user)],
-    use_cases: Annotated[AnalysisUseCases, Depends(get_analysis_use_cases)],
-) -> Response:
-    if use_cases.export_analysis_html is None:
-        raise AnalysisApplicationError(AnalysisApplicationErrorCode.SERVICE_UNAVAILABLE)
-    report = await use_cases.export_analysis_html(analysis_id, user.owner_hash)
-    return Response(
-        content=report.content,
-        media_type=report.media_type,
-        headers={
-            "Content-Disposition": f'attachment; filename="{report.filename}"',
-            "X-Content-Type-Options": "nosniff",
-            "Cache-Control": "private, no-store",
-            "Content-Security-Policy": (
-                "default-src 'none'; style-src 'unsafe-inline'; base-uri 'none'"
-            ),
-        },
-    )
-
-
-@router.get(
     "/content/analyses/{analysis_id}/versions",
     operation_id="listContentVersions",
     response_model=tuple[ContentVersion, ...],
