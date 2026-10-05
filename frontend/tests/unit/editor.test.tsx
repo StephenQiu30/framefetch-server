@@ -4,7 +4,7 @@ import { createRef, StrictMode } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   type EditorDocument,
-  toEditorDocument,
+  markdownToEditorDocument,
 } from '@/components/editor/document';
 import { Editor, type EditorHandle } from '@/components/editor/editor';
 
@@ -24,8 +24,16 @@ vi.mock('@/components/editor/engine', () => ({
       });
       save = vi.fn(async () => this.data);
       destroy = vi.fn();
+      readOnly = {
+        isEnabled: false,
+        toggle: vi.fn(async (state: boolean) => {
+          this.readOnly.isEnabled = state;
+          return state;
+        }),
+      };
       constructor(config: EditorConfig) {
         this.config = config;
+        this.readOnly.isEnabled = Boolean(config.readOnly);
         this.data = config.data ?? { blocks: [] };
         this.isReady = mocks.ready ?? Promise.resolve();
         if (config.holder instanceof HTMLElement) {
@@ -49,7 +57,11 @@ describe('shared Editor lifecycle', () => {
     const onChange = vi.fn();
     const ref = createRef<EditorHandle>();
     const { rerender, unmount } = render(
-      <Editor value="# 初始" onChange={onChange} ref={ref} />,
+      <Editor
+        value={markdownToEditorDocument('# 初始')}
+        onChange={onChange}
+        ref={ref}
+      />,
     );
     await waitFor(() =>
       expect(screen.queryByRole('status')).not.toBeInTheDocument(),
@@ -58,7 +70,7 @@ describe('shared Editor lifecycle', () => {
     expect(
       screen.getByRole('textbox', { name: '正文编辑器，内容 1' }),
     ).toHaveAttribute('aria-multiline', 'true');
-    editor.data = toEditorDocument('## 已编辑');
+    editor.data = markdownToEditorDocument('## 已编辑');
     await act(async () => {
       await editor.config.onChange();
     });
@@ -72,9 +84,17 @@ describe('shared Editor lifecycle', () => {
     );
     expect(editor.render).not.toHaveBeenCalled();
     expect(await ref.current?.save()).toEqual(editor.data);
-    rerender(<Editor value="# 替换" onChange={onChange} ref={ref} />);
+    rerender(
+      <Editor
+        value={markdownToEditorDocument('# 替换')}
+        onChange={onChange}
+        ref={ref}
+      />,
+    );
     await waitFor(() =>
-      expect(editor.render).toHaveBeenCalledWith(toEditorDocument('# 替换')),
+      expect(editor.render).toHaveBeenCalledWith(
+        markdownToEditorDocument('# 替换'),
+      ),
     );
     await act(async () => {
       await editor.config.onChange();
@@ -89,15 +109,19 @@ describe('shared Editor lifecycle', () => {
     mocks.ready = new Promise<void>((resolve) => {
       ready = resolve;
     });
-    const { rerender, unmount } = render(<Editor value="初始" />);
+    const { rerender, unmount } = render(
+      <Editor value={markdownToEditorDocument('初始')} />,
+    );
     await waitFor(() => expect(mocks.instances).toHaveLength(1));
     const editor = mocks.instances[0];
-    rerender(<Editor value="最新" />);
+    rerender(<Editor value={markdownToEditorDocument('最新')} />);
     await act(async () => {
       ready();
     });
     await waitFor(() =>
-      expect(editor.render).toHaveBeenCalledWith(toEditorDocument('最新')),
+      expect(editor.render).toHaveBeenCalledWith(
+        markdownToEditorDocument('最新'),
+      ),
     );
     unmount();
     await waitFor(() => expect(editor.destroy).toHaveBeenCalledTimes(1));
@@ -110,7 +134,7 @@ describe('shared Editor lifecycle', () => {
     });
     const { unmount } = render(
       <StrictMode>
-        <Editor value="正文" />
+        <Editor value={markdownToEditorDocument('正文')} />
       </StrictMode>,
     );
     await waitFor(() => expect(mocks.instances).toHaveLength(1));
@@ -121,17 +145,77 @@ describe('shared Editor lifecycle', () => {
     expect(mocks.instances[0].destroy).toHaveBeenCalledTimes(1);
   });
 
-  it('rejects unsupported blocks without silently deleting them', async () => {
-    const onError = vi.fn();
+  it('delegates unknown blocks to the official core without changing their data', async () => {
     const document = {
       blocks: [{ type: 'unknown', data: { text: '保留的内容' } }],
     };
-    render(<Editor value={document} onError={onError} />);
-    expect(await screen.findByRole('alert')).toHaveTextContent(
-      '编辑器加载失败',
+    const { unmount } = render(<Editor value={document} />);
+    await waitFor(() =>
+      expect(mocks.instances[0]?.config.data).toEqual(document),
     );
-    expect(onError).toHaveBeenCalled();
-    expect(mocks.instances).toHaveLength(0);
-    expect(document.blocks).toHaveLength(1);
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    unmount();
+  });
+
+  it('switches read-only mode on the same instance and rejects saving while read-only', async () => {
+    const ref = createRef<EditorHandle>();
+    const document = markdownToEditorDocument('旧正文');
+    const { rerender, unmount } = render(<Editor value={document} ref={ref} />);
+    await waitFor(() =>
+      expect(screen.queryByRole('status')).not.toBeInTheDocument(),
+    );
+    const editor = mocks.instances[0];
+    editor.data = markdownToEditorDocument('尚未回传的编辑');
+    rerender(<Editor value={document} ref={ref} readOnly />);
+    await waitFor(() => expect(editor.readOnly.isEnabled).toBe(true));
+    expect(mocks.instances).toHaveLength(1);
+    expect(editor.render).not.toHaveBeenCalled();
+    await expect(ref.current?.save()).rejects.toThrow('只读模式不能保存正文');
+    rerender(<Editor value={document} ref={ref} />);
+    await waitFor(() => expect(editor.readOnly.isEnabled).toBe(false));
+    expect(await ref.current?.save()).toEqual(
+      markdownToEditorDocument('尚未回传的编辑'),
+    );
+    unmount();
+  });
+
+  it('discards a stale save when an external replacement arrives and serializes both operations', async () => {
+    const onChange = vi.fn();
+    const { rerender, unmount } = render(
+      <Editor value={markdownToEditorDocument('旧正文')} onChange={onChange} />,
+    );
+    await waitFor(() =>
+      expect(screen.queryByRole('status')).not.toBeInTheDocument(),
+    );
+    const editor = mocks.instances[0];
+    let finish!: (value: EditorDocument) => void;
+    editor.save.mockImplementationOnce(
+      () =>
+        new Promise<EditorDocument>((resolve) => {
+          finish = resolve;
+        }),
+    );
+    let pending!: Promise<void>;
+    await act(async () => {
+      pending = editor.config.onChange();
+    });
+    rerender(
+      <Editor
+        value={markdownToEditorDocument('外部新正文')}
+        onChange={onChange}
+      />,
+    );
+    expect(editor.render).not.toHaveBeenCalled();
+    await act(async () => {
+      finish(markdownToEditorDocument('过期编辑'));
+      await pending;
+    });
+    await waitFor(() =>
+      expect(editor.render).toHaveBeenCalledWith(
+        markdownToEditorDocument('外部新正文'),
+      ),
+    );
+    expect(onChange).not.toHaveBeenCalled();
+    unmount();
   });
 });

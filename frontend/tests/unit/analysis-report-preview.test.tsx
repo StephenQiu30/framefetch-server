@@ -1,9 +1,9 @@
-import { render, screen } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 import AnalysisReportPreview from '@/components/analysis/analysis-report-preview';
 
-describe('analysis report Markdown reader', () => {
-  it('preserves the accepted article fixture hard break, code whitespace and source digest', () => {
+describe('analysis report Markdown reader', async () => {
+  it('preserves the accepted article fixture hard break, code whitespace and source digest', async () => {
     const code = 'heading = "# 不是标题"\n  value = "标签：不是正文标签"\n';
     const sha =
       'ae24e0fe74f663e0ee22f2031f95fa4f17acbd718316b5dbd5977584b7862aeb';
@@ -28,17 +28,21 @@ describe('analysis report Markdown reader', () => {
       />,
     );
 
-    expect(container.querySelector('p br')).toBeInTheDocument();
-    expect(container.querySelector('pre > code')?.textContent).toBe(code);
-    expect(container.querySelector('blockquote')).toHaveTextContent(
+    await waitFor(() =>
+      expect(screen.queryByRole('status')).not.toBeInTheDocument(),
+    );
+    expect(container.querySelector('.ce-paragraph br')).toBeInTheDocument();
+    expect(container.querySelector('textarea')).toHaveValue(code);
+    expect(container.querySelector('textarea')).toBeDisabled();
+    expect(container.querySelector('.cdx-quote__text')).toHaveTextContent(
       '原文引用：整理只改变呈现结构。',
     );
-    expect(screen.getByRole('cell', { name: '已有正文' })).toBeInTheDocument();
+    expect(container.querySelector('.tc-table')).toHaveTextContent('已有正文');
     expect(screen.getByText(sha)).toBeInTheDocument();
     expect(screen.queryByRole('link')).not.toBeInTheDocument();
   });
 
-  it('keeps explicit web links while rejecting executable, local, embedded and HTML resources', () => {
+  it('keeps explicit web links while rejecting executable, local, embedded and HTML resources', async () => {
     const { container } = render(
       <AnalysisReportPreview
         markdown={[
@@ -55,7 +59,7 @@ describe('analysis report Markdown reader', () => {
       />,
     );
 
-    expect(screen.getAllByRole('link')).toHaveLength(2);
+    await waitFor(() => expect(screen.getAllByRole('link')).toHaveLength(2));
     expect(screen.getByRole('link', { name: '安全来源' })).toHaveAttribute(
       'href',
       'https://example.com/reference?q=1',

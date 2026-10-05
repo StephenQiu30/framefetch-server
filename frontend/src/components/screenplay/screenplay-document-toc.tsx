@@ -3,7 +3,7 @@
 import { List } from '@phosphor-icons/react';
 import { cn } from 'cn';
 import Link from 'next/link';
-import { toEditorDocument } from '@/components/editor/document';
+import { markdownToEditorDocument } from '@/components/editor/document';
 import { richTextToPlainText } from '@/components/editor/rich-text';
 import {
   NavigationMenu,
@@ -19,7 +19,7 @@ export type MarkdownHeading = {
 };
 
 export function extractMarkdownHeadings(markdown: string): MarkdownHeading[] {
-  return toEditorDocument(markdown)
+  return markdownToEditorDocument(markdown)
     .blocks.filter((block) => block.type === 'header' && block.data.level <= 3)
     .map((block, index) => ({
       id: `screenplay-heading-${index}`,

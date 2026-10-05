@@ -180,7 +180,7 @@ describe('ScreenplayAnalysisPanel', () => {
     );
 
     expect(await screen.findByText('历史正文保持可读。')).toBeInTheDocument();
-    expect(container.querySelector('pre > code')?.textContent).toBe(
+    expect(container.querySelector('textarea')).toHaveValue(
       '  keep = "original"\n',
     );
     expect(screen.queryByText(legacy.result.body)).not.toBeInTheDocument();
@@ -241,11 +241,13 @@ describe('ScreenplayAnalysisPanel', () => {
     expect(screen.getByRole('tab', { name: '报告内容' })).toBeInTheDocument();
     expect(screen.getByRole('tab', { name: '报告预览' })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: '导出 DOCX' })).toBeInTheDocument();
-    expect(screen.getAllByText(quote)).toHaveLength(1);
-    expect(screen.getByRole('cell', { name: '保留' })).toBeInTheDocument();
-    expect(screen.getByText('keep spacing').closest('pre')?.textContent).toBe(
-      '  keep spacing\n',
-    );
+    expect(await screen.findAllByText(quote)).toHaveLength(1);
+    expect(
+      (await screen.findByText('保留')).closest('.tc-cell'),
+    ).toBeInTheDocument();
+    const code = await screen.findByDisplayValue(/keep spacing/);
+    expect(code).toHaveValue('  keep spacing\n');
+    expect(code).toBeDisabled();
     expect(screen.getByRole('link', { name: '来源链接' })).toHaveAttribute(
       'href',
       'https://example.com/source',
@@ -305,7 +307,7 @@ describe('ScreenplayAnalysisPanel', () => {
     fireEvent.click(reportTab);
     const preview = await screen.findByLabelText('Markdown 分析报告预览');
     expect(
-      within(preview).getByText('Rewritten screenplay'),
+      await within(preview).findByText('Rewritten screenplay'),
     ).toBeInTheDocument();
     expect(screen.getByText(/仅用于改写与本地化参考/)).toBeInTheDocument();
   });

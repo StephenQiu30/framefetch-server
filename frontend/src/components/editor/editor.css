@@ -25,7 +25,6 @@
   background: var(--accent);
 }
 .block-editor .ce-inline-toolbar,
-.block-editor .ce-conversion-toolbar,
 .block-editor .ce-popover,
 .block-editor .ce-popover__container {
   color: var(--popover-foreground);
@@ -82,4 +81,16 @@
   --color-border: var(--border);
   --color-text-secondary: var(--muted-foreground);
   --color-background-hover: var(--accent);
+}
+
+.block-editor a {
+  text-decoration: underline;
+  text-underline-offset: 0.25em;
+}
+.block-editor .ce-code__textarea:disabled {
+  opacity: 1;
+  -webkit-text-fill-color: var(--foreground);
+}
+.block-editor--readonly .tc-wrap {
+  overflow-x: auto;
 }

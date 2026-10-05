@@ -441,7 +441,7 @@ describe('AnalysisPanel', () => {
     }
   });
 
-  it('renders explicit web links without executable HTML', () => {
+  it('renders explicit web links without executable HTML', async () => {
     render(
       <AnalysisReportPreview
         markdown={
@@ -450,11 +450,11 @@ describe('AnalysisPanel', () => {
       />,
     );
 
-    expect(screen.getByRole('link', { name: '外链' })).toHaveAttribute(
+    expect(await screen.findByRole('link', { name: '外链' })).toHaveAttribute(
       'href',
       'https://invalid.example/',
     );
-    expect(screen.getByRole('link', { name: '外链' })).toHaveAttribute(
+    expect(await screen.findByRole('link', { name: '外链' })).toHaveAttribute(
       'rel',
       'noopener noreferrer',
     );

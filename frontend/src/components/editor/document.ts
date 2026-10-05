@@ -1,8 +1,8 @@
 import type { OutputData } from '@editorjs/editorjs';
 import { Marked, type Token, type Tokens } from 'marked';
+import { sanitizeRichText } from './rich-text';
 
 export type EditorDocument = OutputData;
-export type EditorContent = EditorDocument | string;
 export type ListItem = {
   content: string;
   meta: { checked?: boolean };
@@ -74,7 +74,7 @@ function blocksFromTokens(
         return [
           {
             type: 'code',
-            data: { code: `${code.text}\n`, language: code.lang ?? '' },
+            data: { code: `${code.text}\n` },
           },
         ];
       }
@@ -93,22 +93,39 @@ function blocksFromTokens(
         ];
       case 'list': {
         const list = token as Tokens.List;
-        return [
-          {
-            type: 'list',
-            data: {
-              style: list.items.some((item) => item.task)
-                ? 'checklist'
-                : list.ordered
-                  ? 'ordered'
-                  : 'unordered',
-              meta: list.ordered
-                ? { start: list.start, counterType: 'numeric' }
+        // GFM can place ordinary items and task items in the same loose list.
+        // Official list blocks have one style, so import each consecutive style separately.
+        const groups: {
+          task: boolean;
+          start: number;
+          items: Tokens.ListItem[];
+        }[] = [];
+        list.items.forEach((item, index) => {
+          const task = Boolean(item.task);
+          const previous = groups.at(-1);
+          if (previous?.task === task) previous.items.push(item);
+          else
+            groups.push({
+              task,
+              start: (Number(list.start) || 1) + index,
+              items: [item],
+            });
+        });
+        return groups.map((group) => ({
+          type: 'list',
+          data: {
+            style: group.task
+              ? 'checklist'
+              : list.ordered
+                ? 'ordered'
+                : 'unordered',
+            meta:
+              list.ordered && !group.task
+                ? { start: group.start, counterType: 'numeric' }
                 : {},
-              items: listItems(markdown, list.items),
-            },
+            items: listItems(markdown, group.items),
           },
-        ];
+        }));
       }
       case 'table': {
         const table = token as Tokens.Table;
@@ -142,11 +159,11 @@ function blocksFromTokens(
   });
 }
 
-export function toEditorDocument(
-  content: EditorContent,
+/** Import the supported Markdown subset at the API boundary; this is not a lossless serializer. */
+export function markdownToEditorDocument(
+  content: string,
   htmlPolicy: HtmlPolicy = 'omit',
 ): EditorDocument {
-  if (typeof content !== 'string') return content;
   const markdown = createMarkdown(htmlPolicy);
   return { blocks: blocksFromTokens(markdown, markdown.lexer(content)) };
 }
@@ -155,18 +172,41 @@ export function documentKey(document: EditorDocument) {
   return JSON.stringify(document.blocks);
 }
 
-/** Only registered tools cross the editable boundary. */
-export function assertEditableDocument(document: EditorDocument) {
-  const types = new Set([
-    'paragraph',
-    'header',
-    'list',
-    'quote',
-    'code',
-    'table',
-    'delimiter',
-  ]);
-  if (document.blocks.some((block) => !types.has(block.type))) {
-    throw new Error('文档包含编辑器尚未支持的内容块');
-  }
+/** Sanitize rich HTML before official tools insert it into the document. Unknown tools stay inert in the official Stub. */
+export function sanitizeEditorDocument(
+  document: EditorDocument,
+  links = true,
+): EditorDocument {
+  if (!document || !Array.isArray(document.blocks))
+    throw new Error('文档必须包含有效的内容块');
+  const cleanItems = (items: ListItem[]): ListItem[] =>
+    items.map((item) => ({
+      ...item,
+      content: sanitizeRichText(item.content, links),
+      items: cleanItems(item.items ?? []),
+    }));
+  return {
+    ...document,
+    blocks: document.blocks.map((block) => {
+      const data = { ...block.data };
+      switch (block.type) {
+        case 'paragraph':
+        case 'header':
+        case 'quote':
+          data.text = sanitizeRichText(String(data.text ?? ''), links);
+          if (typeof data.caption === 'string')
+            data.caption = sanitizeRichText(data.caption, links);
+          break;
+        case 'list':
+          data.items = cleanItems(data.items ?? []);
+          break;
+        case 'table':
+          data.content = (data.content ?? []).map((row: string[]) =>
+            row.map((cell) => sanitizeRichText(cell, links)),
+          );
+          break;
+      }
+      return { ...block, data };
+    }),
+  };
 }

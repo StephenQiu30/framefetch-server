@@ -1,15 +1,20 @@
 'use client';
 
-import { Viewer } from '@/components/editor';
+import { useMemo } from 'react';
+import { markdownToEditorDocument, Viewer } from '@/components/editor';
 
 export default function AnalysisReportPreview({
   markdown,
 }: {
   markdown: string;
 }) {
+  const document = useMemo(
+    () => markdownToEditorDocument(markdown),
+    [markdown],
+  );
   return (
     <Viewer
-      value={markdown}
+      value={document}
       headingOffset={2}
       aria-label="Markdown 分析报告预览"
     />

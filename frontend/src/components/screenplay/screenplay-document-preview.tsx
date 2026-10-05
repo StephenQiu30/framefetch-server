@@ -1,5 +1,8 @@
+'use client';
+
 import { Info } from '@phosphor-icons/react';
-import { Viewer } from '@/components/editor';
+import { useMemo } from 'react';
+import { markdownToEditorDocument, Viewer } from '@/components/editor';
 import { documentPreviewStatusMessage } from '@/components/screenplay/screenplay-document-format';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { ImportStatusCode } from '@/lib/import-status';
@@ -13,6 +16,10 @@ export function ScreenplayDocumentPreview({
   document: API.DocumentDetailResponse;
   headings: MarkdownHeading[];
 }) {
+  const content = useMemo(
+    () => markdownToEditorDocument(document.preview ?? '', 'text'),
+    [document.preview],
+  );
   return (
     <div
       className="min-w-0 lg:grid lg:h-full lg:min-h-0 lg:grid-rows-[auto_minmax(0,1fr)_auto]"
@@ -32,8 +39,7 @@ export function ScreenplayDocumentPreview({
       {document.status === ImportStatusCode.Ready && document.preview ? (
         <>
           <Viewer
-            value={document.preview}
-            htmlPolicy="text"
+            value={content}
             headingOffset={1}
             headingIds={headings.map((heading) => heading.id)}
             links={false}

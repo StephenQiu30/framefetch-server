@@ -1,9 +1,13 @@
 import { vi } from 'vitest';
 
+const nativeRandomValues = crypto.getRandomValues.bind(crypto);
+
 export function stubCryptoUuids(...uuids: string[]) {
   const values = uuids.map(uuidBytes);
   let index = 0;
   const getRandomValues = vi.fn((target: Uint8Array) => {
+    // Editor.js also generates short block IDs; only UUID requests consume this fixture sequence.
+    if (target.byteLength !== 16) return nativeRandomValues(target);
     const value = values[Math.min(index, values.length - 1)];
     index += 1;
     target.set(value);

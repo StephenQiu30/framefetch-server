@@ -67,7 +67,7 @@ Biome 对官方 ui 源码中有明确用途的角色、事件、数组 key 与�
 
 ## 通用正文组件
 
-正文统一从 `@/components/editor` 引用 `Editor`、`Viewer` 和 `toEditorDocument`。`Editor` 使用 [Editor.js](https://github.com/codex-team/editor.js) 及官方块工具，支持标题、正文、嵌套列表／任务列表、引用、代码、表格和分隔线；`Viewer` 用语义化 React 元素展示相同的 Editor.js `OutputData`，无需初始化编辑器。
+正文统一从 `@/components/editor` 引用 `Editor` 和 `Viewer`，两者共用官方 [Editor.js](https://github.com/codex-team/editor.js) 与官方块工具。`Viewer` 使用 `readOnly: true`，不维护另一套 React 块阅读器。组件接收 Editor.js `OutputData`，不会隐式转换 Markdown。
 
 ```tsx
 import { Editor, Viewer, type EditorDocument } from '@/components/editor';
@@ -77,9 +77,11 @@ const [document, setDocument] = useState<EditorDocument>({ blocks: [] });
 <Viewer value={document} />;
 ```
 
-两个组件的 `value` 均接受块数据或 Markdown 字符串；编辑变更输出块数据。`Editor` 提供 `readOnly`、`label`、`placeholder`、`onError`，以及 `ref.save()` 异步读取完整块数据。受控值回传不会重建实例；外部替换正文使用实例的 render，卸载清理实例，初始化失败可重试。Editor.js 与工具仅在浏览器动态加载。
+`Editor` 仅在浏览器动态加载，等待 `isReady` 后使用 API；普通受控回传不重新渲染，外部替换正文、保存与只读切换依序执行。只读切换调用官方 `readOnly.toggle()`，保留当前编辑内容。`ref.save()` 仅用于可编辑状态，只读时明确拒绝。卸载销毁实例，加载失败可重试；`placeholder` 和 `autofocus` 是初始化选项。未知工具由官方 Stub 占位展示并保留数据。
 
-报告和剧本的已有 Markdown 接口与 MD／DOCX 导出保持当前契约，阅读入口改用 `Viewer`；本次没有新增正文编辑保存接口。Markdown 转换使用 GFM 解析，块内 HTML 仅允许安全文本格式与明确 HTTP(S) 链接，不加载远端图像或运行原始 HTML；剧本通过 `htmlPolicy="text"` 按原文显示 HTML 标签并禁用链接。`headingOffset` 与 `headingIds` 支持页面标题层级与目录锚点。未注册块不能进入 `Editor`，避免保存时静默丢失内容；新增块工具时需同时扩展转换、Viewer 和相关测试。
+报告与剧本的 Markdown API 和 MD／DOCX 导出仍是当前业务契约，调用方通过 `markdownToEditorDocument()` 显式导入后交给 `Viewer`。该函数只支持已接入的正文、标题、列表／任务列表、引用、代码、表格和分隔线，不是无损 Markdown 往返转换：混合嵌套列表样式、表格列对齐和代码语言标记不属于当前块格式。前端导入不修改后端保存的原始报告，也没有新增正文保存接口。
+
+块内富文本在交给官方工具前清除活动 HTML、远端图片和非 HTTP(S) 链接；剧本导入使用函数第二个参数 `'text'` 显示原始 HTML 标签，阅读时禁用链接。`headingOffset` 与 `headingIds` 保留页面标题层级与目录锚点。主题映射限定在共享组件内，沿用官方块 DOM、工具栏与只读行为。
 
 ## 内置 Skill
 
