@@ -1,0 +1,27 @@
+{
+  "name": "video-server-workspace",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@12.4.2",
+  "description": "帧取文档工作区：content/ 是产品需求、系统设计与执行计划，Nextra 构建为静态站点",
+  "scripts": {
+    "dev": "next dev --webpack --hostname 127.0.0.1 --port 8130",
+    "build": "next build --webpack",
+    "postbuild": "pagefind --site .next/server/app --output-path public/_pagefind",
+    "start": "next start --hostname 127.0.0.1 --port 8130"
+  },
+  "dependencies": {
+    "next": "16.3.8",
+    "nextra": "4.6.1",
+    "nextra-theme-docs": "4.6.1",
+    "react": "19.3.0",
+    "react-dom": "19.3.0",
+    "unist-util-visit": "5.1.0"
+  },
+  "devDependencies": {
+    "pagefind": "1.5.2"
+  },
+  "engines": {
+    "node": ">=24.15.0 <25"
+  }
+}

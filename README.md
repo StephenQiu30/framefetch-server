@@ -10,9 +10,9 @@
 [![MIT License](https://img.shields.io/badge/license-MIT-111111.svg)](LICENSE)
 [![Preview release](https://img.shields.io/github/v/release/StephenQiu30/video-server?include_prereleases&color=111111)](https://github.com/StephenQiu30/video-server/releases)
 
-[快速开始](#快速开始) · [从素材到报告](#从素材到报告) · [内置 Skill](#内置-skill) · [使用范围](#使用范围与部署要求) · [设计文档](docs/design/README.md) · [English](README.en.md)
+[快速开始](#快速开始) · [从素材到报告](#从素材到报告) · [内置 Skill](#内置-skill) · [使用范围](#使用范围与部署要求) · [设计文档](workspace/content/design/README.md) · [English](README.en.md)
 
-![FrameFetch Web／桌面同源报告：演示分镜、时间依据与 Markdown／DOCX 导出](docs/images/current-web-ai-report.png)
+![FrameFetch Web／桌面同源报告：演示分镜、时间依据与 Markdown／DOCX 导出](assets/readme/current-web-ai-report.png)
 
 > 已发布版本的 Web／桌面同源页面演示。当前内置 Skill 范围与真实验收见执行计划。
 
@@ -50,7 +50,7 @@ docker compose up -d --build --wait --remove-orphans
 
 启动后访问 [Web 工作区](http://localhost:8101)、[Swagger UI](http://localhost:8111/docs) 或 [OpenAPI](http://localhost:8111/openapi.json)。全新空库须先按下文创建首管理员，再登录使用。
 
-所有容器化后台循环（Outbox 投递、解析与下载、导入、报告发布）运行在一个 `worker` 容器中，使用 `RABBITMQ_WORKER_USER` / `RABBITMQ_WORKER_PASS`。该账号须对 `RABBITMQ_VHOST` 中的当前业务队列有受限的 configure/write/read 权限；队列职责见[可靠性与运行](docs/design/12-可靠性与运行.md)。平台身份安装见下文。
+所有容器化后台循环（Outbox 投递、解析与下载、导入、报告发布）运行在一个 `worker` 容器中，使用 `RABBITMQ_WORKER_USER` / `RABBITMQ_WORKER_PASS`。该账号须对 `RABBITMQ_VHOST` 中的当前业务队列有受限的 configure/write/read 权限；队列职责见[可靠性与运行](workspace/content/design/12-可靠性与运行.md)。平台身份安装见下文。
 
 全新空库还没有登录账号时，在部署机终端执行一次首管理员初始化（需使用可连接 PostgreSQL 的 `DATABASE_URL`，密码交互输入，不进入命令行历史）：
 
@@ -70,7 +70,7 @@ uv run --project backend python -m app.workers.bootstrap_admin \
 
 更新前停止 API 接单并排空解析任务，备份现有业务库，再配套发布 API、worker 和 `migrate` 容器。更新使用 `up --build`，不能只 `start` 旧版已退出的迁移容器。回退也需先排空新执行并恢复匹配的结构备份，不允许两套解析执行者并存。
 
-Temporal 的存储与备份由现有服务管理，项目重启只重启业务容器。Temporal 停机期间任务暂停；端口健康不等于平台可以下载。报告发布、下载与导入长期使用 RabbitMQ，分工见[工作流设计](docs/design/13-工作流编排.md)。
+Temporal 的存储与备份由现有服务管理，项目重启只重启业务容器。Temporal 停机期间任务暂停；端口健康不等于平台可以下载。报告发布、下载与导入长期使用 RabbitMQ，分工见[工作流设计](workspace/content/design/13-工作流编排.md)。
 
 ### 固定出口与 Clash 住宅节点
 
@@ -119,7 +119,7 @@ listeners:
 
 ### 平台身份与升级
 
-宿主身份服务位于 `backend/app/workers/identity/`，扩展源码位于 `browser-extension/`，遵循[平台身份设计](docs/design/15-平台身份.md)。普通用户 LaunchAgent 只监听 `127.0.0.1:19101`；WebSocket `/extension` 校验固定扩展 Origin 与双向 HMAC，`POST /cookies` 和固定 `POST /yuanbao-parse` 只接受 Runner Bearer。扩展先认证服务端，再按声明来源读取当前普通 Profile 的非分区 Cookie，或在 Service Worker 内执行固定元宝 HTTP 解析请求；Cookie 获取上限 5 秒，元宝解析上限 30 秒，均受操作截止时间约束，不建立材料库。无扩展连接、超时、无必要账号材料分别返回 `extension_disconnected`、`extension_timeout`、`credential_missing`，Runner 保留这些子因。视频号的 HTTP 请求桥已接入，专属解析与下载状态见[视频号元宝解析](docs/design/15-平台身份.md#6-视频号元宝解析)。
+宿主身份服务位于 `backend/app/workers/identity/`，扩展源码位于 `browser-extension/`，遵循[平台身份设计](workspace/content/design/15-平台身份.md)。普通用户 LaunchAgent 只监听 `127.0.0.1:19101`；WebSocket `/extension` 校验固定扩展 Origin 与双向 HMAC，`POST /cookies` 和固定 `POST /yuanbao-parse` 只接受 Runner Bearer。扩展先认证服务端，再按声明来源读取当前普通 Profile 的非分区 Cookie，或在 Service Worker 内执行固定元宝 HTTP 解析请求；Cookie 获取上限 5 秒，元宝解析上限 30 秒，均受操作截止时间约束，不建立材料库。无扩展连接、超时、无必要账号材料分别返回 `extension_disconnected`、`extension_timeout`、`credential_missing`，Runner 保留这些子因。视频号的 HTTP 请求桥已接入，专属解析与下载状态见[视频号元宝解析](workspace/content/design/15-平台身份.md#6-视频号元宝解析)。
 
 从 `backend/` 执行一次安装：
 
@@ -138,7 +138,7 @@ Compose 仅向 `session-runner` 注入宿主配置中相同的 `COOKIE_SOURCE_TO
 
 扩展使用 20 秒心跳、30 秒 alarm 和上限 30 秒的指数退避，并同步注册启动事件。保活机制依据 [Chrome WebSocket 文档](https://developer.chrome.com/docs/extensions/how-to/web-platform/websockets)；真实关闭 DevTools、睡眠唤醒与各类重启恢复仍须实测。
 
-Runner 身份调用、RunContext 材料所有权和私有 tmpfs 清理统一见[平台身份](docs/design/15-平台身份.md)与[解析引擎第 10 节](docs/design/14-解析引擎.md#10-模块接口)。真实 Chrome 保活、重连与需要身份的完整文件验收状态见[验证状态](docs/design/14-解析引擎.md#13-验证状态)。
+Runner 身份调用、RunContext 材料所有权和私有 tmpfs 清理统一见[平台身份](workspace/content/design/15-平台身份.md)与[解析引擎第 10 节](workspace/content/design/14-解析引擎.md#10-模块接口)。真实 Chrome 保活、重连与需要身份的完整文件验收状态见[验证状态](workspace/content/design/14-解析引擎.md#13-验证状态)。
 
 升级前暂停接单并排空媒体操作，备份业务库，幂等执行当前 schema.sql，再配套重建 API、worker、session-runner 与前端。生产入口：
 
@@ -154,7 +154,7 @@ curl --fail http://127.0.0.1:8111/health/ready
 curl --fail --head http://127.0.0.1:8101/
 ```
 
-只需要下载与剧本文档导入时，可在 `.env` 中设置 `ANALYSIS_ENABLED=false`。完整的启动、停止、已有基础环境复用和故障恢复方式见[可靠性与运行](docs/design/12-可靠性与运行.md)。更新代码时先执行 `git pull --ff-only`，再按上面的命令构建启动 Compose；`docker compose restart` 不会应用新代码、镜像或环境配置。
+只需要下载与剧本文档导入时，可在 `.env` 中设置 `ANALYSIS_ENABLED=false`。完整的启动、停止、已有基础环境复用和故障恢复方式见[可靠性与运行](workspace/content/design/12-可靠性与运行.md)。更新代码时先执行 `git pull --ff-only`，再按上面的命令构建启动 Compose；`docker compose restart` 不会应用新代码、镜像或环境配置。
 
 </details>
 
@@ -207,7 +207,7 @@ Web 工作区提供解析详情、下载记录、个人处理记录、视频播�
 
 影视方法优先改进视频审阅、拆解及剧本／原著分析。文章、公众号和小红书整理组织已有正文，保护事实、引用、代码和链接，不增加写稿、剪辑、图卡或发布流程。报告说明结论、依据、覆盖与限制，沿原操作导出 MD／DOCX。
 
-原页面与正式调用已恢复，六项内置能力的真实样本及 MD／DOCX 通过；iOS 模拟器 App 的真实登录、原表单、报告、系统保存／分享取消，以及 macOS arm64 桌面包的系统保存均已验收，保存文件与报告字节一致。其他平台和样本质量的边界见[执行计划](docs/plan/PLAN-内置Skill能力整合.md)，有效范围见[PRD](docs/prd/PRD-内置Skill能力整合.md)。
+原页面与正式调用已恢复，六项内置能力的真实样本及 MD／DOCX 通过；iOS 模拟器 App 的真实登录、原表单、报告、系统保存／分享取消，以及 macOS arm64 桌面包的系统保存均已验收，保存文件与报告字节一致。其他平台和样本质量的边界见[执行计划](workspace/content/plan/PLAN-内置Skill能力整合.md)，有效范围见[PRD](workspace/content/prd/PRD-内置Skill能力整合.md)。
 
 ## 同一工作站，多种使用方式
 
@@ -225,7 +225,7 @@ Electron 从安装包读取页面和品牌资源，API 与 WebSocket 连接配�
 
 当前为公开预览阶段。本轮内置 Skill 已按保留原页面、优化调用／方法／产出完成当前平台验收，实际结果与边界见执行计划；平台注册和解析成功不代表完整文件下载通过。CI 覆盖确定性的工程检查，真实模型、平台冷启动、App 真机和桌面实际业务按对应范围独立验证。截图不替代实际调用和文件验收。
 
-- 处理你有权获取和分析的 HTTP(S) 非 DRM 素材。平台接入包括 YouTube、哔哩哔哩、抖音、TikTok、小红书、快手、微博等；具体链接受内容范围、账号、网络和平台变化影响。视频号支持下载微信官方非加密分享文件，需要 Chrome 中已有有效元宝登录，无需打开元宝页面；公众号文章提供来源发现。准确平台状态与完整文件证据见 [验证状态](docs/design/14-解析引擎.md#13-验证状态)。
+- 处理你有权获取和分析的 HTTP(S) 非 DRM 素材。平台接入包括 YouTube、哔哩哔哩、抖音、TikTok、小红书、快手、微博等；具体链接受内容范围、账号、网络和平台变化影响。视频号支持下载微信官方非加密分享文件，需要 Chrome 中已有有效元宝登录，无需打开元宝页面；公众号文章提供来源发现。准确平台状态与完整文件证据见 [验证状态](workspace/content/design/14-解析引擎.md#13-验证状态)。
 - 提供自托管源码与构建方式。服务器、基础服务、存储、网络和模型由部署者准备，外部模型可能计费；启用外部 AI 会向选定服务发送分析所需的文本或画面。
 - 当前能力覆盖素材获取、管理、内置 Skill 分析／文档整理和报告。方法及输出的真实样本验收见执行计划，不能仅机械换行或截取正文开头就视为整理完成；模型分析须核查。内容写作、剧本改写、图卡制作、ASR／OCR、剪辑和账号发布不在本轮范围内。
 - 成功素材和报告持久保存，管理员应规划容量、备份与显式清理。详细安全要求见 [安全策略](SECURITY.md)与解析设计；对外部署前替换占位配置并核对网络、存储与模型服务。
@@ -248,15 +248,15 @@ README 描述当前主分支；固定版本的安装、升级步骤和验证范�
 
 **任务历史。** 查看素材、任务状态和后续操作，从历史回到详情继续处理。
 
-![FrameFetch Web／桌面同源页面：演示任务历史与处理状态](docs/images/current-web-history.png)
+![FrameFetch Web／桌面同源页面：演示任务历史与处理状态](assets/readme/current-web-history.png)
 
 **素材入口。** 从链接、本地视频或已有文档开始，继续查看处理结果。
 
-![FrameFetch Web／桌面同源工作区：链接、本地视频与剧本文档入口](docs/images/current-web-workspace.png)
+![FrameFetch Web／桌面同源工作区：链接、本地视频与剧本文档入口](assets/readme/current-web-workspace.png)
 
 **文档工作区。** 阅读已有正文，在文档详情调用相容的分析或整理 Skill。
 
-![FrameFetch Web／桌面同源页面：午夜来客演示剧本、场景与分析入口](docs/images/current-web-screenplay.png)
+![FrameFetch Web／桌面同源页面：午夜来客演示剧本、场景与分析入口](assets/readme/current-web-screenplay.png)
 
 以上为 Web 与桌面同源页面，图片由 2026-10-03 当前生产构建的 Electron Renderer 捕获，使用正式 Logo、共享业务组件与主题，未重绘页面。任务记录、城市漫步分析和午夜来客剧本文字均为演示数据，用于说明功能与报告结构，不含真实账户或私人素材。各端界面与构建说明分别见 [App README](https://github.com/StephenQiu30/video-app#readme) 和 [桌面端 README](https://github.com/StephenQiu30/video-electron#readme)。
 
@@ -313,7 +313,7 @@ flowchart LR
 | Electron、React、受控原生能力                           | 原生桌面窗口、受控的文件操作与统一 Server 接入                                            |
 | Redis、Docker Compose、独立宿主 AI Worker               | 限流和短期运行状态，业务服务部署与恢复，媒体/AI 职责和凭据边界清晰                        |
 
-本机 Compose 复用已运行的 PostgreSQL、RabbitMQ、Redis、MinIO 和 Temporal；AI Worker 独立在宿主机运行。目录与生成契约规则见 [PROJECT.md](PROJECT.md)，完整设计见 [文档索引](docs/design/README.md)。
+本机 Compose 复用已运行的 PostgreSQL、RabbitMQ、Redis、MinIO 和 Temporal；AI Worker 独立在宿主机运行。目录与生成契约规则见 [PROJECT.md](PROJECT.md)，完整设计见 [文档索引](workspace/content/design/README.md)。
 
 </details>
 
@@ -342,7 +342,8 @@ pnpm build
 ```text
 backend/                 FastAPI、领域逻辑、Worker、Runner 与当前态 SQL
 frontend/                Next.js App Router、业务组件、Hooks 与 OpenAPI 客户端
-docs/                    系统设计文档与 README 截图资源
+workspace/               文档工作区（Nextra 站点，content/ 为需求、设计与计划）
+harness/                 AI 规范 harness 与规范检查
 backend/Dockerfile       API、Worker、Runner 镜像
 frontend/Dockerfile      Next.js 独立镜像
 docker-compose-env.yml   GitHub CI 隔离测试夹具，不用于本机启动
@@ -352,7 +353,7 @@ docker-compose-prod.yml  生产业务差异
 
 ## 路线图
 
-平台支持与验证限制见[解析引擎](docs/design/14-解析引擎.md#13-验证状态)，其他未完成工作见[BACKLOG](BACKLOG.md)，内置 Skill 实施及验证见[PRD](docs/prd/PRD-内置Skill能力整合.md)与[执行计划](docs/plan/PLAN-内置Skill能力整合.md)。欢迎在 [Issues](https://github.com/StephenQiu30/video-server/issues) 中讨论优先级，带有 `good first issue` / `help wanted` 标签的任务适合首次参与。
+平台支持与验证限制见[解析引擎](workspace/content/design/14-解析引擎.md#13-验证状态)，其他未完成工作见[BACKLOG](BACKLOG.md)，内置 Skill 实施及验证见[PRD](workspace/content/prd/PRD-内置Skill能力整合.md)与[执行计划](workspace/content/plan/PLAN-内置Skill能力整合.md)。欢迎在 [Issues](https://github.com/StephenQiu30/video-server/issues) 中讨论优先级，带有 `good first issue` / `help wanted` 标签的任务适合首次参与。
 
 ## 参与贡献
 
@@ -361,7 +362,7 @@ docker-compose-prod.yml  生产业务差异
 - [贡献指南](CONTRIBUTING.md)
 - [社区行为准则](CODE_OF_CONDUCT.md)
 - [仓库协作规范](AGENTS.md)
-- [文档索引](docs/design/README.md)
+- [文档索引](workspace/content/design/README.md)
 - [安全策略](SECURITY.md)
 
 提交变更时，请保持实现、OpenAPI 契约、测试、运行手册和验收证据一致，并只提交小而完整、可独立验证的改动。
@@ -376,6 +377,6 @@ docker-compose-prod.yml  生产业务差异
 
 FrameFetch 基于 [MIT License](LICENSE) 开源。MIT 许可证授予软件使用、修改和分发权，不代表授予任何第三方媒体内容的下载、复制或分析权。
 
-公开网站的索引配置、生成式搜索可发现性与上线核查见 [Web 体验与 SEO](docs/design/11-Web体验.md)。个人自托管实例默认不开放索引。
+公开网站的索引配置、生成式搜索可发现性与上线核查见 [Web 体验与 SEO](workspace/content/design/11-Web体验.md)。个人自托管实例默认不开放索引。
 
 冷启动矩阵的两种模式、运行时锁、样本证据与文件校验用法见 [Backend README](backend/README.md#冷启动矩阵)。

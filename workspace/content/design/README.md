@@ -1,6 +1,6 @@
 # 系统设计
 
-本目录维护帧取服务端的技术架构、业务规则与验证条件。产品范围见 [PRD](../prd/README.md)，执行计划见 [Plan](../plan/README.md)，工程规范见 [PROJECT.md](../../PROJECT.md)，视觉规范见 [design.md](../../design.md)，运行方式见 [README](../../README.md)。
+本目录维护帧取服务端的技术架构、业务规则与验证条件。产品范围见 [PRD](../prd/README.md)，执行计划见 [Plan](../plan/README.md)，工程规范见 [PROJECT.md](../../../PROJECT.md)，视觉规范见 [design.md](../../../design.md)，运行方式见 [README](../../../README.md)。
 
 | 文档 | 内容 |
 | --- | --- |

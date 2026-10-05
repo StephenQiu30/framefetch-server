@@ -6,7 +6,7 @@ body:
   - type: markdown
     attributes:
       value: |
-        FrameFetch 以 docs/design/README.md 为设计基线交付。请先描述用户问题与价值；移动端交互建议请提交到 video-app。
+        FrameFetch 以 workspace/content/design/README.md 为设计基线交付。请先描述用户问题与价值；移动端交互建议请提交到 video-app。
 
   - type: textarea
     id: problem

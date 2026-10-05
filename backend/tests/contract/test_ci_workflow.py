@@ -9,10 +9,11 @@ def test_ci_is_limited_to_deterministic_system_tests() -> None:
     workflow = yaml.safe_load(WORKFLOW_PATH.read_text(encoding="utf-8"))
     jobs = workflow["jobs"]
 
-    assert set(jobs) == {"backend-tests", "frontend-tests"}
+    assert set(jobs) == {"backend-tests", "frontend-tests", "workspace"}
     assert {job["name"] for job in jobs.values()} == {
         "Backend tests",
         "Frontend tests",
+        "Workspace",
     }
 
     commands = "\n".join(
@@ -63,6 +64,12 @@ def _assert_quality_gates(workflow: dict) -> None:
             "pnpm format:check",
             "pnpm lint",
             "pnpm test",
+            "pnpm build",
+        ),
+        "workspace": (
+            "node harness/check.mjs",
+            "node --test browser-extension/*.test.cjs",
+            "pnpm install --frozen-lockfile",
             "pnpm build",
         ),
     }

@@ -6,7 +6,7 @@ FastAPI API、下载/分析领域逻辑、异步 Worker、当前态数据库 SQL
 
 ## 解析引擎
 
-当前 Runner 通过 Registry 阶梯执行 HTTP 提取、证明准备和浏览器解析，统一使用 egress-proxy 与最终制品校验。宿主身份由 `workers/identity/` 的 cookie-source 和根 `browser-extension/` 的 Chrome 扩展提供。运行命令见[根 README](../README.md)，协议、平台范围和验收状态只在[解析引擎](../docs/design/14-解析引擎.md)与[平台身份](../docs/design/15-平台身份.md)维护。
+当前 Runner 通过 Registry 阶梯执行 HTTP 提取、证明准备和浏览器解析，统一使用 egress-proxy 与最终制品校验。宿主身份由 `workers/identity/` 的 cookie-source 和根 `browser-extension/` 的 Chrome 扩展提供。运行命令见[根 README](../README.md)，协议、平台范围和验收状态只在[解析引擎](../workspace/content/design/14-解析引擎.md)与[平台身份](../workspace/content/design/15-平台身份.md)维护。
 
 浏览器卷只保存浏览器原生状态；身份材料只在 Runner 内存与私有 tmpfs 中存在。样本位于 `scripts/fixtures/`，冷启动矩阵使用 `coldstart_cases.json`。组件健康不证明平台完整文件可用。
 
@@ -38,21 +38,21 @@ Web 登录、注册、退出和 Cookie 写操作都校验精确 Origin（缺失�
 
 浏览器登录、注册和退出通过同源 Web Locks 串行写 Cookie，避免另一标签页迟到的响应覆盖新身份。等待最多 30 秒；等待期间身份变化则取消这次操作，普通读取不占锁。Web 入口须使用 HTTPS（本地开发可用 localhost／回环地址）和支持 Web Locks 的现代浏览器；不支持时明确提示，不降级成无协调的凭据写入。
 
-Media Runner 从 `app/workers/runner/plugins/yt_dlp_plugins/` 加载可信站点提取器；平台差异由 Registry、薄插件与浏览器响应解析函数实现，所有媒体任务共用一个 session-runner。内容、阶梯及身份边界见[解析引擎](../docs/design/14-解析引擎.md)，不以 Generic 提取器或 Cookie 的存在自动开放未知站点。
+Media Runner 从 `app/workers/runner/plugins/yt_dlp_plugins/` 加载可信站点提取器；平台差异由 Registry、薄插件与浏览器响应解析函数实现，所有媒体任务共用一个 session-runner。内容、阶梯及身份边界见[解析引擎](../workspace/content/design/14-解析引擎.md)，不以 Generic 提取器或 Cookie 的存在自动开放未知站点。
 
 管理员只读接口 `GET /api/admin/provider-runtime/engine-catalog` 查询 Runner 实际安装的提取器、插件与版本快照；不会访问平台或读取账号材料，提取器数量不代表可下载的平台数。
 
 本轮保留原页面与表单，恢复 `GET /api/analysis-skills` 及视频／文档原分析创建语义。目录保留默认提示词等原字段，请求支持中／英文与4000字自定义提示词；实际正式契约由OpenAPI生成。优化内置方法加载、完整来源、依据及输出内容，使用适合任务的原结果契约和报告布局，不建立双源工作台。实现及真实验收状态见执行计划。
 
-API 在 PostgreSQL 事务内保存 AnalysisJob／Run、固定来源与 Outbox，宿主 Worker 在 Temporal `ff-skill` 执行；模型调用复用 Step 日志，未知回执不自动重发，方法实际执行类型与资源约束由内置定义控制。没有作品、母稿、人工版本确认、预算表单、文章写作或图卡制作。活动 creation 接口与执行注册清退，原数据库数据保留；既有 analysis 历史 reader 仍校验 owner。正式实现状态和重新验收见[执行计划](../docs/plan/PLAN-内置Skill能力整合.md)。
+API 在 PostgreSQL 事务内保存 AnalysisJob／Run、固定来源与 Outbox，宿主 Worker 在 Temporal `ff-skill` 执行；模型调用复用 Step 日志，未知回执不自动重发，方法实际执行类型与资源约束由内置定义控制。没有作品、母稿、人工版本确认、预算表单、文章写作或图卡制作。活动 creation 接口与执行注册清退，原数据库数据保留；既有 analysis 历史 reader 仍校验 owner。正式实现状态和重新验收见[执行计划](../workspace/content/plan/PLAN-内置Skill能力整合.md)。
 
 内置 `local-codex` 不可删除或改造为第三方结构；模型和线路仅由数据库 Web Profile 决定，`.env` 只保留宿主机 CLI 二进制路径。
 
 ## 资源准入
 
-Registry 的阶梯、出口、identity 与 content_scope 统一遵循[解析引擎](../docs/design/14-解析引擎.md)。`POST /api/download-intents` 在事务提交后返回 202，Outbox 直接启动单 resolve Activity 的 InspectionWorkflow，ff-inspect 保留两个槽。解析使用 120 秒总期限，业务库保存 generation、当前状态、结果及 ExecutionContext，不保存预算或操作账本；取消传播到 Runner 进程组。下载 Job 继续通过 RabbitMQ lease/heartbeat 执行。解析按每日任务计量、零下载字节；同幂等键重放不重复计量。
+Registry 的阶梯、出口、identity 与 content_scope 统一遵循[解析引擎](../workspace/content/design/14-解析引擎.md)。`POST /api/download-intents` 在事务提交后返回 202，Outbox 直接启动单 resolve Activity 的 InspectionWorkflow，ff-inspect 保留两个槽。解析使用 120 秒总期限，业务库保存 generation、当前状态、结果及 ExecutionContext，不保存预算或操作账本；取消传播到 Runner 进程组。下载 Job 继续通过 RabbitMQ lease/heartbeat 执行。解析按每日任务计量、零下载字节；同幂等键重放不重复计量。
 
-高成本路由显式声明速率策略，PostgreSQL 在资源/run/outbox 创建事务内统一检查账户及全局配额。配置入口为 `RATE_LIMIT_POLICIES` 与 `QUOTA_LIMITS`；幂等重放不重复扣减，取消释放活跃名额，物理清理完成后释放保留存储。报告超限是可见的终态失败；取消后迟到的报告只进入清理流程。完整计量口径和生产边界见 [配额与容量](../docs/design/05-准入配额与容量.md)。
+高成本路由显式声明速率策略，PostgreSQL 在资源/run/outbox 创建事务内统一检查账户及全局配额。配置入口为 `RATE_LIMIT_POLICIES` 与 `QUOTA_LIMITS`；幂等重放不重复扣减，取消释放活跃名额，物理清理完成后释放保留存储。报告超限是可见的终态失败；取消后迟到的报告只进入清理流程。完整计量口径和生产边界见 [配额与容量](../workspace/content/design/05-准入配额与容量.md)。
 
 分片上传使用 AWS SDK 的 SigV4 查询签名绑定每片精确长度，MinIO 在接收时拒绝长度不匹配；Next.js 上传代理保留 `Content-Length`。可用隔离 MinIO 运行 `TEST_MINIO_ENDPOINT=... TEST_MINIO_ACCESS_KEY=... TEST_MINIO_SECRET_KEY=... uv run pytest tests/integration/test_upload_size_boundary.py`；设置 `TEST_NEXT_UPLOAD_ORIGIN` 可一并验证独立前端代理。
 
@@ -109,13 +109,13 @@ API 使用 `runtime.py` 定义类型化的 `ApiServices`，在 `app.state.servic
 
 ## 统一 AI API 接入
 
-管理员可在 AI 服务中选择 OpenRouter 或 OpenAI 兼容 API。OpenRouter 使用官方固定 Base URL，读取公开模型目录后选择模型；视频要求图像输入与结构化输出。通用兼容线路自行填写模型、Base URL 和 Key，服务须支持图像与 JSON 输出。API 线路无需 CLI，但现有宿主分析 Worker、FFmpeg 与基础服务仍需运行。修改服务地址或引擎时必须重新提供 Key。设计、能力边界及验收见 [AI 分析](../docs/design/09-AI分析.md)。
+管理员可在 AI 服务中选择 OpenRouter 或 OpenAI 兼容 API。OpenRouter 使用官方固定 Base URL，读取公开模型目录后选择模型；视频要求图像输入与结构化输出。通用兼容线路自行填写模型、Base URL 和 Key，服务须支持图像与 JSON 输出。API 线路无需 CLI，但现有宿主分析 Worker、FFmpeg 与基础服务仍需运行。修改服务地址或引擎时必须重新提供 Key。设计、能力边界及验收见 [AI 分析](../workspace/content/design/09-AI分析.md)。
 
 Web JSON 响应及全局异常统一遵循 [PROJECT.md §3.1](../PROJECT.md#51-响应与异常)。持久化代码在 repositories 内按业务聚合；业务路由使用 ApiResponseRoute，生成契约随注解自动更新。
 
 ## 系统操作日志
 
-管理员日志入口、记录范围、故障语义和部署验证见[解析与处理记录](../docs/design/06-解析意图.md)。
+管理员日志入口、记录范围、故障语义和部署验证见[解析与处理记录](../workspace/content/design/06-解析意图.md)。
 
 
 Temporal 回归默认复用已有服务：地址来自 `TEST_TEMPORAL_ADDRESS`，未设置时使用 `Settings.temporal_address`（默认 `127.0.0.1:7233`）。例如执行 `TEST_TEMPORAL_ADDRESS=127.0.0.1:7233 uv run pytest tests/integration/test_intent_messaging.py tests/integration/test_builtin_skill_workflow.py`。本地测试不启动另一套 Temporal；仅显式设置 `TEST_TEMPORAL_START_LOCAL=true` 时，SDK 才启动隔离测试服务，复用已有 CLI，无 CLI 时下载 v1.8.2；GitHub CI 使用此选项。测试只使用 `framefetch-test` 命名空间和 PostgreSQL 隔离 schema，不消费业务命名空间。测试覆盖确认丢失、Worker 重启、取消、History replay 以及模型调用中断后不重发，不替代真实平台与模型验收。
@@ -138,7 +138,7 @@ backend/.venv/bin/python backend/scripts/coldstart_matrix.py --all
 
 `--platforms a,b` 只运行指定 registered 平台，要求每个平台至少两部不同作品；`--all` 要求样本平台集合与正式 `GET /api/providers` 的 registered 集合严格相等，缺少或多出平台都报错。当前该 API 暴露 25 个 Registry profiles；Generic fallback 和未配置的 PeerTube 不在该集合中。启用新的 registered 平台后必须补充样本，否则全量模式不能运行。脚本不导入 Runner，也不从静态平台状态推断通过。
 
-样本在 `scripts/fixtures/coldstart_cases.json`，每条包含作品 ID、范围、正例/受保护负例、needs_identity、时长来源、可访问性证据和最低规格。视频号 `official_share` 只要求注明日期的匿名分享／元宝／微信官方 feed 元数据对应证据；候选文件时长用于交付一致性校验，报告明确公开免费标签、独立原长与原作品完整性未证实，规则见[平台身份第 6 节](../docs/design/15-平台身份.md#6-视频号元宝解析)。其他范围仍要求独立原长与原有内容范围证据。`verified` 证据须有核实日期；其他范围的独立时长不得来自被测流或历史 yt-dlp 测试预期。当前 fixture 包含待核实候选：缺失该范围要求的证据会在 JSON/Markdown 明确保留，即使文件交付也只能记为阻塞。视频号不把候选文件时长写成独立原长。缺少必需证据的候选不满足[解析引擎第 12 节](../docs/design/14-解析引擎.md#12-冷启动矩阵)的有效正例要求，需要在平台可访问后替换或补齐证据。受保护负例只有独立保护证据成立且 API 返回 content_protected 才记为 `protected_negative`，不参与平台通过判定。平台通过要求全部正例完整通过，至少两部不同作品。
+样本在 `scripts/fixtures/coldstart_cases.json`，每条包含作品 ID、范围、正例/受保护负例、needs_identity、时长来源、可访问性证据和最低规格。视频号 `official_share` 只要求注明日期的匿名分享／元宝／微信官方 feed 元数据对应证据；候选文件时长用于交付一致性校验，报告明确公开免费标签、独立原长与原作品完整性未证实，规则见[平台身份第 6 节](../workspace/content/design/15-平台身份.md#6-视频号元宝解析)。其他范围仍要求独立原长与原有内容范围证据。`verified` 证据须有核实日期；其他范围的独立时长不得来自被测流或历史 yt-dlp 测试预期。当前 fixture 包含待核实候选：缺失该范围要求的证据会在 JSON/Markdown 明确保留，即使文件交付也只能记为阻塞。视频号不把候选文件时长写成独立原长。缺少必需证据的候选不满足[解析引擎第 12 节](../workspace/content/design/14-解析引擎.md#12-冷启动矩阵)的有效正例要求，需要在平台可访问后替换或补齐证据。受保护负例只有独立保护证据成立且 API 返回 content_protected 才记为 `protected_negative`，不参与平台通过判定。平台通过要求全部正例完整通过，至少两部不同作品。
 
 结果、文件、ffprobe、完整解码日志及构建/恢复日志存到 `artifacts/coldstart/<UTC 时间>/`，可用 `--output artifacts/coldstart/<唯一名称>` 指定；目录必须不存在，避免覆盖旧证据。`matrix.json` 与 `matrix.md` 每条完成后更新，保存实际上下文、时长、大小、SHA-256、耗时和安全的失败证据。退出码：0 为选中平台全部通过，1 为完成矩阵但有失败/阻塞，2 为配置、启动或恢复错误。平台通过只依据有效样本的完整交付；阶段运行不能代替全平台验收。
 
@@ -163,4 +163,4 @@ WPC 不复用 Playwright context，也不操作宿主 Chrome。
 独立 Bearer；复用标志不会安装服务、读取配对密钥或绕过身份校验。
 `--reuse-cookie-source` 只允许与 `--platforms` 一起使用，`--all` 会在构建、重启或创建结果目录前拒绝此组合，避免把宿主热服务当作最终冷启动证据。
 机房出口必须实际注入登录身份，仍须两条独立公开、免费、非 DRM
-正例通过完整文件校验；当前可用性与实测结果见[验证状态](../docs/design/14-解析引擎.md#13-验证状态)。
+正例通过完整文件校验；当前可用性与实测结果见[验证状态](../workspace/content/design/14-解析引擎.md#13-验证状态)。

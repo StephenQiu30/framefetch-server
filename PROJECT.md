@@ -33,7 +33,7 @@
 | cookie-source | 宿主 LaunchAgent，`127.0.0.1:19101` | 与身份扩展通信，为 Runner 提供单次操作的身份材料 |
 
 - PostgreSQL 是业务状态的唯一事实来源。跨 PostgreSQL、Temporal、RabbitMQ 的写入使用 transactional outbox；dispatcher 按确定 Workflow ID 直接启动 Temporal，不经 RabbitMQ 中转。
-- 同一业务只由一个引擎调度。分工细节见[工作流编排](docs/design/13-工作流编排.md)，解析引擎见[解析引擎](docs/design/14-解析引擎.md)。
+- 同一业务只由一个引擎调度。分工细节见[工作流编排](workspace/content/design/13-工作流编排.md)，解析引擎见[解析引擎](workspace/content/design/14-解析引擎.md)。
 - 新增后台循环并入 `worker` 作为独立监督组件；只有需要不同凭据或信任边界时才新增容器。
 - 所有业务容器显式设置稳定的 `container_name`。
 
@@ -44,13 +44,28 @@ video-server/
 ├── backend/                  FastAPI、Worker、Runner、当前态 SQL 与测试
 ├── frontend/                 Next.js Web
 ├── browser-extension/        身份扩展源码；manifest.json 与 config.local.json 由安装命令生成，不入库
-├── docs/                     prd/、design/、plan/
+├── workspace/                文档工作区：Nextra 站点，content/ 为 prd/、design/、plan/
+├── harness/                  AI 规范 harness：spec-map.json、hook.mjs、check.mjs
+├── .claude/settings.json     Claude Code hooks，调用 harness/hook.mjs
 ├── assets/                   README 配图
 ├── docker-compose.yml        本机业务容器
 ├── docker-compose-prod.yml   生产业务容器
 ├── docker-compose-env.yml    一次性基础设施夹具，不属于本机启动入口
 └── .env.example              配置模板
 ```
+
+### 3.1 文档工作区
+
+- `workspace/content/` 是产品需求、系统设计与执行计划的唯一位置，也是 Obsidian 库根目录；`.obsidian/app.json` 固定使用相对路径的标准 Markdown 链接，保证 GitHub、Obsidian 与站点解析一致。
+- 站点使用 Nextra（`workspace/`，pnpm 独立管理，监听 8130），目录首页沿用 `README.md`，目录地址重定向到它。指向 `content/` 之外的仓库文件的链接在构建时改写为 GitHub 地址。
+- 站点构建器只读取 `content/`，不维护第二份文档；`_meta.js` 只决定导航顺序与标题。
+
+### 3.2 规范 harness
+
+- `harness/spec-map.json` 是代码路径到规范文档的唯一映射，同时声明受保护路径（生成目录、锁文件、`.env`、上游 Skill）与禁止路径（迁移目录、聚合层、代际命名、`docs/`）。
+- `harness/hook.mjs` 由 `.claude/settings.json` 调用：会话开始注入规范映射；编辑受保护或禁止路径时拒绝；首次触及某领域时注入对应规范；结束前运行改动检查，失败则要求修复。
+- `harness/check.mjs` 检查禁止路径、规范文档的链接与锚点以及映射完整性；本地与 CI 运行同一脚本，覆盖不经过 Claude Code 的改动。
+- 新增业务领域、规范文档或生成目录时同步更新 `spec-map.json`。
 
 ## 4. 后端
 

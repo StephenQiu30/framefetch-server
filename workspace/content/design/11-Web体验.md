@@ -1,6 +1,6 @@
 # Web 体验
 
-视觉与组件规则见 [design.md](../../design.md)，前端目录与页面状态组件见 [PROJECT.md](../../PROJECT.md#6-前端)。
+视觉与组件规则见 [design.md](../../../design.md)，前端目录与页面状态组件见 [PROJECT.md](../../../PROJECT.md#6-前端)。
 
 ## 数据与缓存
 

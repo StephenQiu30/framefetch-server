@@ -202,7 +202,7 @@ export default function SelfHostingPage() {
         </a>
         <a
           className="focus-ring text-sm underline underline-offset-4"
-          href={`${siteConfig.repositoryUrl}/blob/main/docs/design/README.md`}
+          href={`${siteConfig.repositoryUrl}/blob/main/workspace/content/design/README.md`}
         >
           系统设计
         </a>
