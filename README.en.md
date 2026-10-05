@@ -2,7 +2,7 @@
 
 # FrameFetch
 
-Built-in Skill improvements preserve the original pages and forms while improving invocation, film-analysis methods and existing article, WeChat and Xiaohongshu document organization. Implementation and renewed acceptance are in progress. See the [PRD](docs/prd/PRD-内置Skill能力整合.md) and [execution plan](docs/plan/PLAN-内置Skill能力整合.md) for implementation and renewed acceptance evidence (Chinese).
+Built-in Skill improvements preserve the original pages and forms while improving invocation, film-analysis methods and existing article, WeChat and Xiaohongshu document organization. This round of acceptance is complete on the tested platforms. See the [PRD](docs/prd/PRD-内置Skill能力整合.md) and [execution plan](docs/plan/PLAN-内置Skill能力整合.md) for implementation evidence and platform boundaries (Chinese).
 
 **An open-source, self-hosted material acquisition and analysis tool.** Obtain authorized sources, invoke built-in Skills, and read or export reports.
 
@@ -61,7 +61,7 @@ This work preserves original pages, navigation and analysis forms. Skill selecti
 
 Film work prioritizes video review, breakdown and screenplay analysis. Article, WeChat and Xiaohongshu organization works on existing text while protecting facts, quotations, code and links. Reports connect findings to evidence, coverage and limitations and use the original MD/DOCX actions.
 
-Page restoration and real method/output acceptance are in progress. Catalog counts, valid schemas and screenshots from the superseded redesign do not establish completion. See the [PRD](docs/prd/PRD-内置Skill能力整合.md) and [execution plan](docs/plan/PLAN-内置Skill能力整合.md).
+Original pages and invocation, six real model fixtures and MD/DOCX exports passed this round of acceptance. The iOS simulator App passed sign-in, original forms/readers, system file saving and share-sheet cancellation; the packaged macOS arm64 client passed native saving. Saved bytes match the reports. Platform and sample-quality boundaries are recorded in the [execution plan](docs/plan/PLAN-内置Skill能力整合.md); product scope is defined in the [PRD](docs/prd/PRD-内置Skill能力整合.md).
 
 ## One workstation, multiple clients
 
@@ -238,11 +238,11 @@ Local Compose reuses existing PostgreSQL, RabbitMQ, Redis, MinIO and Temporal se
 
 ## Scope and deployment requirements
 
-FrameFetch is in public preview. Built-in Skill work is restoring original pages and improving invocation, methods and output quality. Implementation and acceptance evidence are tracked in the [execution plan](docs/plan/PLAN-内置Skill能力整合.md). CI covers deterministic engineering checks; actual model execution, native file delivery, physical devices and platform cold starts require their own evidence. Screenshots illustrate interfaces and do not establish that validation.
+FrameFetch is in public preview. This round of built-in Skill improvements retains original pages and has passed acceptance on the tested platforms. Results and boundaries are tracked in the [execution plan](docs/plan/PLAN-内置Skill能力整合.md). CI covers deterministic engineering checks; actual model execution, native file delivery, physical devices and platform cold starts require their own evidence. Screenshots illustrate interfaces and do not establish that validation.
 
 - Process authorized HTTP(S), non-DRM material. Registered integrations include YouTube, Bilibili, Douyin, TikTok, Xiaohongshu, Kuaishou and Weibo; actual links depend on content scope, identity, network and platform changes. WeChat Channels supports downloading official clear share files and requires an open, logged-in Yuanbao page; official-account articles provide source discovery. See [design 17](docs/design/17-解析引擎重建.md#8-平台能力与验证边界) for exact platform status and complete-file evidence.
 - Source and build workflows are self-hosted. The operator provides servers, infrastructure, storage, network and models. External models may incur charges and receive the text or frames needed for analysis.
-- Current capabilities cover intake, management, built-in Skill analysis/document formatting, and reports. Method and output acceptance is in progress; mechanical wrapping or initial excerpts do not establish useful document organization. Model conclusions require review. Content writing, screenplay rewriting, card production, ASR/OCR, editing timelines and publishing are outside this scope.
+- Current capabilities cover intake, management, built-in Skill analysis/document formatting, and reports. Method and output fixture results are recorded in the execution plan; mechanical wrapping or initial excerpts do not establish useful document organization. Model conclusions require review. Content writing, screenplay rewriting, card production, ASR/OCR, editing timelines and publishing are outside this scope.
 - Successful material and reports persist; plan capacity, backups and explicit cleanup. See the [Security Policy](SECURITY.md) and parsing design. Replace placeholder configuration and check network, storage and models before exposing a deployment.
 
 ## Development

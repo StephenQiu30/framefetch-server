@@ -4,4 +4,4 @@
 
 | 计划 | 来源 | 状态 |
 | --- | --- | --- |
-| [内置 Skill 能力整合执行计划](PLAN-内置Skill能力整合.md) | [内置 Skill PRD](../prd/PRD-内置Skill能力整合.md) | 原页面恢复、调用／Skill／产出优化，需求追踪、依赖、checklist与真实验收 |
+| [内置 Skill 能力整合执行计划](PLAN-内置Skill能力整合.md) | [内置 Skill PRD](../prd/PRD-内置Skill能力整合.md) | 本轮验收完成；原页面、调用／Skill／产出、原生文件与平台边界证据 |
