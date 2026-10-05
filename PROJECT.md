@@ -1,202 +1,182 @@
-# 项目工程规范
+# video-server 工程规范
 
-本文规定 `video-server` 的目标工程标准，适用于本仓库。标准依据框架官方约定和本项目已明确的需求制定，禁止依据现有目录反推规范。新增与重构代码必须遵守；现有代码仅作为迁移和验收对象。Flutter App 为独立项目，单独维护规范。
+本文规定 `video-server` 的技术栈、进程拓扑、目录职责、接口链路与命名规则。协作与交付见 [AGENTS.md](AGENTS.md)，运行方式见 [README.md](README.md)，界面视觉见 [design.md](design.md)。`video-app` 与 `video-electron` 是独立仓库，各自维护规范。
 
-本文负责技术、目录和依赖规则；AGENTS.md 负责协作与交付；README.md 负责运行方式；design.md 是界面视觉设计的唯一标准来源。发生架构冲突时，以本文和用户最新要求为准。
+## 1. 技术栈
 
-## 1. 技术标准
-
-| 范围 | 规定 |
+| 范围 | 标准 |
 | --- | --- |
-| 后端 | Python、FastAPI、Pydantic；使用 uv 和 uv.lock 管理依赖 |
-| 持久化 | PostgreSQL、SQLAlchemy 异步 Session；数据模型与 HTTP 模型分离 |
-| 前端 | 官方 create-next-app：Next.js App Router、React、TypeScript strict、Tailwind CSS |
-| 组件 | 官方 shadcn CLI 与 Radix 组件；不自行实现平行基础组件库 |
-| 前端依赖 | pnpm；packageManager 固定版本，唯一 pnpm-lock.yaml |
-| 接口契约 | FastAPI 注解自动生成 OpenAPI，Swagger UI 展示同一份契约 |
-| 接口调用 | @umijs/openapi 生成 src/api，统一使用 Axios src/lib/request.ts |
-| 长任务 | 独立 Worker；HTTP 只提交、查询、取消。解析与 Skill 分析使用 Temporal，报告发布、下载与导入使用 RabbitMQ；分工见设计 15，不允许同一业务双引擎调度 |
-| 检查 | 后端 Ruff、mypy、pytest；前端 Biome、TypeScript、Vitest、Next.js build |
+| 后端 | Python 3.12、FastAPI、Pydantic；uv 与 `uv.lock` 管理依赖 |
+| 持久化 | PostgreSQL、SQLAlchemy 异步 Session；当前态结构只在 `backend/sql/schema.sql` |
+| 编排 | Temporal：解析与 Skill 分析；RabbitMQ：下载、导入、报告发布与实时事件 |
+| 媒体 | yt-dlp 与可信插件、bgutil PO Token、浏览器运行时、受控出口代理 |
+| 前端 | Next.js App Router、React、TypeScript strict、Tailwind CSS、shadcn/ui（Radix）、Phosphor |
+| 前端依赖 | pnpm；`packageManager` 固定版本，唯一 `pnpm-lock.yaml` |
+| 接口契约 | FastAPI 注解生成 OpenAPI；`@umijs/openapi` 生成前端 `src/api` |
+| 身份 | 用户普通 Chrome 中的 MV3 扩展 `framefetch-identity` 与宿主 cookie-source |
+| 检查 | 后端 Ruff、mypy、pytest；前端 Biome、TypeScript、Vitest、Next.js build；扩展 `node --test` |
 
-具体版本通过依赖清单与锁文件固定；禁止在本文维护另一份版本快照。新依赖必须承担明确职责，不因脚手架默认包含就保留。
+精确版本只在依赖清单与锁文件中维护。新依赖必须承担明确职责，脚手架默认带入但未使用的依赖应删除。
 
-媒体获取面向单人自部署使用。解析引擎的唯一架构与实施状态见[设计 17](docs/design/17-解析引擎重建.md)。Registry 声明阶梯、出口、identity 与 content_scope；引擎使用 yt-dlp、可信插件、bgutil、browser_runtime、受控出口和完整文件校验。实现状态与平台验收仅在设计 17 第 8 节维护。
+## 2. 进程拓扑
 
-ExecutionContext 按设计 17 第 3.7 节保存十二字段非敏感摘要，贯穿 Runner、检查结果、意图、下载 Job 与制品元数据。解析由单 resolve Activity 在 120 秒期限内执行，不维护策略计划、操作级尝试账本、预算账本、会话代或运营准入；意图的业务 generation/fence、持久截止时间与取消确认保留。下载保留 RabbitMQ lease/heartbeat，Skill 分析保留模型步骤日志与未知调用保护；PostgreSQL 是业务事实来源。Chrome 扩展按来源读取 Cookie 或在 Service Worker 内按限定来源执行固定元宝 HTTP 解析请求，双向 HMAC 认证、Runner 独占 Bearer 鉴权的 `POST /cookies`／`POST /yuanbao-parse`、操作私有 tmpfs 清理及真实验收统一遵循设计 17 第 3.4／8.5 节，不在工程规范另定义协议；视频号按该设计的 official_share 范围接通元宝 HTTP 解析与微信官方文件，复用现有 L3 与下载接口；候选时长不表示独立原作品完整性已证实。
+| 进程 | 运行位置 | 职责 |
+| --- | --- | --- |
+| `api` | Compose，8111 | HTTP 提交、查询、取消；不执行长任务 |
+| `frontend` | Compose，8101 | Next.js standalone，运行时代理与上传流式代理 |
+| `worker` | Compose | 监督 Outbox、下载、导入、报告发布与 Temporal 解析 Worker |
+| `session-runner` | Compose | 隔离的媒体执行进程，不持有数据库、队列、对象存储或 AI 凭据 |
+| `egress-proxy` | Compose | 媒体流量的唯一出口 |
+| `youtube-pot-provider` | Compose | YouTube PO Token |
+| `migrate` | Compose | 幂等执行 `schema.sql` |
+| AI Worker | 宿主 LaunchAgent | 使用宿主已登录的 Codex/Claude CLI 执行 Skill 分析 |
+| cookie-source | 宿主 LaunchAgent，`127.0.0.1:19101` | 与身份扩展通信，为 Runner 提供单次操作的身份材料 |
 
-## 2. FastAPI 工程结构
+- PostgreSQL 是业务状态的唯一事实来源。跨 PostgreSQL、Temporal、RabbitMQ 的写入使用 transactional outbox；dispatcher 按确定 Workflow ID 直接启动 Temporal，不经 RabbitMQ 中转。
+- 同一业务只由一个引擎调度。分工细节见[工作流编排](docs/design/13-工作流编排.md)，解析引擎见[解析引擎](docs/design/14-解析引擎.md)。
+- 新增后台循环并入 `worker` 作为独立监督组件；只有需要不同凭据或信任边界时才新增容器。
+- 所有业务容器显式设置稳定的 `container_name`。
 
-### 2.1 职责边界
+## 3. 仓库结构
 
-本项目采用 api/core/models/schemas/services/repositories/integrations/workers 的职责边界，较大的业务在职责内部聚合；不创建无用途的空目录或统一基类。该目录是本项目的选择，不宣称是 FastAPI 唯一官方架构。
+```text
+video-server/
+├── backend/                  FastAPI、Worker、Runner、当前态 SQL 与测试
+├── frontend/                 Next.js Web
+├── browser-extension/        身份扩展源码；manifest.json 与 config.local.json 由安装命令生成，不入库
+├── docs/                     prd/、design/、plan/
+├── assets/                   README 配图
+├── docker-compose.yml        本机业务容器
+├── docker-compose-prod.yml   生产业务容器
+├── docker-compose-env.yml    一次性基础设施夹具，不属于本机启动入口
+└── .env.example              配置模板
+```
 
-本项目保留 SQLAlchemy 和独立 Pydantic 契约，因此将 models 与 schemas 分开；媒体、AI 和异步任务分别使用 services、integrations、workers。以下是完整目录规范，所有后端源码必须能归入明确职责，禁止在 app 根目录继续堆积辅助文件。
+## 4. 后端
 
-### 2.2 完整目录规范
+### 4.1 目录
 
 ```text
 backend/
-├── Dockerfile / .dockerignore      后端独立构建边界
+├── Dockerfile
 ├── pyproject.toml / uv.lock
-├── app/
-│   ├── __init__.py
-│   ├── main.py                     FastAPI 应用工厂、路由注册、启动入口
-│   ├── api/
-│   │   ├── deps.py                 共享 Depends、认证与请求依赖
-│   │   ├── routes/                 按业务组织的 APIRouter
-│   │   ├── errors.py               全局异常注册、安全错误映射
-│   │   ├── responses.py            类型化成功响应 APIRoute
-│   │   ├── middleware.py           请求限制和安全响应头
-│   │   ├── openapi.py              OpenAPI 元信息与响应声明
-│   │   ├── admission.py            HTTP 限流准入
-│   │   └── upload_signing.py       浏览器上传与下载的 HTTP 地址适配
-│   ├── core/
-│   │   ├── config.py               Settings、限流与配额配置
-│   │   ├── db.py                   Engine、Session、ORM Base
-│   │   ├── errors.py               AppError 公共异常
-│   │   ├── error_codes.py          公开结果码枚举
-│   │   ├── security/               密文与密钥处理
-│   │   ├── composition.py          具体运行资源与业务对象装配
-│   │   ├── runtime.py              类型化运行资源集合、启动与关闭
-│   │   └── lifespan.py             FastAPI lifespan 资源所有权
-│   ├── models/                     SQLAlchemy 持久化实体
-│   ├── schemas/                    Pydantic HTTP 输入与输出契约
-│   ├── repositories/               数据访问和明确的事务所有权
-│   │   ├── analysis/               分析任务、报告、执行租约
-│   │   ├── auth/                   用户、会话与注册验证
-│   │   ├── documents/              剧本导入和目录
-│   │   ├── downloads/              下载任务、历史、进度和恢复
-│   │   ├── imports/                媒体导入
-│   │   ├── providers/              平台目录、探针与冷却状态
-│   │   ├── source_discoveries/     来源发现
-│   │   └── storage_files/          文件目录与清理
-│   ├── services/                   按业务组织操作与业务类型
-│   │   └── <业务>/
-│   │       ├── rules/              该业务的纯规则，仅复杂业务需要
-│   │       └── skills/             分析业务的技能定义与 Markdown 资源
-│   ├── integrations/               存储、队列、邮件、AI 等外部系统适配
-│   └── workers/
-│       ├── analysis/               宿主分析 Worker 与 Agent 管理入口
-│       ├── main.py                 worker 进程入口，监督以下组件
-│       ├── download/               解析与下载组件
-│       ├── imports/                导入组件
-│       ├── outbox/                 Outbox 投递组件
-│       ├── report/                 报告发布组件
-│       ├── dlq/                    死信管理
-│       ├── identity/               宿主 Chrome 扩展 WebSocket 桥与安装入口
-│       └── runner/                 独立隔离的媒体执行进程与可信插件
-├── sql/schema.sql                 当前态数据库结构
-├── egress/                        Runner 出口代理配置
-└── tests/                         单元、集成、契约与架构测试
+├── sql/schema.sql            当前态数据库结构
+├── egress/                   出口代理配置
+├── scripts/                  有实际调用方的运维脚本
+├── tests/                    unit、integration、contract、architecture
+└── app/
+    ├── main.py               应用工厂与路由注册
+    ├── api/                  路由、Depends、异常映射、中间件、OpenAPI 声明
+    │   └── routes/           按业务组织的 APIRouter
+    ├── core/                 配置、数据库、公开错误码、安全、运行资源装配与 lifespan
+    ├── models/               SQLAlchemy 实体
+    ├── schemas/              Pydantic HTTP 契约
+    ├── repositories/<业务>/  数据访问与事务所有权
+    ├── services/<业务>/      业务操作与内部类型；复杂业务可含 rules/，分析业务含 skills/
+    ├── integrations/         存储、队列、邮件、AI 等外部系统适配
+    └── workers/
+        ├── main.py           worker 进程入口
+        ├── outbox/ download/ imports/ report/ dlq/
+        ├── analysis/         宿主 AI Worker
+        ├── identity/         cookie-source 与扩展安装命令
+        └── runner/           媒体执行进程；engine/ 阶梯内核，plugins/ 可信 yt-dlp 插件
 ```
 
-`workers/runner/` 内部按实际边界就近组织，不保留空文件或兼容转发层：
+### 4.2 职责
 
-- `provider_catalog_*.py` 声明各平台的 Profile（访问策略、URL、能力、账号要求、引擎参数）；`provider_registry.py` 统一识别与启动校验；`provider_factories.py` 仅复用确有重复的声明默认值。
-- 平台差异采用函数策略与可信提取器，复用 inspection/download Pipeline；不复制 Workflow、路由、Repository 或生成器框架。Registry 分别声明 identity 与 content_scope，ExecutionContext 保存设计 17 第 3.7 节的十二字段摘要。
-- `_secure_file.py` 管理私有临时文件，`netscape_cookie.py` 保留 Cookie 格式规则；`identity/` 只通过受限普通 Chrome 扩展按声明来源实时取得 Cookie 或固定元宝 HTTP 解析结果及账号摘要，两者分别处理，不读取 Profile、不访问钥匙串、不解密 Cookie。
-
-所有 Python 包有 `__init__.py`；该文件默认不重导出业务符号。调用方直接从定义模块导入，避免用数百行导出清单再建一层公共接口。models 的导入注册用于建立完整 SQLAlchemy metadata，属于必要的初始化行为。
-
-### 2.3 职责与依赖规则
-
-| 目录 | 应当放入 | 不应放入 |
+| 目录 | 放入 | 不放入 |
 | --- | --- | --- |
-| api | 路由、请求认证、HTTP 协议适配 | SQL、后台长任务实现 |
-| core | 配置、运行资源装配与生命周期 | 单一业务的字段、展示转换和用例 |
-| models | ORM 表、索引、约束 | 公开响应 DTO、业务流程 |
-| schemas | 对外请求校验和响应字段 | 数据库访问、内部状态快照 |
-| repositories | 数据操作、事务、原子状态变更 | HTTP 对象、平台下载和 AI 调用 |
-| services | 业务操作、内部类型、纯规则 | FastAPI、数据库和外部 SDK 的具体实现 |
-| integrations | 对外部系统的实际调用和结果适配 | 重复业务规则、通用转发接口 |
-| workers | 消费、调度、进程入口、媒体执行 | Web 路由和重复的业务状态事实 |
+| api | 路由、请求认证、HTTP 协议适配 | SQL、长任务实现 |
+| core | 配置、运行资源装配与生命周期 | 单一业务的字段、展示转换与用例 |
+| models | ORM 表、索引、约束 | 响应 DTO、业务流程 |
+| schemas | 请求校验与响应字段 | 数据库访问、内部状态快照 |
+| repositories | 数据操作、事务、原子状态变更 | HTTP 对象、平台下载、AI 调用 |
+| services | 业务操作、内部类型、纯规则 | FastAPI、数据库与外部 SDK 的具体实现 |
+| integrations | 外部系统调用与结果适配 | 重复的业务规则、通用转发接口 |
+| workers | 消费、调度、进程入口、媒体执行 | Web 路由、重复的业务状态 |
 
-- 根目录只保留 main.py 与包标记；新增顶级包必须先明确无法归入既有职责的原因，并同步本规范。
-- 一个业务的规则与内部类型就近维护，不再设置平行 domain 目录；rules 和 skills 按实际需求创建，不为每个业务预建。
-- 简单业务使用函数或内聚模块；复杂操作确需共享状态时使用类。禁止为每个接口固定创建 Service/Repository/DTO 全套文件，禁止只为改名创建包装或转发文件。
-- 单一部署配置统一在 core/config.py，HTTP 异常统一在 api/errors.py；不得拆出只有一个配置类或一段相同响应包装的平行入口。
-- 业务类型、HTTP schema、ORM 模型各自承担不同边界；只有字段形状和语义完全相同时才复用，不能为减少文件数暴露数据库内部字段。
-- 事务须有明确所有者；文件归类不能改变事务提交、回滚、Outbox 原子性或权限校验。Runner 归入 workers 后仍是独立隔离进程。
-- 路由不反向导入主应用；共享依赖通过 Depends 注入；运行资源通过 lifespan 创建和关闭。导入应用、生成 OpenAPI 不启动外部服务。
-- Python 文件和函数采用 snake_case，类采用 PascalCase。异步路径不执行阻塞 IO 或 CPU 密集工作；使用线程边界或独立 Worker。
-- 自有接口、类与模块按职责直接命名，不新增 `/vN`、`V2`、`_v2` 命名或平行实现；媒体内部路径为 `/internal/inspect`、`/internal/download` 等。迭代时直接修改唯一实现并同步所有调用方，依赖锁定与真实运行版本仍按发布要求维护。
-- `__pycache__` 是 Python 运行缓存，不是源码目录；不得写入 Git。清理可移除缓存，不通过新增脚本控制缓存。
+### 4.3 规则
 
-## 3. Swagger 与生成 API（必须遵守）
+- `app/` 根目录只有 `main.py` 与 `__init__.py`。新增顶级包须说明无法归入既有职责的原因并同步本文。
+- `__init__.py` 不重导出业务符号，调用方从定义模块直接导入；`models` 的导入注册用于构建完整 metadata，属于必要初始化。
+- 不设平行 `domain/` 目录；不为每个接口机械创建 Service/Repository/DTO 全套文件；不建只为改名的包装或转发文件。
+- 业务类型、HTTP schema、ORM 模型各守边界；只有形状与语义完全相同时才复用，不得为减少文件暴露数据库内部字段。
+- 事务有明确所有者；目录调整不得改变提交、回滚、Outbox 原子性或权限校验。
+- 路由不反向导入主应用。共享依赖通过 Depends 提供；运行资源由 `core/runtime.py` 定义为类型化的 `ApiServices`，在 `lifespan` 中创建并挂载到 `app.state.services`，停止时释放。导入应用和生成 OpenAPI 不连接外部服务。
+- API readiness 只检查业务核心依赖，不把单个平台或 Runner 的健康作为全局就绪条件；平台可用性按任务验证。
+- `worker` 与 `session-runner` 的停止宽限覆盖下载有限排空预算；外部操作都设置大小、时长、并发与超时上限，取消时终止整个进程组。
+- 异步路径不执行阻塞 IO 或 CPU 密集工作。
+- Python 文件与函数 `snake_case`，类 `PascalCase`。自有接口、模块与类按职责命名，不使用 `/vN`、`V2`、`_v2`；媒体内部接口统一为 `/internal/<职责>`。外部平台协议地址与依赖版本按实际保留。
+- `__pycache__` 与空目录不入库。
 
-唯一维护链路：**路由装饰器 + Pydantic 模型 → FastAPI /openapi.json → @umijs/openapi → frontend/src/api/**。
+### 4.4 数据库
 
-- `/docs` 展示 Swagger UI；不手写 JSON/YAML 契约，不手动维护平行接口文档。
-- 每个公开操作有稳定且唯一的 operation_id 和业务 tag。字段、错误、分页、可空与二进制响应均在后端注解中声明。
-- 接口类型和请求函数全部自动生成；不得编辑 src/api，禁止复制 DTO 或创建别名聚合层。
-- openapi2ts.config.ts 是唯一生成配置；执行 pnpm openapi，不另写生成包装脚本。
-- 生成请求统一导入 src/lib/request.ts 的 Axios 封装；认证恢复、超时、取消和错误归一化由请求基础设施处理。
-- CI 从后端源码自动导出临时 schema，重新生成并检查 Git 差异。禁止只用旧服务的 Swagger 验证新代码。
-- 后端业务实现、外部对象存储传输和 WebSocket 协议不由 REST 客户端生成器代替。
+- `backend/sql/schema.sql` 是唯一结构来源，可重复执行，描述当前态。
+- 不维护迁移目录、历史 schema 或旧版本兼容逻辑。结构变化同步更新 SQL、ORM 与测试，并分别用空库和已有当前态库验证。
+- 不新增 SQLite 业务库、Cookie 库、文件任务账本、第二调度器或通用 Agent 框架。
 
-### 3.1 全局响应与异常
+## 5. 接口契约
 
-- Web 业务 JSON 统一为 `{ code, message, data }`；成功 code 为 `ok`，data 保持业务模型、列表或 null；错误 data 为 null。保留真实 HTTP 状态码，不将失败转换为 200。
-- `core/error_codes.py` 定义公开 ErrorCode 枚举；业务内部异常保持业务语义，由 `api/errors.py` 唯一映射为公开状态码和安全消息。路由不重复 try/except 转换业务异常。
-- `register_exception_handlers` 在应用工厂一次注册，覆盖业务错误、配额、Starlette HTTPException（含 404/405）、请求校验、响应校验和未捕获异常。中间件的大小限制和超时复用同一响应函数。
-- 保留 Retry-After、Allow、认证 Cookie 清理和安全响应头。未捕获错误仅输出安全消息，普通日志不记录输入、凭据或上游错误文本。
-- Web 路由使用 `ApiResponseRoute`；`schemas/response.py` 的泛型模型参与 FastAPI 序列化和字段校验，Swagger 直接生成封装后的契约。不得仅通过中间件修改 JSON 而保留过时的 OpenAPI。
-- Axios `request.ts` 统一解包业务 data，并把错误映射为 ApiError；页面继续使用业务返回类型，不自行拆包或定义平行响应类型。
-- 204、文件流、Range、WebSocket、健康探针与指标遵循各自协议。独立 App 的 `/api/app/v1` 保持已发布契约；修改需连同 video-app 单独验收。
+唯一链路：**路由装饰器 + Pydantic 模型 → `/openapi.json` → `@umijs/openapi` → `frontend/src/api/`**。`/docs` 提供 Swagger UI。
 
-## 4. 前端目录与文件规则
+- 不手写 JSON/YAML 契约或平行接口文档。每个公开操作有唯一 `operation_id` 与业务 tag；字段、错误、分页、可空与二进制响应都在注解中声明。
+- `frontend/src/api/` 只由生成器写入，禁止手改、复制 DTO 或建别名层。生成配置只在 `frontend/openapi2ts.config.ts`。
+- CI 从后端源码导出 schema，重新生成并检查 Git 差异；不得用运行中的旧服务验证新代码。
+- 文件流、Range、WebSocket、健康探针与指标按各自协议实现，不由 REST 生成器代替。
+- 原生 App 使用 `/api/app/v1` 契约；修改须连同 `video-app` 一起验收。
 
-依据 Next.js 官方文件约定组织路由，采用业务就近放置的源码组织方式。
+### 5.1 响应与异常
+
+- Web 业务 JSON 统一为 `{ code, message, data }`：成功 `code` 为 `ok`；失败 `data` 为 `null`，并保留真实 HTTP 状态码。
+- `core/error_codes.py` 定义公开 `ErrorCode`；`api/errors.py` 是业务异常到公开状态码与安全消息的唯一映射，路由不重复 try/except 转换。
+- `register_exception_handlers` 在应用工厂中注册一次，覆盖业务错误、配额、HTTPException、请求与响应校验及未捕获异常；中间件的大小与超时限制复用同一响应函数。
+- 保留 `Retry-After`、`Allow`、认证 Cookie 清理与安全响应头。未捕获错误只输出安全消息。
+- Web 路由使用 `ApiResponseRoute`，`schemas/response.py` 的泛型模型参与序列化，使 Swagger 直接描述封装后的契约。
+- 前端 `src/lib/request.ts` 统一解包 `data` 并把错误映射为 `ApiError`；页面不自行拆包。
+
+## 6. 前端
 
 ```text
 frontend/
-├── package.json / pnpm-lock.yaml
-├── components.json             shadcn CLI 配置
-├── openapi2ts.config.ts         唯一接口生成配置
+├── components.json           shadcn CLI 配置
+├── openapi2ts.config.ts      唯一接口生成配置
 ├── src/
-│   ├── app/                    page、layout、loading、error、元数据等框架入口
-│   ├── api/                    自动生成的请求函数与类型
+│   ├── app/                  路由、布局、loading、error、元数据
+│   ├── api/                  生成的请求函数与 API.* 类型
 │   ├── components/
-│   │   ├── ui/                 官方 shadcn 基础组件
-│   │   └── <业务>/             业务组件、专用 Hooks 和界面逻辑
-│   ├── hooks/                  跨业务共享的 React Hooks
-│   └── lib/                    Axios、浏览器能力及真正共享的非 React 代码
-├── public/                     产品实际使用的静态资源
-└── tests/                      测试、fixtures 和 helpers
+│   │   ├── ui/               官方 shadcn 组件源码
+│   │   ├── layout/           站点框架与页面状态组件
+│   │   └── <业务>/           业务组件及其专用 Hook
+│   ├── hooks/                跨业务共享的 React Hook
+│   └── lib/                  request.ts、upload/ 等跨业务非 React 代码
+├── public/                   实际使用的静态资源
+└── tests/                    unit、architecture、fixtures、helpers
 ```
 
-- 单页面状态优先在组件内维护；需要独立职责或复用时再拆 Hook，业务专用 Hook 就近放置。
-- 跨业务且使用 React 生命周期的能力进入 hooks；纯函数不能因名称含 use 就成为 Hook。
-- lib 按职责组织，可为复杂共享能力建立子目录；不能把单业务文案、接口别名或 UI 塞入 lib。
-- 不设置平行 services/utils/types 聚合层，不以改变目录名字代替删除无用途抽象。
-- 普通文件 `kebab-case.ts/tsx`，Hook 文件 `use-*.ts`、函数 `useXxx`；Next.js 特殊文件和生成 API 保持工具约定。
-- 接口直接使用 `API.*`；前端独有类型在所属业务附近定义。禁止为类型改名建立文件。
-- UI 优先 Server Component，交互需要时再使用 Client Component；Server-only 能力不能经共享模块导入浏览器。
-- 基础组件使用官方源码与 API；按需安装，不预存未使用组件，不维护假用户、模拟业务入口或演示资产。
+- 业务组件与 Hook 直接调用生成 API，类型直接用 `API.*`；前端独有类型在所属业务附近定义。不设 `services/`、`utils/`、`types/` 聚合层，不建 barrel 或纯转发文件。
+- `src/lib/request.ts` 是唯一 Axios 封装，负责 Cookie、认证恢复、超时、取消与错误归一化；`src/lib/upload/` 承担多步上传与导入编排。
+- Web 身份只用 PostgreSQL 持久化的不透明 HttpOnly Cookie；不做 JWT 刷新，不自动重放业务请求，依赖故障不清空身份。登录跳转只允许同源路径。
+- 优先 Server Component；只有交互、状态或浏览器能力需要时才用 Client Component。Server-only 代码不得经共享模块进入浏览器。
+- 单页面状态留在组件内；需要复用时拆为就近的 Hook，跨业务且依赖 React 生命周期时才进入 `hooks/`。
+- 普通文件 `kebab-case.ts(x)`，Hook 文件 `use-*.ts`、函数 `useXxx`；Next.js 特殊文件与生成 API 保持工具约定。
+- 基础组件按需通过 shadcn CLI 安装，不预存未使用组件，不放假用户、模拟业务入口或演示资产。
 
-### 4.1 页面状态展示
+### 6.1 页面状态
 
-- 页面级或列表级的无数据状态统一使用 `frontend/src/components/layout/page-empty-notice.tsx`；该组件内部使用 Radix/shadcn `Empty`，禁止在业务页面重新实现一套左对齐的空提示结构。
-- 标准结构为居中 `Empty`、`EmptyMedia variant="icon"`、语义化 `EmptyTitle`（页面已有 `h1` 时使用 `h2`）、`EmptyDescription`，以及可选的 `EmptyContent` 主操作。图标必须使用 Phosphor，并标记 `aria-hidden`。
-- 首次为空、页面级无数据使用常规高度；筛选无匹配或局部面板无结果使用 `compact`。说明文案必须告诉用户下一步；存在明确恢复动作时在空状态中提供按钮，同时保留页面头部的稳定入口。
-- 首次请求失败且没有可用数据使用 `PageErrorNotice` 居中展示并提供重试；已有数据刷新失败使用 `FeedbackNotice` 或 Sonner message，不得把请求错误降级成普通空状态。表单字段校验、删除确认和加载骨架属于各自语义，不套用页面空状态。
-- 页面状态必须有稳定的可访问名称、可见焦点和键盘操作；异步反馈使用 `aria-live` 或组件自带的 alert/message 语义。特殊 404 可以保留专属排版，但仍须基于 `Empty` 的居中结构。
+| 场景 | 组件 |
+| --- | --- |
+| 页面或列表无数据 | `components/layout/page-empty-notice.tsx`（内部为 shadcn `Empty`）；筛选无结果用 `compact` |
+| 首次请求失败、无可用数据 | `PageErrorNotice`，居中并提供重试 |
+| 已有数据刷新失败、需持续展示的可恢复错误 | `FeedbackNotice` |
+| 普通操作结果 | Sonner `toast()` |
 
-## 5. 清理与变更规则
+- 空状态说明下一步，存在明确恢复动作时提供按钮；不得把请求错误降级为空状态。
+- 标题层级随页面结构（页面已有 `h1` 时用 `h2`）；图标用 Phosphor 并标记 `aria-hidden`；异步反馈使用 `aria-live` 或组件自带的 alert 语义。
+- 表单校验、删除确认与加载占位各按自身语义实现，不套用页面空状态。
 
-- 创建文件前必须说明独立职责和实际调用方。禁止空目录、纯转发文件、重复类型、备用实现和无用途 barrel。
-- 删除前核对源码、动态加载、框架入口、构建配置和测试；无普通 import 不等于无用，测试引用也不等于生产必需。
-- 删除时同步清理 COPY、命令、依赖、测试夹具与当前文档入口；不通过删除业务回归测试掩盖功能损坏。
-- 前后端分别管理依赖，禁止把独立 App 的规范写入本项目。Secret、本机配置、Cookie、制品、缓存和日志不进入 Git。
-- 不因目录迁移改变公开 URL、权限、数据库语义和消息格式。一次迁移必须覆盖引用、导入入口、测试与部署入口，不保留旧路径兼容层。
+## 7. 清理规则
 
-## 6. 验收与迁移状态
-
-新规范不能用文档提交代替代码验收：
-
-- 后端：Ruff、mypy、pytest；覆盖路由注册、依赖注入、事务成功/回滚、响应字段过滤和 OpenAPI。
-- 前端：format、lint、TypeScript、Vitest、production build；接口变化必须重生成。
-- 镜像或运行入口变化必须验证构建；界面行为变化补浏览器验证；平台下载需真实任务验证。
-- 推送 main 前核对暂存内容和远端状态；推送后检查同一提交的 CI，并报告失败或尚未完成的检查。
-
-后端源码按第 2 节完整结构组织。目录调整必须同步所有导入、资源路径、测试、Compose 进程入口和文档；验收包括 OpenAPI 不变、配置定位、技能资源、HTTP/WebSocket、Worker 导入与镜像构建。
+- 新建文件前明确其职责与实际调用方。禁止空目录、纯转发文件、重复类型、备用实现与无用途 barrel。
+- 删除前核对源码、动态加载、框架入口、构建配置与测试：没有普通 import 不等于无用，被测试引用也不等于生产必需。
+- 删除时同步清理 Dockerfile `COPY`、Compose 命令、依赖、测试夹具与文档入口。
+- 目录调整一次覆盖全部引用、导入入口、测试与部署入口，不保留旧路径；不改变公开 URL、权限、数据库语义与消息格式。

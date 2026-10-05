@@ -50,7 +50,7 @@ docker compose up -d --build --wait --remove-orphans
 
 启动后访问 [Web 工作区](http://localhost:8101)、[Swagger UI](http://localhost:8111/docs) 或 [OpenAPI](http://localhost:8111/openapi.json)。全新空库须先按下文创建首管理员，再登录使用。
 
-所有容器化后台循环（Outbox 投递、解析与下载、导入、报告发布）运行在一个 `worker` 容器中，使用 `RABBITMQ_WORKER_USER` / `RABBITMQ_WORKER_PASS`。该账号须对 `RABBITMQ_VHOST` 中的当前业务队列有受限的 configure/write/read 权限；队列职责见[设计 13](docs/design/13-可靠性与运行.md)。平台身份安装见下文。
+所有容器化后台循环（Outbox 投递、解析与下载、导入、报告发布）运行在一个 `worker` 容器中，使用 `RABBITMQ_WORKER_USER` / `RABBITMQ_WORKER_PASS`。该账号须对 `RABBITMQ_VHOST` 中的当前业务队列有受限的 configure/write/read 权限；队列职责见[可靠性与运行](docs/design/12-可靠性与运行.md)。平台身份安装见下文。
 
 全新空库还没有登录账号时，在部署机终端执行一次首管理员初始化（需使用可连接 PostgreSQL 的 `DATABASE_URL`，密码交互输入，不进入命令行历史）：
 
@@ -70,7 +70,7 @@ uv run --project backend python -m app.workers.bootstrap_admin \
 
 更新前停止 API 接单并排空解析任务，备份现有业务库，再配套发布 API、worker 和 `migrate` 容器。更新使用 `up --build`，不能只 `start` 旧版已退出的迁移容器。回退也需先排空新执行并恢复匹配的结构备份，不允许两套解析执行者并存。
 
-Temporal 的存储与备份由现有服务管理，项目重启只重启业务容器。Temporal 停机期间任务暂停；端口健康不等于平台可以下载。报告发布、下载与导入长期使用 RabbitMQ，分工见[工作流设计](docs/design/15-工作流与平台下载目标.md)。
+Temporal 的存储与备份由现有服务管理，项目重启只重启业务容器。Temporal 停机期间任务暂停；端口健康不等于平台可以下载。报告发布、下载与导入长期使用 RabbitMQ，分工见[工作流设计](docs/design/13-工作流编排.md)。
 
 ### 固定出口与 Clash 住宅节点
 
@@ -119,7 +119,7 @@ listeners:
 
 ### 平台身份与升级
 
-宿主身份服务位于 `backend/app/workers/identity/`，扩展源码位于 `browser-extension/`，遵循[设计 17 第 3.4 节](docs/design/17-解析引擎重建.md#34-身份层)。普通用户 LaunchAgent 只监听 `127.0.0.1:19101`；WebSocket `/extension` 校验固定扩展 Origin 与双向 HMAC，`POST /cookies` 和固定 `POST /yuanbao-parse` 只接受 Runner Bearer。扩展先认证服务端，再按声明来源读取当前普通 Profile 的非分区 Cookie，或在 Service Worker 内执行固定元宝 HTTP 解析请求；Cookie 获取上限 5 秒，元宝解析上限 30 秒，均受操作截止时间约束，不建立材料库。无扩展连接、超时、无必要账号材料分别返回 `extension_disconnected`、`extension_timeout`、`credential_missing`，Runner 保留这些子因。视频号的 HTTP 请求桥已接入，专属解析与下载状态见[第 8.5 节](docs/design/17-解析引擎重建.md#85-视频号元宝解析链路)。
+宿主身份服务位于 `backend/app/workers/identity/`，扩展源码位于 `browser-extension/`，遵循[平台身份设计](docs/design/15-平台身份.md)。普通用户 LaunchAgent 只监听 `127.0.0.1:19101`；WebSocket `/extension` 校验固定扩展 Origin 与双向 HMAC，`POST /cookies` 和固定 `POST /yuanbao-parse` 只接受 Runner Bearer。扩展先认证服务端，再按声明来源读取当前普通 Profile 的非分区 Cookie，或在 Service Worker 内执行固定元宝 HTTP 解析请求；Cookie 获取上限 5 秒，元宝解析上限 30 秒，均受操作截止时间约束，不建立材料库。无扩展连接、超时、无必要账号材料分别返回 `extension_disconnected`、`extension_timeout`、`credential_missing`，Runner 保留这些子因。视频号的 HTTP 请求桥已接入，专属解析与下载状态见[视频号元宝解析](docs/design/15-平台身份.md#6-视频号元宝解析)。
 
 从 `backend/` 执行一次安装：
 
@@ -138,7 +138,7 @@ Compose 仅向 `session-runner` 注入宿主配置中相同的 `COOKIE_SOURCE_TO
 
 扩展使用 20 秒心跳、30 秒 alarm 和上限 30 秒的指数退避，并同步注册启动事件。保活机制依据 [Chrome WebSocket 文档](https://developer.chrome.com/docs/extensions/how-to/web-platform/websockets)；真实关闭 DevTools、睡眠唤醒与各类重启恢复仍须实测。
 
-Runner 身份调用、RunContext 材料所有权和私有 tmpfs 清理统一见设计 17 第 3.4–3.8 节。真实 Chrome 保活、重连与需要身份的完整文件验收状态见第 8 节。
+Runner 身份调用、RunContext 材料所有权和私有 tmpfs 清理统一见[平台身份](docs/design/15-平台身份.md)与[解析引擎第 10 节](docs/design/14-解析引擎.md#10-模块接口)。真实 Chrome 保活、重连与需要身份的完整文件验收状态见[验证状态](docs/design/14-解析引擎.md#13-验证状态)。
 
 升级前暂停接单并排空媒体操作，备份业务库，幂等执行当前 schema.sql，再配套重建 API、worker、session-runner 与前端。生产入口：
 
@@ -154,7 +154,7 @@ curl --fail http://127.0.0.1:8111/health/ready
 curl --fail --head http://127.0.0.1:8101/
 ```
 
-只需要下载与剧本文档导入时，可在 `.env` 中设置 `ANALYSIS_ENABLED=false`。完整的启动、停止、已有基础环境复用和故障恢复方式见[可靠性与运行](docs/design/13-可靠性与运行.md)。更新代码时先执行 `git pull --ff-only`，再按上面的命令构建启动 Compose；`docker compose restart` 不会应用新代码、镜像或环境配置。
+只需要下载与剧本文档导入时，可在 `.env` 中设置 `ANALYSIS_ENABLED=false`。完整的启动、停止、已有基础环境复用和故障恢复方式见[可靠性与运行](docs/design/12-可靠性与运行.md)。更新代码时先执行 `git pull --ff-only`，再按上面的命令构建启动 Compose；`docker compose restart` 不会应用新代码、镜像或环境配置。
 
 </details>
 
@@ -225,7 +225,7 @@ Electron 从安装包读取页面和品牌资源，API 与 WebSocket 连接配�
 
 当前为公开预览阶段。本轮内置 Skill 已按保留原页面、优化调用／方法／产出完成当前平台验收，实际结果与边界见执行计划；平台注册和解析成功不代表完整文件下载通过。CI 覆盖确定性的工程检查，真实模型、平台冷启动、App 真机和桌面实际业务按对应范围独立验证。截图不替代实际调用和文件验收。
 
-- 处理你有权获取和分析的 HTTP(S) 非 DRM 素材。平台接入包括 YouTube、哔哩哔哩、抖音、TikTok、小红书、快手、微博等；具体链接受内容范围、账号、网络和平台变化影响。视频号支持下载微信官方非加密分享文件，需要 Chrome 中已有有效元宝登录，无需打开元宝页面；公众号文章提供来源发现。准确平台状态与完整文件证据见 [设计 17](docs/design/17-解析引擎重建.md#8-平台能力与验证边界)。
+- 处理你有权获取和分析的 HTTP(S) 非 DRM 素材。平台接入包括 YouTube、哔哩哔哩、抖音、TikTok、小红书、快手、微博等；具体链接受内容范围、账号、网络和平台变化影响。视频号支持下载微信官方非加密分享文件，需要 Chrome 中已有有效元宝登录，无需打开元宝页面；公众号文章提供来源发现。准确平台状态与完整文件证据见 [验证状态](docs/design/14-解析引擎.md#13-验证状态)。
 - 提供自托管源码与构建方式。服务器、基础服务、存储、网络和模型由部署者准备，外部模型可能计费；启用外部 AI 会向选定服务发送分析所需的文本或画面。
 - 当前能力覆盖素材获取、管理、内置 Skill 分析／文档整理和报告。方法及输出的真实样本验收见执行计划，不能仅机械换行或截取正文开头就视为整理完成；模型分析须核查。内容写作、剧本改写、图卡制作、ASR／OCR、剪辑和账号发布不在本轮范围内。
 - 成功素材和报告持久保存，管理员应规划容量、备份与显式清理。详细安全要求见 [安全策略](SECURITY.md)与解析设计；对外部署前替换占位配置并核对网络、存储与模型服务。
@@ -352,7 +352,7 @@ docker-compose-prod.yml  生产业务差异
 
 ## 路线图
 
-平台支持与验证限制见[解析引擎](docs/design/17-解析引擎重建.md#8-平台能力与验证边界)，其他未完成工作见[BACKLOG](BACKLOG.md)，内置 Skill 实施及验证见[PRD](docs/prd/PRD-内置Skill能力整合.md)与[执行计划](docs/plan/PLAN-内置Skill能力整合.md)。欢迎在 [Issues](https://github.com/StephenQiu30/video-server/issues) 中讨论优先级，带有 `good first issue` / `help wanted` 标签的任务适合首次参与。
+平台支持与验证限制见[解析引擎](docs/design/14-解析引擎.md#13-验证状态)，其他未完成工作见[BACKLOG](BACKLOG.md)，内置 Skill 实施及验证见[PRD](docs/prd/PRD-内置Skill能力整合.md)与[执行计划](docs/plan/PLAN-内置Skill能力整合.md)。欢迎在 [Issues](https://github.com/StephenQiu30/video-server/issues) 中讨论优先级，带有 `good first issue` / `help wanted` 标签的任务适合首次参与。
 
 ## 参与贡献
 
@@ -376,6 +376,6 @@ docker-compose-prod.yml  生产业务差异
 
 FrameFetch 基于 [MIT License](LICENSE) 开源。MIT 许可证授予软件使用、修改和分发权，不代表授予任何第三方媒体内容的下载、复制或分析权。
 
-公开网站的索引配置、生成式搜索可发现性与上线核查见 [Web 体验与 SEO](docs/design/12-Web体验.md)。个人自托管实例默认不开放索引。
+公开网站的索引配置、生成式搜索可发现性与上线核查见 [Web 体验与 SEO](docs/design/11-Web体验.md)。个人自托管实例默认不开放索引。
 
-冷启动矩阵的两种模式、运行时锁、样本证据与文件校验用法见 [Backend README](backend/README.md#冷启动矩阵设计-17)。
+冷启动矩阵的两种模式、运行时锁、样本证据与文件校验用法见 [Backend README](backend/README.md#冷启动矩阵)。

@@ -560,8 +560,8 @@ def test_collaboration_contract_uses_the_final_execution_design() -> None:
     assert (
         "identity 与 content_scope 是两个独立维度，读取账号材料不等于放宽内容范围。"
     ) in agents
-    assert "设计 17 第 3.7 节的十二字段非敏感摘要" in agents
-    assert "第 3.6 节的十三类" in agents
+    assert "解析引擎第 9 节的十二字段非敏感摘要" in agents
+    assert "第 8 节的十三类" in agents
     assert "layer、stage、gate、结构化 evidence" in agents
     assert "六字段" not in agents
     assert "十类失败" not in agents
