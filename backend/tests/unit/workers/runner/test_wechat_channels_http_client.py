@@ -300,6 +300,11 @@ async def test_transport_success_does_not_validate_business_envelopes_or_tickets
         ("identity_account_conflict", FailureClass.CONTEXT_CHANGED),
         ("extension_timeout", FailureClass.IDENTITY_UNAVAILABLE),
         ("parse_response_invalid", FailureClass.EXTRACTOR_BROKEN),
+        ("yuanbao_response_source_invalid", FailureClass.EXTRACTOR_BROKEN),
+        ("yuanbao_response_size_invalid", FailureClass.EXTRACTOR_BROKEN),
+        ("yuanbao_response_utf8_invalid", FailureClass.EXTRACTOR_BROKEN),
+        ("yuanbao_response_json_invalid", FailureClass.EXTRACTOR_BROKEN),
+        ("yuanbao_response_credential_echo", FailureClass.EXTRACTOR_BROKEN),
         ("parse_request_failed", FailureClass.TRANSIENT),
     ],
 )

@@ -38,7 +38,7 @@ const request = extra => ({ type: 'yuanbao_parse', request_id: ID, site: 'wechat
 async function authenticated(readParse, config = {}) {
   const sent = [];
   const protocol = new Protocol({ pairingKey: KEY, domains: ['instagram.com'], yuanbaoParse: true, ...config },
-    async () => [], value => sent.push(value), '1.3.1', readParse);
+    async () => [], value => sent.push(value), '1.3.2', readParse);
   const peer = 'd'.repeat(64);
   await protocol.receive({ type: 'challenge', nonce: peer });
   await protocol.receive({ type: 'proof', proof: await proof(KEY, 'server', protocol.own, peer) });
@@ -57,6 +57,8 @@ test('account-bound HTTP works without tabs, scripting, DOM or storage and expor
     assert.equal(request.cache, 'no-store');
     assert.equal(request.headers.get('x-id'), ACCOUNT);
     assert.equal(request.headers.get('x-token'), TOKEN);
+    assert.equal(request.headers.get('x-webversion'), '2.87.2');
+    assert.equal(request.headers.get('accept'), 'application/json, text/plain, */*');
     assert.deepEqual(await request.json(), captured().request_body);
     return response();
   });
@@ -108,20 +110,22 @@ test('canonical URL and deadline validation never acquire credentials or send HT
 });
 test('only an exact final HTTP response is accepted, including real authentication errors', async () => {
   for (const options of [{ url: 'https://evil.test/' }, { url: PARSE_URL + '?x=1' }, { redirected: true }]) {
-    assert.deepEqual(await client().run(async () => response({}, options)), { cause: 'parse_response_invalid' });
+    assert.deepEqual(await client().run(async () => response({}, options)), { cause: 'yuanbao_response_source_invalid' });
   }
   assert.deepEqual(await client().run(async () => response({ error: { code: '20000' } }, { status: 401 })),
     { account_id: ACCOUNT, captured: captured({ http_status: 401, payload: { error: { code: '20000' } } }) });
   assert.deepEqual(await client().run(() => { throw new Error(TOKEN); }), { cause: 'parse_request_failed' });
 });
 test('response streaming has a byte limit and rejects malformed JSON, UTF-8 and token echoes', async () => {
-  for (const body of ['{broken', 'null', '[]', { echo: TOKEN }, { value: 'x'.repeat(MAX_CAPTURE_BYTES) }]) {
-    assert.deepEqual(await client().run(async () => response(body)), { cause: 'parse_response_invalid' });
+  for (const [body,cause] of [['{broken', 'yuanbao_response_json_invalid'], ['null', 'yuanbao_response_json_invalid'],
+    ['[]', 'yuanbao_response_json_invalid'], [{ echo: TOKEN }, 'yuanbao_response_credential_echo'],
+    [{ value: 'x'.repeat(MAX_CAPTURE_BYTES) }, 'yuanbao_response_size_invalid']]) {
+    assert.deepEqual(await client().run(async () => response(body)), { cause });
   }
-  assert.deepEqual(await client().run(async () => response({}, { headers: { 'content-length': String(MAX_CAPTURE_BYTES + 1) } })), { cause: 'parse_response_invalid' });
+  assert.deepEqual(await client().run(async () => response({}, { headers: { 'content-length': String(MAX_CAPTURE_BYTES + 1) } })), { cause: 'yuanbao_response_size_invalid' });
   const invalid = new Response(new Uint8Array([0xff]));
   Object.defineProperty(invalid, 'url', { value: PARSE_URL });
-  assert.deepEqual(await client().run(async () => invalid), { cause: 'parse_response_invalid' });
+  assert.deepEqual(await client().run(async () => invalid), { cause: 'yuanbao_response_utf8_invalid' });
 });
 test('cookie account changes reject the response; token rotation for the same account is allowed', async () => {
   const c = client();
@@ -175,7 +179,7 @@ test('authenticated fixed protocol alone may call HTTP parse and normal Cookie r
     calls++; assert.equal(url, SHARE); assert.ok(deadline <= Date.now() + 30000);
     return { account_id: ACCOUNT, captured: captured() };
   };
-  const unauthenticated = new Protocol({ yuanbaoParse: true }, async () => [], () => {}, '1.3.1', reader);
+  const unauthenticated = new Protocol({ yuanbaoParse: true }, async () => [], () => {}, '1.3.2', reader);
   await assert.rejects(unauthenticated.receive(request()), /unauthenticated/);
   assert.equal(calls, 0);
   const { protocol, sent } = await authenticated(reader);

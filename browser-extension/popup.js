@@ -5,6 +5,11 @@ const causeMessages = {
   identity_account_conflict: '元宝账号在解析时发生变化，请确认账号后重新解析。',
   identity_material_invalid: '元宝登录状态暂不可用，请确认登录后重新解析。',
   parse_response_invalid: '元宝解析响应未通过校验，请重新解析。',
+  yuanbao_response_source_invalid: '元宝响应来源不符合固定解析接口，请重新解析。',
+  yuanbao_response_size_invalid: '元宝解析响应超过大小限制，请重新解析。',
+  yuanbao_response_utf8_invalid: '元宝解析响应编码异常，请重新解析。',
+  yuanbao_response_json_invalid: '元宝未返回有效的解析 JSON，请稍后重新解析。',
+  yuanbao_response_credential_echo: '元宝响应包含认证材料，插件已拒绝导出。',
   parse_request_failed: '元宝解析请求失败，请检查网络后重新解析。',
   extension_timeout: '元宝解析请求超时，请检查网络后重新解析。',
 };

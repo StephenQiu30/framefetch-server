@@ -4,7 +4,9 @@
   const PARSE_URL = ORIGIN + '/api/weixin/get_parse_result';
   const MAX_CAPTURE_BYTES = 4 * 1024 * 1024;
   const CAUSES = new Set(['credential_missing', 'identity_material_invalid',
-    'identity_account_conflict', 'parse_response_invalid', 'parse_request_failed', 'extension_timeout']);
+    'identity_account_conflict', 'parse_response_invalid', 'parse_request_failed', 'extension_timeout',
+    'yuanbao_response_source_invalid', 'yuanbao_response_size_invalid', 'yuanbao_response_utf8_invalid',
+    'yuanbao_response_json_invalid', 'yuanbao_response_credential_echo']);
   const validHeader = (value, limit) => typeof value === 'string' && value.length > 0 &&
     value === value.trim() && !/[^\x21-\x7e]/u.test(value) && value.length <= limit;
 
@@ -53,8 +55,8 @@
   }
   async function responsePayload(response, deadline) {
     const length = response.headers.get('content-length');
-    if (length !== null && (!/^\d+$/.test(length) || Number(length) > MAX_CAPTURE_BYTES)) throw new Error('parse_response_invalid');
-    if (!response.body) throw new Error('parse_response_invalid');
+    if (length !== null && (!/^\d+$/.test(length) || Number(length) > MAX_CAPTURE_BYTES)) throw new Error('yuanbao_response_size_invalid');
+    if (!response.body) throw new Error('yuanbao_response_json_invalid');
     const reader = response.body.getReader();
     const decoder = new TextDecoder('utf-8', { fatal: true });
     let size = 0, text = '', complete = false;
@@ -63,15 +65,15 @@
         const chunk = await beforeDeadline(deadline, () => reader.read());
         if (chunk.done) break;
         size += chunk.value.byteLength;
-        if (size > MAX_CAPTURE_BYTES) throw new Error('parse_response_invalid');
+        if (size > MAX_CAPTURE_BYTES) throw new Error('yuanbao_response_size_invalid');
         try { text += decoder.decode(chunk.value, { stream: true }); }
-        catch { throw new Error('parse_response_invalid'); }
+        catch { throw new Error('yuanbao_response_utf8_invalid'); }
       }
       try { text += decoder.decode(); }
-      catch { throw new Error('parse_response_invalid'); }
+      catch { throw new Error('yuanbao_response_utf8_invalid'); }
       let payload;
-      try { payload = JSON.parse(text); } catch { throw new Error('parse_response_invalid'); }
-      if (!payload || typeof payload !== 'object' || Array.isArray(payload)) throw new Error('parse_response_invalid');
+      try { payload = JSON.parse(text); } catch { throw new Error('yuanbao_response_json_invalid'); }
+      if (!payload || typeof payload !== 'object' || Array.isArray(payload)) throw new Error('yuanbao_response_json_invalid');
       complete = true;
       return payload;
     } finally {
@@ -100,7 +102,8 @@
       timer = setTimeout(() => controller.abort(), Math.max(0, deadline - Date.now()));
       const request = new Request(PARSE_URL, {
         method: 'POST', credentials: 'include', redirect: 'error', cache: 'no-store', signal: controller.signal,
-        headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest',
+        headers: { 'Content-Type': 'application/json', 'Accept': 'application/json, text/plain, */*',
+          'X-WebVersion': '2.87.2', 'X-Requested-With': 'XMLHttpRequest',
           'X-ID': initial.account, 'X-Token': initial.token, 'X-Source': 'web', 'X-Instance-ID': '5' },
         body: JSON.stringify({ type: 'video_channel_url', url: canonicalUrl, scene: 1 }),
       });
@@ -108,7 +111,7 @@
       if (accountChanged) throw new Error('identity_account_conflict');
       const response = await beforeDeadline(deadline, () => transport(request));
       if (response.url !== request.url || response.redirected || !Number.isInteger(response.status) ||
-          response.status < 200 || response.status > 599) throw new Error('parse_response_invalid');
+          response.status < 200 || response.status > 599) throw new Error('yuanbao_response_source_invalid');
       const payload = await responsePayload(response, deadline);
       const current = await auth(api, deadline);
       if (accountChanged || current.account !== initial.account) throw new Error('identity_account_conflict');
@@ -116,8 +119,8 @@
         response_url: response.url, http_status: response.status,
         request_body: requestBody, payload };
       const serialized = JSON.stringify(captured);
-      if (new TextEncoder().encode(serialized).length > MAX_CAPTURE_BYTES ||
-          serialized.includes(JSON.stringify(initial.token).slice(1, -1))) throw new Error('parse_response_invalid');
+      if (new TextEncoder().encode(serialized).length > MAX_CAPTURE_BYTES) throw new Error('yuanbao_response_size_invalid');
+      if (serialized.includes(JSON.stringify(initial.token).slice(1, -1))) throw new Error('yuanbao_response_credential_echo');
       return { account_id: initial.account, captured };
     } catch (error) {
       const cause = accountChanged ? 'identity_account_conflict' :

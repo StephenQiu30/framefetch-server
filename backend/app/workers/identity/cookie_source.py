@@ -151,6 +151,11 @@ YUANBAO_PARSE_CAUSES = frozenset(
         "identity_material_invalid",
         "identity_account_conflict",
         "parse_response_invalid",
+        "yuanbao_response_source_invalid",
+        "yuanbao_response_size_invalid",
+        "yuanbao_response_utf8_invalid",
+        "yuanbao_response_json_invalid",
+        "yuanbao_response_credential_echo",
         "parse_request_failed",
         "extension_timeout",
     }

@@ -41,6 +41,7 @@
     const causes = new Set([
       'credential_missing', 'identity_material_invalid', 'identity_account_conflict', 'parse_response_invalid',
       'parse_request_failed', 'extension_timeout',
+      'yuanbao_response_source_invalid', 'yuanbao_response_size_invalid', 'yuanbao_response_utf8_invalid', 'yuanbao_response_json_invalid', 'yuanbao_response_credential_echo',
     ]);
     if (result && Object.keys(result).sort().join(',') === 'cause' && causes.has(result.cause)) return { cause: result.cause };
     if (!result || Object.keys(result).sort().join(',') !== 'account_id,captured' ||

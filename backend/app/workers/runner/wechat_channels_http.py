@@ -37,6 +37,11 @@ _CAUSE_CLASSES = {
     "identity_deadline_invalid": FailureClass.IDENTITY_UNAVAILABLE,
     "identity_source_mismatch": FailureClass.IDENTITY_UNAVAILABLE,
     "parse_response_invalid": FailureClass.EXTRACTOR_BROKEN,
+    "yuanbao_response_source_invalid": FailureClass.EXTRACTOR_BROKEN,
+    "yuanbao_response_size_invalid": FailureClass.EXTRACTOR_BROKEN,
+    "yuanbao_response_utf8_invalid": FailureClass.EXTRACTOR_BROKEN,
+    "yuanbao_response_json_invalid": FailureClass.EXTRACTOR_BROKEN,
+    "yuanbao_response_credential_echo": FailureClass.EXTRACTOR_BROKEN,
     "parse_request_failed": FailureClass.TRANSIENT,
 }
 

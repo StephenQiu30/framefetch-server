@@ -102,6 +102,16 @@ const localizedErrorMessages: Record<string, string> = {
 };
 
 const localizedFailureCauses: Record<string, string> = {
+  'extractor_broken:yuanbao_response_source_invalid':
+    '平台解析响应未通过校验，请稍后重新解析。',
+  'extractor_broken:yuanbao_response_size_invalid':
+    '平台解析响应未通过校验，请稍后重新解析。',
+  'extractor_broken:yuanbao_response_utf8_invalid':
+    '平台解析响应未通过校验，请稍后重新解析。',
+  'extractor_broken:yuanbao_response_json_invalid':
+    '平台解析响应未通过校验，请稍后重新解析。',
+  'extractor_broken:yuanbao_response_credential_echo':
+    '平台解析响应未通过校验，请稍后重新解析。',
   'extractor_broken:parse_response_invalid':
     '平台解析响应未通过校验，请稍后重新解析。',
   'transient:parse_request_failed': '平台解析请求失败，请检查网络后重新解析。',
