@@ -5,7 +5,14 @@ const fs = require('node:fs');
 const { webcrypto } = require('node:crypto');
 const { proof } = require('./protocol.js');
 const KEY = 'synthetic-test-only-pairing-key-32-bytes';
-function worker(chromeApi = {}, transport) {
+async function waitFor(predicate, message) {
+  const deadline = Date.now() + 2000;
+  while (!predicate()) {
+    assert.ok(Date.now() < deadline, message);
+    await new Promise(resolve => setTimeout(resolve, 1));
+  }
+}
+function worker(chromeApi = {}, transport, cryptoApi = webcrypto) {
   const listeners = {}, sockets = [], timers = [], intervals = [], alarms = new Map();
   let now = 0;
   const listener = key => ({ addListener: callback => { listeners[key] = callback; }, removeListener: callback => { if (listeners[key] === callback) delete listeners[key]; } });
@@ -16,7 +23,7 @@ function worker(chromeApi = {}, transport) {
     close() { if (this.readyState !== 3) { this.readyState = 3; this.onclose?.(); } }
   }
   const context = vm.createContext({
-    TextEncoder, TextDecoder, Request, AbortController, URL, crypto: webcrypto, WebSocket, Date: { now: () => now, parse: Date.parse },
+    TextEncoder, TextDecoder, Request, AbortController, URL, crypto: cryptoApi, WebSocket, Date: { now: () => now, parse: Date.parse },
     fetch: async url => { if (typeof url !== 'string') return transport(url); assert.equal(url, 'chrome-extension://test/config.local.json'); return { ok: true, json: async () => ({ pairingKey: KEY, port: 19101, domains: ['instagram.com'], yuanbaoParse: true }) }; },
     chrome: { alarms: { onAlarm: listener('alarm'), get: async name => alarms.get(name), create: async (name, spec) => { alarms.set(name, spec); } },
       declarativeNetRequest: { getEnabledRulesets: async () => ['yuanbao-http'] },
@@ -69,13 +76,24 @@ test('authentication times out after five seconds without Cookie access', async 
   assert.equal(w.sockets[0].sent.length, 0);
 });
 test('20-second heartbeat only after server authentication, stale connection closes after wake', async () => {
-  const w = worker(); await w.flush();
+  const delayedCrypto = {
+    getRandomValues: value => webcrypto.getRandomValues(value),
+    subtle: {
+      importKey: (...args) => webcrypto.subtle.importKey(...args),
+      sign: async (...args) => {
+        await new Promise(resolve => setTimeout(resolve, 25));
+        return webcrypto.subtle.sign(...args);
+      },
+    },
+  };
+  const w = worker({}, undefined, delayedCrypto); await w.flush();
   const ws = w.sockets[0];
   const server = 'd'.repeat(64);
   ws.onmessage({ data: JSON.stringify({ type: 'challenge', nonce: server }) }); await w.flush();
   const own = ws.sent[0].nonce;
+  assert.equal(w.intervals.length, 0);
   ws.onmessage({ data: JSON.stringify({ type: 'proof', proof: await proof(KEY, 'server', own, server) }) });
-  for (let i = 0; i < 20 && !w.intervals.length; i++) await w.flush();
+  await waitFor(() => w.intervals.length === 1, 'authenticated worker must start its heartbeat');
   assert.equal(w.intervals[0].ms, 20000);
   w.intervals[0].fn(); assert.equal(ws.sent.at(-1).type, 'ping');
   w.advance(46000); w.intervals[0].fn();
@@ -103,7 +121,7 @@ test('stalled Cookie APIs return a bounded failure and keep the worker chain usa
       const ws = w.sockets[0], server = 'd'.repeat(64);
       ws.onmessage({ data: JSON.stringify({ type: 'challenge', nonce: server }) }); await w.flush();
       ws.onmessage({ data: JSON.stringify({ type: 'proof', proof: await proof(KEY, 'server', ws.sent[0].nonce, server) }) });
-      for (let i = 0; i < 20 && !w.intervals.length; i++) await w.flush();
+      await waitFor(() => w.intervals.length === 1, 'authenticated worker must start its heartbeat');
       ws.onmessage({ data: JSON.stringify({
         type: 'cookies', request_id: 'c'.repeat(32), domains: ['instagram.com'],
         deadline: new Date(limit === 5000 ? 60000 : limit).toISOString(),
@@ -142,7 +160,7 @@ test('authenticated heartbeats remain responsive during a stalled HTTP identity 
   const ws = w.sockets[0], server = 'd'.repeat(64);
   ws.onmessage({ data: JSON.stringify({ type: 'challenge', nonce: server }) }); await w.flush();
   ws.onmessage({ data: JSON.stringify({ type: 'proof', proof: await proof(KEY, 'server', ws.sent[0].nonce, server) }) });
-  for (let i = 0; i < 20 && !w.intervals.length; i++) await w.flush();
+  await waitFor(() => w.intervals.length === 1, 'authenticated worker must start its heartbeat');
   const request = { type: 'yuanbao_parse', request_id: 'c'.repeat(32), site: 'wechat_channels',
     canonical_share_url: 'https://weixin.qq.com/sph/Synthetic123', deadline: new Date(10).toISOString() };
   ws.onmessage({ data: JSON.stringify(request) });
