@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="192" viewBox="0 0 1200 192" role="img" aria-labelledby="title desc">
+  <title id="title">从素材到报告</title>
+  <desc id="desc">导入有权使用的视频或文档，调用内置 Skill，阅读并导出 Markdown 或 DOCX 报告。</desc>
+  <rect width="1200" height="192" rx="16" fill="#fafafa"/>
+  <g font-family="-apple-system, BlinkMacSystemFont, Segoe UI, PingFang SC, sans-serif"><g transform="translate(56 0)"><text y="50" font-size="22" fill="#737373">01</text><text y="106" font-size="44" font-weight="500" fill="#171717">素材</text><text y="150" font-size="25" fill="#737373">视频 / 文档</text></g><g transform="translate(466 0)"><text y="50" font-size="22" fill="#737373">02</text><text y="106" font-size="44" font-weight="500" fill="#171717">分析</text><text y="150" font-size="25" fill="#737373">内置 Skill</text></g><g transform="translate(876 0)"><text y="50" font-size="22" fill="#737373">03</text><text y="106" font-size="44" font-weight="500" fill="#171717">报告</text><text y="150" font-size="25" fill="#737373">MD / DOCX</text></g></g>
+  <path d="M323 92H377M366 81L377 92L366 103M733 92H787M776 81L787 92L776 103" fill="none" stroke="#737373" stroke-width="3"/>
+</svg>

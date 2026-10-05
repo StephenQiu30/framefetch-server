@@ -1,109 +1,29 @@
-<img src="frontend/public/logo.png" alt="帧取 FrameFetch 正式 Logo" width="88" />
+<p align="center">
+  <img src="assets/readme/hero.svg" width="100%" alt="帧取 · FrameFetch Server / Web — 自托管的素材获取与分析工作站" />
+</p>
 
-# 帧取 · FrameFetch
+# <img src="frontend/public/logo.png" width="36" alt="帧取正式 Logo" /> 帧取 · FrameFetch Server / Web
 
-**开源、自托管的个人素材获取与分析工具。** 获取有权素材，调用内置 Skill，阅读和导出报告。
-
-内置 Skill 按[PRD](docs/prd/PRD-内置Skill能力整合.md)与[执行计划](docs/plan/PLAN-内置Skill能力整合.md)整合，覆盖 Drama 等影视分析与文章、公众号、小红书文档整理。在现有素材入口直接调用，实施与验收事实见执行计划。
+**自托管的素材获取与分析工作站。** 导入有权使用的视频与文档，调用内置 Skill，核对依据并导出 Markdown / DOCX 报告。
 
 [![CI 状态](https://github.com/StephenQiu30/video-server/actions/workflows/ci.yml/badge.svg)](https://github.com/StephenQiu30/video-server/actions/workflows/ci.yml)
 [![MIT License](https://img.shields.io/badge/license-MIT-111111.svg)](LICENSE)
 [![Preview release](https://img.shields.io/github/v/release/StephenQiu30/video-server?include_prereleases&color=111111)](https://github.com/StephenQiu30/video-server/releases)
 
-[产品介绍](#帧取是什么) · [完整工作流](#从素材到报告) · [内置 Skill](#内置-skill) · [各端与架构](#同一工作站多种使用方式) · [快速开始](#快速开始) · [文档](docs/design/README.md) · [English](README.en.md)
+[快速开始](#快速开始) · [从素材到报告](#从素材到报告) · [内置 Skill](#内置-skill) · [使用范围](#使用范围与部署要求) · [设计文档](docs/design/README.md) · [English](README.en.md)
 
-![FrameFetch Web／桌面同源工作区：链接、本地视频与剧本文档入口](docs/images/current-web-workspace.png)
+![FrameFetch Web／桌面同源报告：演示分镜、时间依据与 Markdown／DOCX 导出](docs/images/current-web-ai-report.png)
 
 > 已发布版本的 Web／桌面同源页面演示。当前内置 Skill 范围与真实验收见执行计划。
 
 ## 帧取是什么
 
-帧取（FrameFetch）把素材获取、影视分析和文档整理连接起来。你可以按平台实际能力获取有权使用的视频、图集或有限视频合集，也可以导入自己的视频、剧本和文章。在视频或文档详情选择内置 Skill，沿原语言与提示词表单调用，阅读带来源与依据的报告并导出。图集与视频合集仍以 ZIP 和内置清单交付。
+面向创作者、内容研究者和开发者，帧取把自己的素材与报告放在同一工作站。本仓库提供 **FastAPI 接口、Next.js Web 工作区与后台处理**；[桌面端](https://github.com/StephenQiu30/video-electron)和 [App](https://github.com/StephenQiu30/video-app) 连接同一服务。
 
-本仓库提供 **FastAPI 服务端、Next.js Web 和后台处理组件**。[Electron 桌面端](https://github.com/StephenQiu30/video-electron) 与 [Flutter App](https://github.com/StephenQiu30/video-app) 连接同一服务，共享账户、素材、任务和报告。产品按个人自托管工作站设计，部署者控制基础设施、文件存储和模型配置。
-
-### 五个核心特点
-
-- **素材入口完整**：按平台实际能力接入单视频、图集与有限视频合集；原图或合集视频以包含 `manifest.json` 的 ZIP 交付。本地 MP4 以及 DOCX、文字型 PDF、TXT、Markdown、Fountain 剧本文档进入同一工作区。
-- **依据可回查**：Drama 分析关联固定原文单元；视频观察关联真实帧与源时间，材料版本和 SHA 不被后续修改替换。
-- **内置 Skill 优化**：保留原页面和分析表单，改进调用、影视专业方法及已有文章／公众号／小红书文档的整理内容。
-- **报告直接交付**：复用现有分析任务与历史，阅读结果并导出 MD／DOCX；无需建立作品或确认母稿。
-- **各端协同、自行部署**：浏览器、原生桌面和手机使用同一后端；后台任务持久化，原件与报告集中管理，部署者可配置模型服务并维护运行环境。
-
-## 适用场景
-
-| 你的任务 | 帧取如何帮助 |
-| --- | --- |
-| 学习或复盘成片 | 核对候选切点、真实帧和源时间，补充人工观察与声音笔记 |
-| 对照剧本与视频 | 使用固定剧本和抽样帧审阅候选对应、连续性问题与未覆盖范围 |
-| 分析剧情与剧本 | 按固定原文单元分析人物、因果、节奏和问题，逐条核查引用与编辑建议 |
-| 整理文章与渠道文档 | 直接处理已有正文和结构，保留代码、引文、链接与观点 |
-| 建立个人工具链 | 使用自托管存储、可配置模型服务与 OpenAPI，扩展 Provider、方法或客户端 |
-
-## 从素材到报告
-
-1. **接入**：粘贴单条媒体链接或含单条链接的分享文案，按平台实际能力处理视频、图集或有限视频合集；也可上传 MP4，或导入五种格式的剧本文档。公众号文章仅做来源发现；当前候选不提供下载格式，页面提示官方播放或合法文件导入。
-2. **确认**：链接解析展示媒体信息、访问决策和真实格式；视频按画质、容器、编码与音轨选择输出，图集与合集核对条目数量并确认 ZIP 下载。过期解析结果可以显式刷新，格式变化时重新确认。
-3. **获取**：下载与导入在后台执行，页面显示排队、进度与结果，支持取消、重试和历史找回。本地视频采用受限分片上传，完成后由 Worker 复验。
-4. **管理**：视频保存为经校验的制品，提供详情、预览与文件交付；图集和有限视频合集交付原图／视频 ZIP，包内 `manifest.json` 记录标题、媒体类型与条目数量；剧本保存原件与规范化场景文本。任务、文件与报告在各端使用同一服务数据。
-5. **分析与整理**：在原视频、文档详情选择内置 Skill，设置原语言与提示词后提交。处理失败不改变素材获取成功。
-6. **交付**：阅读报告并核对来源与依据，导出 MD／DOCX。导出失败单独重做，复用已保存结果，不重新调用模型。
-
-### 页面与日常管理
-
-Web 工作区提供解析详情、下载记录、个人处理记录、视频播放、剧本阅读、分析与报告、平台状态及账户设置。快捷操作支持 `⌘K`／`Ctrl+K`；页面提供明暗主题、键盘操作与适配窄屏的布局。活动任务通过 WebSocket 事件更新，重连时重新同步服务端事实。
-
-管理员可以管理用户、文件、平台目录和 AI 服务，查看下载／AI 统计与系统操作日志。文件和报告持久保存，短时访问地址过期不会删除文件；删除和容量清理是显式操作。
-
-## 内置 Skill
-
-本轮优化保留原页面、导航与分析表单，重点改进调用方式、Skill方法和产出内容。原Skill选择、中文／英文、可编辑默认提示词、恢复默认及报告操作保持。
-
-影视方法优先改进视频审阅、拆解及剧本／原著分析。文章、公众号和小红书整理组织已有正文，保护事实、引用、代码和链接，不增加写稿、剪辑、图卡或发布流程。报告说明结论、依据、覆盖与限制，沿原操作导出MD／DOCX。
-
-原页面与正式调用已恢复，六项内置能力的真实样本及MD／DOCX通过；iOS模拟器App的真实登录、原表单、报告、系统保存／分享取消，以及macOS arm64桌面包的系统保存均已验收，保存文件与报告字节一致。其他平台和样本质量的边界见[执行计划](docs/plan/PLAN-内置Skill能力整合.md)，有效范围见[PRD](docs/prd/PRD-内置Skill能力整合.md)。
-
-## 同一工作站，多种使用方式
-
-| 项目 | 角色与特点 |
-| --- | --- |
-| **[video-server](https://github.com/StephenQiu30/video-server)** | FastAPI + Next.js：浏览器工作区、统一接口、媒体处理、AI、存储、报告与管理 |
-| **[video-electron](https://github.com/StephenQiu30/video-electron)** | Electron 桌面客户端：随包 React 页面复用 Web 业务源码，连接自托管 Server；提供原生窗口、菜单、按服务地址隔离的持久会话和系统文件保存对话框 |
-| **[video-app](https://github.com/StephenQiu30/video-app)** | Flutter iOS／Android 客户端：原生文件选择、受控任务轮询、视频播放、报告阅读、保存与分享，连接同一 Server |
-
-桌面端和 App 是同一工作站的客户端，媒体提取、处理和 AI 执行由服务端及宿主 AI Worker 承担。原件、规范化文本和报告保存在部署者配置的服务端存储中，切换客户端无需建立另一套媒体任务或业务库。
-
-Electron 从安装包读取页面和品牌资源，API 与 WebSocket 连接配置的 Server；桌面端无需本机 Next.js 进程或独立数据库。App 使用原生 Flutter 界面和服务端生成契约，手机上不运行媒体提取器或离线模型。
-
-## 公开预览与版本
-
-三个仓库的公开预览连接同一 Server：
-
-| 项目 | 当前预览 | 发行内容 |
-| --- | --- | --- |
-| Server / Web | [v0.3.0-beta.2](https://github.com/StephenQiu30/video-server/releases/tag/v0.3.0-beta.2) | 自托管源码与 Compose 部署方式 |
-| App | [v0.2.0-beta.1](https://github.com/StephenQiu30/video-app/releases/tag/v0.2.0-beta.1) | iOS／Android 源码；未附 APK、IPA 或商店安装包 |
-| Desktop | [v0.2.0-beta.1](https://github.com/StephenQiu30/video-electron/releases/tag/v0.2.0-beta.1) | macOS Apple Silicon DMG、Windows x64 安装包与 SHA-256 清单 |
-
-这些版本均为 Beta 预览。桌面安装包未签名，macOS 未公证；干净安装、升级与真实 Server 完整业务需要独立验证。Git tag 标识发行快照：当前预览内嵌 Server/API/Worker 包版本仍为 `0.2.0`，App 为 `0.1.0+1`，桌面包为 `0.2.0`。部署相关组件时使用匹配源码与服务端契约，不能仅凭 tag 数字判断兼容性。
-
-README 描述当前主分支；固定版本的安装、升级步骤和验证范围以对应 Release 与标签下 README 为准。
-
-## 界面预览
-
-**任务历史。** 查看素材、任务状态和后续操作，从历史回到详情继续处理。
-
-![FrameFetch Web／桌面同源页面：演示任务历史与处理状态](docs/images/current-web-history.png)
-
-**视频报告。** 按章节阅读核心判断、分镜与时间证据，回看原片并导出报告。
-
-![FrameFetch Web／桌面同源页面：城市漫步演示分析、分镜与时间证据](docs/images/current-web-ai-report.png)
-
-**剧本工作区。** 阅读规范化场景、查阅文档并按重点发起审稿或改写。
-
-![FrameFetch Web／桌面同源页面：午夜来客演示剧本、场景与分析入口](docs/images/current-web-screenplay.png)
-
-以上为 Web 与桌面同源页面，图片由 2026-10-03 当前生产构建的 Electron Renderer 捕获，使用正式 Logo、共享业务组件与主题，未重绘页面。任务记录、城市漫步分析和午夜来客剧本文字均为演示数据，用于说明功能与报告结构，不含真实账户或私人素材。各端界面与构建说明分别见 [App README](https://github.com/StephenQiu30/video-app#readme) 和 [桌面端 README](https://github.com/StephenQiu30/video-electron#readme)。
+- **接入素材**：按平台实际能力获取有权使用的媒体，也可导入自己的 MP4 与已有文档。
+- **核对依据**：视频观察关联抽样帧和源时间，文本分析关联原文单元与引用；模型结论需要对照来源核查。
+- **留下报告**：阅读并导出 Markdown / DOCX，重复导出复用已保存结果，不再次调用模型。
+- **控制工作站**：自行配置基础设施、存储与模型；各端共享账户、素材和任务。
 
 ## 快速开始
 
@@ -238,6 +158,9 @@ curl --fail --head http://127.0.0.1:8101/
 
 </details>
 
+<details>
+<summary>启用宿主 AI Worker</summary>
+
 ### 启用 AI 分析
 
 AI Worker 独立运行，不包含在业务 Compose 中。默认线路可以复用宿主机已登录的 Codex App Server；管理员也可在 Web 中配置受支持的模型 Provider。宿主机 Agent 的统一管理入口为：
@@ -258,6 +181,97 @@ uv run python -m app.workers.analysis.agent_cli install --env-file ../.env.prod
 ```
 
 不要把 Codex/Claude OAuth 目录复制或挂载进容器。启用第三方模型前，请使用已获授权样本完成一次真实分析验收，并确认模型服务条款和组织数据策略。
+
+</details>
+
+## 从素材到报告
+
+![从素材到报告](assets/readme/workflow.svg)
+
+1. **接入**：粘贴单条媒体链接或含单条链接的分享文案，按平台实际能力处理视频、图集或有限视频合集；也可上传 MP4，或导入五种格式的剧本文档。公众号文章仅做来源发现；当前候选不提供下载格式，页面提示官方播放或合法文件导入。
+2. **确认**：链接解析展示媒体信息、访问决策和真实格式；视频按画质、容器、编码与音轨选择输出，图集与合集核对条目数量并确认 ZIP 下载。过期解析结果可以显式刷新，格式变化时重新确认。
+3. **获取**：下载与导入在后台执行，页面显示排队、进度与结果，支持取消、重试和历史找回。本地视频采用受限分片上传，完成后由 Worker 复验。
+4. **管理**：视频保存为经校验的制品，提供详情、预览与文件交付；图集和有限视频合集交付原图／视频 ZIP，包内 `manifest.json` 记录标题、媒体类型与条目数量；剧本保存原件与规范化场景文本。任务、文件与报告在各端使用同一服务数据。
+5. **分析与整理**：在原视频、文档详情选择内置 Skill，设置原语言与提示词后提交。处理失败不改变素材获取成功。
+6. **交付**：阅读报告并核对来源与依据，导出 MD／DOCX。导出失败单独重做，复用已保存结果，不重新调用模型。
+
+### 页面与日常管理
+
+Web 工作区提供解析详情、下载记录、个人处理记录、视频播放、剧本阅读、分析与报告、平台状态及账户设置。快捷操作支持 `⌘K`／`Ctrl+K`；页面提供明暗主题、键盘操作与适配窄屏的布局。活动任务通过 WebSocket 事件更新，重连时重新同步服务端事实。
+
+管理员可以管理用户、文件、平台目录和 AI 服务，查看下载／AI 统计与系统操作日志。文件和报告持久保存，短时访问地址过期不会删除文件；删除和容量清理是显式操作。
+
+## 内置 Skill
+
+本轮优化保留原页面、导航与分析表单，重点改进调用方式、Skill 方法和产出内容。原 Skill 选择、中文／英文、可编辑默认提示词、恢复默认及报告操作保持。
+
+影视方法优先改进视频审阅、拆解及剧本／原著分析。文章、公众号和小红书整理组织已有正文，保护事实、引用、代码和链接，不增加写稿、剪辑、图卡或发布流程。报告说明结论、依据、覆盖与限制，沿原操作导出 MD／DOCX。
+
+原页面与正式调用已恢复，六项内置能力的真实样本及 MD／DOCX 通过；iOS 模拟器 App 的真实登录、原表单、报告、系统保存／分享取消，以及 macOS arm64 桌面包的系统保存均已验收，保存文件与报告字节一致。其他平台和样本质量的边界见[执行计划](docs/plan/PLAN-内置Skill能力整合.md)，有效范围见[PRD](docs/prd/PRD-内置Skill能力整合.md)。
+
+## 同一工作站，多种使用方式
+
+| 项目                                                                 | 角色与特点                                                                                                                                 |
+| -------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| **[video-server](https://github.com/StephenQiu30/video-server)**     | FastAPI + Next.js：浏览器工作区、统一接口、媒体处理、AI、存储、报告与管理                                                                  |
+| **[video-electron](https://github.com/StephenQiu30/video-electron)** | Electron 桌面客户端：随包 React 页面复用 Web 业务源码，连接自托管 Server；提供原生窗口、菜单、按服务地址隔离的持久会话和系统文件保存对话框 |
+| **[video-app](https://github.com/StephenQiu30/video-app)**           | Flutter iOS／Android 客户端：原生文件选择、受控任务轮询、视频播放、报告阅读、保存与分享，连接同一 Server                                   |
+
+桌面端和 App 是同一工作站的客户端，媒体提取、处理和 AI 执行由服务端及宿主 AI Worker 承担。原件、规范化文本和报告保存在部署者配置的服务端存储中，切换客户端无需建立另一套媒体任务或业务库。
+
+Electron 从安装包读取页面和品牌资源，API 与 WebSocket 连接配置的 Server；桌面端无需本机 Next.js 进程或独立数据库。App 使用原生 Flutter 界面和服务端生成契约，手机上不运行媒体提取器或离线模型。
+
+## 使用范围与部署要求
+
+当前为公开预览阶段。本轮内置 Skill 已按保留原页面、优化调用／方法／产出完成当前平台验收，实际结果与边界见执行计划；平台注册和解析成功不代表完整文件下载通过。CI 覆盖确定性的工程检查，真实模型、平台冷启动、App 真机和桌面实际业务按对应范围独立验证。截图不替代实际调用和文件验收。
+
+- 处理你有权获取和分析的 HTTP(S) 非 DRM 素材。平台接入包括 YouTube、哔哩哔哩、抖音、TikTok、小红书、快手、微博等；具体链接受内容范围、账号、网络和平台变化影响。视频号支持下载微信官方非加密分享文件，需要保持已登录元宝页面打开；公众号文章提供来源发现。准确平台状态与完整文件证据见 [设计 17](docs/design/17-解析引擎重建.md#8-平台能力与验证边界)。
+- 提供自托管源码与构建方式。服务器、基础服务、存储、网络和模型由部署者准备，外部模型可能计费；启用外部 AI 会向选定服务发送分析所需的文本或画面。
+- 当前能力覆盖素材获取、管理、内置 Skill 分析／文档整理和报告。方法及输出的真实样本验收见执行计划，不能仅机械换行或截取正文开头就视为整理完成；模型分析须核查。内容写作、剧本改写、图卡制作、ASR／OCR、剪辑和账号发布不在本轮范围内。
+- 成功素材和报告持久保存，管理员应规划容量、备份与显式清理。详细安全要求见 [安全策略](SECURITY.md)与解析设计；对外部署前替换占位配置并核对网络、存储与模型服务。
+
+## 公开预览与版本
+
+三个仓库的公开预览连接同一 Server：
+
+| 项目         | 当前预览                                                                                   | 发行内容                                                   |
+| ------------ | ------------------------------------------------------------------------------------------ | ---------------------------------------------------------- |
+| Server / Web | [v0.3.0-beta.2](https://github.com/StephenQiu30/video-server/releases/tag/v0.3.0-beta.2)   | 自托管源码与 Compose 部署方式                              |
+| App          | [v0.2.0-beta.1](https://github.com/StephenQiu30/video-app/releases/tag/v0.2.0-beta.1)      | iOS／Android 源码；未附 APK、IPA 或商店安装包              |
+| Desktop      | [v0.2.0-beta.1](https://github.com/StephenQiu30/video-electron/releases/tag/v0.2.0-beta.1) | macOS Apple Silicon DMG、Windows x64 安装包与 SHA-256 清单 |
+
+这些版本均为 Beta 预览。桌面安装包未签名，macOS 未公证；干净安装、升级与真实 Server 完整业务需要独立验证。Git tag 标识发行快照：当前预览内嵌 Server/API/Worker 包版本仍为 `0.2.0`，App 为 `0.1.0+1`，桌面包为 `0.2.0`。部署相关组件时使用匹配源码与服务端契约，不能仅凭 tag 数字判断兼容性。
+
+README 描述当前主分支；固定版本的安装、升级步骤和验证范围以对应 Release 与标签下 README 为准。
+
+## 界面预览
+
+**任务历史。** 查看素材、任务状态和后续操作，从历史回到详情继续处理。
+
+![FrameFetch Web／桌面同源页面：演示任务历史与处理状态](docs/images/current-web-history.png)
+
+**素材入口。** 从链接、本地视频或已有文档开始，继续查看处理结果。
+
+![FrameFetch Web／桌面同源工作区：链接、本地视频与剧本文档入口](docs/images/current-web-workspace.png)
+
+**文档工作区。** 阅读已有正文，在文档详情调用相容的分析或整理 Skill。
+
+![FrameFetch Web／桌面同源页面：午夜来客演示剧本、场景与分析入口](docs/images/current-web-screenplay.png)
+
+以上为 Web 与桌面同源页面，图片由 2026-10-03 当前生产构建的 Electron Renderer 捕获，使用正式 Logo、共享业务组件与主题，未重绘页面。任务记录、城市漫步分析和午夜来客剧本文字均为演示数据，用于说明功能与报告结构，不含真实账户或私人素材。各端界面与构建说明分别见 [App README](https://github.com/StephenQiu30/video-app#readme) 和 [桌面端 README](https://github.com/StephenQiu30/video-electron#readme)。
+
+<details>
+<summary>适用场景与技术架构</summary>
+
+## 适用场景
+
+| 你的任务           | 帧取如何帮助                                                          |
+| ------------------ | --------------------------------------------------------------------- |
+| 学习或复盘成片     | 核对候选切点、真实帧和源时间，补充人工观察与声音笔记                  |
+| 对照剧本与视频     | 使用固定剧本和抽样帧审阅候选对应、连续性问题与未覆盖范围              |
+| 分析剧情与剧本     | 按固定原文单元分析人物、因果、节奏和问题，逐条核查引用与编辑建议      |
+| 整理文章与渠道文档 | 直接处理已有正文和结构，保留代码、引文、链接与观点                    |
+| 建立个人工具链     | 使用自托管存储、可配置模型服务与 OpenAPI，扩展 Provider、方法或客户端 |
 
 ## 架构
 
@@ -286,29 +300,22 @@ flowchart LR
   API -. WebSocket .-> Browser
 ```
 
-| 技术 | 职责与用户价值 |
-| --- | --- |
-| Next.js、React、TypeScript、Tailwind CSS、Radix／shadcn | 浏览器工作区、可访问控件、响应式页面和结构化报告阅读；Electron 复用业务页面 |
-| Python、FastAPI、Pydantic、OpenAPI | 提交、查询与取消任务，校验请求与结果，自动生成 REST 契约和客户端 |
-| PostgreSQL、SQLAlchemy、Transactional Outbox | 在同一事务保存业务事实与执行意图，后台恢复依据持久状态 |
-| Temporal、RabbitMQ | Temporal 编排解析与 Skill；RabbitMQ 处理下载、导入、报告发布和实时事件；长任务不阻塞 HTTP |
-| yt-dlp、FFmpeg／ffprobe、Playwright、隔离 Runner | 适配平台差异、观察与处理媒体、核对完整文件；隔离媒体处理与请求进程 |
-| MinIO、受限分片上传、短时授权地址 | 存储原件、视频与报告，支持大文件传输和授权取回 |
-| Codex App Server、Claude CLI、HTTP 模型适配器 | 复用自备模型或已有宿主登录；方法与结果结构保持独立 |
-| Flutter、Riverpod、Dio、media_kit | 原生移动输入、任务状态、播放、报告和系统分享；刷新凭据使用系统安全存储 |
-| Electron、React、受控原生能力 | 原生桌面窗口、受控的文件操作与统一 Server 接入 |
-| Redis、Docker Compose、独立宿主 AI Worker | 限流和短期运行状态，业务服务部署与恢复，媒体/AI职责和凭据边界清晰 |
+| 技术                                                    | 职责与用户价值                                                                            |
+| ------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
+| Next.js、React、TypeScript、Tailwind CSS、Radix／shadcn | 浏览器工作区、可访问控件、响应式页面和结构化报告阅读；Electron 复用业务页面               |
+| Python、FastAPI、Pydantic、OpenAPI                      | 提交、查询与取消任务，校验请求与结果，自动生成 REST 契约和客户端                          |
+| PostgreSQL、SQLAlchemy、Transactional Outbox            | 在同一事务保存业务事实与执行意图，后台恢复依据持久状态                                    |
+| Temporal、RabbitMQ                                      | Temporal 编排解析与 Skill；RabbitMQ 处理下载、导入、报告发布和实时事件；长任务不阻塞 HTTP |
+| yt-dlp、FFmpeg／ffprobe、Playwright、隔离 Runner        | 适配平台差异、观察与处理媒体、核对完整文件；隔离媒体处理与请求进程                        |
+| MinIO、受限分片上传、短时授权地址                       | 存储原件、视频与报告，支持大文件传输和授权取回                                            |
+| Codex App Server、Claude CLI、HTTP 模型适配器           | 复用自备模型或已有宿主登录；方法与结果结构保持独立                                        |
+| Flutter、Riverpod、Dio、media_kit                       | 原生移动输入、任务状态、播放、报告和系统分享；刷新凭据使用系统安全存储                    |
+| Electron、React、受控原生能力                           | 原生桌面窗口、受控的文件操作与统一 Server 接入                                            |
+| Redis、Docker Compose、独立宿主 AI Worker               | 限流和短期运行状态，业务服务部署与恢复，媒体/AI 职责和凭据边界清晰                        |
 
 本机 Compose 复用已运行的 PostgreSQL、RabbitMQ、Redis、MinIO 和 Temporal；AI Worker 独立在宿主机运行。目录与生成契约规则见 [PROJECT.md](PROJECT.md)，完整设计见 [文档索引](docs/design/README.md)。
 
-## 使用范围与部署要求
-
-当前为公开预览阶段。本轮内置 Skill 已按保留原页面、优化调用／方法／产出完成当前平台验收，实际结果与边界见执行计划；平台注册和解析成功不代表完整文件下载通过。CI覆盖确定性的工程检查，真实模型、平台冷启动、App真机和桌面实际业务按对应范围独立验证。截图不替代实际调用和文件验收。
-
-- 处理你有权获取和分析的 HTTP(S) 非 DRM 素材。平台接入包括 YouTube、哔哩哔哩、抖音、TikTok、小红书、快手、微博等；具体链接受内容范围、账号、网络和平台变化影响。视频号支持下载微信官方非加密分享文件，需要保持已登录元宝页面打开；公众号文章提供来源发现。准确平台状态与完整文件证据见 [设计 17](docs/design/17-解析引擎重建.md#8-平台能力与验证边界)。
-- 提供自托管源码与构建方式。服务器、基础服务、存储、网络和模型由部署者准备，外部模型可能计费；启用外部 AI 会向选定服务发送分析所需的文本或画面。
-- 当前能力覆盖素材获取、管理、内置 Skill 分析／文档整理和报告。方法及输出的真实样本验收见执行计划，不能仅机械换行或截取正文开头就视为整理完成；模型分析须核查。内容写作、剧本改写、图卡制作、ASR／OCR、剪辑和账号发布不在本轮范围内。
-- 成功素材和报告持久保存，管理员应规划容量、备份与显式清理。详细安全要求见 [安全策略](SECURITY.md)与解析设计；对外部署前替换占位配置并核对网络、存储与模型服务。
+</details>
 
 ## 本地开发
 

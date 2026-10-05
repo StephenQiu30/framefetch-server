@@ -1,109 +1,29 @@
-<img src="frontend/public/logo.png" alt="Official FrameFetch logo" width="88" />
+<p align="center">
+  <img src="assets/readme/hero.en.svg" width="100%" alt="FrameFetch Server / Web — A self-hosted workstation for material acquisition and analysis" />
+</p>
 
-# FrameFetch
+# <img src="frontend/public/logo.png" width="36" alt="Official FrameFetch logo" /> FrameFetch Server / Web
 
-Built-in Skill improvements preserve the original pages and forms while improving invocation, film-analysis methods and existing article, WeChat and Xiaohongshu document organization. This round of acceptance is complete on the tested platforms. See the [PRD](docs/prd/PRD-内置Skill能力整合.md) and [execution plan](docs/plan/PLAN-内置Skill能力整合.md) for implementation evidence and platform boundaries (Chinese).
-
-**An open-source, self-hosted material acquisition and analysis tool.** Obtain authorized sources, invoke built-in Skills, and read or export reports.
+**A self-hosted workstation for material acquisition and analysis.** Import authorized video and documents, invoke built-in Skills, inspect the evidence, and export Markdown / DOCX reports.
 
 [![CI](https://github.com/StephenQiu30/video-server/actions/workflows/ci.yml/badge.svg)](https://github.com/StephenQiu30/video-server/actions/workflows/ci.yml)
 [![MIT License](https://img.shields.io/badge/license-MIT-111111.svg)](LICENSE)
 [![Preview release](https://img.shields.io/github/v/release/StephenQiu30/video-server?include_prereleases&color=111111)](https://github.com/StephenQiu30/video-server/releases)
 
-[Overview](#what-is-framefetch) · [Workflow](#from-material-to-report) · [Built-in Skills](#built-in-skills) · [Clients](#one-workstation-multiple-clients) · [Quick start](#quick-start) · [Documentation](docs/design/README.md) · [简体中文](README.md)
+[Quick start](#quick-start) · [Workflow](#from-material-to-report) · [Skills](#built-in-skills) · [Scope](#scope-and-deployment-requirements) · [Documentation](docs/design/README.md) · [简体中文](README.md)
 
-![Shared FrameFetch Web/desktop workspace: links, local video and screenplay inputs](docs/images/current-web-workspace.png)
+![Shared FrameFetch Web/desktop report: demo shots, time evidence and Markdown/DOCX exports](docs/images/current-web-ai-report.png)
 
 > Shared Web/desktop page demonstration from a released version. See the execution plan for the current Skill scope and real acceptance evidence.
 
 ## What is FrameFetch?
 
-FrameFetch connects material acquisition, film analysis and document organization. Obtain authorized videos, galleries or bounded collections according to each platform's actual capabilities, or import your own video, screenplay or article. Select a built-in Skill from the source details, use the original language and prompt controls, and read or export its report. Galleries and collections retain ZIP delivery with an embedded manifest.
+For creators, content researchers and developers who want to manage their own sources and reports. This repository provides **FastAPI APIs, a Next.js Web workspace and background processing**; [Desktop](https://github.com/StephenQiu30/video-electron) and [App](https://github.com/StephenQiu30/video-app) connect to the same server.
 
-This repository provides the **FastAPI server, Next.js Web application and background processing components**. The [Electron desktop client](https://github.com/StephenQiu30/video-electron) and [Flutter App](https://github.com/StephenQiu30/video-app) connect to the same server and share accounts, material, jobs and reports. The operator controls the infrastructure, storage and model configuration.
-
-### Five core features
-
-- **Complete material intake**: obtain single videos, image galleries and bounded video collections according to the platform's actual capabilities. Original images or collection videos are delivered as ZIP files containing `manifest.json`; local MP4 files and DOCX, text-based PDF, TXT, Markdown and Fountain screenplays enter the same workspace.
-- **Traceable evidence**: Drama findings refer to fixed text units; video observations refer to actual frames and source times. Later edits do not replace the material versions or hashes behind earlier results.
-- **Built-in Skill improvements**: preserve original pages and analysis forms while improving invocation, professional film methods and existing article/WeChat/Xiaohongshu document organization.
-- **Report delivery**: reuse existing analysis jobs and history, read results and export MD/DOCX without creating projects or confirming manuscripts.
-- **Shared clients and self-hosting**: browser, native desktop and mobile clients use one backend, persistent background jobs and centrally managed material and reports. The operator configures model services and maintains the deployment.
-
-## Use cases
-
-| Your task | How FrameFetch helps |
-| --- | --- |
-| Study finished videos | Check candidate cuts, actual frames and source times; add your own visual and sound notes |
-| Compare screenplays and videos | Review candidate matches, continuity findings and uncovered ranges against fixed text and sampled frames |
-| Analyze stories and screenplays | Review characters, causality, pacing and editorial suggestions against fixed text units and exact quotations |
-| Organize articles and channel documents | Format existing text and structure while preserving code, quotations, links and viewpoints |
-| Build a personal toolchain | Extend providers, methods or clients through self-hosted storage, configurable models and OpenAPI |
-
-## From material to report
-
-1. **Bring it in**: paste one media URL or share text containing one URL for a video, gallery or bounded collection according to the platform's actual capabilities. You can also upload an MP4 or import one of five screenplay formats. Official-account articles provide source discovery only. Current discovered candidates expose no download formats; the UI directs you to official playback or authorized file import.
-2. **Confirm**: inspect metadata, access decisions and actual formats. Choose video quality, container, codecs and audio, or check gallery/collection counts and confirm the ZIP download. Explicitly refresh expired results and reconfirm changed formats.
-3. **Obtain**: download and import jobs run in the background with queue states, progress, cancellation, retry and history. Local video uses restricted multipart upload followed by Worker verification.
-4. **Manage**: verified video artifacts provide details, previews and file delivery. Galleries and bounded collections deliver original-image/video ZIP files with `manifest.json` recording the title, media kind and item count. Screenplays retain originals and normalized scene text. All clients use the same server data.
-5. **Analyze or organize**: choose a built-in Skill from existing video or document details and use the original language and prompt controls. Processing failure does not change acquisition success.
-6. **Deliver**: read the report and inspect its sources and evidence, then export MD/DOCX. Export recovery reuses the saved result without another model call.
-
-### Pages and daily management
-
-The Web workspace includes inspection details, download history, personal activity records, video playback, screenplay reading, analysis/reports, provider status and account settings. `⌘K`/`Ctrl+K` opens quick actions. Light/dark themes, keyboard interactions and narrow-screen layouts support everyday use. WebSocket events update active jobs, with server resynchronization after reconnecting.
-
-Administrators manage users, files, provider catalog entries and AI services, and read download/analysis statistics and operation logs. Material and reports persist; expiration of an access URL does not delete the stored file. Deletion and storage cleanup are explicit operations.
-
-## Built-in Skills
-
-This work preserves original pages, navigation and analysis forms. Skill selection, Chinese/English output, editable default prompts, reset and report actions remain. Improvements target invocation, Skill methods and output quality.
-
-Film work prioritizes video review, breakdown and screenplay analysis. Article, WeChat and Xiaohongshu organization works on existing text while protecting facts, quotations, code and links. Reports connect findings to evidence, coverage and limitations and use the original MD/DOCX actions.
-
-Original pages and invocation, six real model fixtures and MD/DOCX exports passed this round of acceptance. The iOS simulator App passed sign-in, original forms/readers, system file saving and share-sheet cancellation; the packaged macOS arm64 client passed native saving. Saved bytes match the reports. Platform and sample-quality boundaries are recorded in the [execution plan](docs/plan/PLAN-内置Skill能力整合.md); product scope is defined in the [PRD](docs/prd/PRD-内置Skill能力整合.md).
-
-## One workstation, multiple clients
-
-| Project | Role and features |
-| --- | --- |
-| **[video-server](https://github.com/StephenQiu30/video-server)** | FastAPI + Next.js: browser workspace, unified API, media processing, AI, storage, reports and administration |
-| **[video-electron](https://github.com/StephenQiu30/video-electron)** | Electron client: bundled React pages reuse Web business source and connect to a self-hosted Server; native windows/menus, persistent per-server sessions and system save dialogs |
-| **[video-app](https://github.com/StephenQiu30/video-app)** | Flutter iOS/Android client: native file selection, controlled job polling, playback, report reading, saving and sharing through the same Server |
-
-Desktop and mobile are clients of the same workstation. The server and host AI Worker perform extraction, media processing and AI execution. Originals, normalized text and reports reside in the configured server storage; switching clients does not create another media pipeline or business database.
-
-Electron reads pages and brand assets from its bundle and connects API/WebSocket requests to the configured Server. It needs no local Next.js process or separate database. The App uses native Flutter views and generated server contracts; it does not run an extractor or offline model on the phone.
-
-## Public previews and versions
-
-The three public previews connect to the same Server:
-
-| Project | Current preview | Distribution |
-| --- | --- | --- |
-| Server / Web | [v0.3.0-beta.2](https://github.com/StephenQiu30/video-server/releases/tag/v0.3.0-beta.2) | Self-hosted source and Compose deployment |
-| App | [v0.2.0-beta.1](https://github.com/StephenQiu30/video-app/releases/tag/v0.2.0-beta.1) | iOS/Android source; no attached APK, IPA or store package |
-| Desktop | [v0.2.0-beta.1](https://github.com/StephenQiu30/video-electron/releases/tag/v0.2.0-beta.1) | macOS Apple Silicon DMG, Windows x64 installer and SHA-256 manifest |
-
-All are Beta previews. Desktop installers are unsigned and the macOS build is not notarized; clean installation, upgrades and complete real-Server workflows require separate validation. Git tags identify release snapshots: embedded Server/API/Worker package versions remain `0.2.0`, App is `0.1.0+1`, and desktop packages are `0.2.0`. Use matching source and Server contracts when deploying; tag numbers alone do not establish compatibility.
-
-This README describes the current main branch. For a fixed version, use its Release and tagged README for installation, upgrades and validation scope.
-
-## Screenshots
-
-**Job history.** View material, processing states and next actions, then return to details to continue.
-
-![Shared FrameFetch Web/desktop pages: demo job history and processing states](docs/images/current-web-history.png)
-
-**Video report.** Read findings, shots and time evidence by section, review the source, and export a report.
-
-![Shared FrameFetch Web/desktop pages: City Walk demo analysis, shots and time evidence](docs/images/current-web-ai-report.png)
-
-**Document reader.** Read existing text and invoke a supported built-in analysis or formatting Skill.
-
-![Shared FrameFetch Web/desktop pages: Midnight Visitor demo screenplay, scenes and analysis entry](docs/images/current-web-screenplay.png)
-
-These shared Web/desktop pages were captured from the current production Electron Renderer on 2026-10-03, using the official logo, shared business components and theme without redrawing the interface. Job records, City Walk analysis and Midnight Visitor screenplay text are demo data illustrating features and report structure, with no real accounts or private material. For client interfaces and builds, see the [App README](https://github.com/StephenQiu30/video-app#readme) and [desktop README](https://github.com/StephenQiu30/video-electron#readme).
+- **Bring in sources**: authorized media links, local MP4 and existing text documents. Availability follows each platform's actual capability.
+- **Review evidence**: video observations refer to sampled frames and source times; text analysis refers to source units and quotations. Check model conclusions against the original.
+- **Keep reports**: read and export Markdown / DOCX. Repeated exports reuse saved results without another model call.
+- **Control your workstation**: choose infrastructure, storage and model services; share accounts, material and jobs across clients.
 
 ## Quick start
 
@@ -173,6 +93,9 @@ Set `ANALYSIS_ENABLED=false` in `.env` when you only need downloads and screenpl
 
 </details>
 
+<details>
+<summary>Enable the host AI worker</summary>
+
 ### Optional AI worker
 
 The AI worker runs on the host and is intentionally not part of the business Compose topology. The default route can reuse a signed-in Codex App Server; administrators may also configure supported model providers in the web application.
@@ -193,6 +116,97 @@ uv run python -m app.workers.analysis.agent_cli install --env-file ../.env.prod
 ```
 
 Do not copy or mount Codex/Claude OAuth directories into containers. Before enabling an external model, complete a real analysis acceptance with authorized material and review the provider's terms and your organization's data policy.
+
+</details>
+
+## From material to report
+
+![From material to report](assets/readme/workflow.en.svg)
+
+1. **Bring it in**: paste one media URL or share text containing one URL for a video, gallery or bounded collection according to the platform's actual capabilities. You can also upload an MP4 or import one of five screenplay formats. Official-account articles provide source discovery only. Current discovered candidates expose no download formats; the UI directs you to official playback or authorized file import.
+2. **Confirm**: inspect metadata, access decisions and actual formats. Choose video quality, container, codecs and audio, or check gallery/collection counts and confirm the ZIP download. Explicitly refresh expired results and reconfirm changed formats.
+3. **Obtain**: download and import jobs run in the background with queue states, progress, cancellation, retry and history. Local video uses restricted multipart upload followed by Worker verification.
+4. **Manage**: verified video artifacts provide details, previews and file delivery. Galleries and bounded collections deliver original-image/video ZIP files with `manifest.json` recording the title, media kind and item count. Screenplays retain originals and normalized scene text. All clients use the same server data.
+5. **Analyze or organize**: choose a built-in Skill from existing video or document details and use the original language and prompt controls. Processing failure does not change acquisition success.
+6. **Deliver**: read the report and inspect its sources and evidence, then export MD/DOCX. Export recovery reuses the saved result without another model call.
+
+### Pages and daily management
+
+The Web workspace includes inspection details, download history, personal activity records, video playback, screenplay reading, analysis/reports, provider status and account settings. `⌘K`/`Ctrl+K` opens quick actions. Light/dark themes, keyboard interactions and narrow-screen layouts support everyday use. WebSocket events update active jobs, with server resynchronization after reconnecting.
+
+Administrators manage users, files, provider catalog entries and AI services, and read download/analysis statistics and operation logs. Material and reports persist; expiration of an access URL does not delete the stored file. Deletion and storage cleanup are explicit operations.
+
+## Built-in Skills
+
+This work preserves original pages, navigation and analysis forms. Skill selection, Chinese/English output, editable default prompts, reset and report actions remain. Improvements target invocation, Skill methods and output quality.
+
+Film work prioritizes video review, breakdown and screenplay analysis. Article, WeChat and Xiaohongshu organization works on existing text while protecting facts, quotations, code and links. Reports connect findings to evidence, coverage and limitations and use the original MD/DOCX actions.
+
+Original pages and invocation, six real model fixtures and MD/DOCX exports passed this round of acceptance. The iOS simulator App passed sign-in, original forms/readers, system file saving and share-sheet cancellation; the packaged macOS arm64 client passed native saving. Saved bytes match the reports. Platform and sample-quality boundaries are recorded in the [execution plan](docs/plan/PLAN-内置Skill能力整合.md); product scope is defined in the [PRD](docs/prd/PRD-内置Skill能力整合.md).
+
+## One workstation, multiple clients
+
+| Project                                                              | Role and features                                                                                                                                                                |
+| -------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **[video-server](https://github.com/StephenQiu30/video-server)**     | FastAPI + Next.js: browser workspace, unified API, media processing, AI, storage, reports and administration                                                                     |
+| **[video-electron](https://github.com/StephenQiu30/video-electron)** | Electron client: bundled React pages reuse Web business source and connect to a self-hosted Server; native windows/menus, persistent per-server sessions and system save dialogs |
+| **[video-app](https://github.com/StephenQiu30/video-app)**           | Flutter iOS/Android client: native file selection, controlled job polling, playback, report reading, saving and sharing through the same Server                                  |
+
+Desktop and mobile are clients of the same workstation. The server and host AI Worker perform extraction, media processing and AI execution. Originals, normalized text and reports reside in the configured server storage; switching clients does not create another media pipeline or business database.
+
+Electron reads pages and brand assets from its bundle and connects API/WebSocket requests to the configured Server. It needs no local Next.js process or separate database. The App uses native Flutter views and generated server contracts; it does not run an extractor or offline model on the phone.
+
+## Scope and deployment requirements
+
+FrameFetch is in public preview. This round of built-in Skill improvements retains original pages and has passed acceptance on the tested platforms. Results and boundaries are tracked in the [execution plan](docs/plan/PLAN-内置Skill能力整合.md). CI covers deterministic engineering checks; actual model execution, native file delivery, physical devices and platform cold starts require their own evidence. Screenshots illustrate interfaces and do not establish that validation.
+
+- Process authorized HTTP(S), non-DRM material. Registered integrations include YouTube, Bilibili, Douyin, TikTok, Xiaohongshu, Kuaishou and Weibo; actual links depend on content scope, identity, network and platform changes. WeChat Channels supports downloading official clear share files and requires an open, logged-in Yuanbao page; official-account articles provide source discovery. See [design 17](docs/design/17-解析引擎重建.md#8-平台能力与验证边界) for exact platform status and complete-file evidence.
+- Source and build workflows are self-hosted. The operator provides servers, infrastructure, storage, network and models. External models may incur charges and receive the text or frames needed for analysis.
+- Current capabilities cover intake, management, built-in Skill analysis/document formatting, and reports. Method and output fixture results are recorded in the execution plan; mechanical wrapping or initial excerpts do not establish useful document organization. Model conclusions require review. Content writing, screenplay rewriting, card production, ASR/OCR, editing timelines and publishing are outside this scope.
+- Successful material and reports persist; plan capacity, backups and explicit cleanup. See the [Security Policy](SECURITY.md) and parsing design. Replace placeholder configuration and check network, storage and models before exposing a deployment.
+
+## Public previews and versions
+
+The three public previews connect to the same Server:
+
+| Project      | Current preview                                                                            | Distribution                                                        |
+| ------------ | ------------------------------------------------------------------------------------------ | ------------------------------------------------------------------- |
+| Server / Web | [v0.3.0-beta.2](https://github.com/StephenQiu30/video-server/releases/tag/v0.3.0-beta.2)   | Self-hosted source and Compose deployment                           |
+| App          | [v0.2.0-beta.1](https://github.com/StephenQiu30/video-app/releases/tag/v0.2.0-beta.1)      | iOS/Android source; no attached APK, IPA or store package           |
+| Desktop      | [v0.2.0-beta.1](https://github.com/StephenQiu30/video-electron/releases/tag/v0.2.0-beta.1) | macOS Apple Silicon DMG, Windows x64 installer and SHA-256 manifest |
+
+All are Beta previews. Desktop installers are unsigned and the macOS build is not notarized; clean installation, upgrades and complete real-Server workflows require separate validation. Git tags identify release snapshots: embedded Server/API/Worker package versions remain `0.2.0`, App is `0.1.0+1`, and desktop packages are `0.2.0`. Use matching source and Server contracts when deploying; tag numbers alone do not establish compatibility.
+
+This README describes the current main branch. For a fixed version, use its Release and tagged README for installation, upgrades and validation scope.
+
+## Screenshots
+
+**Job history.** View material, processing states and next actions, then return to details to continue.
+
+![Shared FrameFetch Web/desktop pages: demo job history and processing states](docs/images/current-web-history.png)
+
+**Material intake.** Start with a link, local video or existing document, then continue to processing results.
+
+![Shared FrameFetch Web/desktop workspace: links, local video and screenplay inputs](docs/images/current-web-workspace.png)
+
+**Document reader.** Read existing text and invoke a supported built-in analysis or formatting Skill.
+
+![Shared FrameFetch Web/desktop pages: Midnight Visitor demo screenplay, scenes and analysis entry](docs/images/current-web-screenplay.png)
+
+These shared Web/desktop pages were captured from the current production Electron Renderer on 2026-10-03, using the official logo, shared business components and theme without redrawing the interface. Job records, City Walk analysis and Midnight Visitor screenplay text are demo data illustrating features and report structure, with no real accounts or private material. For client interfaces and builds, see the [App README](https://github.com/StephenQiu30/video-app#readme) and [desktop README](https://github.com/StephenQiu30/video-electron#readme).
+
+<details>
+<summary>Use cases and technical architecture</summary>
+
+## Use cases
+
+| Your task                               | How FrameFetch helps                                                                                         |
+| --------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
+| Study finished videos                   | Check candidate cuts, actual frames and source times; add your own visual and sound notes                    |
+| Compare screenplays and videos          | Review candidate matches, continuity findings and uncovered ranges against fixed text and sampled frames     |
+| Analyze stories and screenplays         | Review characters, causality, pacing and editorial suggestions against fixed text units and exact quotations |
+| Organize articles and channel documents | Format existing text and structure while preserving code, quotations, links and viewpoints                   |
+| Build a personal toolchain              | Extend providers, methods or clients through self-hosted storage, configurable models and OpenAPI            |
 
 ## Architecture
 
@@ -221,29 +235,22 @@ flowchart LR
   API -. WebSocket .-> Browser
 ```
 
-| Technologies | Role and user value |
-| --- | --- |
-| Next.js, React, TypeScript, Tailwind CSS, Radix/shadcn | Browser workspace, accessible controls, responsive pages and report reading; Electron reuses business pages |
-| Python, FastAPI, Pydantic, OpenAPI | Submit, query and cancel jobs, validate requests/results, and generate REST contracts and clients |
-| PostgreSQL, SQLAlchemy, Transactional Outbox | Store facts and execution intent in one transaction; recover through persistent state |
-| Temporal, RabbitMQ | Orchestrate inspection/Skills and execute downloads, imports, report publishing and live events outside HTTP |
-| yt-dlp, FFmpeg/ffprobe, Playwright, isolated Runner | Adapt platform differences, observe/process media and verify complete files, separate from requests |
-| MinIO, restricted multipart uploads, short-lived authorized URLs | Store originals, video and reports, transfer large files and authorize retrieval |
-| Codex App Server, Claude CLI, HTTP model adapters | Reuse configured models or existing host login while keeping methods and output structure independent |
-| Flutter, Riverpod, Dio, media_kit | Native mobile input, job states, playback, reports and system sharing; secure storage holds refresh credentials |
-| Electron, React, controlled native capabilities | Native desktop windows, controlled file operations and a shared Server connection |
-| Redis, Docker Compose, separate host AI Worker | Rate limiting, temporary runtime state, service deployment/recovery and clear media/AI responsibility |
+| Technologies                                                     | Role and user value                                                                                             |
+| ---------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
+| Next.js, React, TypeScript, Tailwind CSS, Radix/shadcn           | Browser workspace, accessible controls, responsive pages and report reading; Electron reuses business pages     |
+| Python, FastAPI, Pydantic, OpenAPI                               | Submit, query and cancel jobs, validate requests/results, and generate REST contracts and clients               |
+| PostgreSQL, SQLAlchemy, Transactional Outbox                     | Store facts and execution intent in one transaction; recover through persistent state                           |
+| Temporal, RabbitMQ                                               | Orchestrate inspection/Skills and execute downloads, imports, report publishing and live events outside HTTP    |
+| yt-dlp, FFmpeg/ffprobe, Playwright, isolated Runner              | Adapt platform differences, observe/process media and verify complete files, separate from requests             |
+| MinIO, restricted multipart uploads, short-lived authorized URLs | Store originals, video and reports, transfer large files and authorize retrieval                                |
+| Codex App Server, Claude CLI, HTTP model adapters                | Reuse configured models or existing host login while keeping methods and output structure independent           |
+| Flutter, Riverpod, Dio, media_kit                                | Native mobile input, job states, playback, reports and system sharing; secure storage holds refresh credentials |
+| Electron, React, controlled native capabilities                  | Native desktop windows, controlled file operations and a shared Server connection                               |
+| Redis, Docker Compose, separate host AI Worker                   | Rate limiting, temporary runtime state, service deployment/recovery and clear media/AI responsibility           |
 
 Local Compose reuses existing PostgreSQL, RabbitMQ, Redis, MinIO and Temporal services; the AI Worker runs separately on the host. See [PROJECT.md](PROJECT.md) for structure/contracts and the [documentation index](docs/design/README.md) for maintained design (Chinese).
 
-## Scope and deployment requirements
-
-FrameFetch is in public preview. This round of built-in Skill improvements retains original pages and has passed acceptance on the tested platforms. Results and boundaries are tracked in the [execution plan](docs/plan/PLAN-内置Skill能力整合.md). CI covers deterministic engineering checks; actual model execution, native file delivery, physical devices and platform cold starts require their own evidence. Screenshots illustrate interfaces and do not establish that validation.
-
-- Process authorized HTTP(S), non-DRM material. Registered integrations include YouTube, Bilibili, Douyin, TikTok, Xiaohongshu, Kuaishou and Weibo; actual links depend on content scope, identity, network and platform changes. WeChat Channels supports downloading official clear share files and requires an open, logged-in Yuanbao page; official-account articles provide source discovery. See [design 17](docs/design/17-解析引擎重建.md#8-平台能力与验证边界) for exact platform status and complete-file evidence.
-- Source and build workflows are self-hosted. The operator provides servers, infrastructure, storage, network and models. External models may incur charges and receive the text or frames needed for analysis.
-- Current capabilities cover intake, management, built-in Skill analysis/document formatting, and reports. Method and output fixture results are recorded in the execution plan; mechanical wrapping or initial excerpts do not establish useful document organization. Model conclusions require review. Content writing, screenplay rewriting, card production, ASR/OCR, editing timelines and publishing are outside this scope.
-- Successful material and reports persist; plan capacity, backups and explicit cleanup. See the [Security Policy](SECURITY.md) and parsing design. Replace placeholder configuration and check network, storage and models before exposing a deployment.
+</details>
 
 ## Development
 

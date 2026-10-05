@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="420" viewBox="0 0 1200 420" role="img" aria-labelledby="title desc">
+  <title id="title">FrameFetch Server / Web</title>
+  <desc id="desc">素材获取、分析与报告 在自己的工作站完成。 示意：从素材到报告. The diagram is conceptual, not a product screenshot.</desc>
+  <rect width="1200" height="420" rx="16" fill="#fafafa"/>
+  <g id="identity" font-family="-apple-system, BlinkMacSystemFont, Segoe UI, PingFang SC, sans-serif">
+    <text x="56" y="62" font-size="25" fill="#737373">FRAMEFETCH / SERVER / WEB</text>
+    <text x="52" y="161" font-size="84" font-weight="600" letter-spacing="-3" fill="#171717">FrameFetch</text>
+    <text x="56" y="235" font-size="42" font-weight="500" fill="#171717">素材获取、分析与报告</text>
+    <text x="56" y="289" font-size="42" font-weight="500" fill="#171717">在自己的工作站完成。</text>
+    <text x="56" y="371" font-size="23" fill="#737373">开源 · 自托管 · 各端共享同一服务</text>
+  </g>
+  <g id="material-to-report" transform="translate(770 122)">
+      <rect width="158" height="96" rx="10" fill="#e5e5e5"/>
+      <path d="M62 25L62 71L101 48Z" fill="#171717"/>
+      <rect x="178" width="158" height="96" rx="10" fill="#f5f5f5"/>
+      <path d="M202 28H311M202 48H311M202 68H270" stroke="#737373" stroke-width="5"/>
+      <path d="M168 116V140H254" fill="none" stroke="#737373" stroke-width="3"/>
+      <path d="M247 133L256 140L247 147" fill="none" stroke="#737373" stroke-width="3"/>
+      <rect x="88" y="165" width="248" height="88" rx="10" fill="#171717"/>
+      <path d="M112 190H310M112 208H310M112 226H249" stroke="#fafafa" stroke-width="4"/>
+    </g>
+</svg>
