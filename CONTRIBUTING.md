@@ -8,9 +8,8 @@
 | --- | --- |
 | `backend/` | FastAPI、Worker、Runner、当前态 SQL 与 Python 测试 |
 | `frontend/` | Next.js Web 与生成的 OpenAPI 客户端 |
-| `browser-extension/` | Chrome 身份扩展 |
+| `extension/` | Chrome 身份扩展 |
 | `workspace/` | 文档工作区：`content/` 为产品需求、系统设计与执行计划，Nextra 构建站点 |
-| `harness/` | AI 规范 harness 与规范检查 |
 
 ## 本地检查
 
@@ -35,17 +34,17 @@ pnpm test
 pnpm build
 ```
 
-身份扩展与规范检查，从仓库根目录执行：
+身份扩展测试，从仓库根目录执行：
 
 ```bash
-node --test browser-extension/*.test.cjs
-node harness/check.mjs
+node --test extension/*.test.cjs
 ```
 
 文档站点，从 `workspace/` 执行（本地预览 `pnpm dev`，地址 http://127.0.0.1:8130）：
 
 ```bash
 pnpm install --frozen-lockfile
+pnpm check
 pnpm build
 ```
 
@@ -53,7 +52,9 @@ pnpm build
 
 ## CI
 
-GitHub Actions 的 `Backend tests`、`Frontend tests` 与 `Workspace` 是每次推送和 PR 的必跑检查，任一失败即 CI 失败。前端 Job 从后端源码导出 OpenAPI 并检查生成差异；`Workspace` Job 运行规范检查、身份扩展测试并构建文档站点。完整 Compose 启停、真实平台下载与发布演练按变更范围在本地验收，不在 CI 执行。
+文档编写与沉淀遵循 [workspace/AGENTS.md](workspace/AGENTS.md)。
+
+GitHub Actions 的 `Backend tests`、`Frontend tests` 与 `Workspace` 是每次推送和 PR 的必跑检查，任一失败即 CI 失败。前端 Job 从后端源码导出 OpenAPI 并检查生成差异；`Workspace` Job 运行身份扩展测试、文档链接检查并构建文档站点。完整 Compose 启停、真实平台下载与发布演练按变更范围在本地验收，不在 CI 执行。
 
 ## 提交规范
 
@@ -77,7 +78,7 @@ GitHub Actions 的 `Backend tests`、`Frontend tests` 与 `Workspace` 是每次�
 | `style` | 不影响逻辑的格式调整 |
 | `revert` | 回退已有提交 |
 
-- 作用域使用稳定的模块名，如 `api`、`backend`、`frontend`、`worker`、`runner`、`identity`、`workspace`、`harness`、`deps`；无法准确归属时省略，写作 `<type>: <中文描述>`，不留空括号。
+- 作用域使用稳定的模块名，如 `api`、`backend`、`frontend`、`worker`、`runner`、`identity`、`extension`、`workspace`、`deps`；无法准确归属时省略，写作 `<type>: <中文描述>`，不留空括号。
 - 描述是简洁的中文动作短语，不加句号，不堆叠实现细节。
 - 破坏性变更在类型或作用域后加 `!`，并在正文写 `BREAKING CHANGE: <中文说明>`。
 - 正文与标题空一行，说明动机、实现与影响；关联任务写在页脚，如 `Refs: #123`。

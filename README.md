@@ -119,7 +119,7 @@ listeners:
 
 ### 平台身份与升级
 
-宿主身份服务位于 `backend/app/workers/identity/`，扩展源码位于 `browser-extension/`，遵循[平台身份设计](workspace/content/design/15-平台身份.md)。普通用户 LaunchAgent 只监听 `127.0.0.1:19101`；WebSocket `/extension` 校验固定扩展 Origin 与双向 HMAC，`POST /cookies` 和固定 `POST /yuanbao-parse` 只接受 Runner Bearer。扩展先认证服务端，再按声明来源读取当前普通 Profile 的非分区 Cookie，或在 Service Worker 内执行固定元宝 HTTP 解析请求；Cookie 获取上限 5 秒，元宝解析上限 30 秒，均受操作截止时间约束，不建立材料库。无扩展连接、超时、无必要账号材料分别返回 `extension_disconnected`、`extension_timeout`、`credential_missing`，Runner 保留这些子因。视频号的 HTTP 请求桥已接入，专属解析与下载状态见[视频号元宝解析](workspace/content/design/15-平台身份.md#6-视频号元宝解析)。
+宿主身份服务位于 `backend/app/workers/identity/`，扩展源码位于 `extension/`，遵循[平台身份设计](workspace/content/design/15-平台身份.md)。普通用户 LaunchAgent 只监听 `127.0.0.1:19101`；WebSocket `/extension` 校验固定扩展 Origin 与双向 HMAC，`POST /cookies` 和固定 `POST /yuanbao-parse` 只接受 Runner Bearer。扩展先认证服务端，再按声明来源读取当前普通 Profile 的非分区 Cookie，或在 Service Worker 内执行固定元宝 HTTP 解析请求；Cookie 获取上限 5 秒，元宝解析上限 30 秒，均受操作截止时间约束，不建立材料库。无扩展连接、超时、无必要账号材料分别返回 `extension_disconnected`、`extension_timeout`、`credential_missing`，Runner 保留这些子因。视频号的 HTTP 请求桥已接入，专属解析与下载状态见[视频号元宝解析](workspace/content/design/15-平台身份.md#6-视频号元宝解析)。
 
 从 `backend/` 执行一次安装：
 
@@ -130,7 +130,7 @@ uv run python -m app.workers.identity.cli check
 
 `install` 生成独立配对密钥和 Runner Bearer，宿主配置默认为 `~/Library/Application Support/FrameFetch/identity.env`；也可用 `--env-file /绝对路径/identity.env` 指定已有独立 `0600` 身份配置，保留其 Runner Bearer 并补建配对密钥。已有安装升级会保留两份密钥，只更新项目目录内的生成文件并重启本服务。不得把项目 `.env` 当作宿主身份配置。安装注册 `gui/<uid>` 下的普通 LaunchAgent，不要求 Aqua 会话、钥匙串授权或完全磁盘访问；服务运行依赖此 checkout 的 backend 与 uv 虚拟环境，不要删除它们。`uninstall` 停止并移除本 LaunchAgent，保留配对文件以便重装。
 
-在 Chrome 扩展页加载主工作区的 `browser-extension/`（必须是绝对路径）。只加载到日常登录的一个普通 Profile；扩展申请 cookies、alarms、declarativeNetRequestWithHostAccess，host 权限限定 Registry 的 Cookie 域、视频号精确 `https://yuanbao.tencent.com/*` 与本机 WebSocket，不申请 scripting、广泛 tabs 或历史权限。1.3.3 的视频号解析在 Service Worker 内部通过固定 HTTP 接口完成：按解析接口 URL 读取当前 Profile 的 `hy_user`／`hy_token`，认证头及 Cookie 留在 Chrome，不导出给宿主或 Runner，不缓存凭据。打包的声明式规则仅将本扩展对固定元宝解析接口的 POST 请求 Origin 设置为元宝官网，补齐服务端来源校验所需的请求头；规则不匹配网页、其他扩展、其他接口或方法，不修改响应头。解析前确认规则集启用，否则在读取凭据之前终止。新增的是请求头修改能力，未扩大站点权限；升级时需要用户知悉并启用这一能力。解析与下载重解析均无需打开元宝页面，不执行页面脚本，也没有页面回退分支；账号切换、期限、重定向与响应大小均受校验。首次登录或登录过期时，通过面板“登录元宝”完成正常登录，再关闭页面即可。面板显示实际版本、连接、登录材料可用性及最近一次解析子因；材料可用不代表账号仍获服务端认可。加载后 `check` 报告实际连接状态与版本；Chrome 停止或尚未加载时显示 `connected=false`、`version=null`。升级后从主工作区重新执行 `install`，再在 Chrome 扩展页点一次“重新加载”。不要从 git worktree 加载；install 自动定位主工作区，LaunchAgent 也使用主工作区的 backend。
+在 Chrome 扩展页加载主工作区的 `extension/`（必须是绝对路径）。只加载到日常登录的一个普通 Profile；扩展申请 cookies、alarms、declarativeNetRequestWithHostAccess，host 权限限定 Registry 的 Cookie 域、视频号精确 `https://yuanbao.tencent.com/*` 与本机 WebSocket，不申请 scripting、广泛 tabs 或历史权限。1.3.3 的视频号解析在 Service Worker 内部通过固定 HTTP 接口完成：按解析接口 URL 读取当前 Profile 的 `hy_user`／`hy_token`，认证头及 Cookie 留在 Chrome，不导出给宿主或 Runner，不缓存凭据。打包的声明式规则仅将本扩展对固定元宝解析接口的 POST 请求 Origin 设置为元宝官网，补齐服务端来源校验所需的请求头；规则不匹配网页、其他扩展、其他接口或方法，不修改响应头。解析前确认规则集启用，否则在读取凭据之前终止。新增的是请求头修改能力，未扩大站点权限；升级时需要用户知悉并启用这一能力。解析与下载重解析均无需打开元宝页面，不执行页面脚本，也没有页面回退分支；账号切换、期限、重定向与响应大小均受校验。首次登录或登录过期时，通过面板“登录元宝”完成正常登录，再关闭页面即可。面板显示实际版本、连接、登录材料可用性及最近一次解析子因；材料可用不代表账号仍获服务端认可。加载后 `check` 报告实际连接状态与版本；Chrome 停止或尚未加载时显示 `connected=false`、`version=null`。升级后从主工作区重新执行 `install`，再在 Chrome 扩展页点一次“重新加载”。不要从 git worktree 加载；install 自动定位主工作区，LaunchAgent 也使用主工作区的 backend。
 
 扩展目录 `0700`、生成文件 `0600`，密钥和端口仅写入项目扩展目录的 `config.local.json`；它和生成的 `manifest.json` 均被 gitignore，安装会检查两者未被 Git 跟踪。源码只维护 `manifest.template.json`，不在 web_accessible_resources 中、不进入源码或发行包。**信任边界**：这些权限隔离网页与其他用户，不能隔离同一 macOS 用户下可读写该目录的恶意进程。扩展和 cookie-source 共享配对密钥；Runner Bearer 是另一份独立凭据，不能复用。双向 HMAC 防止无配对密钥的本机假服务骗取 Cookie；不会赋予内容导出权利或扩大 content_scope。
 
@@ -343,7 +343,7 @@ pnpm build
 backend/                 FastAPI、领域逻辑、Worker、Runner 与当前态 SQL
 frontend/                Next.js App Router、业务组件、Hooks 与 OpenAPI 客户端
 workspace/               文档工作区（Nextra 站点，content/ 为需求、设计与计划）
-harness/                 AI 规范 harness 与规范检查
+extension/               Chrome 平台身份扩展
 backend/Dockerfile       API、Worker、Runner 镜像
 frontend/Dockerfile      Next.js 独立镜像
 docker-compose-env.yml   GitHub CI 隔离测试夹具，不用于本机启动

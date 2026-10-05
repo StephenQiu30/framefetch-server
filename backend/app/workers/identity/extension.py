@@ -14,7 +14,7 @@ from app.services.provider_types import ProviderIdentity
 from app.workers.identity.yuanbao_parse import YUANBAO_ORIGIN
 from app.workers.runner.provider_registry import current_provider_registry
 
-EXTENSION_SOURCE = Path(__file__).resolve().parents[4] / "browser-extension"
+EXTENSION_SOURCE = Path(__file__).resolve().parents[4] / "extension"
 
 
 def extension_home() -> Path:
@@ -33,7 +33,7 @@ def extension_home() -> Path:
         text=True,
         timeout=5,
     ).stdout.strip()
-    return Path(common).parent / "browser-extension"
+    return Path(common).parent / "extension"
 
 
 def cookie_domains() -> list[str]:

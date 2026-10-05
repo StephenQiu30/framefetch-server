@@ -13,7 +13,7 @@
 - official_share 只适用于视频号：交付用户提交分享链接对应的微信官方非加密文件，候选时长只用于传输完整性校验，不宣称独立原长或原作品完整性已获证明。
 - identity 与 content_scope 是两个独立维度，读取账号材料不等于放宽内容范围。
 - 不解密媒体、不取得内容密钥、不转换保护流、不调用第三方公共解析站；无法证明为 clear 完整媒体时返回 `content_protected` 并引导文件导入。
-- 平台身份只来自用户普通 Chrome 中的 `framefetch-identity` 扩展；不读取 Chrome Profile 文件、不访问钥匙串、不解密 Cookie。Cookie 不进入业务 JSON、日志、队列、Temporal History 或持久字段。
+- 平台身份只来自用户普通 Chrome 中的 `FrameFetch` 扩展；不读取 Chrome Profile 文件、不访问钥匙串、不解密 Cookie。Cookie 不进入业务 JSON、日志、队列、Temporal History 或持久字段。
 - 用户输入不得携带私网 URL、任意 yt-dlp 参数或 shell 片段。
 - ExecutionContext 只保存解析引擎第 9 节的十二字段非敏感摘要；失败按第 8 节的十三类记录 layer、stage、gate、结构化 evidence 与摘要。
 - 任何 Secret 不得进入前端、API 响应、异常、快照、测试夹具或普通日志；普通日志不记录完整 Prompt、抽帧或原始模型响应。
@@ -30,16 +30,17 @@
 
 ## 修改原则
 
-- 动手前按 [harness/spec-map.json](harness/spec-map.json) 找到改动路径对应的规范文档并阅读，实现必须与文档设计一致；文档与代码冲突时先指出，由用户决定改文档还是改代码，不自行另立规则。
+- 动手前从[系统设计索引](workspace/content/design/README.md)找到对应规范，并阅读相关 PRD 与执行计划，实现必须与文档设计一致；文档与代码冲突时先指出，由用户决定改文档还是改代码，不自行另立规则。
 - 先读相邻代码、对应 README 和测试，优先复用已有模型、组件与函数。
 - 只实现当前需求。不写兼容分支、别名路径、`V2`/`_v2`/`/vN` 命名、备用实现或“以后可能用”的空目录；迭代直接修改唯一实现并同步全部调用方。
 - 删除时同步清理引用、依赖、Compose/Docker 入口、测试夹具与文档；不得用删除回归测试掩盖功能损坏。
+- 生成的 API 客户端、扩展 manifest 与配对配置只通过生成命令更新；锁文件只由包管理器更新，上游 Skill 保持原样，适配写在目录之外。
 - 文件按业务内聚与事务边界拆分，不按行数机械拆分，不为缩短文件引入转发层。
 - 发现重复规则或过度设计时，记录证据、影响与最小修复；触及相关模块时处理，不以整理为由扩大授权范围。
 
 ## 验证
 
-按改动范围执行最小充分验证，修复缺陷时补能稳定复现问题的测试。命令清单见 [CONTRIBUTING.md](CONTRIBUTING.md#本地检查)。交付前运行 `node harness/check.mjs --changed`；Claude Code 会话由 hook 自动运行，其他代理需手动运行。
+按改动范围执行最小充分验证，修复缺陷时补能稳定复现问题的测试。命令清单见 [CONTRIBUTING.md](CONTRIBUTING.md#本地检查)。文档变化时，在 `workspace/` 执行 `pnpm check` 与 `pnpm build`。
 
 - 接口变化：重新生成前端 API 并检查差异。
 - 运行时、依赖或容器变化：验证两份业务 Compose 可解析，按需验证镜像构建与健康接口。
@@ -50,7 +51,7 @@
 ## 文档
 
 - 根 `README.md` 写运行方式；`backend/README.md`、`frontend/README.md` 写模块用法。
-- 文档统一维护在 `workspace/content/`（Obsidian 库与 Nextra 站点的同一份内容），站点规则见 [PROJECT.md 第 3.1 节](PROJECT.md#31-文档工作区)。
+- 文档统一维护在 `workspace/content/`（Obsidian 库与 Nextra 站点的同一份内容），编写与沉淀规范见 [workspace/AGENTS.md](workspace/AGENTS.md)，站点规则见 [PROJECT.md 第 3.1 节](PROJECT.md#31-文档工作区)。
 - `workspace/content/prd/` 定义产品范围与产品验收，`workspace/content/design/` 定义技术架构与约束，`workspace/content/plan/` 维护工作包与执行证据；各目录 README 是索引。同一规格只在一处维护，其他位置用链接引用。
 - `BACKLOG.md` 只列未完成事项的链接。
 - 文档只写当前有效规格，并区分“规格”与“已验证事实”。不写变更日期、“取代此前”、“迁移中”等过程叙述；历史通过 Git 追溯。

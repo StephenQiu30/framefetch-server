@@ -118,12 +118,12 @@ jobs:
           node-version: "24.15.0"
       - name: Use repository pnpm version
         run: npm install --global pnpm@12.4.2
-      - name: Check specs and identity extension
+      - name: Test identity extension
         run: |
-          node harness/check.mjs
-          node --test browser-extension/*.test.cjs
-      - name: Build workspace site
+          node --test extension/*.test.cjs
+      - name: Check and build workspace site
         working-directory: workspace
         run: |
           pnpm install --frozen-lockfile
+          pnpm check
           pnpm build

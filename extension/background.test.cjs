@@ -87,7 +87,7 @@ test('pairing JSON is local only and never declared web accessible', () => {
   assert.equal('web_accessible_resources' in template, false);
   assert.equal('host_permissions' in template, false);
   const { execFileSync, spawnSync } = require('node:child_process');
-  const tracked = execFileSync('git', ['ls-files', '--', 'browser-extension/config.local.json', 'browser-extension/manifest.json'], { cwd: __dirname + '/..', encoding: 'utf8' });
+  const tracked = execFileSync('git', ['ls-files', '--', 'extension/config.local.json', 'extension/manifest.json'], { cwd: __dirname + '/..', encoding: 'utf8' });
   assert.equal(tracked, '');
   for (const name of ['config.local.json', 'manifest.json']) {
     assert.equal(spawnSync('git', ['check-ignore', '--quiet', '--', name], { cwd: __dirname }).status, 0);

@@ -22,7 +22,7 @@ def installation(tmp_path, monkeypatch):
     environment, target, home = (
         tmp_path / "identity.env",
         tmp_path / "agent.plist",
-        tmp_path / "repo/browser-extension",
+        tmp_path / "repo/extension",
     )
     home.mkdir(parents=True)
     for name in (
@@ -33,7 +33,7 @@ def installation(tmp_path, monkeypatch):
     ):
         shutil.copyfile(extension.EXTENSION_SOURCE / name, home / name)
     (home.parent / ".gitignore").write_text(
-        "/browser-extension/config.local.json\n/browser-extension/manifest.json\n"
+        "/extension/config.local.json\n/extension/manifest.json\n"
     )
     subprocess.run(["git", "init", "-q", str(home.parent)], check=True)
     subprocess.run(["git", "-C", str(home.parent), "add", "."], check=True)
@@ -295,9 +295,7 @@ def test_install_refuses_tracked_pairing_or_manifest(installation, name):
 
 def test_install_refuses_worktree_generation(installation, monkeypatch, tmp_path):
     environment, _, home, _ = installation
-    monkeypatch.setattr(
-        extension, "EXTENSION_SOURCE", tmp_path / "worktree/browser-extension"
-    )
+    monkeypatch.setattr(extension, "EXTENSION_SOURCE", tmp_path / "worktree/extension")
     with pytest.raises(ValueError, match="requires_primary_workspace"):
         cli.install(environment)
     assert not (home / "config.local.json").exists()
@@ -307,7 +305,7 @@ def test_main_workspace_lookup_uses_common_git_directory(monkeypatch, tmp_path):
     common = tmp_path / "primary/.git"
     run = Mock(return_value=SimpleNamespace(stdout=str(common) + "\n"))
     monkeypatch.setattr(extension.subprocess, "run", run)
-    assert extension.extension_home() == tmp_path / "primary/browser-extension"
+    assert extension.extension_home() == tmp_path / "primary/extension"
     assert "--git-common-dir" in run.call_args.args[0]
 
 

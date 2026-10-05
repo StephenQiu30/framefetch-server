@@ -54,7 +54,7 @@ npm-debug.log*
 **/.wrangler/
 
 # Generated identity pairing config is install-only.
-/browser-extension/config.local.json
-/browser-extension/manifest.json
+/extension/config.local.json
+/extension/manifest.json
 # Chrome's compiled declarative request rules are generated locally.
-/browser-extension/_metadata/
+/extension/_metadata/

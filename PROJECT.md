@@ -13,7 +13,7 @@
 | 前端 | Next.js App Router、React、TypeScript strict、Tailwind CSS、shadcn/ui（Radix）、Phosphor |
 | 前端依赖 | pnpm；`packageManager` 固定版本，唯一 `pnpm-lock.yaml` |
 | 接口契约 | FastAPI 注解生成 OpenAPI；`@umijs/openapi` 生成前端 `src/api` |
-| 身份 | 用户普通 Chrome 中的 MV3 扩展 `framefetch-identity` 与宿主 cookie-source |
+| 身份 | 用户普通 Chrome 中的 MV3 扩展 `FrameFetch` 与宿主 cookie-source |
 | 检查 | 后端 Ruff、mypy、pytest；前端 Biome、TypeScript、Vitest、Next.js build；扩展 `node --test` |
 
 精确版本只在依赖清单与锁文件中维护。新依赖必须承担明确职责，脚手架默认带入但未使用的依赖应删除。
@@ -43,10 +43,8 @@
 video-server/
 ├── backend/                  FastAPI、Worker、Runner、当前态 SQL 与测试
 ├── frontend/                 Next.js Web
-├── browser-extension/        身份扩展源码；manifest.json 与 config.local.json 由安装命令生成，不入库
+├── extension/                身份扩展源码；manifest.json 与 config.local.json 由安装命令生成，不入库
 ├── workspace/                文档工作区：Nextra 站点，content/ 为 prd/、design/、plan/
-├── harness/                  AI 规范 harness：spec-map.json、hook.mjs、check.mjs
-├── .claude/settings.json     Claude Code hooks，调用 harness/hook.mjs
 ├── assets/                   README 配图
 ├── docker-compose.yml        本机业务容器
 ├── docker-compose-prod.yml   生产业务容器
@@ -59,13 +57,8 @@ video-server/
 - `workspace/content/` 是产品需求、系统设计与执行计划的唯一位置，也是 Obsidian 库根目录；`.obsidian/app.json` 固定使用相对路径的标准 Markdown 链接，保证 GitHub、Obsidian 与站点解析一致。
 - 站点使用 Nextra（`workspace/`，pnpm 独立管理，监听 8130），目录首页沿用 `README.md`，目录地址重定向到它。指向 `content/` 之外的仓库文件的链接在构建时改写为 GitHub 地址。
 - 站点构建器只读取 `content/`，不维护第二份文档；`_meta.js` 只决定导航顺序与标题。
-
-### 3.2 规范 harness
-
-- `harness/spec-map.json` 是代码路径到规范文档的唯一映射，同时声明受保护路径（生成目录、锁文件、`.env`、上游 Skill）与禁止路径（迁移目录、聚合层、代际命名、`docs/`）。
-- `harness/hook.mjs` 由 `.claude/settings.json` 调用：会话开始注入规范映射；编辑受保护或禁止路径时拒绝；首次触及某领域时注入对应规范；结束前运行改动检查，失败则要求修复。
-- `harness/check.mjs` 检查禁止路径、规范文档的链接与锚点以及映射完整性；本地与 CI 运行同一脚本，覆盖不经过 Claude Code 的改动。
-- 新增业务领域、规范文档或生成目录时同步更新 `spec-map.json`。
+- [workspace/AGENTS.md](workspace/AGENTS.md) 规定文档归档、命名、内容职责、索引与证据要求；编写或更新 workspace 文档时遵循该规范。
+- 在 `workspace/` 执行 `pnpm check` 检查文档链接与锚点，执行 `pnpm build` 验证站点构建；本地与 CI 使用同一组命令。
 
 ## 4. 后端
 

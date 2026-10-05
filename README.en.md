@@ -66,7 +66,7 @@ uv run --project backend python -m app.workers.bootstrap_admin \
 
 ### Identity and upgrades
 
-Platform identity uses `framefetch-identity`, an MV3 extension loaded from the main checkout's `browser-extension/`, and a per-user `cookie-source` LaunchAgent. From the main checkout's `backend/`, run:
+Platform identity uses `FrameFetch`, an MV3 extension loaded from the main checkout's `extension/`, and a per-user `cookie-source` LaunchAgent. From the main checkout's `backend/`, run:
 
 ```bash
 uv run python -m app.workers.identity.cli install

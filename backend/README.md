@@ -6,7 +6,7 @@ FastAPI API、下载/分析领域逻辑、异步 Worker、当前态数据库 SQL
 
 ## 解析引擎
 
-当前 Runner 通过 Registry 阶梯执行 HTTP 提取、证明准备和浏览器解析，统一使用 egress-proxy 与最终制品校验。宿主身份由 `workers/identity/` 的 cookie-source 和根 `browser-extension/` 的 Chrome 扩展提供。运行命令见[根 README](../README.md)，协议、平台范围和验收状态只在[解析引擎](../workspace/content/design/14-解析引擎.md)与[平台身份](../workspace/content/design/15-平台身份.md)维护。
+当前 Runner 通过 Registry 阶梯执行 HTTP 提取、证明准备和浏览器解析，统一使用 egress-proxy 与最终制品校验。宿主身份由 `workers/identity/` 的 cookie-source 和根 `extension/` 的 Chrome 扩展提供。运行命令见[根 README](../README.md)，协议、平台范围和验收状态只在[解析引擎](../workspace/content/design/14-解析引擎.md)与[平台身份](../workspace/content/design/15-平台身份.md)维护。
 
 浏览器卷只保存浏览器原生状态；身份材料只在 Runner 内存与私有 tmpfs 中存在。样本位于 `scripts/fixtures/`，冷启动矩阵使用 `coldstart_cases.json`。组件健康不证明平台完整文件可用。
 
