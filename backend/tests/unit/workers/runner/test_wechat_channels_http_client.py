@@ -299,6 +299,7 @@ async def test_transport_success_does_not_validate_business_envelopes_or_tickets
         ("credential_missing", FailureClass.LOGIN_REQUIRED),
         ("identity_account_conflict", FailureClass.CONTEXT_CHANGED),
         ("extension_timeout", FailureClass.IDENTITY_UNAVAILABLE),
+        ("yuanbao_request_rule_unavailable", FailureClass.IDENTITY_UNAVAILABLE),
         ("parse_response_invalid", FailureClass.EXTRACTOR_BROKEN),
         ("yuanbao_response_source_invalid", FailureClass.EXTRACTOR_BROKEN),
         ("yuanbao_response_size_invalid", FailureClass.EXTRACTOR_BROKEN),

@@ -151,6 +151,7 @@ YUANBAO_PARSE_CAUSES = frozenset(
         "identity_material_invalid",
         "identity_account_conflict",
         "parse_response_invalid",
+        "yuanbao_request_rule_unavailable",
         "yuanbao_response_source_invalid",
         "yuanbao_response_size_invalid",
         "yuanbao_response_utf8_invalid",

@@ -36,6 +36,7 @@ _CAUSE_CLASSES = {
     "extension_timeout": FailureClass.IDENTITY_UNAVAILABLE,
     "identity_deadline_invalid": FailureClass.IDENTITY_UNAVAILABLE,
     "identity_source_mismatch": FailureClass.IDENTITY_UNAVAILABLE,
+    "yuanbao_request_rule_unavailable": FailureClass.IDENTITY_UNAVAILABLE,
     "parse_response_invalid": FailureClass.EXTRACTOR_BROKEN,
     "yuanbao_response_source_invalid": FailureClass.EXTRACTOR_BROKEN,
     "yuanbao_response_size_invalid": FailureClass.EXTRACTOR_BROKEN,

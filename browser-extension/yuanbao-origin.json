@@ -1,0 +1,19 @@
+[
+  {
+    "id": 1,
+    "priority": 1,
+    "action": {
+      "type": "modifyHeaders",
+      "requestHeaders": [
+        { "header": "Origin", "operation": "set", "value": "https://yuanbao.tencent.com" }
+      ]
+    },
+    "condition": {
+      "urlFilter": "|https://yuanbao.tencent.com/api/weixin/get_parse_result|",
+      "isUrlFilterCaseSensitive": true,
+      "initiatorDomains": ["amnaijgnfjbopghcdadjhfigngehdolh"],
+      "requestMethods": ["post"],
+      "resourceTypes": ["xmlhttprequest"]
+    }
+  }
+]

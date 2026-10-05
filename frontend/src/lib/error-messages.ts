@@ -102,6 +102,8 @@ const localizedErrorMessages: Record<string, string> = {
 };
 
 const localizedFailureCauses: Record<string, string> = {
+  'identity_unavailable:yuanbao_request_rule_unavailable':
+    '平台身份插件的请求规则未启用，请在部署主机重新加载插件后再解析。',
   'extractor_broken:yuanbao_response_source_invalid':
     '平台解析响应未通过校验，请稍后重新解析。',
   'extractor_broken:yuanbao_response_size_invalid':

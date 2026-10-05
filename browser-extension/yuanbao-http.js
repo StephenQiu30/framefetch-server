@@ -6,7 +6,7 @@
   const CAUSES = new Set(['credential_missing', 'identity_material_invalid',
     'identity_account_conflict', 'parse_response_invalid', 'parse_request_failed', 'extension_timeout',
     'yuanbao_response_source_invalid', 'yuanbao_response_size_invalid', 'yuanbao_response_utf8_invalid',
-    'yuanbao_response_json_invalid', 'yuanbao_response_credential_echo']);
+    'yuanbao_response_json_invalid', 'yuanbao_response_credential_echo', 'yuanbao_request_rule_unavailable']);
   const validHeader = (value, limit) => typeof value === 'string' && value.length > 0 &&
     value === value.trim() && !/[^\x21-\x7e]/u.test(value) && value.length <= limit;
 
@@ -96,6 +96,10 @@
     try {
       if (!Number.isFinite(deadline) || Date.now() >= deadline) throw new Error('extension_timeout');
       if (typeof canonicalUrl !== 'string' || !/^https:\/\/weixin\.qq\.com\/sph\/[A-Za-z0-9_-]{4,256}$/.test(canonicalUrl)) throw new Error('identity_material_invalid');
+      let rulesets;
+      try { rulesets = await beforeDeadline(deadline, () => api.declarativeNetRequest.getEnabledRulesets()); }
+      catch (error) { throw new Error(error?.message === 'extension_timeout' ? 'extension_timeout' : 'yuanbao_request_rule_unavailable'); }
+      if (!Array.isArray(rulesets) || !rulesets.includes('yuanbao-http')) throw new Error('yuanbao_request_rule_unavailable');
       const initial = await auth(api, deadline);
       if (accountChanged) throw new Error('identity_account_conflict');
       controller = new AbortController();

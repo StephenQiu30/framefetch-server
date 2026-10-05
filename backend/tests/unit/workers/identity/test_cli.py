@@ -198,8 +198,12 @@ def test_manifest_registry_permissions_and_stable_id():
     )
     manifest = extension.manifest(19101)
     assert "host_permissions" not in template
-    assert manifest["permissions"] == ["cookies", "alarms"]
-    assert manifest["version"] == "1.3.2"
+    assert manifest["permissions"] == [
+        "cookies",
+        "alarms",
+        "declarativeNetRequestWithHostAccess",
+    ]
+    assert manifest["version"] == "1.3.3"
     assert manifest["action"]["default_popup"] == "popup.html"
     assert manifest["minimum_chrome_version"] == "120"
     assert set(manifest["host_permissions"]) == {
@@ -213,6 +217,37 @@ def test_manifest_registry_permissions_and_stable_id():
     assert extension.request_origins() == ["https://yuanbao.tencent.com"]
     assert "channels.weixin.qq.com" not in extension.cookie_domains()
     assert "yuanbao.tencent.com" not in extension.cookie_domains()
+    assert manifest["declarative_net_request"] == {
+        "rule_resources": [
+            {"id": "yuanbao-http", "enabled": True, "path": "yuanbao-origin.json"}
+        ]
+    }
+    rules = json.loads((extension.EXTENSION_SOURCE / "yuanbao-origin.json").read_text())
+    assert rules == [
+        {
+            "id": 1,
+            "priority": 1,
+            "action": {
+                "type": "modifyHeaders",
+                "requestHeaders": [
+                    {
+                        "header": "Origin",
+                        "operation": "set",
+                        "value": "https://yuanbao.tencent.com",
+                    }
+                ],
+            },
+            "condition": {
+                "urlFilter": "|https://yuanbao.tencent.com/api/weixin/get_parse_result|",
+                "isUrlFilterCaseSensitive": True,
+                "initiatorDomains": [
+                    extension.extension_origin().removeprefix("chrome-extension://")
+                ],
+                "requestMethods": ["post"],
+                "resourceTypes": ["xmlhttprequest"],
+            },
+        }
+    ]
 
 
 @pytest.mark.parametrize("token", ["short", "x" * 32 + "\n", "x" * 32 + " ", "界" * 32])

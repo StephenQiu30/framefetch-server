@@ -19,6 +19,7 @@ function worker(chromeApi = {}, transport) {
     TextEncoder, TextDecoder, Request, AbortController, URL, crypto: webcrypto, WebSocket, Date: { now: () => now, parse: Date.parse },
     fetch: async url => { if (typeof url !== 'string') return transport(url); assert.equal(url, 'chrome-extension://test/config.local.json'); return { ok: true, json: async () => ({ pairingKey: KEY, port: 19101, domains: ['instagram.com'], yuanbaoParse: true }) }; },
     chrome: { alarms: { onAlarm: listener('alarm'), get: async name => alarms.get(name), create: async (name, spec) => { alarms.set(name, spec); } },
+      declarativeNetRequest: { getEnabledRulesets: async () => ['yuanbao-http'] },
       runtime: { id: 'test', onMessage: listener('message'), onStartup: listener('startup'), onInstalled: listener('installed'), getManifest: () => ({ version: '1.0.0' }), getURL: name => 'chrome-extension://test/' + name },
       ...chromeApi, cookies: { getAll: async () => [], get: async () => null, onChanged: listener('cookieChanged'), ...chromeApi.cookies } },
     setTimeout: (fn, ms) => { const timer = { fn, ms, active: true }; timers.push(timer); return timer; },

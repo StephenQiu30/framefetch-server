@@ -1,13 +1,19 @@
 {
   "manifest_version": 3,
   "name": "framefetch-identity",
-  "version": "1.3.2",
+  "version": "1.3.3",
   "description": "按任务提供平台身份，视频号在插件内部直接解析，无需元宝页面",
   "minimum_chrome_version": "120",
   "permissions": [
     "cookies",
-    "alarms"
+    "alarms",
+    "declarativeNetRequestWithHostAccess"
   ],
+  "declarative_net_request": {
+    "rule_resources": [
+      { "id": "yuanbao-http", "enabled": true, "path": "yuanbao-origin.json" }
+    ]
+  },
   "background": {
     "service_worker": "background.js"
   },

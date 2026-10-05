@@ -20,7 +20,7 @@ function response(payload = { code: 0, data: {} }, options = {}) {
 function client() {
   const calls = [], listeners = new Set();
   let account = ACCOUNT, token = TOKEN;
-  const api = { cookies: {
+  const api = { declarativeNetRequest: { getEnabledRulesets: async () => ['yuanbao-http'] }, cookies: {
     get: async details => {
       calls.push(details);
       return cookie(details.name, details.name === 'hy_user' ? account : token);
@@ -38,7 +38,7 @@ const request = extra => ({ type: 'yuanbao_parse', request_id: ID, site: 'wechat
 async function authenticated(readParse, config = {}) {
   const sent = [];
   const protocol = new Protocol({ pairingKey: KEY, domains: ['instagram.com'], yuanbaoParse: true, ...config },
-    async () => [], value => sent.push(value), '1.3.2', readParse);
+    async () => [], value => sent.push(value), '1.3.3', readParse);
   const peer = 'd'.repeat(64);
   await protocol.receive({ type: 'challenge', nonce: peer });
   await protocol.receive({ type: 'proof', proof: await proof(KEY, 'server', protocol.own, peer) });
@@ -68,6 +68,32 @@ test('account-bound HTTP works without tabs, scripting, DOM or storage and expor
   assert.equal(c.calls.length, 6);
   assert.ok(c.calls.every(c => c.url === PARSE_URL && ['hy_user', 'hy_token'].includes(c.name)));
   assert.deepEqual(c.calls.map(c => c.name), ['hy_user', 'hy_token', 'hy_user', 'hy_user', 'hy_token', 'hy_user']);
+  assert.equal(c.listeners.size, 0);
+});
+test('missing or disabled origin rules stop before Cookie access and HTTP', async () => {
+  for (const getEnabledRulesets of [async () => [], async () => ['unrelated'],
+    async () => { throw new Error(TOKEN); }]) {
+    const c = client();
+    c.api.declarativeNetRequest.getEnabledRulesets = getEnabledRulesets;
+    assert.deepEqual(await c.run(() => assert.fail('must not request')),
+      { cause: 'yuanbao_request_rule_unavailable' });
+    assert.equal(c.calls.length, 0);
+    assert.equal(c.listeners.size, 0);
+  }
+  const c = client();
+  delete c.api.declarativeNetRequest;
+  assert.deepEqual(await c.run(() => assert.fail('must not request')),
+    { cause: 'yuanbao_request_rule_unavailable' });
+  assert.equal(c.calls.length, 0);
+});
+test('a stalled ruleset check shares the deadline and never starts late Cookie or HTTP work', async () => {
+  const c = client();
+  let release;
+  c.api.declarativeNetRequest.getEnabledRulesets = () => new Promise(resolve => { release = resolve; });
+  assert.deepEqual(await c.run(() => assert.fail('must not request'), Date.now() + 10),
+    { cause: 'extension_timeout' });
+  release(['yuanbao-http']); await flush();
+  assert.equal(c.calls.length, 0);
   assert.equal(c.listeners.size, 0);
 });
 test('missing, partitioned, expired or wrong-scope credentials stop before HTTP', async () => {
@@ -179,7 +205,7 @@ test('authenticated fixed protocol alone may call HTTP parse and normal Cookie r
     calls++; assert.equal(url, SHARE); assert.ok(deadline <= Date.now() + 30000);
     return { account_id: ACCOUNT, captured: captured() };
   };
-  const unauthenticated = new Protocol({ yuanbaoParse: true }, async () => [], () => {}, '1.3.2', reader);
+  const unauthenticated = new Protocol({ yuanbaoParse: true }, async () => [], () => {}, '1.3.3', reader);
   await assert.rejects(unauthenticated.receive(request()), /unauthenticated/);
   assert.equal(calls, 0);
   const { protocol, sent } = await authenticated(reader);
