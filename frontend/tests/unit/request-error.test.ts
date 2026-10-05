@@ -56,6 +56,31 @@ describe('request errors', () => {
   });
 
   it.each([
+    [
+      'identity_unavailable',
+      'identity_page_unavailable',
+      '元宝页面暂不可用，请在部署主机的 Chrome 中打开元宝并确认登录后重新解析。',
+    ],
+    [
+      'identity_unavailable',
+      'identity_tab_ambiguous',
+      '检测到多个元宝页面，请只保留一个普通元宝标签页后重新解析。',
+    ],
+    [
+      'identity_unavailable',
+      'extension_disconnected',
+      '平台身份插件未连接，请确认部署主机的 Chrome 和帧取身份插件已启动。',
+    ],
+    [
+      'extractor_broken',
+      'native_api_unavailable',
+      '元宝页面的解析接口暂不可用，请刷新元宝页面后重新解析。',
+    ],
+  ])('shows a recovery action for %s/%s', (code, cause, expected) => {
+    expect(localizedErrorMessage(code, cause)).toBe(expected);
+  });
+
+  it.each([
     ['invalid_credentials', '邮箱或密码错误，请重新输入。'],
     ['transient', '连接媒体平台时发生临时故障，请稍后重试。'],
     ['import_disabled', '当前部署未开放本地视频上传。'],

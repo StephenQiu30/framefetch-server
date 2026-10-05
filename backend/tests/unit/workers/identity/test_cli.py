@@ -199,6 +199,8 @@ def test_manifest_registry_permissions_and_stable_id():
     manifest = extension.manifest(19101)
     assert "host_permissions" not in template
     assert manifest["permissions"] == ["cookies", "alarms", "scripting"]
+    assert manifest["version"] == "1.2.0"
+    assert manifest["action"]["default_popup"] == "popup.html"
     assert manifest["minimum_chrome_version"] == "120"
     assert set(manifest["host_permissions"]) == {
         *(f"*://*.{domain}/*" for domain in extension.cookie_domains()),

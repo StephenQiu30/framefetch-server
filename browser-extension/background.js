@@ -1,16 +1,46 @@
 /* Listeners are registered synchronously before configuration/connection work. */
 importScripts('protocol.js');
+importScripts('yuanbao-page.js');
 importScripts('yuanbao-parse.js');
 const ALARM = 'framefetch-identity-connect';
 let socket = null;
 let retryTimer = null;
 let starting = false;
 let retryAt = 0;
+let activeProtocol = null;
+let lastParseCause = null;
 const backoff = new FrameFetchIdentity.Backoff();
 
 chrome.alarms.onAlarm.addListener(alarm => { if (alarm.name === ALARM) void initialize(); });
 chrome.runtime.onStartup.addListener(() => { void initialize(); });
 chrome.runtime.onInstalled.addListener(() => { void initialize(); });
+chrome.runtime.onMessage.addListener((message, sender, respond) => {
+  if (sender.id !== chrome.runtime.id || sender.url !== chrome.runtime.getURL('popup.html') ||
+      !message || Object.keys(message).join(',') !== 'type' ||
+      !['status', 'open_yuanbao', 'reconnect'].includes(message.type)) return false;
+  void popupRequest(message.type).then(respond).catch(() => respond({ error: 'page_unavailable' }));
+  return true;
+});
+
+async function popupRequest(type) {
+  if (type === 'open_yuanbao') {
+    try { await FrameFetchYuanbaoPage.open(chrome, Date.now() + 5000, true); }
+    catch (error) { lastParseCause = FrameFetchYuanbaoParse.CAUSES.has(error?.message) ? error.message : 'identity_page_unavailable'; }
+  }
+  if (type === 'reconnect') {
+    if (!activeProtocol?.authenticated) {
+      socket?.close();
+      clearTimeout(retryTimer);
+      retryTimer = null;
+      retryAt = 0;
+      backoff.reset();
+      await initialize();
+    }
+  }
+  const page = await FrameFetchYuanbaoPage.status(chrome);
+  return { connected: activeProtocol?.authenticated === true, version: chrome.runtime.getManifest().version,
+    page, busy: activeProtocol?.busy === true, cause: lastParseCause };
+}
 
 async function ensureAlarm() {
   const alarm = await chrome.alarms.get(ALARM);
@@ -37,7 +67,13 @@ async function initialize() {
     let lastSeen = Date.now();
     const send = message => { if (!closed && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(message)); };
     const protocol = new FrameFetchIdentity.Protocol(config, details => chrome.cookies.getAll(details), send, chrome.runtime.getManifest().version,
-      (canonicalUrl, deadlineMs) => FrameFetchYuanbaoParse.readExistingParse(chrome, canonicalUrl, deadlineMs));
+      async (canonicalUrl, deadlineMs) => {
+        lastParseCause = null;
+        const result = await FrameFetchYuanbaoParse.readShareParse(chrome, canonicalUrl, deadlineMs);
+        lastParseCause = result.cause ?? null;
+        return result;
+      });
+    activeProtocol = protocol;
     const authTimer = setTimeout(() => ws.close(), 5000);
     let chain = Promise.resolve();
     ws.onmessage = event => {
@@ -73,7 +109,7 @@ async function initialize() {
       closed = true;
       clearTimeout(authTimer);
       clearInterval(heartbeat);
-      if (socket === ws) { socket = null; scheduleRetry(); }
+      if (socket === ws) { socket = null; activeProtocol = null; scheduleRetry(); }
     };
   } catch { socket = null; scheduleRetry(); }
   finally { starting = false; }

@@ -1,6 +1,6 @@
-/* Fixed native request in an existing Yuanbao top-level page. No credential export. */
+/* Fixed native request after the declared Yuanbao page is ready. No credential export. */
 (() => {
-  const ORIGIN = 'https://yuanbao.tencent.com';
+  const page = typeof module !== 'undefined' ? require('./yuanbao-page.js') : globalThis.FrameFetchYuanbaoPage;
   const MAX_CAPTURE_BYTES = 4 * 1024 * 1024;
   const CAUSES = new Set([
     'credential_missing', 'identity_material_invalid', 'identity_origin_invalid',
@@ -160,13 +160,6 @@
     } finally { clearTimeout(timer); }
   }
 
-  function scopedTab(tab) {
-    if (!tab || tab.incognito !== false || !Number.isSafeInteger(tab.id) || typeof tab.url !== 'string') return false;
-    try {
-      const url = new URL(tab.url);
-      return url.origin === ORIGIN && !url.username && !url.password;
-    } catch { return false; }
-  }
   function checkedResult(results, documentId, probeOnly) {
     if (!Array.isArray(results) || results.length !== 1 || results[0].frameId !== 0 ||
         typeof results[0].documentId !== 'string' || !results[0].documentId ||
@@ -183,28 +176,13 @@
     }
     return result;
   }
-  async function readExistingParse(api, canonicalUrl, operationDeadlineMs) {
+  async function readShareParse(api, canonicalUrl, operationDeadlineMs) {
     const deadline = Number.isFinite(operationDeadlineMs) ? Math.min(Date.now() + 30000, operationDeadlineMs) : NaN;
     const checkDeadline = () => { if (!Number.isFinite(deadline) || Date.now() >= deadline) throw new Error('extension_timeout'); };
-    const awaitChrome = async action => {
-      checkDeadline();
-      let timer;
-      try {
-        return await Promise.race([
-          Promise.resolve().then(() => { checkDeadline(); return action(); }),
-          new Promise((_, reject) => { timer = setTimeout(() => reject(new Error('extension_timeout')), deadline - Date.now()); }),
-        ]);
-      } finally { clearTimeout(timer); }
-    };
+    const awaitChrome = action => page.beforeDeadline(deadline, action);
     try {
       if (typeof canonicalUrl !== 'string' || !/^https:\/\/weixin\.qq\.com\/sph\/[A-Za-z0-9_-]{4,256}$/.test(canonicalUrl)) throw new Error('identity_material_invalid');
-      const queried = await awaitChrome(() => api.tabs.query({ url: ORIGIN + '/*' }));
-      checkDeadline();
-      const tabs = queried.filter(scopedTab);
-      if (!tabs.length) throw new Error('identity_page_unavailable');
-      if (tabs.length !== 1) throw new Error('identity_tab_ambiguous');
-      const tab = tabs[0];
-      if (tab.pendingUrl) throw new Error('identity_navigation_changed');
+      const tab = await page.prepare(api, deadline);
       const first = await awaitChrome(() => api.scripting.executeScript({
         target: { tabId: tab.id, frameIds: [0] }, world: 'MAIN', func: nativeParse,
         args: [canonicalUrl, deadline, true],
@@ -213,7 +191,7 @@
       const initial = checkedResult(first, null, true);
       const current = await awaitChrome(() => api.tabs.get(tab.id));
       checkDeadline();
-      if (!scopedTab(current) || current.pendingUrl || current.url !== tab.url) throw new Error('identity_navigation_changed');
+      if (!page.scopedTab(current) || current.pendingUrl || current.url !== tab.url) throw new Error('identity_navigation_changed');
       const parsed = await awaitChrome(() => api.scripting.executeScript({
         target: { tabId: tab.id, documentIds: [first[0].documentId] }, world: 'MAIN', func: nativeParse,
         args: [canonicalUrl, deadline, false],
@@ -229,13 +207,13 @@
       if (checkedResult(confirmed, first[0].documentId, true).account_id !== initial.account_id) throw new Error('identity_account_conflict');
       const finalTab = await awaitChrome(() => api.tabs.get(tab.id));
       checkDeadline();
-      if (!scopedTab(finalTab) || finalTab.pendingUrl || finalTab.url !== tab.url) throw new Error('identity_navigation_changed');
+      if (!page.scopedTab(finalTab) || finalTab.pendingUrl || finalTab.url !== tab.url) throw new Error('identity_navigation_changed');
       return result;
     } catch (error) {
       return { cause: CAUSES.has(error?.message) ? error.message : 'identity_page_unavailable' };
     }
   }
-  const api = { nativeParse, readExistingParse, CAUSES, MAX_CAPTURE_BYTES };
+  const api = { nativeParse, readShareParse, CAUSES, MAX_CAPTURE_BYTES };
   globalThis.FrameFetchYuanbaoParse = api;
   if (typeof module !== 'undefined') module.exports = api;
 })();

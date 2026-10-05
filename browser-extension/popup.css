@@ -1,0 +1,17 @@
+:root { color-scheme: light dark; font-family: system-ui, sans-serif; font-size: 13px; }
+body { margin: 0; width: 340px; background: light-dark(#fff, #171717); color: light-dark(#171717, #fafafa); }
+main { padding: 20px; }
+header { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+h1 { font-size: 17px; margin: 0; }
+#version, dt, .hint { color: light-dark(#666, #aaa); }
+dl { margin: 20px 0; }
+dl div { display: flex; justify-content: space-between; gap: 12px; padding: 8px 0; }
+dd { margin: 0; text-align: right; }
+p { line-height: 1.6; }
+#message { min-height: 42px; }
+.actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 20px; }
+button { border: 1px solid transparent; border-radius: 7px; padding: 8px 12px; font: inherit; cursor: pointer; background: light-dark(#171717, #fafafa); color: light-dark(#fff, #171717); }
+button.secondary { background: transparent; color: inherit; border-color: light-dark(#ddd, #444); }
+button:focus-visible { outline: 2px solid #2563eb; outline-offset: 3px; }
+button:disabled { opacity: 0.5; cursor: wait; }
+[hidden] { display: none !important; }

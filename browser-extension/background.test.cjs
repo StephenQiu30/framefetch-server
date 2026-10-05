@@ -19,7 +19,7 @@ function worker(pageApi = {}) {
     TextEncoder, URL, crypto: webcrypto, WebSocket, Date: { now: () => now, parse: Date.parse },
     fetch: async url => { assert.equal(url, 'chrome-extension://test/config.local.json'); return { ok: true, json: async () => ({ pairingKey: KEY, port: 19101, domains: ['instagram.com'], yuanbaoParse: true }) }; },
     chrome: { alarms: { onAlarm: listener('alarm'), get: async name => alarms.get(name), create: async (name, spec) => { alarms.set(name, spec); } },
-      runtime: { onStartup: listener('startup'), onInstalled: listener('installed'), getManifest: () => ({ version: '1.0.0' }), getURL: name => 'chrome-extension://test/' + name },
+      runtime: { id: 'test', onMessage: listener('message'), onStartup: listener('startup'), onInstalled: listener('installed'), getManifest: () => ({ version: '1.0.0' }), getURL: name => 'chrome-extension://test/' + name },
       cookies: { getAll: async () => [] }, ...pageApi },
     setTimeout: (fn, ms) => { const timer = { fn, ms, active: true }; timers.push(timer); return timer; },
     clearTimeout: timer => { if (timer) timer.active = false; },
@@ -27,7 +27,7 @@ function worker(pageApi = {}) {
     clearInterval: timer => { if (timer) timer.active = false; },
   });
   context.importScripts = name => {
-    assert.ok(['protocol.js', 'yuanbao-parse.js'].includes(name));
+    assert.ok(['protocol.js', 'yuanbao-page.js', 'yuanbao-parse.js'].includes(name));
     vm.runInContext(fs.readFileSync(__dirname + '/' + name, 'utf8'), context);
   };
   vm.runInContext(fs.readFileSync(__dirname + '/background.js', 'utf8'), context);
@@ -36,7 +36,7 @@ function worker(pageApi = {}) {
 }
 test('listeners registered synchronously; every worker start rebuilds alarm; initialization idempotent', async () => {
   const w = worker();
-  assert.deepEqual(Object.keys(w.listeners), ['alarm', 'startup', 'installed']);
+  assert.deepEqual(Object.keys(w.listeners), ['alarm', 'startup', 'installed', 'message']);
   await w.flush();
   w.listeners.startup(); w.listeners.installed(); w.listeners.alarm({ name: 'framefetch-identity-connect' });
   await w.flush();
@@ -213,4 +213,30 @@ test('stalled Cookie APIs return a bounded failure and keep the worker chain usa
       assert.equal(ws.sent.length, count);
     }
   }
+});
+
+test('popup diagnostics are restricted to the extension popup and never inspect account material', async () => {
+  const w = worker({ tabs: { query: async () => [{ id: 9, incognito: false, url: 'https://yuanbao.tencent.com/chat' }] },
+    cookies: { getAll: () => assert.fail('diagnostics must not read Cookies') },
+    scripting: { executeScript: () => assert.fail('diagnostics must not execute page scripts') } });
+  await w.flush();
+  const listener = w.listeners.message;
+  const sender = { id: 'test', url: 'chrome-extension://test/popup.html' };
+  for (const other of [{ ...sender, id: 'other' }, { ...sender, url: 'https://evil.test/' }]) {
+    assert.equal(listener({ type: 'open_yuanbao' }, other, () => assert.fail('untrusted sender')), false);
+  }
+  assert.equal(listener({ type: 'status', script: 'evil' }, sender, () => assert.fail('unexpected fields')), false);
+  let response;
+  assert.equal(listener({ type: 'status' }, sender, value => { response = value; }), true);
+  await w.flush();
+  assert.deepEqual(JSON.parse(JSON.stringify(response)), { connected: false, version: '1.0.0', page: 'available', busy: false, cause: null });
+  const ws = w.sockets[0], server = 'd'.repeat(64);
+  ws.onmessage({ data: JSON.stringify({ type: 'challenge', nonce: server }) }); await w.flush();
+  ws.onmessage({ data: JSON.stringify({ type: 'proof', proof: await proof(KEY, 'server', ws.sent[0].nonce, server) }) });
+  for (let i = 0; i < 20 && !w.intervals.length; i++) await w.flush();
+  listener({ type: 'status' }, sender, value => { response = value; }); await w.flush();
+  assert.equal(response.connected, true);
+  ws.close();
+  listener({ type: 'status' }, sender, value => { response = value; }); await w.flush();
+  assert.equal(response.connected, false);
 });

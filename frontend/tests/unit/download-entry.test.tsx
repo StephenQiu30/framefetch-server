@@ -229,13 +229,23 @@ it.each([
     cause: 'browser_runtime_unavailable',
     expected: '解析执行环境暂不可用，请检查服务后重试。',
   },
-  ...['extension_disconnected', 'credential_missing', 'session_missing'].map(
-    (cause) => ({
-      code: 'identity_unavailable' as const,
-      cause,
-      expected: '平台登录材料暂不可用，请检查部署主机的登录状态后重新解析。',
-    }),
-  ),
+  {
+    code: 'identity_unavailable',
+    cause: 'extension_disconnected',
+    expected:
+      '平台身份插件未连接，请确认部署主机的 Chrome 和帧取身份插件已启动。',
+  },
+  {
+    code: 'identity_unavailable',
+    cause: 'identity_page_unavailable',
+    expected:
+      '元宝页面暂不可用，请在部署主机的 Chrome 中打开元宝并确认登录后重新解析。',
+  },
+  ...['credential_missing', 'session_missing'].map((cause) => ({
+    code: 'identity_unavailable' as const,
+    cause,
+    expected: '平台登录材料暂不可用，请检查部署主机的登录状态后重新解析。',
+  })),
 ] as const)(
   'explains $cause in the failure notice',
   async ({ code, cause, expected }) => {

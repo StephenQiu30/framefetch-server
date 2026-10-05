@@ -3,7 +3,7 @@ const assert = require('node:assert/strict');
 const vm = require('node:vm');
 const { webcrypto } = require('node:crypto');
 const fs = require('node:fs');
-const { nativeParse, readExistingParse, MAX_CAPTURE_BYTES } = require('./yuanbao-parse.js');
+const { nativeParse, readShareParse, MAX_CAPTURE_BYTES } = require('./yuanbao-parse.js');
 const { Protocol, proof } = require('./protocol.js');
 const ORIGIN = 'https://yuanbao.tencent.com';
 const API_URL = ORIGIN + '/api/weixin/get_parse_result';
@@ -78,8 +78,9 @@ function timedBridge() {
     setTimeout: (fn, delay) => { const timer = { fn, at: now + delay }; timers.add(timer); return timer; },
     clearTimeout: timer => timers.delete(timer),
   });
+  vm.runInContext(fs.readFileSync(__dirname + '/yuanbao-page.js', 'utf8'), context);
   vm.runInContext(fs.readFileSync(__dirname + '/yuanbao-parse.js', 'utf8'), context);
-  return { read: context.FrameFetchYuanbaoParse.readExistingParse, timers, advance: ms => {
+  return { read: context.FrameFetchYuanbaoParse.readShareParse, timers, advance: ms => {
     now += ms;
     for (const timer of [...timers]) if (timer.at <= now) { timers.delete(timer); timer.fn(); }
   } };
@@ -249,26 +250,39 @@ test('MAIN operation deadline aborts a stalled native request and ignores its ev
 });
 test('existing non-incognito tab and same document are checked before and after the one native request', async () => {
   const b = chromePage();
-  assert.deepEqual(await readExistingParse(b.api, SHARE, Date.now() + 60000), { account_id: ACCOUNT, captured: captured() });
-  assert.deepEqual(b.calls.map(c => c[0]), ['query', 'execute', 'get', 'execute', 'execute', 'get']);
+  assert.deepEqual(await readShareParse(b.api, SHARE, Date.now() + 60000), { account_id: ACCOUNT, captured: captured() });
+  assert.deepEqual(b.calls.map(c => c[0]), ['query', 'query', 'execute', 'get', 'execute', 'execute', 'get']);
   assert.deepEqual(b.calls[0][1], { url: ORIGIN + '/*' });
   const scripts = b.calls.filter(c => c[0] === 'execute').map(c => c[1]);
   assert.deepEqual(scripts[0].target, { tabId: 9, frameIds: [0] });
   assert.deepEqual(scripts[1].target, { tabId: 9, documentIds: ['document-one'] });
   assert.deepEqual(scripts.map(s => s.args[2]), [true, false, true]);
 });
-test('ambiguous, pending, wrong-origin or incognito tabs never run the native request', async () => {
+test('a cold task prepares its page before running exactly one account-bound native parse', async () => {
+  const b = chromePage();
+  let opened = false;
+  b.api.tabs.query = async () => opened ? [b.tab] : [];
+  b.api.tabs.create = async details => {
+    assert.deepEqual(details, { url: ORIGIN + '/', active: false });
+    opened = true;
+    return b.tab;
+  };
+  assert.deepEqual(await readShareParse(b.api, SHARE, Date.now() + 1000), { account_id: ACCOUNT, captured: captured() });
+  assert.deepEqual(b.calls.filter(c => c[0] === 'execute').map(c => c[1].args[2]), [true, false, true]);
+});
+test('ambiguous pages and a failed page preparation never run the native request', async () => {
   for (const [tabs, cause] of [
     [[], 'identity_page_unavailable'],
     [[{ id: 1, url: ORIGIN, incognito: true }], 'identity_page_unavailable'],
     [[{ id: 1, url: ORIGIN + '.evil.test', incognito: false }], 'identity_page_unavailable'],
     [[{ id: 1, url: 'https://user@yuanbao.tencent.com', incognito: false }], 'identity_page_unavailable'],
     [[{ id: 1, url: ORIGIN, incognito: false }, { id: 2, url: ORIGIN + '/chat', incognito: false }], 'identity_tab_ambiguous'],
-    [[{ id: 1, url: ORIGIN, incognito: false, pendingUrl: ORIGIN }], 'identity_navigation_changed'],
   ]) {
     let executions = 0;
-    const b = chromePage({ tabs: { query: async () => tabs }, scripting: { executeScript: async () => { executions++; } } });
-    assert.deepEqual(await readExistingParse(b.api, SHARE, Date.now() + 1000), { cause });
+    const b = chromePage({ tabs: { query: async () => tabs,
+      create: async () => { throw new Error('synthetic-page-creation-denied'); } },
+      scripting: { executeScript: async () => { executions++; } } });
+    assert.deepEqual(await readShareParse(b.api, SHARE, Date.now() + 1000), { cause });
     assert.equal(executions, 0);
   }
 });
@@ -280,7 +294,7 @@ test('same-URL document replacement and account switching reject captured materi
       documentId: ++count === 2 && mode === 'document' ? 'document-two' : 'document-one',
       result: details.args[2] ? { account_id: count === 3 && mode === 'account' ? 'other' : ACCOUNT } : { account_id: ACCOUNT, captured: captured() } }];
     if (mode === 'navigation') b.api.tabs.get = async () => ({ ...b.tab, url: ORIGIN + '/other' });
-    assert.deepEqual(await readExistingParse(b.api, SHARE, Date.now() + 1000),
+    assert.deepEqual(await readShareParse(b.api, SHARE, Date.now() + 1000),
       { cause: mode === 'account' ? 'identity_account_conflict' : 'identity_navigation_changed' });
   }
 });

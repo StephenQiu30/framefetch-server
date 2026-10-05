@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "framefetch-identity",
-  "version": "1.1.1",
-  "description": "按任务读取当前 Chrome Profile 的必要平台身份材料",
+  "version": "1.2.0",
+  "description": "按任务提供平台身份，并自动准备视频号所需的元宝页面",
   "minimum_chrome_version": "120",
   "permissions": [
     "cookies",
@@ -11,6 +11,10 @@
   ],
   "background": {
     "service_worker": "background.js"
+  },
+  "action": {
+    "default_title": "帧取平台身份",
+    "default_popup": "popup.html"
   },
   "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAtTQRR2fTQ8iFIFv/5r1U7Zv2YkreR7cHZEdIaKh2lkE2ZUcfnqij1AsqGsaKaXM9vqI8NG257jIBc/Eet7sJFqM/bI67Bz+iTNRr+dqlXa57iG7vFqeQx+ze8Av/LMz10Mlju3iZolNlMqOvBsZUiD48+3fA3C8EwBlxAs8Zjxf7rW0u1ui+m1yxT3x4MWo9ry0uhDjYDAMLrzlcAp+N8StRs0StO4T/E8yjxM+kyFGpFFYyIDQ/2hW4KJoJBmodZxjoxSPsGGZiYIpdll/Ax2NAVknqr8lg2e7uvFCXh//Kb1hOmNELgSGlM4B2qWh53382G2gu9DM8IgZ5bY5P2QIDAQAB"
 }
