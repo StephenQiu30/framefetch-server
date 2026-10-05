@@ -38,20 +38,20 @@ class IdentityMaterial:
 
 
 @dataclass(frozen=True, slots=True)
-class NativePageIdentity:
-    """Account binding from a native page request; no credential is exported."""
+class YuanbaoRequestIdentity:
+    """Account binding from the Chrome HTTP client; no credential is exported."""
 
     digest: str
 
     def __post_init__(self) -> None:
         if re.fullmatch(r"[a-f0-9]{64}", self.digest) is None:
-            raise ValueError("invalid native identity digest")
+            raise ValueError("invalid Yuanbao identity digest")
 
     def cleanup(self) -> None:
         """This identity owns no file, browser profile or account credential."""
 
 
-type Identity = IdentityMaterial | NativePageIdentity
+type Identity = IdentityMaterial | YuanbaoRequestIdentity
 
 
 def _unavailable(cause: str) -> LayerFailure:
@@ -182,11 +182,7 @@ async def fetch_identity(
                 "identity_not_declared",
                 "identity_deadline_invalid",
                 "identity_source_mismatch",
-                "identity_origin_invalid",
-                "identity_navigation_changed",
                 "identity_account_conflict",
-                "identity_tab_ambiguous",
-                "identity_page_unavailable",
             }:
                 cause = "cookie_source_rejected"
             raise _unavailable(cause)

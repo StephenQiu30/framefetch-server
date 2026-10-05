@@ -1,7 +1,6 @@
 /* Listeners are registered synchronously before configuration/connection work. */
 importScripts('protocol.js');
-importScripts('yuanbao-page.js');
-importScripts('yuanbao-parse.js');
+importScripts('yuanbao-http.js');
 const ALARM = 'framefetch-identity-connect';
 let socket = null;
 let retryTimer = null;
@@ -17,15 +16,14 @@ chrome.runtime.onInstalled.addListener(() => { void initialize(); });
 chrome.runtime.onMessage.addListener((message, sender, respond) => {
   if (sender.id !== chrome.runtime.id || sender.url !== chrome.runtime.getURL('popup.html') ||
       !message || Object.keys(message).join(',') !== 'type' ||
-      !['status', 'open_yuanbao', 'reconnect'].includes(message.type)) return false;
-  void popupRequest(message.type).then(respond).catch(() => respond({ error: 'page_unavailable' }));
+      !['status', 'login_yuanbao', 'reconnect'].includes(message.type)) return false;
+  void popupRequest(message.type).then(respond).catch(() => respond({ error: 'status_unavailable' }));
   return true;
 });
 
 async function popupRequest(type) {
-  if (type === 'open_yuanbao') {
-    try { await FrameFetchYuanbaoPage.open(chrome, Date.now() + 5000, true); }
-    catch (error) { lastParseCause = FrameFetchYuanbaoParse.CAUSES.has(error?.message) ? error.message : 'identity_page_unavailable'; }
+  if (type === 'login_yuanbao') {
+    await chrome.tabs.create({ url: 'https://yuanbao.tencent.com/', active: true });
   }
   if (type === 'reconnect') {
     if (!activeProtocol?.authenticated) {
@@ -37,9 +35,9 @@ async function popupRequest(type) {
       await initialize();
     }
   }
-  const page = await FrameFetchYuanbaoPage.status(chrome);
+  const session = await FrameFetchYuanbaoHTTP.status(chrome);
   return { connected: activeProtocol?.authenticated === true, version: chrome.runtime.getManifest().version,
-    page, busy: activeProtocol?.busy === true, cause: lastParseCause };
+    session, busy: activeProtocol?.busy === true, cause: lastParseCause };
 }
 
 async function ensureAlarm() {
@@ -69,7 +67,7 @@ async function initialize() {
     const protocol = new FrameFetchIdentity.Protocol(config, details => chrome.cookies.getAll(details), send, chrome.runtime.getManifest().version,
       async (canonicalUrl, deadlineMs) => {
         lastParseCause = null;
-        const result = await FrameFetchYuanbaoParse.readShareParse(chrome, canonicalUrl, deadlineMs);
+        const result = await FrameFetchYuanbaoHTTP.parseShare(chrome, canonicalUrl, deadlineMs);
         lastParseCause = result.cause ?? null;
         return result;
       });
@@ -83,7 +81,7 @@ async function initialize() {
         message = JSON.parse(event.data);
         if (!message || typeof message !== 'object' || Array.isArray(message)) throw new Error('invalid_message');
       } catch { ws.close(); return; }
-      // A native parse may occupy the serial request chain for 30 seconds.
+      // A parse may occupy the serial request chain for 30 seconds.
       // Authenticated heartbeat frames must still refresh the connection.
       if (protocol.authenticated && Object.keys(message).join(',') === 'type' && ['ping', 'pong', 'ready'].includes(message.type)) {
         lastSeen = Date.now();

@@ -15,13 +15,13 @@ import httpx
 import pytest
 from app.services.provider_failures import FailureClass
 from app.workers.runner.engine.browser import wechat_channels as channels
-from app.workers.runner.engine.identity import NativePageIdentity
+from app.workers.runner.engine.identity import YuanbaoRequestIdentity
 from app.workers.runner.engine.layers.base import LayerFailure
 from app.workers.runner.engine.layers.browser import BrowserLayer
 from app.workers.runner.errors import RunnerFailure
 from app.workers.runner.provider_registry import provider_request
 from app.workers.runner.service import MediaRunnerService
-from app.workers.runner.wechat_channels_native import NativeParseResult
+from app.workers.runner.wechat_channels_http import ShareParseResult
 from helpers import settings
 from test_engine_skeleton import source_for
 
@@ -189,8 +189,8 @@ def operation(tmp_path, monkeypatch):
         steps.append("native")
         if state.native_block:
             await asyncio.Event().wait()
-        return NativeParseResult(
-            NativePageIdentity(state.digest), copy.deepcopy(state.capture)
+        return ShareParseResult(
+            YuanbaoRequestIdentity(state.digest), copy.deepcopy(state.capture)
         )
 
     async def probe(url, cwd, *, referer):
@@ -263,7 +263,7 @@ async def test_l3_uses_bound_native_parse_and_actual_clear_file_specs(operation)
         & result.download_info.keys()
     )
     assert result.run_context is contexts[0]
-    assert result.run_context.identity == NativePageIdentity(DIGEST)
+    assert result.run_context.identity == YuanbaoRequestIdentity(DIGEST)
     assert result.run_context.cookie_file is None and result.run_context.browser is None
     assert result.run_context.egress == source.run_context.egress
 

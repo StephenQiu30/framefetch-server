@@ -559,7 +559,7 @@ def delivery_profile(
     media_kind=None,
 ):
     from app.services.downloads.rules.enums import MediaKind
-    from app.workers.runner.engine.identity import NativePageIdentity
+    from app.workers.runner.engine.identity import YuanbaoRequestIdentity
 
     original = service._download_resolved
 
@@ -574,13 +574,13 @@ def delivery_profile(
             profile = provider_request(
                 "https://weixin.qq.com/sph/SyntheticShare"
             ).profile
-            material = NativePageIdentity("a" * 64)
+            material = YuanbaoRequestIdentity("a" * 64)
             ctx = ctx.with_material(identity=material)
             context = replace(
                 context,
                 registry_revision=profile.version,
                 resolved_layer="L3",
-                client="wechat_channels:browser",
+                client="wechat_channels:http",
                 identity_used=True,
                 identity_digest=material.digest,
                 browser_context_kind="authenticated",

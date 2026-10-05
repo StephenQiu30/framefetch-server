@@ -28,7 +28,7 @@ SOCIAL_PROVIDER_PROFILES: tuple[ProviderProfile, ...] = (
         ),
         support_status=ProviderSupportStatus.UNKNOWN,
         # The existing Chrome page supplies its own native authenticated request.
-        identity_source="yuanbao_native",
+        identity_source="yuanbao_http",
         identity_origin=YUANBAO_ORIGIN,
         content_scope="official_share",
         command_args=CHROME_IMPERSONATION,

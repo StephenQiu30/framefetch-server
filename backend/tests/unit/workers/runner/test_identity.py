@@ -70,7 +70,7 @@ def transport(tmp_path, monkeypatch):
     return root, settings, state, requests
 
 
-async def test_native_page_identity_cannot_use_cookie_transport(transport):
+async def test_request_identity_cannot_use_cookie_transport(transport):
     root, _, _, requests = transport
     with pytest.raises(LayerFailure) as error:
         await identity.fetch_identity("wechat_channels", "task", deadline())
@@ -78,12 +78,12 @@ async def test_native_page_identity_cannot_use_cookie_transport(transport):
     assert not requests and not root.exists()
 
 
-def test_native_page_identity_contains_only_digest():
-    material = identity.NativePageIdentity("a" * 64)
+def test_request_identity_contains_only_digest():
+    material = identity.YuanbaoRequestIdentity("a" * 64)
     material.cleanup()
     assert not hasattr(material, "cookie_file")
     with pytest.raises(ValueError):
-        identity.NativePageIdentity("invalid")
+        identity.YuanbaoRequestIdentity("invalid")
 
 
 async def test_material_private_operation_file_and_cleanup(transport):

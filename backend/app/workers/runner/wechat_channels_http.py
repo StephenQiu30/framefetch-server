@@ -1,4 +1,4 @@
-"""Runner-only transport for one fixed native Yuanbao share parse."""
+"""Runner-only transport for one fixed Chrome HTTP Yuanbao share parse."""
 
 from __future__ import annotations
 
@@ -20,7 +20,7 @@ from app.workers.identity.yuanbao_parse import (
     validate_canonical_share_url,
     validate_yuanbao_parse_result,
 )
-from app.workers.runner.engine.identity import NativePageIdentity
+from app.workers.runner.engine.identity import YuanbaoRequestIdentity
 from app.workers.runner.engine.layers.base import LayerFailure
 from app.workers.runner.provider_registry import provider_profile_for_key
 from app.workers.runner.settings import get_runner_settings
@@ -30,25 +30,20 @@ _TRANSPORT_TIMEOUT = YUANBAO_PARSE_TIMEOUT + 2.0
 _TASK_ID = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,127}")
 _CAUSE_CLASSES = {
     "credential_missing": FailureClass.LOGIN_REQUIRED,
-    "identity_origin_invalid": FailureClass.CONTEXT_CHANGED,
-    "identity_navigation_changed": FailureClass.CONTEXT_CHANGED,
     "identity_account_conflict": FailureClass.CONTEXT_CHANGED,
-    "identity_tab_ambiguous": FailureClass.IDENTITY_UNAVAILABLE,
-    "identity_page_unavailable": FailureClass.IDENTITY_UNAVAILABLE,
     "identity_material_invalid": FailureClass.IDENTITY_UNAVAILABLE,
     "extension_disconnected": FailureClass.IDENTITY_UNAVAILABLE,
     "extension_timeout": FailureClass.IDENTITY_UNAVAILABLE,
     "identity_deadline_invalid": FailureClass.IDENTITY_UNAVAILABLE,
     "identity_source_mismatch": FailureClass.IDENTITY_UNAVAILABLE,
-    "native_api_unavailable": FailureClass.EXTRACTOR_BROKEN,
     "parse_response_invalid": FailureClass.EXTRACTOR_BROKEN,
     "parse_request_failed": FailureClass.TRANSIENT,
 }
 
 
 @dataclass(frozen=True, slots=True)
-class NativeParseResult:
-    identity: NativePageIdentity
+class ShareParseResult:
+    identity: YuanbaoRequestIdentity
     captured: Mapping[str, Any] = field(repr=False)
 
 
@@ -92,7 +87,7 @@ def _decode(raw: bytes | bytearray) -> object:
 
 async def parse_yuanbao_share(
     canonical_url: str, task_id: str, deadline: datetime
-) -> NativeParseResult:
+) -> ShareParseResult:
     """Obtain a captured parse without exporting Chrome account credentials."""
     try:
         validate_canonical_share_url(canonical_url)
@@ -110,7 +105,7 @@ async def parse_yuanbao_share(
     profile = provider_profile_for_key("wechat_channels")
     if (
         profile.key != "wechat_channels"
-        or profile.identity_source != "yuanbao_native"
+        or profile.identity_source != "yuanbao_http"
         or profile.identity_origin != YUANBAO_ORIGIN
         or profile.content_scope != "official_share"
         or profile.identity is not ProviderIdentity.REQUIRED
@@ -191,8 +186,8 @@ async def parse_yuanbao_share(
                         parsed = validate_yuanbao_parse_result(
                             decoded, canonical_share_url=canonical_url
                         )
-                        result = NativeParseResult(
-                            NativePageIdentity(parsed.identity_digest),
+                        result = ShareParseResult(
+                            YuanbaoRequestIdentity(parsed.identity_digest),
                             parsed.captured.model_dump(mode="json"),
                         )
                     except (ValueError, TypeError, RecursionError):

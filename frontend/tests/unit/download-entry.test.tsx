@@ -235,12 +235,6 @@ it.each([
     expected:
       '平台身份插件未连接，请确认部署主机的 Chrome 和帧取身份插件已启动。',
   },
-  {
-    code: 'identity_unavailable',
-    cause: 'identity_page_unavailable',
-    expected:
-      '元宝页面暂不可用，请在部署主机的 Chrome 中打开元宝并确认登录后重新解析。',
-  },
   ...['credential_missing', 'session_missing'].map((cause) => ({
     code: 'identity_unavailable' as const,
     cause,

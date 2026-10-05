@@ -538,14 +538,14 @@ async def test_cookie_identity_rejects_non_tmpfs_before_browser_launch(
 
 
 @pytest.mark.parametrize("key", ["douyin", "wechat_channels"])
-async def test_native_page_identity_cannot_enter_owned_browser(tmp_path, chromium, key):
+async def test_request_identity_cannot_enter_owned_browser(tmp_path, chromium, key):
     settings = configured(tmp_path)
     runtime = BrowserRuntime(settings)
     with pytest.raises(RunnerFailure):
         await runtime.acquire(
             profile(key),
             ctx=run_context(settings, key).with_material(
-                identity=identity.NativePageIdentity("a" * 64)
+                identity=identity.YuanbaoRequestIdentity("a" * 64)
             ),
         )
     assert not chromium.calls

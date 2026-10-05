@@ -72,7 +72,7 @@ def test_wechat_channels_exposes_official_share_delivery_without_verified_suppor
     }
     assert public.user_action is not None
     assert "需要登录元宝" in public.user_action
-    assert "元宝页面打开" in public.user_action
+    assert "无需打开元宝页面" in public.user_action
     assert "官方分享链接" in public.user_action
     assert "非加密文件" in public.user_action
     assert all(word not in public.user_action for word in ("公开", "免费", "完整"))

@@ -28,7 +28,7 @@ def installation(tmp_path, monkeypatch):
     for name in (
         "background.js",
         "protocol.js",
-        "yuanbao-parse.js",
+        "yuanbao-http.js",
         "manifest.template.json",
     ):
         shutil.copyfile(extension.EXTENSION_SOURCE / name, home / name)
@@ -198,8 +198,8 @@ def test_manifest_registry_permissions_and_stable_id():
     )
     manifest = extension.manifest(19101)
     assert "host_permissions" not in template
-    assert manifest["permissions"] == ["cookies", "alarms", "scripting"]
-    assert manifest["version"] == "1.2.0"
+    assert manifest["permissions"] == ["cookies", "alarms"]
+    assert manifest["version"] == "1.3.1"
     assert manifest["action"]["default_popup"] == "popup.html"
     assert manifest["minimum_chrome_version"] == "120"
     assert set(manifest["host_permissions"]) == {
@@ -210,7 +210,7 @@ def test_manifest_registry_permissions_and_stable_id():
     assert "web_accessible_resources" not in manifest
     assert len(extension.extension_origin().removeprefix("chrome-extension://")) == 32
     assert extension.manifest(19102)["key"] == manifest["key"]
-    assert extension.page_origins() == ["https://yuanbao.tencent.com"]
+    assert extension.request_origins() == ["https://yuanbao.tencent.com"]
     assert "channels.weixin.qq.com" not in extension.cookie_domains()
     assert "yuanbao.tencent.com" not in extension.cookie_domains()
 
@@ -288,7 +288,7 @@ def test_registry_permissions_cover_every_identity_platform():
                 assert set(profile.cookie_domain_allowlist) <= domains
             else:
                 assert profile.key == "wechat_channels"
-                assert profile.identity_origin in extension.page_origins()
+                assert profile.identity_origin in extension.request_origins()
                 assert not profile.cookie_domain_allowlist
     assert {
         "kuaishou.com",

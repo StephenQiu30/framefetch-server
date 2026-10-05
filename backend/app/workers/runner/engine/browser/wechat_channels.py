@@ -1,4 +1,4 @@
-"""Resolve a bound official share through native Yuanbao and fixed feed requests."""
+"""Resolve an official share through Chrome HTTP Yuanbao and fixed feed requests."""
 
 from __future__ import annotations
 
@@ -16,7 +16,7 @@ import httpx
 from app.services.provider_failures import FailureClass
 from app.workers.identity.yuanbao_parse import validate_canonical_share_url
 from app.workers.runner.engine.browser.intercept import MAX_RESPONSE_BYTES, failure
-from app.workers.runner.engine.identity import NativePageIdentity
+from app.workers.runner.engine.identity import YuanbaoRequestIdentity
 from app.workers.runner.engine.layers.base import LayerFailure
 from app.workers.runner.engine.resolved import ResolvedMedia
 from app.workers.runner.engine.run_context import ResolutionSource, RunContext
@@ -24,7 +24,7 @@ from app.workers.runner.errors import RunnerFailure
 from app.workers.runner.metadata import enrich_format_metadata
 from app.workers.runner.url_policy import UrlPolicyError, validate_media_url
 from app.workers.runner.utilities import normalize_for_settings
-from app.workers.runner.wechat_channels_native import parse_yuanbao_share
+from app.workers.runner.wechat_channels_http import parse_yuanbao_share
 from app.workers.runner.wechat_channels_policy import (
     ProtectionScanLimitError,
     author_info,
@@ -39,7 +39,7 @@ from app.workers.runner.wechat_channels_response import (
     yuanbao_reference,
 )
 
-CLIENT = "wechat_channels:browser"
+CLIENT = "wechat_channels:http"
 _ORIGIN = "https://channels.weixin.qq.com"
 _FEED_URL = f"{_ORIGIN}/finder-preview/api/feed/get_feed_info"
 _USER_AGENT = (
@@ -55,11 +55,11 @@ async def resolve(source: ResolutionSource, ctx: RunContext) -> ResolvedMedia:
     if (
         profile.key != "wechat_channels"
         or profile.content_scope != "official_share"
-        or profile.identity_source != "yuanbao_native"
+        or profile.identity_source != "yuanbao_http"
         or ctx.cookie_file is not None
         or ctx.browser is not None
         or ctx.identity is not None
-        and not isinstance(ctx.identity, NativePageIdentity)
+        and not isinstance(ctx.identity, YuanbaoRequestIdentity)
     ):
         raise failure(FailureClass.INVALID_INPUT, "unexpected_identity", "none")
     canonical_url = source.request.source_url
@@ -100,13 +100,13 @@ async def _resolve(
     parsed = await parse_yuanbao_share(
         canonical_url, source.workspace.path.name, ctx.deadline
     )
-    if not isinstance(parsed.identity, NativePageIdentity):
-        raise failure(FailureClass.IDENTITY_UNAVAILABLE, "native_identity_invalid", "③")
+    if not isinstance(parsed.identity, YuanbaoRequestIdentity):
+        raise failure(FailureClass.IDENTITY_UNAVAILABLE, "http_identity_invalid", "③")
     expected_digest = (
         source.expected_context.identity_digest
         if source.expected_context is not None
         else ctx.identity.digest
-        if isinstance(ctx.identity, NativePageIdentity)
+        if isinstance(ctx.identity, YuanbaoRequestIdentity)
         else None
     )
     if expected_digest is not None and parsed.identity.digest != expected_digest:

@@ -10,7 +10,7 @@ from app.services.provider_failures import FailureClass
 from app.services.provider_types import Layer, ProviderIdentity
 from app.workers.runner.engine import identity
 from app.workers.runner.engine.egress import resolve_egress
-from app.workers.runner.engine.identity import IdentityMaterial, NativePageIdentity
+from app.workers.runner.engine.identity import IdentityMaterial, YuanbaoRequestIdentity
 from app.workers.runner.engine.ladder import LAYER_TABLE, close_material, run_ladder
 from app.workers.runner.engine.layers.base import LayerFailure
 from app.workers.runner.engine.layers.browser import BrowserLayer
@@ -61,7 +61,7 @@ def native_browser_source(tmp_path):
     service = MediaRunnerService(settings(tmp_path))
     item = source_for(service, tmp_path)
     request = provider_request("https://weixin.qq.com/sph/SyntheticShare")
-    assert request.profile.identity_source == "yuanbao_native"
+    assert request.profile.identity_source == "yuanbao_http"
     item = replace(item, request=request, execution_context=service._context(request))
     yield item
     item.workspace.cleanup()
@@ -758,20 +758,20 @@ async def test_custom_browser_layer_is_not_rejected_by_production_parser_prechec
     await close_material(result.run_context)
 
 
-def native_browser(monkeypatch, digests, *, client="wechat_channels:browser"):
+def native_browser(monkeypatch, digests, *, client="wechat_channels:http"):
     contexts = []
 
     class NativeBrowser(BrowserLayer):
         async def resolve(self, source, ctx):
             contexts.append(ctx)
-            material = NativePageIdentity(digests.pop(0))
+            material = YuanbaoRequestIdentity(digests.pop(0))
             return resolved(ctx.with_material(identity=material), client=client)
 
     monkeypatch.setitem(LAYER_TABLE, Layer.L3, NativeBrowser)
     return contexts
 
 
-async def test_native_page_resolution_records_authenticated_identity_summary(
+async def test_http_resolution_records_account_identity_without_browser_context(
     native_browser_source, monkeypatch
 ):
     source = native_browser_source
@@ -786,15 +786,15 @@ async def test_native_page_resolution_records_authenticated_identity_summary(
     )
 
     assert len(contexts) == 1 and contexts[0].identity is None
-    assert isinstance(result.run_context.identity, NativePageIdentity)
+    assert isinstance(result.run_context.identity, YuanbaoRequestIdentity)
     assert result.run_context.identity.digest == "a" * 64
     assert result.run_context.cookie_file is None and result.run_context.browser is None
     summary = result.execution_context
     assert summary.resolved_layer == "L3"
-    assert summary.client == "wechat_channels:browser"
+    assert summary.client == "wechat_channels:http"
     assert summary.identity_used is True
     assert summary.identity_digest == "a" * 64
-    assert summary.browser_context_kind == "authenticated"
+    assert summary.browser_context_kind == "none"
     assert summary.egress_revision == source.run_context.egress.revision
     assert len(summary.to_document()) == 12
     assert set(summary.to_document()).isdisjoint(
@@ -829,7 +829,7 @@ async def test_native_download_reacquires_same_account_digest_and_preserves_cont
     assert len(contexts) == 2 and all(ctx.identity is None for ctx in contexts)
     assert downloaded.execution_context == inspected.execution_context
     assert downloaded.run_context.identity is not inspected.run_context.identity
-    assert downloaded.execution_context.browser_context_kind == "authenticated"
+    assert downloaded.execution_context.browser_context_kind == "none"
     fetch.assert_not_awaited()
     await close_material(inspected.run_context)
     await close_material(downloaded.run_context)
@@ -849,7 +849,7 @@ async def test_native_download_cannot_reconfirm_account_or_client_drift(
         ["b" * 64 if changed == "digest" else "a" * 64],
         client="wechat_channels:other"
         if changed == "client"
-        else "wechat_channels:browser",
+        else "wechat_channels:http",
     )
     download_source = replace(
         source,
@@ -946,7 +946,7 @@ async def test_native_download_waits_for_fresh_account_before_authentication(
 
 
 @pytest.mark.parametrize("material", ["missing", "cookie"])
-async def test_native_page_custom_parser_cannot_succeed_without_native_identity(
+async def test_http_custom_parser_cannot_succeed_without_request_identity(
     native_browser_source, monkeypatch, identity_material, material
 ):
     source = native_browser_source
@@ -959,7 +959,7 @@ async def test_native_page_custom_parser_cannot_succeed_without_native_identity(
         async def resolve(self, source, ctx):
             if material == "cookie":
                 ctx = ctx.with_material(identity=identity_material)
-            return resolved(ctx, client="wechat_channels:browser")
+            return resolved(ctx, client="wechat_channels:http")
 
     monkeypatch.setitem(LAYER_TABLE, Layer.L3, ForgedNativeBrowser)
 

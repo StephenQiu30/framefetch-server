@@ -102,18 +102,13 @@ const localizedErrorMessages: Record<string, string> = {
 };
 
 const localizedFailureCauses: Record<string, string> = {
-  'identity_unavailable:identity_page_unavailable':
-    '元宝页面暂不可用，请在部署主机的 Chrome 中打开元宝并确认登录后重新解析。',
-  'identity_unavailable:identity_tab_ambiguous':
-    '检测到多个元宝页面，请只保留一个普通元宝标签页后重新解析。',
+  'extractor_broken:parse_response_invalid':
+    '平台解析响应未通过校验，请稍后重新解析。',
+  'transient:parse_request_failed': '平台解析请求失败，请检查网络后重新解析。',
   'identity_unavailable:extension_disconnected':
     '平台身份插件未连接，请确认部署主机的 Chrome 和帧取身份插件已启动。',
   'identity_unavailable:extension_timeout':
-    '平台身份获取或页面准备超时，请检查部署主机的 Chrome 页面后重新解析。',
-  'extractor_broken:native_api_unavailable':
-    '元宝页面的解析接口暂不可用，请刷新元宝页面后重新解析。',
-  'context_changed:identity_navigation_changed':
-    '元宝页面在解析期间发生跳转，请等待页面加载完成后重新解析。',
+    '平台身份获取或解析请求超时，请检查部署主机的 Chrome 和网络后重新解析。',
   'context_changed:identity_account_conflict':
     '元宝账号在解析期间发生变化，请确认账号后重新解析。',
   'login_required:credential_missing':

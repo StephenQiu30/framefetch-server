@@ -1,4 +1,4 @@
-"""Fixed first-party Yuanbao capture and account-bound native oracle result."""
+"""Fixed first-party Yuanbao capture and account-bound Chrome HTTP result."""
 
 from __future__ import annotations
 
@@ -91,12 +91,12 @@ def _validate_capture(captured: YuanbaoCapturedParse, canonical_share_url: str) 
         raise ValueError("response too large")
 
 
-def stable_native_identity_digest(account_id: str, *, key: str) -> str:
+def stable_yuanbao_identity_digest(account_id: str, *, key: str) -> str:
     if not isinstance(key, str) or not key:
         raise ValueError("invalid digest key")
     canonical = json.dumps(
         [
-            "yuanbao_native",
+            "yuanbao_http",
             YUANBAO_ORIGIN,
             "wechat_channels",
             _account_identifier(account_id),
@@ -113,7 +113,7 @@ def validate_yuanbao_oracle_result(
     parsed = _YuanbaoOracleResult.model_validate(raw)
     _validate_capture(parsed.captured, canonical_share_url)
     return YuanbaoParseResult(
-        identity_digest=stable_native_identity_digest(
+        identity_digest=stable_yuanbao_identity_digest(
             parsed.account_id.get_secret_value(), key=key
         ),
         captured=parsed.captured,

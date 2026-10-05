@@ -69,7 +69,7 @@ class ProviderProfile:
     l2_prepare: PrepareSpec | None = None
     l3_rules: BrowserRules | None = None
     identity: ProviderIdentity = ProviderIdentity.NONE
-    identity_source: Literal["cookies", "yuanbao_native"] = "cookies"
+    identity_source: Literal["cookies", "yuanbao_http"] = "cookies"
     identity_origin: str | None = None
     content_scope: Literal["public", "personal_full", "official_share"] = "public"
     cookie_domain_allowlist: frozenset[str] = frozenset()
@@ -166,7 +166,7 @@ class ProviderRegistry:
                     raise ValueError(
                         f"provider {profile.key} has invalid identity origin"
                     )
-            elif profile.identity_source == "yuanbao_native":
+            elif profile.identity_source == "yuanbao_http":
                 if (
                     profile.key != ProviderKey.WECHAT_CHANNELS
                     or profile.identity is not ProviderIdentity.REQUIRED

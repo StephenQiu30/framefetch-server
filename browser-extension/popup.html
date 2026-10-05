@@ -12,12 +12,12 @@
       <header><h1>帧取平台身份</h1><span id="version"></span></header>
       <dl>
         <div><dt>宿主连接</dt><dd id="connection">正在检查…</dd></div>
-        <div><dt>元宝页面</dt><dd id="page">正在检查…</dd></div>
+        <div><dt>元宝登录材料</dt><dd id="session">正在检查…</dd></div>
       </dl>
       <p id="message" role="status" aria-live="polite">正在检查插件状态。</p>
-      <p class="hint">视频号解析时会自动准备元宝后台页。需要登录时，请在元宝页面完成登录后重新解析。</p>
+      <p class="hint">视频号解析直接在插件内部完成，无需打开元宝页面。登录过期时，请完成元宝登录后重试。</p>
       <div class="actions">
-        <button id="open-yuanbao" type="button">打开元宝</button>
+        <button id="login-yuanbao" type="button">登录元宝</button>
         <button id="refresh" type="button" class="secondary">刷新状态</button>
         <button id="reconnect" type="button" class="secondary" hidden>重新连接</button>
       </div>

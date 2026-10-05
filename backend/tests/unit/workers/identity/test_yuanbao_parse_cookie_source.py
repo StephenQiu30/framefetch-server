@@ -1,4 +1,4 @@
-"""Fixed native parse oracle: authentication, request binding and cleanup."""
+"""Fixed HTTP parse result: authentication, request binding and cleanup."""
 
 import asyncio
 import json
@@ -12,7 +12,7 @@ import httpx
 import pytest
 from app.core.config import CookieSourceSettings
 from app.workers.identity import cookie_source as m
-from app.workers.identity import yuanbao_parse as native
+from app.workers.identity import yuanbao_parse as parse
 from app.workers.identity.extension import extension_origin
 from fastapi.testclient import TestClient
 from pydantic import SecretStr, ValidationError
@@ -67,9 +67,9 @@ def authenticate(ws, key=KEY):
 
 
 @pytest.fixture(autouse=True)
-def native_registry(monkeypatch):
+def http_registry(monkeypatch):
     original = m.provider_profile_for_key
-    profile = replace(original("wechat_channels"), identity_source="yuanbao_native")
+    profile = replace(original("wechat_channels"), identity_source="yuanbao_http")
     monkeypatch.setattr(
         m,
         "provider_profile_for_key",
@@ -210,7 +210,7 @@ async def test_account_identifier_never_exports_on_invalid_result(source, accoun
 async def test_capture_is_bounded_before_any_http_result(source):
     service, state = source
     state["result"]["captured"]["payload"] = {
-        "data": "x" * native.YUANBAO_PARSE_MAX_BYTES
+        "data": "x" * parse.YUANBAO_PARSE_MAX_BYTES
     }
     with pytest.raises(m.IdentityUnavailable, match="parse_response_invalid"):
         await service.yuanbao_parse(request())
@@ -351,7 +351,7 @@ async def test_runner_authorization_precedes_body_and_errors_never_export_materi
         assert "synthetic-private-secret" not in result.text
 
 
-def test_hmac_authentication_precedes_native_requests_and_returns_no_credentials():
+def test_hmac_authentication_precedes_http_requests_and_returns_no_credentials():
     with TestClient(m.create_app(settings())) as client:
         with client.websocket_connect(
             "/extension", headers={"Origin": extension_origin()}
@@ -418,7 +418,7 @@ def test_response_kind_and_fixed_failure_cannot_cross_the_pending_request(
 
 
 @pytest.mark.parametrize("cause", sorted(m.YUANBAO_PARSE_CAUSES))
-def test_fixed_native_failure_preserves_authenticated_connection(cause):
+def test_fixed_http_failure_preserves_authenticated_connection(cause):
     with TestClient(m.create_app(settings())) as client:
         with client.websocket_connect(
             "/extension", headers={"Origin": extension_origin()}
@@ -463,7 +463,7 @@ async def test_bridge_json_has_one_meaning_and_kind_specific_size_limit(wire):
         await m.receive(socket, allow_yuanbao_parse=True)
 
 
-async def test_native_frame_can_exceed_cookie_cap_within_its_own_bounded_limit():
+async def test_http_frame_can_exceed_cookie_cap_within_its_own_bounded_limit():
     socket = AsyncMock()
     message = {
         "type": "yuanbao_parse",
@@ -488,12 +488,12 @@ async def test_native_frame_can_exceed_cookie_cap_within_its_own_bounded_limit()
 def test_runner_result_validator_accepts_only_the_bound_public_shape(change):
     raw = {"identity_digest": "a" * 64, "captured": CAPTURED, **change}
     with pytest.raises(ValueError):
-        native.validate_yuanbao_parse_result(raw, canonical_share_url=SHARE)
+        parse.validate_yuanbao_parse_result(raw, canonical_share_url=SHARE)
 
 
 def test_runner_result_validator_binds_capture_to_the_submitted_share():
     raw = {"identity_digest": "a" * 64, "captured": CAPTURED}
-    valid = native.validate_yuanbao_parse_result(raw, canonical_share_url=SHARE)
+    valid = parse.validate_yuanbao_parse_result(raw, canonical_share_url=SHARE)
     assert valid.captured.request_body.url == SHARE
     with pytest.raises(ValueError, match="response share mismatch"):
-        native.validate_yuanbao_parse_result(raw, canonical_share_url=SHARE + "x")
+        parse.validate_yuanbao_parse_result(raw, canonical_share_url=SHARE + "x")

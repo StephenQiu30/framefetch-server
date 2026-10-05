@@ -1,4 +1,4 @@
-"""Fixed authenticated native-parse transport without real browser identity."""
+"""Fixed authenticated HTTP-parse transport without real browser identity."""
 
 from __future__ import annotations
 
@@ -12,7 +12,7 @@ import httpx
 import pytest
 from app.services.provider_failures import FailureClass
 from app.workers.identity.yuanbao_parse import YUANBAO_PARSE_URL
-from app.workers.runner import wechat_channels_native as native
+from app.workers.runner import wechat_channels_http as client
 from app.workers.runner.engine.layers.base import LayerFailure
 from app.workers.runner.wechat_channels_response import yuanbao_reference
 from pydantic import SecretStr
@@ -95,17 +95,17 @@ def transport(monkeypatch):
         assert kwargs["follow_redirects"] is False
         return original_client(transport=httpx.MockTransport(respond), **kwargs)
 
-    monkeypatch.setattr(native, "get_runner_settings", lambda: settings)
-    monkeypatch.setattr(native.httpx, "AsyncClient", factory)
+    monkeypatch.setattr(client, "get_runner_settings", lambda: settings)
+    monkeypatch.setattr(client.httpx, "AsyncClient", factory)
     return settings, state, requests, options
 
 
-async def test_native_client_authenticates_only_to_the_fixed_configured_host(transport):
+async def test_http_client_authenticates_only_to_the_fixed_configured_host(transport):
     settings, state, requests, options = transport
     settings.cookie_source_port = 19102
     end = deadline().astimezone(timezone(timedelta(hours=8)))
 
-    result = await native.parse_yuanbao_share(SHARE, "task_123", end)
+    result = await client.parse_yuanbao_share(SHARE, "task_123", end)
 
     assert result.identity.digest == "a" * 64
     assert result.captured == captured()
@@ -143,7 +143,7 @@ async def test_native_client_authenticates_only_to_the_fixed_configured_host(tra
 async def test_invalid_share_never_contacts_host(transport, url):
     _, _, requests, _ = transport
     with pytest.raises(LayerFailure) as caught:
-        await native.parse_yuanbao_share(url, "task", deadline())
+        await client.parse_yuanbao_share(url, "task", deadline())
     assert caught.value.failure.failure_class is FailureClass.INVALID_INPUT
     assert requests == []
 
@@ -152,7 +152,7 @@ async def test_invalid_share_never_contacts_host(transport, url):
 async def test_invalid_task_never_contacts_host(transport, task):
     _, _, requests, _ = transport
     with pytest.raises(LayerFailure):
-        await native.parse_yuanbao_share(SHARE, task, deadline())
+        await client.parse_yuanbao_share(SHARE, task, deadline())
     assert requests == []
 
 
@@ -160,7 +160,7 @@ async def test_invalid_task_never_contacts_host(transport, task):
 async def test_expired_or_naive_deadline_never_contacts_host(transport, end):
     _, _, requests, _ = transport
     with pytest.raises(LayerFailure):
-        await native.parse_yuanbao_share(SHARE, "task", end)
+        await client.parse_yuanbao_share(SHARE, "task", end)
     assert requests == []
 
 
@@ -168,7 +168,7 @@ async def test_missing_bearer_never_contacts_host(transport):
     settings, _, requests, _ = transport
     settings.cookie_source_token = None
     with pytest.raises(LayerFailure) as caught:
-        await native.parse_yuanbao_share(SHARE, "task", deadline())
+        await client.parse_yuanbao_share(SHARE, "task", deadline())
     assert caught.value.failure.evidence["cause_code"] == "identity_not_configured"
     assert requests == []
 
@@ -184,11 +184,9 @@ async def test_missing_bearer_never_contacts_host(transport):
         {"cookie_domain_allowlist": frozenset({"yuanbao.tencent.com"})},
     ],
 )
-async def test_invalid_native_profile_never_contacts_host(
-    transport, monkeypatch, change
-):
+async def test_invalid_http_profile_never_contacts_host(transport, monkeypatch, change):
     _, _, requests, _ = transport
-    profile = native.provider_profile_for_key("wechat_channels")
+    profile = client.provider_profile_for_key("wechat_channels")
     values = {
         name: getattr(profile, name)
         for name in (
@@ -201,12 +199,12 @@ async def test_invalid_native_profile_never_contacts_host(
         )
     }
     monkeypatch.setattr(
-        native,
+        client,
         "provider_profile_for_key",
         lambda _site: SimpleNamespace(**(values | change)),
     )
     with pytest.raises(LayerFailure) as caught:
-        await native.parse_yuanbao_share(SHARE, "task", deadline())
+        await client.parse_yuanbao_share(SHARE, "task", deadline())
     assert caught.value.failure.evidence["cause_code"] == "identity_source_mismatch"
     assert requests == []
 
@@ -227,7 +225,7 @@ async def test_invalid_or_extra_response_fields_fail_without_raw_material(
     _, state, _, _ = transport
     state.reply |= change
     with pytest.raises(LayerFailure) as caught:
-        await native.parse_yuanbao_share(SHARE, "task", deadline())
+        await client.parse_yuanbao_share(SHARE, "task", deadline())
     assert caught.value.failure.evidence["cause_code"] == "parse_response_invalid"
     assert "synthetic-private" not in str(caught.value)
     assert state.closed
@@ -256,7 +254,7 @@ async def test_captured_request_metadata_must_match_this_fixed_share(transport, 
     _, state, _, _ = transport
     state.reply["captured"] |= change
     with pytest.raises(LayerFailure) as caught:
-        await native.parse_yuanbao_share(SHARE, "task", deadline())
+        await client.parse_yuanbao_share(SHARE, "task", deadline())
     assert caught.value.failure.evidence["cause_code"] == "parse_response_invalid"
     assert "synthetic-private" not in str(caught.value)
 
@@ -268,7 +266,7 @@ async def test_missing_capture_field_cannot_be_substituted_by_nested_envelope(
     del state.reply["captured"]["request_url"]
     state.reply["captured"]["payload"] = {"request_url": YUANBAO_PARSE_URL, "code": 0}
     with pytest.raises(LayerFailure):
-        await native.parse_yuanbao_share(SHARE, "task", deadline())
+        await client.parse_yuanbao_share(SHARE, "task", deadline())
 
 
 @pytest.mark.parametrize(
@@ -290,7 +288,7 @@ async def test_transport_success_does_not_validate_business_envelopes_or_tickets
 ):
     _, state, _, _ = transport
     state.reply["captured"]["payload"] = payload
-    result = await native.parse_yuanbao_share(SHARE, "task", deadline())
+    result = await client.parse_yuanbao_share(SHARE, "task", deadline())
     assert result.captured["payload"] == payload
     assert yuanbao_reference(canonical_share_url=SHARE, **result.captured) is None
 
@@ -299,9 +297,9 @@ async def test_transport_success_does_not_validate_business_envelopes_or_tickets
     ("cause", "kind"),
     [
         ("credential_missing", FailureClass.LOGIN_REQUIRED),
-        ("identity_navigation_changed", FailureClass.CONTEXT_CHANGED),
+        ("identity_account_conflict", FailureClass.CONTEXT_CHANGED),
         ("extension_timeout", FailureClass.IDENTITY_UNAVAILABLE),
-        ("native_api_unavailable", FailureClass.EXTRACTOR_BROKEN),
+        ("parse_response_invalid", FailureClass.EXTRACTOR_BROKEN),
         ("parse_request_failed", FailureClass.TRANSIENT),
     ],
 )
@@ -310,7 +308,7 @@ async def test_only_fixed_bridge_causes_are_classified(transport, cause, kind):
     state.status = 503
     state.reply = {"cause": cause}
     with pytest.raises(LayerFailure) as caught:
-        await native.parse_yuanbao_share(SHARE, "task", deadline())
+        await client.parse_yuanbao_share(SHARE, "task", deadline())
     assert caught.value.failure.failure_class is kind
     assert caught.value.failure.evidence["cause_code"] == cause
 
@@ -329,7 +327,7 @@ async def test_arbitrary_bridge_causes_and_extra_error_fields_do_not_escape(
     state.status = 503
     state.reply = reply
     with pytest.raises(LayerFailure) as caught:
-        await native.parse_yuanbao_share(SHARE, "task", deadline())
+        await client.parse_yuanbao_share(SHARE, "task", deadline())
     assert caught.value.failure.evidence["cause_code"] == "cookie_source_rejected"
     assert "synthetic-private" not in str(caught.value)
 
@@ -339,14 +337,14 @@ async def test_redirect_never_receives_bearer_at_another_host(transport):
     state.status = 307
     state.headers = {"location": "https://evil.test/collect"}
     with pytest.raises(LayerFailure):
-        await native.parse_yuanbao_share(SHARE, "task", deadline())
+        await client.parse_yuanbao_share(SHARE, "task", deadline())
     assert len(requests) == 1
     assert not state.started.is_set()
     assert state.closed
 
 
 @pytest.mark.parametrize(
-    "length", [str(native._MAX_RESPONSE_BYTES + 1), "9" * 5000, "invalid"]
+    "length", [str(client._MAX_RESPONSE_BYTES + 1), "9" * 5000, "invalid"]
 )
 async def test_declared_oversized_or_invalid_length_fails_before_stream_read(
     transport, length
@@ -354,17 +352,17 @@ async def test_declared_oversized_or_invalid_length_fails_before_stream_read(
     _, state, _, _ = transport
     state.headers = {"content-length": length}
     with pytest.raises(LayerFailure):
-        await native.parse_yuanbao_share(SHARE, "task", deadline())
+        await client.parse_yuanbao_share(SHARE, "task", deadline())
     assert not state.started.is_set()
     assert state.closed
 
 
 async def test_chunked_payload_is_bounded_before_accumulation(transport, monkeypatch):
     _, state, _, _ = transport
-    monkeypatch.setattr(native, "_MAX_RESPONSE_BYTES", 1024)
+    monkeypatch.setattr(client, "_MAX_RESPONSE_BYTES", 1024)
     state.raw = b"x" * 2048
     with pytest.raises(LayerFailure) as caught:
-        await native.parse_yuanbao_share(SHARE, "task", deadline())
+        await client.parse_yuanbao_share(SHARE, "task", deadline())
     assert caught.value.failure.evidence["cause_code"] == "parse_response_invalid"
     assert state.closed
 
@@ -381,7 +379,7 @@ async def test_ambiguous_invalid_json_never_exposes_raw_text(transport, raw):
     _, state, _, _ = transport
     state.raw = raw
     with pytest.raises(LayerFailure) as caught:
-        await native.parse_yuanbao_share(SHARE, "task", deadline())
+        await client.parse_yuanbao_share(SHARE, "task", deadline())
     assert "synthetic-private" not in str(caught.value)
     assert caught.value.failure.evidence["cause_code"] == "parse_response_invalid"
 
@@ -391,9 +389,9 @@ async def test_transport_timeout_closes_stream_and_cannot_return_late_result(
 ):
     _, state, _, _ = transport
     state.block = True
-    monkeypatch.setattr(native, "_TRANSPORT_TIMEOUT", 0.01)
+    monkeypatch.setattr(client, "_TRANSPORT_TIMEOUT", 0.01)
     with pytest.raises(LayerFailure) as caught:
-        await native.parse_yuanbao_share(SHARE, "task", deadline())
+        await client.parse_yuanbao_share(SHARE, "task", deadline())
     assert caught.value.failure.evidence["cause_code"] == "extension_timeout"
     assert state.closed
 
@@ -402,7 +400,7 @@ async def test_cancelled_transport_closes_stream_and_propagates_cancellation(tra
     _, state, _, _ = transport
     state.block = True
     operation = asyncio.create_task(
-        native.parse_yuanbao_share(SHARE, "task", deadline())
+        client.parse_yuanbao_share(SHARE, "task", deadline())
     )
     await state.started.wait()
     operation.cancel()
@@ -425,10 +423,10 @@ async def test_response_completed_at_operation_deadline_is_rejected(
             cls.calls += 1
             return current if cls.calls == 1 else current + timedelta(seconds=30)
 
-    monkeypatch.setattr(native, "datetime", Clock)
+    monkeypatch.setattr(client, "datetime", Clock)
     end = Clock.fromtimestamp((current + timedelta(seconds=30)).timestamp(), UTC)
     with pytest.raises(LayerFailure) as caught:
-        await native.parse_yuanbao_share(SHARE, "task", end)
+        await client.parse_yuanbao_share(SHARE, "task", end)
     assert caught.value.failure.evidence["cause_code"] == "identity_deadline_invalid"
     assert state.closed
 
@@ -437,6 +435,6 @@ async def test_transport_exception_does_not_export_exception_text(transport):
     _, state, _, _ = transport
     state.error = httpx.ConnectError("synthetic-private-account-token")
     with pytest.raises(LayerFailure) as caught:
-        await native.parse_yuanbao_share(SHARE, "task", deadline())
+        await client.parse_yuanbao_share(SHARE, "task", deadline())
     assert caught.value.failure.evidence["cause_code"] == "cookie_source_unavailable"
     assert "synthetic-private" not in str(caught.value)

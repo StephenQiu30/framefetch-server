@@ -58,23 +58,18 @@ describe('request errors', () => {
   it.each([
     [
       'identity_unavailable',
-      'identity_page_unavailable',
-      '元宝页面暂不可用，请在部署主机的 Chrome 中打开元宝并确认登录后重新解析。',
-    ],
-    [
-      'identity_unavailable',
-      'identity_tab_ambiguous',
-      '检测到多个元宝页面，请只保留一个普通元宝标签页后重新解析。',
-    ],
-    [
-      'identity_unavailable',
       'extension_disconnected',
       '平台身份插件未连接，请确认部署主机的 Chrome 和帧取身份插件已启动。',
     ],
     [
       'extractor_broken',
-      'native_api_unavailable',
-      '元宝页面的解析接口暂不可用，请刷新元宝页面后重新解析。',
+      'parse_response_invalid',
+      '平台解析响应未通过校验，请稍后重新解析。',
+    ],
+    [
+      'transient',
+      'parse_request_failed',
+      '平台解析请求失败，请检查网络后重新解析。',
     ],
   ])('shows a recovery action for %s/%s', (code, cause, expected) => {
     expect(localizedErrorMessage(code, cause)).toBe(expected);

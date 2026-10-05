@@ -149,12 +149,7 @@ YUANBAO_PARSE_CAUSES = frozenset(
     {
         "credential_missing",
         "identity_material_invalid",
-        "identity_origin_invalid",
-        "identity_navigation_changed",
         "identity_account_conflict",
-        "identity_tab_ambiguous",
-        "identity_page_unavailable",
-        "native_api_unavailable",
         "parse_response_invalid",
         "parse_request_failed",
         "extension_timeout",
@@ -596,7 +591,7 @@ class CookieSource:
             raise IdentityUnavailable("identity_deadline_invalid")
         profile = provider_profile_for_key(request.site)
         if (
-            profile.identity_source != "yuanbao_native"
+            profile.identity_source != "yuanbao_http"
             or profile.identity_origin != YUANBAO_ORIGIN
             or profile.identity != "required"
             or profile.content_scope != "official_share"

@@ -788,10 +788,10 @@ def run_case(api: Api, case: Case, args: argparse.Namespace, output: Path) -> Js
             or re.fullmatch(r"[a-f0-9]{64}", str(context.get("identity_digest", "")))
             is None
             or context.get("resolved_layer") != "L3"
-            or context.get("browser_context_kind") != "authenticated"
+            or context.get("browser_context_kind") != "none"
         ):
             raise MatrixFailure(
-                "identity_unavailable", {"cause": "native_identity_missing"}
+                "identity_unavailable", {"cause": "http_identity_missing"}
             )
         if case.kind == "protected":
             raise MatrixFailure("protected_content_not_rejected")

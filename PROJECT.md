@@ -22,7 +22,7 @@
 
 媒体获取面向单人自部署使用。解析引擎的唯一架构与实施状态见[设计 17](docs/design/17-解析引擎重建.md)。Registry 声明阶梯、出口、identity 与 content_scope；引擎使用 yt-dlp、可信插件、bgutil、browser_runtime、受控出口和完整文件校验。实现状态与平台验收仅在设计 17 第 8 节维护。
 
-ExecutionContext 按设计 17 第 3.7 节保存十二字段非敏感摘要，贯穿 Runner、检查结果、意图、下载 Job 与制品元数据。解析由单 resolve Activity 在 120 秒期限内执行，不维护策略计划、操作级尝试账本、预算账本、会话代或运营准入；意图的业务 generation/fence、持久截止时间与取消确认保留。下载保留 RabbitMQ lease/heartbeat，Skill 分析保留模型步骤日志与未知调用保护；PostgreSQL 是业务事实来源。Chrome 扩展按来源读取 Cookie 或在限定元宝页面执行固定原生解析请求，双向 HMAC 认证、Runner 独占 Bearer 鉴权的 `POST /cookies`／`POST /yuanbao-parse`、操作私有 tmpfs 清理及真实验收统一遵循设计 17 第 3.4／8.5 节，不在工程规范另定义协议；视频号按该设计的 official_share 范围接通元宝原生解析与微信官方文件，复用现有 L3 与下载接口；候选时长不表示独立原作品完整性已证实。
+ExecutionContext 按设计 17 第 3.7 节保存十二字段非敏感摘要，贯穿 Runner、检查结果、意图、下载 Job 与制品元数据。解析由单 resolve Activity 在 120 秒期限内执行，不维护策略计划、操作级尝试账本、预算账本、会话代或运营准入；意图的业务 generation/fence、持久截止时间与取消确认保留。下载保留 RabbitMQ lease/heartbeat，Skill 分析保留模型步骤日志与未知调用保护；PostgreSQL 是业务事实来源。Chrome 扩展按来源读取 Cookie 或在 Service Worker 内按限定来源执行固定元宝 HTTP 解析请求，双向 HMAC 认证、Runner 独占 Bearer 鉴权的 `POST /cookies`／`POST /yuanbao-parse`、操作私有 tmpfs 清理及真实验收统一遵循设计 17 第 3.4／8.5 节，不在工程规范另定义协议；视频号按该设计的 official_share 范围接通元宝 HTTP 解析与微信官方文件，复用现有 L3 与下载接口；候选时长不表示独立原作品完整性已证实。
 
 ## 2. FastAPI 工程结构
 
@@ -94,7 +94,7 @@ backend/
 
 - `provider_catalog_*.py` 声明各平台的 Profile（访问策略、URL、能力、账号要求、引擎参数）；`provider_registry.py` 统一识别与启动校验；`provider_factories.py` 仅复用确有重复的声明默认值。
 - 平台差异采用函数策略与可信提取器，复用 inspection/download Pipeline；不复制 Workflow、路由、Repository 或生成器框架。Registry 分别声明 identity 与 content_scope，ExecutionContext 保存设计 17 第 3.7 节的十二字段摘要。
-- `_secure_file.py` 管理私有临时文件，`netscape_cookie.py` 保留 Cookie 格式规则；`identity/` 只通过受限普通 Chrome 扩展按声明来源实时取得 Cookie 或限定元宝页面账号材料，两者分别处理，不读取 Profile、不访问钥匙串、不解密 Cookie。
+- `_secure_file.py` 管理私有临时文件，`netscape_cookie.py` 保留 Cookie 格式规则；`identity/` 只通过受限普通 Chrome 扩展按声明来源实时取得 Cookie 或固定元宝 HTTP 解析结果及账号摘要，两者分别处理，不读取 Profile、不访问钥匙串、不解密 Cookie。
 
 所有 Python 包有 `__init__.py`；该文件默认不重导出业务符号。调用方直接从定义模块导入，避免用数百行导出清单再建一层公共接口。models 的导入注册用于建立完整 SQLAlchemy metadata，属于必要的初始化行为。
 

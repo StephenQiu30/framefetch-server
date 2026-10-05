@@ -641,7 +641,7 @@ def test_channels_declares_native_official_share_without_verified_support() -> N
     from app.workers.identity.yuanbao_parse import YUANBAO_ORIGIN
 
     profile = provider_profile("https://weixin.qq.com/sph/A9znfitafp")
-    assert profile.identity_source == "yuanbao_native"
+    assert profile.identity_source == "yuanbao_http"
     assert profile.identity_origin == YUANBAO_ORIGIN
     assert not profile.cookie_domain_allowlist
     assert profile.content_scope == "official_share"

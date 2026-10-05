@@ -48,14 +48,14 @@ def cookie_domains() -> list[str]:
     )
 
 
-def page_origins() -> list[str]:
+def request_origins() -> list[str]:
     return sorted(
         {
             YUANBAO_ORIGIN
             for profile in current_provider_registry().profiles
             if profile.key == "wechat_channels"
             and profile.identity in {ProviderIdentity.REQUIRED, ProviderIdentity.PREFER}
-            and profile.identity_source == "yuanbao_native"
+            and profile.identity_source == "yuanbao_http"
             and profile.identity_origin == YUANBAO_ORIGIN
         }
     )
@@ -67,7 +67,7 @@ def manifest(port: int) -> dict[str, object]:
     )
     result["host_permissions"] = [
         *(f"*://*.{domain}/*" for domain in cookie_domains()),
-        *(f"{origin}/*" for origin in page_origins()),
+        *(f"{origin}/*" for origin in request_origins()),
         f"ws://127.0.0.1:{port}/",
     ]
     return result
@@ -132,7 +132,7 @@ def install_extension(settings: CookieSourceSettings) -> Path:
         "port": settings.cookie_source_port,
         "pairingKey": settings.cookie_source_pairing_key.get_secret_value(),
         "domains": cookie_domains(),
-        "yuanbaoParse": YUANBAO_ORIGIN in page_origins(),
+        "yuanbaoParse": YUANBAO_ORIGIN in request_origins(),
     }
     private_write(destination / "config.local.json", json.dumps(config) + "\n")
     require_untracked_outputs(destination)

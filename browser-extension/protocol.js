@@ -39,9 +39,7 @@
   }
   function checkedParseResult(result, canonicalUrl) {
     const causes = new Set([
-      'credential_missing', 'identity_material_invalid', 'identity_origin_invalid',
-      'identity_navigation_changed', 'identity_account_conflict', 'identity_tab_ambiguous',
-      'identity_page_unavailable', 'native_api_unavailable', 'parse_response_invalid',
+      'credential_missing', 'identity_material_invalid', 'identity_account_conflict', 'parse_response_invalid',
       'parse_request_failed', 'extension_timeout',
     ]);
     if (result && Object.keys(result).sort().join(',') === 'cause' && causes.has(result.cause)) return { cause: result.cause };

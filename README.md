@@ -119,7 +119,7 @@ listeners:
 
 ### 平台身份与升级
 
-宿主身份服务位于 `backend/app/workers/identity/`，扩展源码位于 `browser-extension/`，遵循[设计 17 第 3.4 节](docs/design/17-解析引擎重建.md#34-身份层)。普通用户 LaunchAgent 只监听 `127.0.0.1:19101`；WebSocket `/extension` 校验固定扩展 Origin 与双向 HMAC，`POST /cookies` 和固定 `POST /yuanbao-parse` 只接受 Runner Bearer。扩展先认证服务端，再按声明来源读取当前普通 Profile 的非分区 Cookie，或准备唯一元宝顶层页后执行固定原生解析请求；Cookie 获取上限 5 秒，元宝解析上限 30 秒，均受操作截止时间约束，不建立材料库。无扩展连接、超时、无必要账号材料分别返回 `extension_disconnected`、`extension_timeout`、`credential_missing`，Runner 保留这些子因。视频号的原生请求桥已接入，专属解析与下载状态见[第 8.5 节](docs/design/17-解析引擎重建.md#85-视频号元宝解析链路)。
+宿主身份服务位于 `backend/app/workers/identity/`，扩展源码位于 `browser-extension/`，遵循[设计 17 第 3.4 节](docs/design/17-解析引擎重建.md#34-身份层)。普通用户 LaunchAgent 只监听 `127.0.0.1:19101`；WebSocket `/extension` 校验固定扩展 Origin 与双向 HMAC，`POST /cookies` 和固定 `POST /yuanbao-parse` 只接受 Runner Bearer。扩展先认证服务端，再按声明来源读取当前普通 Profile 的非分区 Cookie，或在 Service Worker 内执行固定元宝 HTTP 解析请求；Cookie 获取上限 5 秒，元宝解析上限 30 秒，均受操作截止时间约束，不建立材料库。无扩展连接、超时、无必要账号材料分别返回 `extension_disconnected`、`extension_timeout`、`credential_missing`，Runner 保留这些子因。视频号的 HTTP 请求桥已接入，专属解析与下载状态见[第 8.5 节](docs/design/17-解析引擎重建.md#85-视频号元宝解析链路)。
 
 从 `backend/` 执行一次安装：
 
@@ -130,7 +130,7 @@ uv run python -m app.workers.identity.cli check
 
 `install` 生成独立配对密钥和 Runner Bearer，宿主配置默认为 `~/Library/Application Support/FrameFetch/identity.env`；也可用 `--env-file /绝对路径/identity.env` 指定已有独立 `0600` 身份配置，保留其 Runner Bearer 并补建配对密钥。已有安装升级会保留两份密钥，只更新项目目录内的生成文件并重启本服务。不得把项目 `.env` 当作宿主身份配置。安装注册 `gui/<uid>` 下的普通 LaunchAgent，不要求 Aqua 会话、钥匙串授权或完全磁盘访问；服务运行依赖此 checkout 的 backend 与 uv 虚拟环境，不要删除它们。`uninstall` 停止并移除本 LaunchAgent，保留配对文件以便重装。
 
-在 Chrome 120+ 打开 `chrome://extensions`，开启开发者模式，选择“加载已解压的扩展程序”，目录为 **`video-server/browser-extension/`**（install 输出绝对路径）。只加载到日常登录的一个普通 Profile；扩展申请 cookies、alarms、scripting，host 权限限定 Registry 的 Cookie 域、明确声明的 `https://yuanbao.tencent.com/*` 和本机 WebSocket，不申请广泛 tabs 或历史权限。视频号任务缺少元宝页时，插件自动创建固定 `https://yuanbao.tencent.com/` 后台页并在同一 30 秒期限内等待加载，复用普通 Profile 的已有登录；不会导航或刷新已有用户页。未登录时仍需在元宝完成登录。多个元宝页会明确失败，须只保留一个普通标签页。插件按钮面板显示连接、实际版本、元宝页面和最近一次解析子因，支持打开元宝、刷新状态和重新连接；“已打开”只表示页面存在，登录状态在任务中校验。视频号只使用内置 MAIN 顶层函数调用页面唯一原生 HTTP 客户端的固定解析接口；凭据和动态认证头留在页面，不开放任意脚本或接口。加载后 `check` 报告实际连接状态与扩展版本；Chrome 停止或尚未加载时显示 `connected=false`、`version=null`。升级后从主工作区重新执行 `install`，再在扩展页点一次“重新加载”。不要从 git worktree 加载；install 自动定位主工作区，LaunchAgent 也使用主工作区的 backend。
+在 Chrome 扩展页加载主工作区的 `browser-extension/`（必须是绝对路径）。只加载到日常登录的一个普通 Profile；扩展申请 cookies、alarms，host 权限限定 Registry 的 Cookie 域、视频号精确 `https://yuanbao.tencent.com/*` 与本机 WebSocket，不申请 scripting、广泛 tabs 或历史权限。1.3.1 的视频号解析在 Service Worker 内部通过固定 HTTP 接口完成：按解析接口 URL 读取当前 Profile 的 `hy_user`／`hy_token`，认证头及 Cookie 留在 Chrome，不导出给宿主或 Runner，不缓存凭据。解析与下载重解析均无需打开元宝页面，不执行页面脚本，也没有页面回退分支；账号切换、期限、重定向与响应大小均受校验。首次登录或登录过期时，通过面板“登录元宝”完成正常登录，再关闭页面即可。面板显示实际版本、连接、登录材料可用性及最近一次解析子因；材料可用不代表账号仍获服务端认可。加载后 `check` 报告实际连接状态与版本；Chrome 停止或尚未加载时显示 `connected=false`、`version=null`。升级后从主工作区重新执行 `install`，再在 Chrome 扩展页点一次“重新加载”。不要从 git worktree 加载；install 自动定位主工作区，LaunchAgent 也使用主工作区的 backend。
 
 扩展目录 `0700`、生成文件 `0600`，密钥和端口仅写入项目扩展目录的 `config.local.json`；它和生成的 `manifest.json` 均被 gitignore，安装会检查两者未被 Git 跟踪。源码只维护 `manifest.template.json`，不在 web_accessible_resources 中、不进入源码或发行包。**信任边界**：这些权限隔离网页与其他用户，不能隔离同一 macOS 用户下可读写该目录的恶意进程。扩展和 cookie-source 共享配对密钥；Runner Bearer 是另一份独立凭据，不能复用。双向 HMAC 防止无配对密钥的本机假服务骗取 Cookie；不会赋予内容导出权利或扩大 content_scope。
 
@@ -225,7 +225,7 @@ Electron 从安装包读取页面和品牌资源，API 与 WebSocket 连接配�
 
 当前为公开预览阶段。本轮内置 Skill 已按保留原页面、优化调用／方法／产出完成当前平台验收，实际结果与边界见执行计划；平台注册和解析成功不代表完整文件下载通过。CI 覆盖确定性的工程检查，真实模型、平台冷启动、App 真机和桌面实际业务按对应范围独立验证。截图不替代实际调用和文件验收。
 
-- 处理你有权获取和分析的 HTTP(S) 非 DRM 素材。平台接入包括 YouTube、哔哩哔哩、抖音、TikTok、小红书、快手、微博等；具体链接受内容范围、账号、网络和平台变化影响。视频号支持下载微信官方非加密分享文件，需要保持已登录元宝页面打开；公众号文章提供来源发现。准确平台状态与完整文件证据见 [设计 17](docs/design/17-解析引擎重建.md#8-平台能力与验证边界)。
+- 处理你有权获取和分析的 HTTP(S) 非 DRM 素材。平台接入包括 YouTube、哔哩哔哩、抖音、TikTok、小红书、快手、微博等；具体链接受内容范围、账号、网络和平台变化影响。视频号支持下载微信官方非加密分享文件，需要 Chrome 中已有有效元宝登录，无需打开元宝页面；公众号文章提供来源发现。准确平台状态与完整文件证据见 [设计 17](docs/design/17-解析引擎重建.md#8-平台能力与验证边界)。
 - 提供自托管源码与构建方式。服务器、基础服务、存储、网络和模型由部署者准备，外部模型可能计费；启用外部 AI 会向选定服务发送分析所需的文本或画面。
 - 当前能力覆盖素材获取、管理、内置 Skill 分析／文档整理和报告。方法及输出的真实样本验收见执行计划，不能仅机械换行或截取正文开头就视为整理完成；模型分析须核查。内容写作、剧本改写、图卡制作、ASR／OCR、剪辑和账号发布不在本轮范围内。
 - 成功素材和报告持久保存，管理员应规划容量、备份与显式清理。详细安全要求见 [安全策略](SECURITY.md)与解析设计；对外部署前替换占位配置并核对网络、存储与模型服务。
