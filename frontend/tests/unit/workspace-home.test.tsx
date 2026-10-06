@@ -7,20 +7,12 @@ import { job } from '../fixtures/download-fixtures';
 import { render } from '../helpers/query-render';
 
 const runtime = vi.hoisted(() => ({
-  providers: {
-    data: null as API.ProviderListResponse | null,
-    loading: false,
-    error: null as string | null,
-  },
   history: {
     data: null as API.DownloadHistoryResponse | null,
     loading: false,
     error: null as string | null,
   },
   historyHook: vi.fn(),
-}));
-vi.mock('@/components/providers/use-provider-statuses', () => ({
-  useProviderStatuses: () => runtime.providers,
 }));
 vi.mock('@/components/downloads/use-download-history', () => ({
   useDownloadHistory: (params: unknown) => {
@@ -38,7 +30,6 @@ vi.mock('next/navigation', () => ({ useRouter: () => ({ push: vi.fn() }) }));
 
 describe('WorkspaceHome', () => {
   beforeEach(() => {
-    runtime.providers = { data: null, loading: false, error: null };
     runtime.history = { data: null, loading: false, error: null };
     runtime.historyHook.mockClear();
   });
@@ -60,69 +51,14 @@ describe('WorkspaceHome', () => {
       screen.queryByRole('link', { name: '新建下载' }),
     ).not.toBeInTheDocument();
     expect(screen.queryByText('选择素材，')).not.toBeInTheDocument();
-    expect(screen.getByRole('link', { name: '查看平台状态' })).toHaveAttribute(
-      'href',
-      '/providers',
-    );
+    expect(
+      screen.queryByRole('link', { name: '查看平台状态' }),
+    ).not.toBeInTheDocument();
     expect(
       screen.queryByText('平台身份来自你的 Chrome'),
     ).not.toBeInTheDocument();
     expect(runtime.historyHook).toHaveBeenCalledWith({ page: 1, page_size: 4 });
   });
-  it('shows only enabled provider names, capped at five', () => {
-    runtime.providers.data = {
-      items: [
-        'YouTube',
-        '哔哩哔哩',
-        '抖音',
-        'TikTok',
-        'X',
-        '视频号',
-        '未启用',
-      ].map((display_name, index) => ({
-        key: `provider-${index}`,
-        display_name,
-        registered: true,
-        extractor_exists: true,
-        download_supported: index < 6,
-        status: index < 6 ? 'unknown' : 'disabled',
-        capabilities: [],
-        hosts: [],
-        host_suffixes: [],
-        identity: 'none',
-        user_action: null,
-      })),
-    };
-    render(
-      <TooltipProvider>
-        <WorkspaceHome />
-      </TooltipProvider>,
-    );
-    expect(
-      screen.getByText(
-        /支持 YouTube、哔哩哔哩、抖音、TikTok、X 等平台的公开内容/,
-      ),
-    ).toBeInTheDocument();
-    expect(screen.queryByText(/视频号|未启用/)).not.toBeInTheDocument();
-  });
-
-  it.each(['loading', 'error'] as const)(
-    'keeps the platform status link during provider %s',
-    (kind) => {
-      runtime.providers.loading = kind === 'loading';
-      runtime.providers.error = kind === 'error' ? '暂不可用' : null;
-      render(
-        <TooltipProvider>
-          <WorkspaceHome />
-        </TooltipProvider>,
-      );
-      expect(screen.getByText(/支持多个平台的公开内容/)).toBeInTheDocument();
-      expect(
-        screen.getByRole('link', { name: '查看平台状态' }),
-      ).toBeInTheDocument();
-    },
-  );
-
   it('renders recent covers with status, source and time, keeping active progress', () => {
     runtime.history.data = {
       items: ['running', 'succeeded', 'failed', 'queued'].map(
