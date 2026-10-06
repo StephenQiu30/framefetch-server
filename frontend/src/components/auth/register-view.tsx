@@ -1,6 +1,10 @@
 'use client';
 
-import { ArrowRightIcon, WarningCircleIcon } from '@phosphor-icons/react';
+import {
+  ArrowRightIcon,
+  CheckIcon,
+  WarningCircleIcon,
+} from '@phosphor-icons/react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { type FormEvent, useEffect, useRef, useState } from 'react';
@@ -14,11 +18,12 @@ import {
 } from '@/components/auth/register-form-model';
 import { RegistrationCodeField } from '@/components/auth/registration-code-field';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { FieldGroup } from '@/components/ui/field';
 import { Form } from '@/components/ui/form';
 import { InputGroupInput } from '@/components/ui/input-group';
-import { ItemDescription } from '@/components/ui/item';
+import { ItemDescription, ItemTitle } from '@/components/ui/item';
 import { Spinner } from '@/components/ui/spinner';
 import { authRedirect } from '@/lib/auth-redirect';
 import { displayError } from '@/lib/request-error';
@@ -89,9 +94,27 @@ export function RegisterView() {
   return (
     <AuthPageFrame
       description="验证邮箱后创建账户，保存和管理你的下载、文档与分析。"
-      title="创建你的帧取账户"
+      title="创建帧取账户"
       titleId="register-title"
     >
+      <ol aria-label="注册步骤" className="mb-7 flex items-center gap-6">
+        <li
+          aria-current={!emailVerified ? 'step' : undefined}
+          className="flex items-center gap-2"
+        >
+          <Badge variant={!emailVerified ? 'default' : 'secondary'}>
+            {emailVerified ? <CheckIcon aria-hidden /> : '1'}
+          </Badge>
+          <ItemTitle>验证邮箱</ItemTitle>
+        </li>
+        <li
+          aria-current={emailVerified ? 'step' : undefined}
+          className="flex items-center gap-2"
+        >
+          <Badge variant={emailVerified ? 'default' : 'secondary'}>2</Badge>
+          <ItemTitle>设置密码</ItemTitle>
+        </li>
+      </ol>
       <Form
         aria-busy={submitting}
         className="flex flex-col gap-7"

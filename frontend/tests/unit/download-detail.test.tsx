@@ -25,6 +25,7 @@ const runtime = vi.hoisted(() => ({
     reload: vi.fn(),
     reportPlaybackError: vi.fn(),
     source: 'data:video/mp4;base64,AAAA' as string | null,
+    filename: 'Owned video.mp4',
   },
   push: vi.fn(),
   replace: vi.fn(),
@@ -91,7 +92,7 @@ describe('DownloadJobView', () => {
     render(<DownloadJobView jobId={job().id} pollIntervalMs={5} />);
 
     expect((await screen.findAllByText('正在下载')).length).toBeGreaterThan(0);
-    expect(screen.getByText(/微信视频号 ·/u)).toBeVisible();
+    expect(screen.getAllByText('微信视频号').length).toBeGreaterThan(0);
     expect(screen.queryByText(/WechatChannelsPublic/u)).not.toBeInTheDocument();
     const mediaFrame = document.querySelector(
       '[data-slot="media-result-frame"]',
@@ -99,19 +100,24 @@ describe('DownloadJobView', () => {
     expect(mediaFrame).not.toBeNull();
     const layout = document.querySelector('[data-slot="download-job-layout"]');
     expect(layout?.children).toHaveLength(2);
-    expect(layout?.children[0]).toContainElement(
+    expect(layout?.children[1]).toContainElement(
       document.getElementById('download-status-title'),
     );
-    expect(layout?.children[1]).toContainElement(mediaFrame as HTMLElement);
-    expect(screen.getByRole('button', { name: '获取视频文件' })).toBeDisabled();
+    expect(layout?.children[0]).toContainElement(mediaFrame as HTMLElement);
+    expect(screen.getByRole('button', { name: '保存到本机' })).toBeDisabled();
     expect(screen.getByRole('button', { name: 'AI 拉片分析' })).toBeDisabled();
-    expect(screen.getByRole('table', { name: '任务时间记录' })).toHaveClass(
-      'table-borderless',
+    const stages = screen.getByRole('region', { name: '处理阶段' });
+    expect(stages.querySelector('[aria-current="step"]')).toHaveTextContent(
+      '下载媒体',
     );
-    expect(screen.getByRole('table', { name: '任务时间记录' })).toHaveAttribute(
-      'tabindex',
-      '0',
+    expect(stages.querySelectorAll('[role="listitem"]')).toHaveLength(5);
+    expect(stages.querySelectorAll('[role="listitem"]')[0]).toHaveTextContent(
+      '已完成',
     );
+    expect(stages.querySelectorAll('[role="listitem"]')[2]).toHaveTextContent(
+      '等待处理',
+    );
+    expect(screen.getByText('下载完成后可在这里播放')).toBeVisible();
     expect(screen.queryByText('速度')).toBeNull();
     expect(screen.queryByText('预计剩余')).toBeNull();
     emitTaskUpdate('download', job('running').id, 2);
@@ -121,7 +127,8 @@ describe('DownloadJobView', () => {
     expect(
       screen.getByRole('heading', { level: 1, name: inspection.title }),
     ).toBeInTheDocument();
-    expect(screen.getByText('持久保存')).toBeInTheDocument();
+    expect(screen.getByText('已通过最终文件校验')).toBeInTheDocument();
+    expect(await screen.findByText('Owned video.mp4')).toBeInTheDocument();
     expect(
       screen.getByRole('region', {
         name: `${inspection.title}视频预览`,
@@ -179,6 +186,20 @@ describe('DownloadJobView', () => {
     expect(httpRequests()[1]?.url).toBe(`/api/downloads/${job().id}/cancel`);
   });
 
+  it('opens active-task deletion from the menu and returns focus without deleting', async () => {
+    mockHttpResponses(job('running'));
+    render(<DownloadJobView jobId={job().id} pollIntervalMs={60_000} />);
+    const trigger = await screen.findByRole('button', { name: '更多任务操作' });
+    fireEvent.pointerDown(trigger, { button: 0, ctrlKey: false });
+    fireEvent.click(await screen.findByRole('menuitem', { name: '删除任务' }));
+    await screen.findByRole('alertdialog', { name: '删除任务与文件？' });
+    const keep = screen.getByRole('button', { name: '保留任务' });
+    await waitFor(() => expect(keep).toHaveFocus());
+    fireEvent.click(keep);
+    await waitFor(() => expect(trigger).toHaveFocus());
+    expect(httpRequests()).toHaveLength(1);
+  });
+
   it('deletes the task and returns to download history', async () => {
     mockHttpResponses(job('succeeded'), null, analysisSkills, null);
     render(<DownloadJobView jobId={job().id} />);
@@ -228,6 +249,10 @@ describe('DownloadJobView', () => {
       await screen.findByText('视频下载超时，请稍后重试。'),
     ).toBeInTheDocument();
     expect(screen.queryByText('download_timeout')).not.toBeInTheDocument();
+    expect(screen.getByRole('alert')).toHaveTextContent('视频下载超时');
+    expect(screen.getByRole('alert')).toContainElement(
+      screen.getByRole('button', { name: '重新下载' }),
+    );
   });
 
   it('requires a new inspection when the execution context changed', async () => {
@@ -312,9 +337,7 @@ describe('DownloadJobView', () => {
       .mockImplementation(() => {});
     render(<DownloadJobView jobId={job().id} />);
 
-    fireEvent.click(
-      await screen.findByRole('button', { name: '获取视频文件' }),
-    );
+    fireEvent.click(await screen.findByRole('button', { name: '保存到本机' }));
     await waitFor(() =>
       expect(
         document.querySelector<HTMLIFrameElement>(
@@ -384,7 +407,7 @@ describe('DownloadJobView', () => {
     ).toBeInTheDocument();
     expect(screen.getByText('视频文件已清理')).toBeInTheDocument();
     expect(
-      screen.queryByRole('button', { name: '获取视频文件' }),
+      screen.queryByRole('button', { name: '保存到本机' }),
     ).not.toBeInTheDocument();
   });
 
@@ -437,9 +460,7 @@ describe('DownloadJobView', () => {
         name: '用户提供的视频号来源文件',
       }),
     ).toBeInTheDocument();
-    expect(
-      screen.getByText('用户提供的视频号来源文件 · 正在读取媒体信息'),
-    ).toBeInTheDocument();
+    expect(screen.getByText('用户提供的文件')).toBeInTheDocument();
   });
 
   it('keeps a completed task usable after inspection metadata expires', async () => {
@@ -453,7 +474,7 @@ describe('DownloadJobView', () => {
       ),
     ).not.toBeInTheDocument();
     expect(
-      screen.getByRole('heading', { name: '视频文件已就绪' }),
+      screen.getByRole('heading', { name: '文件已就绪' }),
     ).toBeInTheDocument();
     expect(
       screen.getByRole('region', {

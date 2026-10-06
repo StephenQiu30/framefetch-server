@@ -3,6 +3,7 @@ import { issueDownloadUrl } from '@/api/downloads';
 import { displayError } from '@/lib/request-error';
 
 export function useVideoPreviewSource(downloadId: string) {
+  const [filename, setFilename] = useState<string | null>(null);
   const [source, setSource] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -13,6 +14,7 @@ export function useVideoPreviewSource(downloadId: string) {
     let disposed = false;
     setLoading(true);
     setError(null);
+    setFilename(null);
 
     void issueDownloadUrl(
       {
@@ -24,7 +26,10 @@ export function useVideoPreviewSource(downloadId: string) {
       },
     )
       .then((result) => {
-        if (!disposed) setSource(result.url);
+        if (!disposed) {
+          setSource(result.url);
+          setFilename(result.filename);
+        }
       })
       .catch((reason) => {
         if (!disposed) setError(displayError(reason));
@@ -48,5 +53,5 @@ export function useVideoPreviewSource(downloadId: string) {
     setError('预览地址已失效，或当前浏览器不支持该视频格式。');
   }, []);
 
-  return { error, loading, reload, reportPlaybackError, source };
+  return { filename, error, loading, reload, reportPlaybackError, source };
 }

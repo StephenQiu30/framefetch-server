@@ -72,7 +72,7 @@ export function LoginView() {
   return (
     <AuthPageFrame
       description="使用你的帧取账户继续管理下载、文档与分析。"
-      title="欢迎回来"
+      title="登录帧取"
       titleId="login-title"
     >
       <Form

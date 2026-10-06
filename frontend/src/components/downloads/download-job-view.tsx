@@ -1,6 +1,6 @@
 'use client';
 
-import { Robot } from '@phosphor-icons/react';
+import { DotsThreeIcon, Robot, TrashIcon } from '@phosphor-icons/react';
 import type { MediaPlayerInstance } from '@vidstack/react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
@@ -13,8 +13,8 @@ import DownloadState, {
 } from '@/components/downloads/download-state';
 import {
   DownloadStatusCode,
+  downloadStatusLabels,
   isTerminalDownloadStatus,
-  statusLabels,
   statusVariant,
 } from '@/components/downloads/download-state-model';
 import DownloadVideoPreview from '@/components/downloads/download-video-preview';
@@ -30,8 +30,16 @@ import MediaCover from '@/components/media/media-cover';
 import { AspectRatio } from '@/components/ui/aspect-ratio';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuGroup,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { FieldDescription } from '@/components/ui/field';
-import { ItemTitle } from '@/components/ui/item';
+import { Item, ItemContent, ItemTitle } from '@/components/ui/item';
+import { Progress } from '@/components/ui/progress';
 import { Skeleton } from '@/components/ui/skeleton';
 import { formatDuration } from '@/lib/format';
 import { audioCodecLabel } from '@/lib/media-format';
@@ -48,6 +56,9 @@ export default function DownloadJobView({
 }) {
   const router = useRouter();
   const playerRef = useRef<MediaPlayerInstance>(null);
+  const [filename, setFilename] = useState<string | null>(null);
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const menuTriggerRef = useRef<HTMLButtonElement>(null);
   const [previewReady, setPreviewReady] = useState(false);
   const state = useDownloadJob(jobId, pollIntervalMs);
   const format = state.job?.format ?? undefined;
@@ -120,80 +131,9 @@ export default function DownloadJobView({
       ) : null}
       {state.job ? (
         <>
-          <PageHeader
-            title={title}
-            description={`${sourceLabel ? `${sourceLabel} · ` : ''}${formatLabel(format, duration, state.job.media_kind, state.job.asset_count)}`}
-            action={
-              <div className="flex flex-wrap items-center gap-2">
-                <Badge variant={statusVariant(state.job.status)}>
-                  {statusLabels[state.job.status]}
-                </Badge>
-                <DownloadCancelAction
-                  action={state.action}
-                  job={state.job}
-                  onCancel={state.cancel}
-                />
-                <DownloadDeleteDialog
-                  active={!isTerminalDownloadStatus(state.job.status)}
-                  busy={state.action === 'delete'}
-                  disabled={state.action !== null}
-                  onDelete={remove}
-                />
-              </div>
-            }
-          />
-          <SplitLayout
-            className="mt-6"
-            columns="sidebar-end"
-            data-slot="download-job-layout"
-          >
-            <div className="flex flex-col gap-6">
-              {state.retryTarget && state.retryTarget !== jobId ? (
-                <FeedbackNotice
-                  title="已创建新的下载任务"
-                  description="重新下载的进度和结果会保存在新任务中。"
-                  tone="info"
-                  action={
-                    <Button asChild variant="outline">
-                      <Link
-                        href={`/downloads/detail?jobId=${encodeURIComponent(state.retryTarget)}`}
-                      >
-                        查看新任务
-                      </Link>
-                    </Button>
-                  }
-                />
-              ) : null}
-              {state.error ? (
-                <FeedbackNotice
-                  action={
-                    state.errorKind === 'sync' ? (
-                      <Button variant="outline" onClick={state.refresh}>
-                        恢复下载状态
-                      </Button>
-                    ) : undefined
-                  }
-                  presentation={
-                    state.errorKind === 'action' ? 'toast' : 'inline'
-                  }
-                  description={state.error}
-                  title={errorTitle(state.errorKind)}
-                  tone="error"
-                />
-              ) : null}
-              <DownloadState job={state.job} />
-              {!isTerminalDownloadStatus(state.job.status) ? (
-                <FieldDescription aria-live="polite">
-                  {state.socketStatus === TaskSocketStatusCode.Connected
-                    ? '实时状态已连接'
-                    : state.socketStatus === TaskSocketStatusCode.Degraded
-                      ? '实时连接中断，正在低频恢复'
-                      : '正在连接实时状态'}
-                </FieldDescription>
-              ) : null}
-            </div>
-            <aside aria-label="文件信息与操作" className="flex flex-col gap-6">
-              <div data-slot="media-result-frame">
+          <SplitLayout columns="primary" data-slot="download-job-layout">
+            <section aria-label="媒体信息" className="flex flex-col gap-6">
+              <div className="relative" data-slot="media-result-frame">
                 {state.job.status === DownloadStatusCode.Succeeded &&
                 state.job.file_available &&
                 !gallery &&
@@ -202,6 +142,7 @@ export default function DownloadJobView({
                     key={state.job.id}
                     playerRef={playerRef}
                     onReadyChange={setPreviewReady}
+                    onFilenameChange={setFilename}
                     container={
                       format?.container_preference === 'mp4' ||
                       format?.container_preference === 'webm'
@@ -213,77 +154,289 @@ export default function DownloadJobView({
                     title={title}
                   />
                 ) : (
-                  <MediaCover
-                    alt={`${title}媒体封面`}
-                    fallback={{
-                      detail: formatLabel(
-                        format,
-                        duration,
-                        state.job?.media_kind,
-                        state.job?.asset_count,
-                      ),
-                      eyebrow: sourceLabel ?? extractor,
-                      title,
-                    }}
-                    pending={!isTerminalDownloadStatus(state.job.status)}
-                    priority
-                    src={thumbnail}
-                  />
+                  <>
+                    <MediaCover
+                      alt={`${title}媒体封面`}
+                      fallback={{
+                        detail: formatLabel(
+                          format,
+                          duration,
+                          state.job.media_kind,
+                          state.job.asset_count,
+                        ),
+                        eyebrow: sourceLabel ?? extractor,
+                        title,
+                      }}
+                      pending={!isTerminalDownloadStatus(state.job.status)}
+                      priority
+                      src={thumbnail}
+                    />
+                    <Badge
+                      className="absolute left-3 top-3"
+                      variant={
+                        state.job.status === DownloadStatusCode.Failed
+                          ? 'secondary'
+                          : statusVariant(state.job.status)
+                      }
+                    >
+                      {downloadStatusLabels[state.job.status]}
+                      {!isTerminalDownloadStatus(state.job.status)
+                        ? ` ${state.job.progress}%`
+                        : ''}
+                    </Badge>
+                    {!isTerminalDownloadStatus(state.job.status) ? (
+                      <Progress
+                        className="absolute inset-x-0 bottom-0"
+                        aria-label="封面下载进度"
+                        value={state.job.progress}
+                      />
+                    ) : null}
+                  </>
                 )}
               </div>
-              <dl className="grid grid-cols-2 gap-4">
-                <FileMetadata label="媒体名称" value={title} />
-                <FileMetadata
-                  label="格式"
-                  value={
-                    gallery || collection
-                      ? 'ZIP'
-                      : format
-                        ? `${format.container_preference.toUpperCase()} · ${format.video_codec_family.toUpperCase()} + ${audioCodecLabel(format.audio_codec_family)}`
-                        : '未提供'
-                  }
-                />
+              {!isTerminalDownloadStatus(state.job.status) &&
+              !gallery &&
+              !collection ? (
+                <FieldDescription>下载完成后可在这里播放</FieldDescription>
+              ) : null}
+              <div className="flex flex-wrap items-center gap-3">
+                {sourceLabel || extractor ? (
+                  <Badge variant="secondary">{sourceLabel ?? extractor}</Badge>
+                ) : null}
+                <FieldDescription>
+                  {state.job.source_kind === 'browser_import'
+                    ? '用户提供的文件'
+                    : '内容范围以解析结果为准'}
+                </FieldDescription>
+              </div>
+              <PageHeader title={title} />
+              <dl
+                aria-label="媒体规格"
+                className="grid grid-cols-2 gap-4 sm:grid-cols-4"
+              >
                 {duration && duration > 0 ? (
                   <FileMetadata
-                    label="来源时长"
+                    label={platform ? '文件时长' : '时长'}
                     value={formatDuration(duration)}
                   />
                 ) : null}
-                <FileMetadata
-                  label="来源"
-                  value={sourceLabel ?? extractor ?? '未提供'}
-                />
+                {format ? (
+                  <FileMetadata label="画质" value={`${format.height}P`} />
+                ) : null}
+                {gallery || collection || format ? (
+                  <FileMetadata
+                    label="格式"
+                    value={
+                      gallery || collection
+                        ? 'ZIP'
+                        : (format?.container_preference.toUpperCase() ?? '')
+                    }
+                  />
+                ) : null}
+                {sourceLabel || extractor ? (
+                  <FileMetadata
+                    label="来源"
+                    value={sourceLabel ?? extractor ?? ''}
+                  />
+                ) : null}
               </dl>
-              <DownloadTaskActions
-                action={state.action}
-                job={state.job}
-                onDownload={state.download}
-                onRetry={() => void retry()}
-              />
-              {!gallery && !collection ? (
-                state.job.status === DownloadStatusCode.Succeeded &&
-                state.job.file_available ? (
-                  <Button asChild variant="outline">
-                    <a href="#download-analysis">
-                      <Robot aria-hidden data-icon="inline-start" />
-                      AI 拉片分析
-                    </a>
-                  </Button>
-                ) : (
-                  <Button disabled variant="outline">
-                    <Robot aria-hidden data-icon="inline-start" />
-                    AI 拉片分析
-                  </Button>
-                )
-              ) : null}
-              <FieldDescription>
-                {state.job.status === DownloadStatusCode.Succeeded &&
-                state.job.file_available
-                  ? '可获取文件保存到本机，并继续查看分析结果。'
-                  : !isTerminalDownloadStatus(state.job.status)
-                    ? '下载并校验完成后可获取文件；单视频可继续进行 AI 分析。'
-                    : '文件暂不可获取，请按任务提示恢复。'}
-              </FieldDescription>
+            </section>
+            <aside
+              aria-label="文件信息与操作"
+              className="flex min-h-0 flex-col lg:contain-size"
+            >
+              <Item
+                variant="muted"
+                className="min-h-0 flex-1 flex-nowrap items-stretch"
+              >
+                <ItemContent
+                  className="min-h-0 gap-6 lg:overflow-y-auto"
+                  data-slot="download-status-panel"
+                >
+                  {state.retryTarget && state.retryTarget !== jobId ? (
+                    <FeedbackNotice
+                      title="已创建新的下载任务"
+                      description="重新下载的进度和结果会保存在新任务中。"
+                      tone="info"
+                      action={
+                        <Button asChild variant="outline">
+                          <Link
+                            href={`/downloads/detail?jobId=${encodeURIComponent(state.retryTarget)}`}
+                          >
+                            查看新任务
+                          </Link>
+                        </Button>
+                      }
+                    />
+                  ) : null}
+                  {state.error ? (
+                    <FeedbackNotice
+                      action={
+                        state.errorKind === 'sync' ? (
+                          <Button variant="outline" onClick={state.refresh}>
+                            恢复下载状态
+                          </Button>
+                        ) : undefined
+                      }
+                      presentation={
+                        state.errorKind === 'action' ? 'toast' : 'inline'
+                      }
+                      description={state.error}
+                      title={errorTitle(state.errorKind)}
+                      tone="error"
+                    />
+                  ) : null}
+                  <DownloadState
+                    job={state.job}
+                    recoveryAction={
+                      state.job.status === DownloadStatusCode.Failed ? (
+                        <DownloadTaskActions
+                          action={state.action}
+                          job={state.job}
+                          onDownload={state.download}
+                          onRetry={() => void retry()}
+                        />
+                      ) : undefined
+                    }
+                  />
+                  {state.job.status === DownloadStatusCode.Succeeded &&
+                  state.job.file_available ? (
+                    <dl
+                      aria-label="文件规格"
+                      className="grid grid-cols-2 gap-4"
+                    >
+                      {filename ? (
+                        <FileMetadata label="文件名" value={filename} />
+                      ) : null}
+                      {format ? (
+                        <>
+                          <FileMetadata
+                            label="分辨率"
+                            value={`${format.width}×${format.height}`}
+                          />
+                          <FileMetadata
+                            label="编码"
+                            value={`${format.video_codec_family.toUpperCase()} + ${audioCodecLabel(format.audio_codec_family)}`}
+                          />
+                        </>
+                      ) : null}
+                      {state.job.finished_at ? (
+                        <FileMetadata
+                          label="完成时间"
+                          value={formatDate(state.job.finished_at)}
+                        />
+                      ) : null}
+                      <FileMetadata
+                        label="执行次数"
+                        value={`第 ${state.job.attempt} 次执行`}
+                      />
+                    </dl>
+                  ) : null}
+                  {!isTerminalDownloadStatus(state.job.status) ? (
+                    <FieldDescription aria-live="polite">
+                      {state.socketStatus === TaskSocketStatusCode.Connected
+                        ? '实时状态已连接'
+                        : state.socketStatus === TaskSocketStatusCode.Degraded
+                          ? '实时连接中断，正在低频恢复'
+                          : '正在连接实时状态'}
+                    </FieldDescription>
+                  ) : null}
+                  <div className="mt-auto flex flex-col gap-3">
+                    {state.job.status !== DownloadStatusCode.Failed ? (
+                      <DownloadTaskActions
+                        action={state.action}
+                        job={state.job}
+                        onDownload={state.download}
+                        onRetry={() => void retry()}
+                      />
+                    ) : null}
+                    {!gallery && !collection ? (
+                      state.job.status === DownloadStatusCode.Succeeded &&
+                      state.job.file_available ? (
+                        <Button asChild variant="outline">
+                          <a href="#download-analysis">
+                            <Robot aria-hidden data-icon="inline-start" />
+                            AI 拉片分析
+                          </a>
+                        </Button>
+                      ) : (
+                        <Button disabled variant="outline">
+                          <Robot aria-hidden data-icon="inline-start" />
+                          AI 拉片分析
+                        </Button>
+                      )
+                    ) : null}
+                    <div className="flex flex-wrap items-center gap-3">
+                      <DownloadCancelAction
+                        action={state.action}
+                        job={state.job}
+                        onCancel={state.cancel}
+                      />
+                      {!isTerminalDownloadStatus(state.job.status) ? (
+                        <>
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button
+                                ref={menuTriggerRef}
+                                aria-label="更多任务操作"
+                                disabled={state.action !== null}
+                                variant="ghost"
+                                size="icon"
+                              >
+                                <DotsThreeIcon aria-hidden />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              <DropdownMenuGroup>
+                                <DropdownMenuItem
+                                  onSelect={() => {
+                                    // Let the menu release its focus scope before opening the dialog.
+                                    window.setTimeout(
+                                      () => setDeleteOpen(true),
+                                      0,
+                                    );
+                                  }}
+                                >
+                                  <TrashIcon aria-hidden />
+                                  删除任务
+                                </DropdownMenuItem>
+                              </DropdownMenuGroup>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                          <DownloadDeleteDialog
+                            active
+                            busy={state.action === 'delete'}
+                            disabled={state.action !== null}
+                            onDelete={remove}
+                            showTrigger={false}
+                            open={deleteOpen}
+                            onOpenChange={setDeleteOpen}
+                            onCloseAutoFocus={(event) => {
+                              event.preventDefault();
+                              menuTriggerRef.current?.focus();
+                            }}
+                          />
+                        </>
+                      ) : (
+                        <DownloadDeleteDialog
+                          active={false}
+                          busy={state.action === 'delete'}
+                          disabled={state.action !== null}
+                          onDelete={remove}
+                        />
+                      )}
+                    </div>
+                    <FieldDescription>
+                      {state.job.status === DownloadStatusCode.Succeeded &&
+                      state.job.file_available
+                        ? '可获取文件保存到本机，并继续查看分析结果。'
+                        : !isTerminalDownloadStatus(state.job.status)
+                          ? '下载并校验完成后可获取文件；单视频可继续进行 AI 分析。'
+                          : '文件暂不可获取，请按任务提示恢复。'}
+                    </FieldDescription>
+                  </div>
+                </ItemContent>
+              </Item>
             </aside>
           </SplitLayout>
           {state.job.status === DownloadStatusCode.Succeeded ? (
@@ -333,17 +486,17 @@ function DownloadJobSkeleton() {
       <PageNavigation fallbackHref="/history" />
       <SplitLayout
         aria-label="正在读取下载任务"
-        columns="sidebar-end"
+        columns="primary"
         role="status"
       >
-        <div aria-hidden className="flex flex-col gap-4">
-          <Skeleton className="aspect-[4/1] w-full" />
-          <Skeleton className="aspect-[8/1] w-full" />
-        </div>
         <div aria-hidden className="flex flex-col gap-4">
           <AspectRatio ratio={16 / 9}>
             <Skeleton className="size-full" />
           </AspectRatio>
+          <Skeleton className="aspect-[8/1] w-full" />
+        </div>
+        <div aria-hidden className="flex flex-col gap-4">
+          <Skeleton className="aspect-square w-full" />
           <Skeleton className="aspect-[8/1] w-full" />
         </div>
       </SplitLayout>
@@ -380,4 +533,12 @@ function FileMetadata({ label, value }: { label: string; value: string }) {
       </dd>
     </div>
   );
+}
+
+const dateFormatter = new Intl.DateTimeFormat('zh-CN', {
+  dateStyle: 'short',
+  timeStyle: 'medium',
+});
+function formatDate(value: string) {
+  return dateFormatter.format(new Date(value));
 }

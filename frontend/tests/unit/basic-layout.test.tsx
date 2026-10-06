@@ -2,8 +2,10 @@ import { fireEvent, screen, waitFor, within } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { AuthField, AuthPageFrame } from '@/components/auth/auth-page-frame';
+import { RegisterView } from '@/components/auth/register-view';
 import { BasicLayout } from '@/components/layout/basic-layout';
 import { InputGroupInput } from '@/components/ui/input-group';
+import { mockHttpResponses } from '../helpers/http';
 import { render } from '../helpers/query-render';
 
 const runtime = vi.hoisted(() => ({
@@ -71,11 +73,16 @@ describe('BasicLayout', () => {
         <div>页面内容</div>
       </BasicLayout>,
     );
+    const quickAction = within(screen.getByRole('banner')).queryByRole(
+      'button',
+      { name: '搜索或粘贴链接' },
+    );
+    expect(quickAction).toBeInTheDocument();
     expect(
-      within(screen.getByRole('banner')).getByRole('button', {
-        name: '搜索或粘贴链接',
-      }),
-    ).toBeInTheDocument();
+      document.querySelector('[data-slot="header-quick-actions"]'),
+    ).toHaveClass(
+      ...(pathname.startsWith('/user/') ? ['hidden'] : ['hidden', 'lg:block']),
+    );
     expect(
       within(screen.getByRole('contentinfo')).queryByRole('button', {
         name: '搜索或粘贴链接',
@@ -520,10 +527,15 @@ describe('BasicLayout', () => {
       'id',
       'login-title',
     );
+    const preview = container.querySelector('[data-slot="auth-preview-panel"]');
+    expect(preview).toHaveClass('hidden', 'lg:flex');
+    expect(preview?.querySelector('[inert]')).toHaveAttribute(
+      'aria-hidden',
+      'true',
+    );
     expect(
-      screen.getByRole('link', { name: '返回上一步' }),
+      screen.getByText('粘贴链接，带走任意公开视频。'),
     ).toBeInTheDocument();
-    expect(screen.getByText('FrameFetch 万能视频下载器')).toBeInTheDocument();
     expect(screen.getByLabelText('邮箱地址')).toHaveAttribute(
       'aria-describedby',
       'email-error',
@@ -533,5 +545,37 @@ describe('BasicLayout', () => {
       container.querySelector('[data-slot="auth-frame"]'),
     ).toBeInTheDocument();
     expect(container.querySelector('[data-slot="card"]')).toBeNull();
+  });
+  it('moves the registration indicator only after email verification and resets when email changes', async () => {
+    mockHttpResponses(
+      { email_sent: true, retry_after_seconds: 60, expires_in_seconds: 600 },
+      { verified: true },
+    );
+    render(<RegisterView />);
+    const steps = screen.getByRole('list', { name: '注册步骤' });
+    expect(steps.querySelector('[aria-current="step"]')).toHaveTextContent(
+      '验证邮箱',
+    );
+    expect(screen.queryByLabelText('密码')).not.toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText('邮箱地址'), {
+      target: { value: 'member@example.com' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: '获取验证码' }));
+    await screen.findByRole('button', { name: /秒后可重发/ });
+    fireEvent.change(screen.getByLabelText('邮箱验证码'), {
+      target: { value: '123456' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: '验证邮箱' }));
+    await screen.findByLabelText('密码');
+    expect(steps.querySelector('[aria-current="step"]')).toHaveTextContent(
+      '设置密码',
+    );
+    fireEvent.change(screen.getByLabelText('邮箱地址'), {
+      target: { value: 'another@example.com' },
+    });
+    expect(steps.querySelector('[aria-current="step"]')).toHaveTextContent(
+      '验证邮箱',
+    );
+    expect(screen.queryByLabelText('密码')).not.toBeInTheDocument();
   });
 });

@@ -53,7 +53,7 @@ const downloadStatusPresentation = {
     heading: (job) => `正在准备${archiveLabel(job)}文件`,
     description: () => '正在完成媒体下载、封装与文件校验。',
     executionTitle: () => '任务由隔离的媒体 Runner 执行',
-    stage: (job) => (job.stage ? stageLabels[job.stage] : '等待调度'),
+    stage: (job) => (job.stage ? downloadStageLabels[job.stage] : '等待调度'),
   },
   [DownloadStatusCode.RetryWait]: {
     label: '等待重试',
@@ -63,7 +63,7 @@ const downloadStatusPresentation = {
     heading: () => '等待再次尝试',
     description: () => '系统会在等待结束后自动继续当前任务。',
     executionTitle: () => '任务由隔离的媒体 Runner 执行',
-    stage: (job) => (job.stage ? stageLabels[job.stage] : '等待调度'),
+    stage: (job) => (job.stage ? downloadStageLabels[job.stage] : '等待调度'),
   },
   [DownloadStatusCode.Succeeded]: {
     label: '服务端已完成',
@@ -137,7 +137,7 @@ export const downloadStatusLabels = {
     downloadStatusPresentation[DownloadStatusCode.Cancelled].historyLabel,
 } satisfies Record<API.DownloadStatus, string>;
 
-const stageLabels: Record<API.DownloadStage, string> = {
+export const downloadStageLabels: Record<API.DownloadStage, string> = {
   [DownloadStageCode.Revalidating]: '重新验证',
   [DownloadStageCode.Downloading]: '下载媒体',
   [DownloadStageCode.Remuxing]: '封装媒体',
@@ -233,7 +233,7 @@ export function executionTitle(job: API.DownloadResponse) {
 export function displayStage(job: API.DownloadResponse): string {
   return (
     downloadStatusPresentation[job.status].stage(job) ??
-    (job.stage ? stageLabels[job.stage] : '等待调度')
+    (job.stage ? downloadStageLabels[job.stage] : '等待调度')
   );
 }
 

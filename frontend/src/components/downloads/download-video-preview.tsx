@@ -23,6 +23,7 @@ type Props = {
   poster?: string | null;
   title: string;
   playerRef?: Ref<MediaPlayerInstance>;
+  onFilenameChange?: (filename: string | null) => void;
   onReadyChange?: (ready: boolean) => void;
 };
 
@@ -33,8 +34,13 @@ export default function DownloadVideoPreview({
   title,
   playerRef,
   onReadyChange,
+  onFilenameChange,
 }: Props) {
   const preview = useVideoPreviewSource(downloadId);
+  useEffect(() => {
+    onFilenameChange?.(preview.filename ?? null);
+    return () => onFilenameChange?.(null);
+  }, [preview.filename, onFilenameChange]);
   useEffect(() => {
     if (preview.loading || preview.error || !preview.source)
       onReadyChange?.(false);

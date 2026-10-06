@@ -1,9 +1,16 @@
 'use client';
 
-import { ArrowClockwise, DownloadSimple, X } from '@phosphor-icons/react';
+import {
+  ArrowClockwise,
+  DownloadSimple,
+  ShieldCheck,
+  X,
+} from '@phosphor-icons/react';
 import Link from 'next/link';
+import type { ReactNode } from 'react';
 
-import { PageErrorNotice } from '@/components/layout/page-error-notice';
+import { FeedbackNotice } from '@/components/layout/feedback-notice';
+import { PageHeader } from '@/components/layout/page-header';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import {
   AlertDialog,
@@ -17,13 +24,13 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { CardTitle } from '@/components/ui/card';
-import { FieldDescription } from '@/components/ui/field';
 import {
   Item,
   ItemContent,
   ItemDescription,
+  ItemMedia,
   ItemTitle,
 } from '@/components/ui/item';
 import { Progress } from '@/components/ui/progress';
@@ -32,7 +39,6 @@ import { Spinner } from '@/components/ui/spinner';
 import { DownloadExecutionSummary } from './download-execution-summary';
 import {
   DownloadStatusCode,
-  displayStage,
   downloadRecovery,
   failureDescription,
   failureTitle,
@@ -40,6 +46,8 @@ import {
   retryActionLabel,
   statusDescription,
   statusHeading,
+  statusLabels,
+  statusVariant,
 } from './download-state-model';
 
 type Props = {
@@ -50,74 +58,71 @@ type Props = {
   onRetry: () => void;
 };
 
-export default function DownloadState({ job }: { job: API.DownloadResponse }) {
+export default function DownloadState({
+  job,
+  recoveryAction,
+}: {
+  job: API.DownloadResponse;
+  recoveryAction?: ReactNode;
+}) {
   const active = isActiveDownloadStatus(job.status);
   const complete = job.status === DownloadStatusCode.Succeeded;
   const recovery = downloadRecovery(job);
 
   return (
     <section aria-label="下载进度与执行" className="flex flex-col gap-6">
-      <Item variant="muted" className="items-start">
-        <ItemContent className="gap-4">
-          <ItemTitle>
-            <h2 id="download-status-title">{statusHeading(job)}</h2>
-          </ItemTitle>
-          <ItemDescription className="line-clamp-none">
-            {statusDescription(job)}
-          </ItemDescription>
-          {active || complete ? (
-            <>
-              <div className="flex items-center justify-between gap-4">
-                <CardTitle>{job.progress}%</CardTitle>
-                <FieldDescription>{displayStage(job)}</FieldDescription>
-              </div>
-              <Progress
-                aria-label={`下载进度 ${job.progress}%`}
-                value={job.progress}
-              />
-            </>
-          ) : null}
-          <dl className="grid grid-cols-2 gap-4 sm:grid-cols-3">
-            <div>
-              <dt>
-                <FieldDescription>执行次数</FieldDescription>
-              </dt>
-              <dd>
-                <ItemTitle>第 {job.attempt} 次执行</ItemTitle>
-              </dd>
-            </div>
-            <div>
-              <dt>
-                <FieldDescription>当前阶段</FieldDescription>
-              </dt>
-              <dd>
-                <ItemTitle>{displayStage(job)}</ItemTitle>
-              </dd>
-            </div>
-            <div>
-              <dt>
-                <FieldDescription>平台身份</FieldDescription>
-              </dt>
-              <dd>
-                <ItemTitle>
-                  {job.source_kind === 'browser_import'
-                    ? '本地导入'
-                    : job.execution_context
-                      ? job.execution_context.identity_used
-                        ? '使用 Chrome 身份'
-                        : '未使用平台身份'
-                      : '未提供'}
-                </ItemTitle>
-              </dd>
-            </div>
-          </dl>
-        </ItemContent>
-      </Item>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <ItemTitle>
+          <h2 id="download-status-title">
+            {active
+              ? '下载进度'
+              : complete && job.file_available && job.media_kind === 'video'
+                ? '文件已就绪'
+                : statusHeading(job)}
+          </h2>
+        </ItemTitle>
+        <Badge
+          variant={
+            job.status === DownloadStatusCode.Failed
+              ? 'secondary'
+              : statusVariant(job.status)
+          }
+        >
+          {statusLabels[job.status]}
+        </Badge>
+      </div>
+      {active ? (
+        <>
+          <PageHeader title={`${job.progress}%`} titleAs="p" size="lg" />
+          <Progress
+            aria-label={`下载进度 ${job.progress}%`}
+            value={job.progress}
+          />
+          <DownloadExecutionSummary job={job} />
+        </>
+      ) : null}
+      {complete && job.file_available ? (
+        <Item>
+          <ItemMedia variant="icon">
+            <ShieldCheck aria-hidden />
+          </ItemMedia>
+          <ItemContent>
+            <ItemTitle>已通过最终文件校验</ItemTitle>
+            <ItemDescription>
+              文件完整性验证通过，可保存到本机。
+            </ItemDescription>
+          </ItemContent>
+        </Item>
+      ) : null}
+      <ItemDescription className="line-clamp-none">
+        {statusDescription(job)}
+      </ItemDescription>
       {job.status === DownloadStatusCode.Failed ? (
-        <PageErrorNotice
-          compact
-          message={failureDescription(job)}
+        <FeedbackNotice
+          action={recoveryAction}
+          description={failureDescription(job)}
           title={failureTitle(job.error_code)}
+          tone="error"
         />
       ) : null}
       {complete && !job.file_available ? (
@@ -130,7 +135,6 @@ export default function DownloadState({ job }: { job: API.DownloadResponse }) {
           </AlertDescription>
         </Alert>
       ) : null}
-      <DownloadExecutionSummary job={job} />
     </section>
   );
 }
@@ -144,7 +148,7 @@ export function DownloadTaskActions({
   const complete = job.status === DownloadStatusCode.Succeeded;
   const recovery = downloadRecovery(job);
   return (
-    <div className="grid gap-3">
+    <div className="grid w-full gap-3">
       {!complete || job.file_available ? (
         <Button
           className="w-full"
@@ -160,7 +164,7 @@ export function DownloadTaskActions({
             ? '获取图集 ZIP'
             : job.media_kind === 'video_collection'
               ? '获取视频合集 ZIP'
-              : '获取视频文件'}
+              : '保存到本机'}
         </Button>
       ) : null}
       {recovery === 'reimport' ? (

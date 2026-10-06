@@ -9,6 +9,7 @@ type PageHeaderProps = {
   size?: 'default' | 'lg';
   titleClassName?: string;
   titleId?: string;
+  titleAs?: 'h1' | 'p';
 };
 
 export function PageHeader({
@@ -19,6 +20,7 @@ export function PageHeader({
   size = 'default',
   titleClassName,
   titleId,
+  titleAs: Title = 'h1',
 }: PageHeaderProps) {
   return (
     <header
@@ -29,7 +31,7 @@ export function PageHeader({
       )}
     >
       <div className="min-w-0 max-w-4xl">
-        <h1
+        <Title
           className={cn(
             'text-balance font-medium tracking-tight',
             size === 'lg' ? 'text-3xl sm:text-4xl' : 'text-2xl sm:text-3xl',
@@ -38,7 +40,7 @@ export function PageHeader({
           id={titleId}
         >
           {title}
-        </h1>
+        </Title>
         {description ? (
           <p
             className={cn(

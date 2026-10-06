@@ -15,11 +15,8 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
   Item,
-  ItemActions,
   ItemContent,
   ItemDescription,
-  ItemGroup,
-  ItemMedia,
   ItemTitle,
 } from '@/components/ui/item';
 import { Progress } from '@/components/ui/progress';
@@ -37,9 +34,9 @@ export function RecentDownloads() {
       className="flex flex-col gap-3"
     >
       <div className="flex items-center justify-between gap-4">
-        <h2 className="text-base font-medium" id="recent-downloads-title">
-          最近下载
-        </h2>
+        <ItemTitle>
+          <h2 id="recent-downloads-title">最近下载</h2>
+        </ItemTitle>
         <Button asChild variant="ghost">
           <Link href="/history">
             全部记录
@@ -69,11 +66,13 @@ export function RecentDownloads() {
         />
       ) : null}
       {items.length ? (
-        <ItemGroup>
+        <ul className="grid gap-6 sm:grid-cols-2 xl:grid-cols-4">
           {items.map((item) => (
-            <RecentDownloadItem item={item} key={item.id} />
+            <li key={item.id} className="min-w-0">
+              <RecentDownloadItem item={item} />
+            </li>
           ))}
-        </ItemGroup>
+        </ul>
       ) : null}
     </section>
   );
@@ -88,12 +87,11 @@ function RecentDownloadItem({
   const sourceLabel = displaySourceLabel(item);
 
   return (
-    <Item asChild>
+    <Item asChild className="flex-col items-stretch gap-3">
       <Link href={`/downloads/detail?jobId=${encodeURIComponent(item.id)}`}>
-        <ItemMedia className="w-28">
+        <div className="relative w-full" data-slot="recent-download-cover">
           <MediaCover
             alt={`${item.title} 媒体封面`}
-            className="w-full"
             compact
             fallback={{
               detail: item.format_name,
@@ -102,36 +100,32 @@ function RecentDownloadItem({
             }}
             src={item.thumbnail_url}
           />
-        </ItemMedia>
-        <ItemContent className="min-w-0">
-          <ItemTitle className="line-clamp-1">{item.title}</ItemTitle>
-          {active ? (
-            <div className="flex max-w-80 items-center gap-3">
-              <Progress
-                aria-label={`${item.title} 下载进度`}
-                value={item.progress}
-              />
-              <span className="shrink-0 font-mono text-sm text-muted-foreground">
-                {item.progress}%
-              </span>
-            </div>
-          ) : (
-            <ItemDescription>
-              {sourceLabel} · {item.format_name}
-            </ItemDescription>
-          )}
-        </ItemContent>
-        <ItemActions className="max-sm:basis-full max-sm:justify-between">
-          <Badge variant={statusVariant(item.status)}>
-            {downloadStatusLabels[item.status]}
-          </Badge>
-          <time
-            className="w-20 text-right text-sm text-muted-foreground"
-            dateTime={item.created_at}
+          <Badge
+            className="absolute left-3 top-3"
+            variant={statusVariant(item.status)}
           >
-            {formatRelative(item.created_at)}
-          </time>
-        </ItemActions>
+            {downloadStatusLabels[item.status]}
+            {active ? ` ${item.progress}%` : ''}
+          </Badge>
+          {active ? (
+            <Progress
+              className="absolute inset-x-0 bottom-0"
+              aria-label={`${item.title} 下载进度`}
+              value={item.progress}
+            />
+          ) : null}
+        </div>
+        <ItemContent className="min-w-0 w-full">
+          <ItemTitle className="w-full">
+            <span className="truncate">{item.title}</span>
+          </ItemTitle>
+          <ItemDescription className="line-clamp-1">
+            {sourceLabel} ·{' '}
+            <time dateTime={item.created_at}>
+              {formatRelative(item.created_at)}
+            </time>
+          </ItemDescription>
+        </ItemContent>
       </Link>
     </Item>
   );
@@ -143,13 +137,13 @@ function RecentLoading() {
       <span className="sr-only" role="status">
         正在加载最近下载
       </span>
-      <div aria-hidden className="flex flex-col gap-4">
-        {['first', 'second', 'third'].map((key) => (
-          <div className="flex items-center gap-4 px-3" key={key}>
-            <Skeleton className="aspect-video w-28" />
+      <div aria-hidden className="grid gap-6 sm:grid-cols-2 xl:grid-cols-4">
+        {['first', 'second', 'third', 'fourth'].map((key) => (
+          <div className="flex flex-col gap-3" key={key}>
+            <Skeleton className="aspect-video w-full" />
             <div className="flex flex-1 flex-col gap-2">
-              <Skeleton className="h-4 w-2/5" />
-              <Skeleton className="h-3 w-1/4" />
+              <Skeleton className="aspect-[12/1] w-2/3" />
+              <Skeleton className="aspect-[12/1] w-1/2" />
             </div>
           </div>
         ))}

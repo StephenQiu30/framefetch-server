@@ -24,10 +24,10 @@ describe('server artifact readiness is not device delivery', () => {
       );
 
       expect(
-        screen.getByRole('table', { name: '任务时间记录' }),
+        screen.getByRole('region', { name: '下载进度与执行' }),
       ).toHaveTextContent('服务端已完成');
       expect(screen.getByText(/文件已在服务器完成校验/)).toBeInTheDocument();
-      fireEvent.click(screen.getByRole('button', { name: /获取/ }));
+      fireEvent.click(screen.getByRole('button', { name: /获取|保存到本机/ }));
       expect(onDownload).toHaveBeenCalledOnce();
       expect(
         screen.queryByText(/已保存到设备|下载已完成/),
