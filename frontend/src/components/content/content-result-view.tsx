@@ -3,8 +3,20 @@
 import AnalysisReportPreview from '@/components/analysis/analysis-report-preview';
 import ContentReportHistory from '@/components/content/content-report-history';
 import ContentSourceReview from '@/components/content/content-source-review';
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from '@/components/ui/accordion';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { ItemDescription, ItemTitle } from '@/components/ui/item';
+import {
+  Item,
+  ItemContent,
+  ItemDescription,
+  ItemGroup,
+  ItemTitle,
+} from '@/components/ui/item';
 
 export default function ContentResultView({
   result,
@@ -42,7 +54,7 @@ export default function ContentResultView({
         {markdown ? (
           <AnalysisReportPreview markdown={markdown} />
         ) : (
-          <article className="space-y-5">
+          <article className="flex flex-col gap-5">
             {result.title ? (
               <ItemTitle className="line-clamp-none">
                 <h2>{result.title}</h2>
@@ -82,26 +94,33 @@ export default function ContentResultView({
         )}
       </section>
       {review?.findings.length ? (
-        <details>
-          <summary className="cursor-pointer">
-            {historicalEdit ? '历史审校记录' : '审校意见'}（
-            {review.findings.length}）
-          </summary>
-          <ul className="mt-3 grid gap-4">
-            {review.findings.map((finding) => (
-              <li
-                key={`${finding.block_id}-${finding.category}-${finding.problem}`}
-              >
-                <ItemDescription className="line-clamp-none">
-                  {finding.problem}
-                </ItemDescription>
-                <ItemDescription className="line-clamp-none mt-1">
-                  {finding.correction}
-                </ItemDescription>
-              </li>
-            ))}
-          </ul>
-        </details>
+        <Accordion type="single" collapsible>
+          <AccordionItem value="review">
+            <AccordionTrigger>
+              {historicalEdit ? '历史审校记录' : '审校意见'}（
+              {review.findings.length}）
+            </AccordionTrigger>
+            <AccordionContent>
+              <ItemGroup className="gap-4">
+                {review.findings.map((finding) => (
+                  <Item
+                    role="listitem"
+                    key={`${finding.block_id}-${finding.category}-${finding.problem}`}
+                  >
+                    <ItemContent>
+                      <ItemDescription className="line-clamp-none">
+                        {finding.problem}
+                      </ItemDescription>
+                      <ItemDescription className="line-clamp-none">
+                        {finding.correction}
+                      </ItemDescription>
+                    </ItemContent>
+                  </Item>
+                ))}
+              </ItemGroup>
+            </AccordionContent>
+          </AccordionItem>
+        </Accordion>
       ) : null}
       <ContentReportHistory
         analysisId={analysisId}

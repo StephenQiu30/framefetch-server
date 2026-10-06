@@ -25,15 +25,19 @@ describe('public page list semantics', () => {
     }
   });
 
-  it('keeps guide links in a native list and content in named regions', () => {
+  it('composes the guide directory with shadcn navigation and named regions', () => {
     const document = new DOMParser().parseFromString(
       renderToStaticMarkup(<GuidePage />),
       'text/html',
     );
-    const links = document.querySelectorAll(
-      'nav[aria-label="指南目录"] ul > li > a',
-    );
-    expect(links.length).toBeGreaterThan(0);
+    const navigation = document.querySelector('nav[aria-label="指南目录"]');
+    expect(navigation).toHaveAttribute('data-slot', 'navigation-menu');
+    expect(navigation).toHaveAttribute('data-orientation', 'vertical');
+    const links =
+      navigation?.querySelectorAll(
+        '[data-slot="navigation-menu-list"] > [data-slot="navigation-menu-item"] > a[data-slot="navigation-menu-link"]',
+      ) ?? [];
+    expect(links).toHaveLength(5);
     for (const link of links) {
       const target = document.getElementById(
         link.getAttribute('href')?.slice(1) ?? '',
@@ -45,4 +49,24 @@ describe('public page list semantics', () => {
       ).not.toBeNull();
     }
   });
+
+  it.each([GuidePage, SelfHostingPage])(
+    'uses shadcn navigation for further reading with real link destinations',
+    (Page) => {
+      const document = new DOMParser().parseFromString(
+        renderToStaticMarkup(<Page />),
+        'text/html',
+      );
+      const navigation = document.querySelector('nav[aria-label="延伸阅读"]');
+      expect(navigation).toHaveAttribute('data-slot', 'navigation-menu');
+      const links =
+        navigation?.querySelectorAll('[data-slot="navigation-menu-link"]') ??
+        [];
+      expect(links.length).toBeGreaterThan(0);
+      for (const link of links) {
+        expect(link.tagName).toBe('A');
+        expect(link.getAttribute('href')).toBeTruthy();
+      }
+    },
+  );
 });

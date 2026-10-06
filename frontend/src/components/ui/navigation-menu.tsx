@@ -1,3 +1,5 @@
+'use client';
+
 import { CaretDownIcon } from '@phosphor-icons/react';
 import { cva } from 'class-variance-authority';
 import { cn } from 'cn';

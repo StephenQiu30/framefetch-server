@@ -1,5 +1,16 @@
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from '@/components/ui/accordion';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { ItemDescription } from '@/components/ui/item';
+import {
+  Item,
+  ItemContent,
+  ItemDescription,
+  ItemGroup,
+} from '@/components/ui/item';
 
 export default function AnalysisEditorialReview({
   result,
@@ -24,23 +35,32 @@ export default function AnalysisEditorialReview({
         </Alert>
       ) : null}
       {review.findings.length ? (
-        <details>
-          <summary className="cursor-pointer">
-            审校意见（{review.findings.length}）
-          </summary>
-          <ul className="mt-3 grid gap-4">
-            {review.findings.map((finding) => (
-              <li key={`${finding.block_id}-${finding.problem}`}>
-                <ItemDescription className="line-clamp-none">
-                  {finding.problem}
-                </ItemDescription>
-                <ItemDescription className="line-clamp-none mt-1">
-                  {finding.correction}
-                </ItemDescription>
-              </li>
-            ))}
-          </ul>
-        </details>
+        <Accordion type="single" collapsible>
+          <AccordionItem value="review">
+            <AccordionTrigger>
+              审校意见（{review.findings.length}）
+            </AccordionTrigger>
+            <AccordionContent>
+              <ItemGroup className="gap-4">
+                {review.findings.map((finding) => (
+                  <Item
+                    role="listitem"
+                    key={`${finding.block_id}-${finding.problem}`}
+                  >
+                    <ItemContent>
+                      <ItemDescription className="line-clamp-none">
+                        {finding.problem}
+                      </ItemDescription>
+                      <ItemDescription className="line-clamp-none">
+                        {finding.correction}
+                      </ItemDescription>
+                    </ItemContent>
+                  </Item>
+                ))}
+              </ItemGroup>
+            </AccordionContent>
+          </AccordionItem>
+        </Accordion>
       ) : null}
     </aside>
   );

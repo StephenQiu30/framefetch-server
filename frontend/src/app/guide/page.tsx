@@ -1,3 +1,4 @@
+import Link from 'next/link';
 import { PageHeader } from '@/components/layout/page-header';
 import { PageNavigation } from '@/components/layout/page-navigation';
 import { SplitLayout } from '@/components/layout/split-layout';
@@ -10,6 +11,12 @@ import {
   ItemGroup,
   ItemTitle,
 } from '@/components/ui/item';
+import {
+  NavigationMenu,
+  NavigationMenuItem,
+  NavigationMenuLink,
+  NavigationMenuList,
+} from '@/components/ui/navigation-menu';
 import { publicMetadata } from '@/lib/public-metadata';
 import { siteConfig } from '@/lib/site';
 
@@ -99,21 +106,22 @@ export default function GuidePage() {
         </ItemContent>
       </Item>
       <SplitLayout columns="sidebar-start">
-        <nav aria-label="指南目录" className="self-start">
-          <ul className="flex flex-col gap-4">
+        <NavigationMenu
+          aria-label="指南目录"
+          className="w-full max-w-none self-start"
+          orientation="vertical"
+          viewport={false}
+        >
+          <NavigationMenuList className="w-full flex-col items-stretch gap-4">
             {sections.map(({ id, title: sectionTitle }) => (
-              <li key={id}>
-                <Button
-                  asChild
-                  className="w-full justify-start whitespace-normal"
-                  variant="ghost"
-                >
-                  <a href={`#${id}`}>{sectionTitle}</a>
-                </Button>
-              </li>
+              <NavigationMenuItem key={id}>
+                <NavigationMenuLink asChild>
+                  <Link href={`#${id}`}>{sectionTitle}</Link>
+                </NavigationMenuLink>
+              </NavigationMenuItem>
             ))}
-          </ul>
-        </nav>
+          </NavigationMenuList>
+        </NavigationMenu>
         <ItemGroup className="gap-6" role="presentation">
           {sections.map(
             ({ id, title: sectionTitle, paragraphs, source, sourceLabel }) => (
@@ -157,14 +165,24 @@ export default function GuidePage() {
           )}
         </ItemGroup>
       </SplitLayout>
-      <nav aria-label="延伸阅读" className="flex flex-wrap gap-3">
-        <Button asChild variant="ghost">
-          <a href="/#questions">返回首页常见问题</a>
-        </Button>
-        <Button asChild variant="ghost">
-          <a href="/self-hosting/">自托管部署指南</a>
-        </Button>
-      </nav>
+      <NavigationMenu
+        aria-label="延伸阅读"
+        className="max-w-none justify-start"
+        viewport={false}
+      >
+        <NavigationMenuList className="flex-wrap justify-start gap-3">
+          <NavigationMenuItem>
+            <NavigationMenuLink asChild>
+              <Link href="/#questions">返回首页常见问题</Link>
+            </NavigationMenuLink>
+          </NavigationMenuItem>
+          <NavigationMenuItem>
+            <NavigationMenuLink asChild>
+              <Link href="/self-hosting/">自托管部署指南</Link>
+            </NavigationMenuLink>
+          </NavigationMenuItem>
+        </NavigationMenuList>
+      </NavigationMenu>
     </article>
   );
 }

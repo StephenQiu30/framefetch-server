@@ -1,8 +1,8 @@
+import Link from 'next/link';
 import { PageHeader } from '@/components/layout/page-header';
 import { PageNavigation } from '@/components/layout/page-navigation';
 import { SplitLayout } from '@/components/layout/split-layout';
 import { breadcrumbList, JsonLd } from '@/components/seo/json-ld';
-import { Button } from '@/components/ui/button';
 import { Field, FieldLabel } from '@/components/ui/field';
 import {
   Item,
@@ -11,6 +11,12 @@ import {
   ItemGroup,
   ItemTitle,
 } from '@/components/ui/item';
+import {
+  NavigationMenu,
+  NavigationMenuItem,
+  NavigationMenuLink,
+  NavigationMenuList,
+} from '@/components/ui/navigation-menu';
 import { Textarea } from '@/components/ui/textarea';
 import { publicMetadata } from '@/lib/public-metadata';
 import { absoluteUrl, siteConfig } from '@/lib/site';
@@ -206,21 +212,35 @@ export default function SelfHostingPage() {
           </Item>
         </ItemGroup>
       </SplitLayout>
-      <nav aria-label="延伸阅读" className="flex flex-wrap gap-3">
-        <Button asChild variant="ghost">
-          <a href={`${siteConfig.repositoryUrl}#快速开始`}>README 快速开始</a>
-        </Button>
-        <Button asChild variant="ghost">
-          <a
-            href={`${siteConfig.repositoryUrl}/blob/main/workspace/content/design/README.md`}
-          >
-            系统设计
-          </a>
-        </Button>
-        <Button asChild variant="ghost">
-          <a href="/guide/">使用指南</a>
-        </Button>
-      </nav>
+      <NavigationMenu
+        aria-label="延伸阅读"
+        className="max-w-none justify-start"
+        viewport={false}
+      >
+        <NavigationMenuList className="flex-wrap justify-start gap-3">
+          <NavigationMenuItem>
+            <NavigationMenuLink asChild>
+              <Link href={`${siteConfig.repositoryUrl}#快速开始`}>
+                README 快速开始
+              </Link>
+            </NavigationMenuLink>
+          </NavigationMenuItem>
+          <NavigationMenuItem>
+            <NavigationMenuLink asChild>
+              <Link
+                href={`${siteConfig.repositoryUrl}/blob/main/workspace/content/design/README.md`}
+              >
+                系统设计
+              </Link>
+            </NavigationMenuLink>
+          </NavigationMenuItem>
+          <NavigationMenuItem>
+            <NavigationMenuLink asChild>
+              <Link href="/guide/">使用指南</Link>
+            </NavigationMenuLink>
+          </NavigationMenuItem>
+        </NavigationMenuList>
+      </NavigationMenu>
     </article>
   );
 }

@@ -63,8 +63,15 @@ describe('article delivery', () => {
     expect(article.getAllByRole('heading')).toHaveLength(1);
     expect(article.queryByText('开头重复解释材料')).toBeNull();
     expect(screen.getByText('审校仍有问题')).toBeTruthy();
-    fireEvent.click(screen.getByText('审校意见（1）'));
-    expect(screen.getByText('直接写具体对象')).toBeTruthy();
+    const review = screen.getByRole('button', { name: '审校意见（1）' });
+    expect(review).toHaveAttribute('aria-expanded', 'false');
+    expect(screen.queryByText('直接写具体对象')).not.toBeInTheDocument();
+    fireEvent.click(review);
+    expect(review).toHaveAttribute('aria-expanded', 'true');
+    expect(screen.getByText('直接写具体对象')).toBeVisible();
+    fireEvent.click(review);
+    expect(review).toHaveAttribute('aria-expanded', 'false');
+    expect(screen.queryByText('直接写具体对象')).not.toBeInTheDocument();
   });
 
   it('seeks a single-frame reference without inventing a time interval', () => {
