@@ -22,6 +22,9 @@ describe('FormatPicker', () => {
     );
 
     expect(screen.getAllByRole('radio')).toHaveLength(8);
+    expect(
+      screen.getByRole('radio', { name: formats[0].display_name }),
+    ).toHaveAccessibleDescription('1920×1080 · H264 · AAC · 最高 30 FPS');
 
     fireEvent.click(screen.getAllByRole('radio')[1]);
     expect(onChange).toHaveBeenCalledWith('format-1');

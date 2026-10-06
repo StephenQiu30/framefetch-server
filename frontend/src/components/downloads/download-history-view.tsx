@@ -26,7 +26,12 @@ import {
 } from '@/components/layout/page-pagination';
 import { useWorkspaceState } from '@/components/layout/workspace-state-provider';
 import { Button } from '@/components/ui/button';
-import { Field, FieldGroup, FieldLabel } from '@/components/ui/field';
+import {
+  Field,
+  FieldDescription,
+  FieldGroup,
+  FieldLabel,
+} from '@/components/ui/field';
 import {
   InputGroup,
   InputGroupAddon,
@@ -166,7 +171,7 @@ export default function DownloadHistoryView() {
             <Button asChild>
               <Link href="/">
                 <Plus data-icon="inline-start" />
-                解析新链接
+                新建下载
               </Link>
             </Button>
           </div>
@@ -182,7 +187,6 @@ export default function DownloadHistoryView() {
           </FieldLabel>
           <InputGroup>
             <InputGroupInput
-              className="h-full"
               id="history-search"
               onChange={(event) => {
                 const searchInput = event.target.value;
@@ -263,7 +267,7 @@ export default function DownloadHistoryView() {
       {state.error && state.data ? (
         <FeedbackNotice
           action={
-            <Button onClick={state.retry} size="sm" variant="outline">
+            <Button onClick={state.retry} variant="outline">
               重新加载
             </Button>
           }
@@ -284,9 +288,9 @@ export default function DownloadHistoryView() {
       ) : null}
 
       {bulkBusy ? (
-        <p role="status">
+        <FieldDescription role="status">
           正在处理所选记录：{bulkProgress.completed} / {bulkProgress.total}
-        </p>
+        </FieldDescription>
       ) : null}
       {bulkMessage ? (
         <FeedbackNotice

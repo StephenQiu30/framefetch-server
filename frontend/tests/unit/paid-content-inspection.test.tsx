@@ -17,16 +17,18 @@ describe('paid content inspection', () => {
       />,
     );
 
-    expect(screen.getByRole('heading', { name: inspection.title })).toHaveClass(
-      'break-words',
-      'text-pretty',
+    expect(
+      screen.getByRole('heading', { name: inspection.title, level: 1 }),
+    ).toBeVisible();
+    expect(screen.getByRole('region', { name: '媒体信息' })).toContainElement(
+      screen.getByRole('heading', { name: inspection.title }),
     );
-    expect(screen.getByRole('list', { name: '媒体信息' })).toHaveClass(
-      'flex-row',
-      'items-start',
-      'justify-start',
-      'text-left',
-    );
+    expect(screen.getByLabelText('媒体规格').tagName).toBe('DL');
+    expect(screen.getByText('最高画质')).toBeVisible();
+    expect(screen.getByLabelText('下载规格')).toHaveAttribute('readonly');
+    expect(screen.getByRole('combobox', { name: '保存格式' })).toBeDisabled();
+    expect(screen.queryByRole('tab', { name: '仅音频' })).toBeNull();
+    expect(screen.queryByText('推荐')).toBeNull();
   });
 
   it.each([

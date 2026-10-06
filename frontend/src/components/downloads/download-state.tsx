@@ -17,8 +17,15 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { CardTitle } from '@/components/ui/card';
+import { FieldDescription } from '@/components/ui/field';
+import {
+  Item,
+  ItemContent,
+  ItemDescription,
+  ItemTitle,
+} from '@/components/ui/item';
 import { Progress } from '@/components/ui/progress';
 import { Spinner } from '@/components/ui/spinner';
 
@@ -33,8 +40,6 @@ import {
   retryActionLabel,
   statusDescription,
   statusHeading,
-  statusLabels,
-  statusVariant,
 } from './download-state-model';
 
 type Props = {
@@ -45,62 +50,78 @@ type Props = {
   onRetry: () => void;
 };
 
-export default function DownloadState({
-  action,
-  job,
-  onCancel,
-  onDownload,
-  onRetry,
-}: Props) {
+export default function DownloadState({ job }: { job: API.DownloadResponse }) {
   const active = isActiveDownloadStatus(job.status);
   const complete = job.status === DownloadStatusCode.Succeeded;
   const recovery = downloadRecovery(job);
-  const showProgress = active;
 
   return (
-    <div className="flex flex-1 flex-col">
-      <Badge variant={statusVariant(job.status)}>
-        {statusLabels[job.status]}
-      </Badge>
-      <h2
-        className="mt-4 text-2xl font-medium leading-tight tracking-tight sm:text-3xl"
-        id="download-status-title"
-      >
-        {statusHeading(job)}
-      </h2>
-      <p className="mt-3 max-w-md text-sm leading-6 text-muted-foreground">
-        {statusDescription(job)}
-      </p>
-
-      {showProgress ? (
-        <>
-          <div className="mt-7 flex items-end justify-between gap-5">
-            <span className="text-3xl font-medium leading-none tracking-tight tabular-nums">
-              {job.progress}%
-            </span>
-            <span className="text-sm text-muted-foreground">
-              {displayStage(job)}
-            </span>
-          </div>
-          <Progress
-            aria-label={`下载进度 ${job.progress}%`}
-            className="mt-3"
-            value={job.progress}
-          />
-        </>
-      ) : null}
-
+    <section aria-label="下载进度与执行" className="flex flex-col gap-6">
+      <Item variant="muted" className="items-start">
+        <ItemContent className="gap-4">
+          <ItemTitle>
+            <h2 id="download-status-title">{statusHeading(job)}</h2>
+          </ItemTitle>
+          <ItemDescription className="line-clamp-none">
+            {statusDescription(job)}
+          </ItemDescription>
+          {active || complete ? (
+            <>
+              <div className="flex items-center justify-between gap-4">
+                <CardTitle>{job.progress}%</CardTitle>
+                <FieldDescription>{displayStage(job)}</FieldDescription>
+              </div>
+              <Progress
+                aria-label={`下载进度 ${job.progress}%`}
+                value={job.progress}
+              />
+            </>
+          ) : null}
+          <dl className="grid grid-cols-2 gap-4 sm:grid-cols-3">
+            <div>
+              <dt>
+                <FieldDescription>执行次数</FieldDescription>
+              </dt>
+              <dd>
+                <ItemTitle>第 {job.attempt} 次执行</ItemTitle>
+              </dd>
+            </div>
+            <div>
+              <dt>
+                <FieldDescription>当前阶段</FieldDescription>
+              </dt>
+              <dd>
+                <ItemTitle>{displayStage(job)}</ItemTitle>
+              </dd>
+            </div>
+            <div>
+              <dt>
+                <FieldDescription>平台身份</FieldDescription>
+              </dt>
+              <dd>
+                <ItemTitle>
+                  {job.source_kind === 'browser_import'
+                    ? '本地导入'
+                    : job.execution_context
+                      ? job.execution_context.identity_used
+                        ? '使用 Chrome 身份'
+                        : '未使用平台身份'
+                      : '未提供'}
+                </ItemTitle>
+              </dd>
+            </div>
+          </dl>
+        </ItemContent>
+      </Item>
       {job.status === DownloadStatusCode.Failed ? (
         <PageErrorNotice
-          className="mt-6"
           compact
           message={failureDescription(job)}
           title={failureTitle(job.error_code)}
         />
       ) : null}
-
       {complete && !job.file_available ? (
-        <Alert className="mt-6" variant="default">
+        <Alert>
           <AlertTitle>文件已经不在存储中</AlertTitle>
           <AlertDescription>
             {recovery === 'reimport'
@@ -109,94 +130,104 @@ export default function DownloadState({
           </AlertDescription>
         </Alert>
       ) : null}
-
-      <div className="mt-auto grid gap-3 pt-7">
-        {complete && job.file_available ? (
-          <Button
-            className="w-full"
-            disabled={action !== null}
-            onClick={onDownload}
-          >
-            {action === 'download' ? (
-              <Spinner aria-hidden data-icon="inline-start" />
-            ) : (
-              <DownloadSimple data-icon="inline-start" />
-            )}
-            {job.media_kind === 'image_gallery'
-              ? '获取图集 ZIP'
-              : job.media_kind === 'video_collection'
-                ? '获取视频合集 ZIP'
-                : '获取视频文件'}
-          </Button>
-        ) : null}
-        {recovery === 'reimport' ? (
-          <Button asChild className="w-full">
-            <Link href="/">返回首页重新导入</Link>
-          </Button>
-        ) : null}
-        {recovery === 'reparse' ? (
-          <Button asChild className="w-full">
-            <Link href="/">重新解析</Link>
-          </Button>
-        ) : null}
-        {recovery === 'retry' ? (
-          <Button
-            className="w-full"
-            disabled={action !== null}
-            onClick={onRetry}
-          >
-            {action === 'retry' ? (
-              <Spinner aria-hidden data-icon="inline-start" />
-            ) : (
-              <ArrowClockwise data-icon="inline-start" />
-            )}
-            {retryActionLabel(job.error_code)}
-          </Button>
-        ) : null}
-        {active ? (
-          <AlertDialog>
-            <AlertDialogTrigger asChild>
-              <Button
-                className="w-full"
-                disabled={action !== null}
-                variant="outline"
-              >
-                {action === 'cancel' ? (
-                  <Spinner aria-hidden data-icon="inline-start" />
-                ) : (
-                  <X data-icon="inline-start" />
-                )}
-                取消任务
-              </Button>
-            </AlertDialogTrigger>
-            <AlertDialogContent size="sm">
-              <AlertDialogHeader>
-                <AlertDialogMedia>
-                  <X aria-hidden />
-                </AlertDialogMedia>
-                <AlertDialogTitle>取消当前下载任务？</AlertDialogTitle>
-                <AlertDialogDescription>
-                  {job.source_kind === 'browser_import'
-                    ? '确认后将停止当前导入。再次导入需要重新选择本地文件。'
-                    : '确认后将停止当前下载。取消后可在当前页面重新下载。'}
-                </AlertDialogDescription>
-              </AlertDialogHeader>
-              <AlertDialogFooter>
-                <AlertDialogCancel>继续下载</AlertDialogCancel>
-                <AlertDialogAction
-                  disabled={action !== null}
-                  variant="destructive"
-                  onClick={onCancel}
-                >
-                  确认取消下载
-                </AlertDialogAction>
-              </AlertDialogFooter>
-            </AlertDialogContent>
-          </AlertDialog>
-        ) : null}
-      </div>
-
       <DownloadExecutionSummary job={job} />
+    </section>
+  );
+}
+
+export function DownloadTaskActions({
+  action,
+  job,
+  onDownload,
+  onRetry,
+}: Omit<Props, 'onCancel'>) {
+  const complete = job.status === DownloadStatusCode.Succeeded;
+  const recovery = downloadRecovery(job);
+  return (
+    <div className="grid gap-3">
+      {!complete || job.file_available ? (
+        <Button
+          className="w-full"
+          disabled={!complete || !job.file_available || action !== null}
+          onClick={onDownload}
+        >
+          {action === 'download' ? (
+            <Spinner aria-hidden data-icon="inline-start" />
+          ) : (
+            <DownloadSimple data-icon="inline-start" />
+          )}
+          {job.media_kind === 'image_gallery'
+            ? '获取图集 ZIP'
+            : job.media_kind === 'video_collection'
+              ? '获取视频合集 ZIP'
+              : '获取视频文件'}
+        </Button>
+      ) : null}
+      {recovery === 'reimport' ? (
+        <Button asChild className="w-full">
+          <Link href="/">返回首页重新导入</Link>
+        </Button>
+      ) : null}
+      {recovery === 'reparse' ? (
+        <Button asChild className="w-full">
+          <Link href="/">重新解析</Link>
+        </Button>
+      ) : null}
+      {recovery === 'retry' ? (
+        <Button className="w-full" disabled={action !== null} onClick={onRetry}>
+          {action === 'retry' ? (
+            <Spinner aria-hidden data-icon="inline-start" />
+          ) : (
+            <ArrowClockwise data-icon="inline-start" />
+          )}
+          {retryActionLabel(job.error_code)}
+        </Button>
+      ) : null}
     </div>
+  );
+}
+
+export function DownloadCancelAction({
+  action,
+  job,
+  onCancel,
+}: Pick<Props, 'action' | 'job' | 'onCancel'>) {
+  if (!isActiveDownloadStatus(job.status)) return null;
+  return (
+    <AlertDialog>
+      <AlertDialogTrigger asChild>
+        <Button disabled={action !== null} variant="outline">
+          {action === 'cancel' ? (
+            <Spinner aria-hidden data-icon="inline-start" />
+          ) : (
+            <X data-icon="inline-start" />
+          )}
+          取消任务
+        </Button>
+      </AlertDialogTrigger>
+      <AlertDialogContent size="sm">
+        <AlertDialogHeader>
+          <AlertDialogMedia>
+            <X aria-hidden />
+          </AlertDialogMedia>
+          <AlertDialogTitle>取消当前下载任务？</AlertDialogTitle>
+          <AlertDialogDescription>
+            {job.source_kind === 'browser_import'
+              ? '确认后将停止当前导入。再次导入需要重新选择本地文件。'
+              : '确认后将停止当前下载。取消后可在当前页面重新下载。'}
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel>继续下载</AlertDialogCancel>
+          <AlertDialogAction
+            disabled={action !== null}
+            variant="destructive"
+            onClick={onCancel}
+          >
+            确认取消下载
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
   );
 }

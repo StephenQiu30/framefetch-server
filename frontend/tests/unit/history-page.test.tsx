@@ -122,7 +122,7 @@ describe('download history', () => {
       'href',
       '/',
     );
-    expect(screen.getByRole('link', { name: '解析新链接' })).toHaveAttribute(
+    expect(screen.getByRole('link', { name: '新建下载' })).toHaveAttribute(
       'href',
       '/',
     );
@@ -138,7 +138,11 @@ describe('download history', () => {
     expect(detailLink).toHaveTextContent('链接下载');
     expect(screen.getAllByText('链接下载')).toHaveLength(2);
 
-    fireEvent.click(screen.getByRole('button', { name: '获取文件' }));
+    fireEvent.pointerDown(
+      screen.getByRole('button', { name: '示例视频 的操作' }),
+      { button: 0, ctrlKey: false },
+    );
+    fireEvent.click(await screen.findByRole('menuitem', { name: '获取文件' }));
     await waitFor(() =>
       expect(runtime.triggerBrowserDownload).toHaveBeenCalledWith(
         'https://objects.example/signed',
@@ -164,7 +168,11 @@ describe('download history', () => {
     expect(
       await screen.findByRole('link', { name: '示例视频' }),
     ).toHaveAttribute('href', detailHref);
-    expect(screen.getByRole('link', { name: '查看任务' })).toHaveAttribute(
+    fireEvent.pointerDown(
+      screen.getByRole('button', { name: '示例视频 的操作' }),
+      { button: 0, ctrlKey: false },
+    );
+    expect(screen.getByRole('menuitem', { name: '查看任务' })).toHaveAttribute(
       'href',
       detailHref,
     );
@@ -184,13 +192,24 @@ describe('download history', () => {
     client.setQueryData(detailKey, { id: 'history-job-1' });
     client.setQueryData(analysisKey, { id: 'analysis-1' });
 
+    const menuTrigger = await screen.findByRole('button', {
+      name: '示例视频 的操作',
+    });
+    fireEvent.pointerDown(menuTrigger, { button: 0, ctrlKey: false });
     fireEvent.click(
-      await screen.findByRole('button', { name: '删除下载记录' }),
+      await screen.findByRole('menuitem', { name: '删除下载记录' }),
     );
     expect(
       await screen.findByRole('alertdialog', { name: '删除任务与文件？' }),
     ).toHaveTextContent(
       '下载记录、视频文件、本地上传源文件和私有封面将永久删除',
+    );
+    fireEvent.click(screen.getByRole('button', { name: '保留任务' }));
+    await waitFor(() => expect(menuTrigger).toHaveFocus());
+    expect(runtime.deleteDownload).not.toHaveBeenCalled();
+    fireEvent.pointerDown(menuTrigger, { button: 0, ctrlKey: false });
+    fireEvent.click(
+      await screen.findByRole('menuitem', { name: '删除下载记录' }),
     );
     fireEvent.click(screen.getByRole('button', { name: '确认删除' }));
 
@@ -219,10 +238,16 @@ describe('download history', () => {
     await screen.findByText('2 / 2');
     await waitFor(() =>
       expect(
-        screen.getByRole('button', { name: '删除下载记录' }),
+        screen.getByRole('button', { name: '示例视频 的操作' }),
       ).toBeEnabled(),
     );
-    fireEvent.click(screen.getByRole('button', { name: '删除下载记录' }));
+    fireEvent.pointerDown(
+      screen.getByRole('button', { name: '示例视频 的操作' }),
+      { button: 0, ctrlKey: false },
+    );
+    fireEvent.click(
+      await screen.findByRole('menuitem', { name: '删除下载记录' }),
+    );
     fireEvent.click(await screen.findByRole('button', { name: '确认删除' }));
     await waitFor(() =>
       expect(runtime.getDownloadHistory).toHaveBeenLastCalledWith(
@@ -249,7 +274,11 @@ describe('download history', () => {
     runtime.retryDownload.mockResolvedValue({ id: 'retried-job' });
     render(<DownloadHistoryView />);
 
-    fireEvent.click(await screen.findByRole('button', { name: '重新下载' }));
+    fireEvent.pointerDown(
+      await screen.findByRole('button', { name: '示例视频 的操作' }),
+      { button: 0, ctrlKey: false },
+    );
+    fireEvent.click(await screen.findByRole('menuitem', { name: '重新下载' }));
 
     await waitFor(() =>
       expect(runtime.retryDownload).toHaveBeenCalledWith(
@@ -286,7 +315,11 @@ describe('download history', () => {
       );
     }
     render(<Routes />);
-    fireEvent.click(await screen.findByRole('button', { name: '重新下载' }));
+    fireEvent.pointerDown(
+      await screen.findByRole('button', { name: '示例视频 的操作' }),
+      { button: 0, ctrlKey: false },
+    );
+    fireEvent.click(await screen.findByRole('menuitem', { name: '重新下载' }));
     await waitFor(() => expect(runtime.retryDownload).toHaveBeenCalledOnce());
     fireEvent.click(screen.getByText('Navigate away'));
     await act(async () => resolveRetry({ id: 'retried-job' }));

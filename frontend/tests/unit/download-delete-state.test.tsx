@@ -59,7 +59,7 @@ it('refreshing a populated list disables its actions without claiming to delete 
     selection: { ids: [], busy: true, toggle: vi.fn() },
   };
   const { container, rerender } = render(<DownloadHistoryList {...props} />);
-  expect(screen.getByRole('button', { name: '删除下载记录' })).toBeDisabled();
+  expect(screen.getByRole('button', { name: '示例 的操作' })).toBeDisabled();
   expect(container.querySelector('[data-slot="spinner"]')).toBeNull();
   rerender(
     <DownloadHistoryList
@@ -67,7 +67,11 @@ it('refreshing a populated list disables its actions without claiming to delete 
       selection={{ ...props.selection, busy: false }}
     />,
   );
-  fireEvent.click(screen.getByRole('button', { name: '删除下载记录' }));
+  fireEvent.pointerDown(screen.getByRole('button', { name: '示例 的操作' }), {
+    button: 0,
+    ctrlKey: false,
+  });
+  fireEvent.click(screen.getByRole('menuitem', { name: '删除下载记录' }));
   await waitFor(() =>
     expect(screen.getByRole('button', { name: '确认删除' })).toBeEnabled(),
   );

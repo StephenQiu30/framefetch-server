@@ -19,7 +19,10 @@ import { FeedbackNotice } from '@/components/layout/feedback-notice';
 import { markNavigationPush } from '@/components/layout/navigation-state';
 import { PageErrorNotice } from '@/components/layout/page-error-notice';
 import { PageNavigation } from '@/components/layout/page-navigation';
-import { MediaResultSkeleton } from '@/components/media/media-result';
+import { SplitLayout } from '@/components/layout/split-layout';
+import { AspectRatio } from '@/components/ui/aspect-ratio';
+import { Item, ItemContent } from '@/components/ui/item';
+import { Skeleton } from '@/components/ui/skeleton';
 import { privateQueryKey } from '@/lib/query-keys';
 import { ApiError, displayError } from '@/lib/request-error';
 import { createUuid } from '@/lib/uuid';
@@ -262,5 +265,25 @@ export default function InspectionRoute() {
 }
 
 export function InspectionSkeleton() {
-  return <MediaResultSkeleton label="正在读取解析结果" selectionPanel />;
+  return (
+    <SplitLayout aria-label="正在读取解析结果" columns="primary" role="status">
+      <div aria-hidden className="flex flex-col gap-6">
+        <AspectRatio ratio={16 / 9}>
+          <Skeleton className="size-full" />
+        </AspectRatio>
+        <Skeleton className="aspect-[12/1] w-3/4" />
+        <Skeleton className="aspect-[16/1] w-full" />
+      </div>
+      <div aria-hidden className="flex flex-col gap-6 lg:contain-size">
+        <Item variant="muted" className="min-h-0 flex-1">
+          <ItemContent className="gap-4">
+            {['first', 'second', 'third'].map((key) => (
+              <Skeleton className="aspect-[8/1] w-full" key={key} />
+            ))}
+          </ItemContent>
+        </Item>
+        <Skeleton className="aspect-[8/1] w-full" />
+      </div>
+    </SplitLayout>
+  );
 }

@@ -1,6 +1,10 @@
 'use client';
 
-import { ArrowClockwiseIcon, FunnelX } from '@phosphor-icons/react';
+import {
+  ArrowClockwiseIcon,
+  FunnelX,
+  ShieldCheckIcon,
+} from '@phosphor-icons/react';
 import { type KeyboardEvent, useMemo, useState } from 'react';
 import { FeedbackNotice } from '@/components/layout/feedback-notice';
 import { PageEmptyNotice } from '@/components/layout/page-empty-notice';
@@ -15,6 +19,13 @@ import { isDownloadEnabled } from '@/components/providers/provider-availability'
 import { ProviderStatusItem } from '@/components/providers/provider-status-item';
 import { useProviderStatuses } from '@/components/providers/use-provider-statuses';
 import { Button } from '@/components/ui/button';
+import {
+  Item,
+  ItemContent,
+  ItemDescription,
+  ItemMedia,
+  ItemTitle,
+} from '@/components/ui/item';
 import { Spinner } from '@/components/ui/spinner';
 import {
   Table,
@@ -72,6 +83,18 @@ export function ProviderStatusView() {
       />
 
       <div className="mt-6 flex flex-col gap-6">
+        <Item variant="muted">
+          <ItemMedia variant="icon">
+            <ShieldCheckIcon aria-hidden />
+          </ItemMedia>
+          <ItemContent>
+            <ItemTitle>平台身份来自你的 Chrome</ItemTitle>
+            <ItemDescription className="line-clamp-none">
+              需要登录的平台通过 FrameFetch 扩展读取你日常使用的 Chrome
+              登录态；公开内容无需登录。身份材料不会扩大可下载的内容范围。
+            </ItemDescription>
+          </ItemContent>
+        </Item>
         {state.loading && !state.data ? (
           <StatusMessage label="正在加载平台状态" />
         ) : null}
@@ -86,7 +109,7 @@ export function ProviderStatusView() {
         {state.error && state.data ? (
           <FeedbackNotice
             action={
-              <Button onClick={state.retry} size="sm" variant="outline">
+              <Button onClick={state.retry} variant="outline">
                 <ArrowClockwiseIcon aria-hidden data-icon="inline-start" />
                 重新加载
               </Button>
@@ -141,7 +164,7 @@ export function ProviderStatusView() {
                         接入与身份
                       </TableHead>
                       <TableHead className="hidden whitespace-normal lg:table-cell lg:w-1/4">
-                        已登记能力
+                        能力
                       </TableHead>
                       <TableHead className="hidden whitespace-normal lg:table-cell">
                         说明
@@ -157,7 +180,7 @@ export function ProviderStatusView() {
                     ))}
                   </TableBody>
                 </Table>
-                <footer className="flex flex-wrap items-center justify-between gap-4 text-sm text-muted-foreground">
+                <footer className="flex justify-end">
                   <PagePagination
                     pageSize={pageSize}
                     onPageSizeChange={(size) => {
@@ -226,13 +249,13 @@ function nextStatusFilter(
 
 function StatusMessage({ label }: { label: string }) {
   return (
-    <div
-      aria-label={label}
-      className="flex min-h-40 items-center gap-2 text-sm text-muted-foreground"
-      role="status"
-    >
-      <Spinner aria-hidden />
-      <span>{label}</span>
-    </div>
+    <Item aria-label={label} role="status">
+      <ItemMedia variant="icon">
+        <Spinner aria-hidden />
+      </ItemMedia>
+      <ItemContent>
+        <ItemDescription>{label}</ItemDescription>
+      </ItemContent>
+    </Item>
   );
 }

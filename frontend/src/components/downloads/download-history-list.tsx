@@ -1,6 +1,12 @@
-import { ArrowClockwise, DownloadSimple, Eye } from '@phosphor-icons/react';
+import {
+  ArrowClockwise,
+  DotsThree,
+  DownloadSimple,
+  Eye,
+  Trash,
+} from '@phosphor-icons/react';
 import Link from 'next/link';
-import type { ReactNode } from 'react';
+import { type ReactNode, useRef, useState } from 'react';
 import { DownloadDeleteDialog } from '@/components/downloads/download-delete-dialog';
 import {
   DownloadStatusCode,
@@ -15,6 +21,20 @@ import { PageEmptyNotice } from '@/components/layout/page-empty-notice';
 import MediaCover from '@/components/media/media-cover';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuGroup,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import {
+  Item,
+  ItemContent,
+  ItemDescription,
+  ItemMedia,
+  ItemTitle,
+} from '@/components/ui/item';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Spinner } from '@/components/ui/spinner';
 
@@ -63,17 +83,29 @@ export default function DownloadHistoryList({
           columns={[
             {
               id: 'content',
-              header: '内容',
+              header: '视频',
               className: 'whitespace-normal',
               hideable: false,
               cell: (item) => <HistoryContent item={item} />,
+            },
+            {
+              id: 'platform',
+              header: '平台',
+              className: 'hidden lg:table-cell',
+              cell: (item) => displaySourceLabel(item),
+            },
+            {
+              id: 'quality',
+              header: '画质',
+              className: 'hidden lg:table-cell',
+              cell: (item) => item.format_name,
             },
             {
               id: 'status',
               header: '状态',
               // Narrow screens show the status inside the content cell so
               // the row actions stay reachable without horizontal scrolling.
-              className: 'hidden w-32 sm:table-cell',
+              className: 'hidden lg:table-cell',
               cell: (item) => (
                 <Badge variant={statusVariant(item.status)}>
                   {downloadStatusLabels[item.status]}
@@ -81,6 +113,16 @@ export default function DownloadHistoryList({
                     ? ` · ${item.progress}%`
                     : ''}
                 </Badge>
+              ),
+            },
+            {
+              id: 'time',
+              header: '时间',
+              className: 'hidden lg:table-cell',
+              cell: (item) => (
+                <time dateTime={item.created_at}>
+                  {formatDate(item.created_at)}
+                </time>
               ),
             },
             {
@@ -119,55 +161,57 @@ export default function DownloadHistoryList({
 
 function HistoryContent({ item }: { item: API.DownloadHistoryItemResponse }) {
   const detailHref = `/downloads/detail?jobId=${encodeURIComponent(item.id)}`;
-  const sourceLabel =
-    item.source_kind === 'remote_provider' &&
-    item.source_label === 'WechatChannelsPublic'
-      ? '微信视频号'
-      : item.source_label;
+  const sourceLabel = displaySourceLabel(item);
   return (
-    <Link
-      aria-label={item.title}
-      className="focus-ring grid min-w-0 grid-cols-1 items-center gap-3 sm:grid-cols-[auto_minmax(0,1fr)]"
-      href={detailHref}
-    >
-      <div className="hidden sm:block">
-        <MediaCover
-          alt={`${item.title} 媒体封面`}
-          className="w-24"
-          compact
-          fallback={{
-            detail: item.format_name,
-            eyebrow: sourceLabel,
-            title: item.title,
-          }}
-          src={item.thumbnail_url}
-        />
-      </div>
-      <div className="flex min-w-0 flex-col gap-1.5">
-        <span className="line-clamp-2">{item.title}</span>
-        <div className="text-muted-foreground">
-          <span>{sourceLabel}</span>
-          <span aria-hidden> · </span>
-          <span>{item.format_name}</span>
-          <span aria-hidden> · </span>
-          <time dateTime={item.created_at}>{formatDate(item.created_at)}</time>
-          {item.status === DownloadStatusCode.Succeeded ? (
-            <>
-              <span aria-hidden> · </span>
-              <span>{fileAvailabilityLabel(item)}</span>
-            </>
-          ) : null}
-        </div>
-        <Badge
-          className="mt-1.5 sm:hidden"
-          variant={statusVariant(item.status)}
-        >
-          {downloadStatusLabels[item.status]}
-          {isActiveDownloadStatus(item.status) ? ` · ${item.progress}%` : ''}
-        </Badge>
-      </div>
-    </Link>
+    <Item asChild className="flex-nowrap">
+      <Link aria-label={item.title} href={detailHref}>
+        <ItemMedia className="hidden w-24 sm:block">
+          <MediaCover
+            alt={`${item.title} 媒体封面`}
+            className="w-full"
+            compact
+            fallback={{
+              detail: item.format_name,
+              eyebrow: sourceLabel,
+              title: item.title,
+            }}
+            src={item.thumbnail_url}
+          />
+        </ItemMedia>
+        <ItemContent className="min-w-0">
+          <ItemTitle className="line-clamp-2 [overflow-wrap:anywhere]">
+            {item.title}
+          </ItemTitle>
+          <ItemDescription className="hidden line-clamp-none lg:block">
+            来源：{sourceLabel}
+            {item.status === DownloadStatusCode.Succeeded
+              ? ` · ${fileAvailabilityLabel(item)}`
+              : ''}
+          </ItemDescription>
+          <ItemDescription className="line-clamp-none lg:hidden">
+            {sourceLabel} · {item.format_name} ·{' '}
+            <time dateTime={item.created_at}>
+              {formatDate(item.created_at)}
+            </time>
+            {item.status === DownloadStatusCode.Succeeded
+              ? ` · ${fileAvailabilityLabel(item)}`
+              : ''}
+          </ItemDescription>
+          <Badge className="lg:hidden" variant={statusVariant(item.status)}>
+            {downloadStatusLabels[item.status]}
+            {isActiveDownloadStatus(item.status) ? ` · ${item.progress}%` : ''}
+          </Badge>
+        </ItemContent>
+      </Link>
+    </Item>
   );
+}
+
+function displaySourceLabel(item: API.DownloadHistoryItemResponse) {
+  return item.source_kind === 'remote_provider' &&
+    item.source_label === 'WechatChannelsPublic'
+    ? '微信视频号'
+    : item.source_label;
 }
 
 function HistoryActions({
@@ -194,67 +238,88 @@ function HistoryActions({
     item.status === DownloadStatusCode.Succeeded && item.file_available;
   const recovery = downloadRecovery(item);
   const busy = Boolean(selection?.busy || pendingAction);
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const menuTrigger = useRef<HTMLButtonElement>(null);
 
   return (
-    <div className="flex items-center justify-end gap-1">
-      {canDownload ? (
-        <Button
-          disabled={busy}
-          onClick={() => onDownload(item)}
-          size="sm"
-          variant="ghost"
-        >
-          {busy && pendingAction?.type === 'download' ? (
-            <Spinner aria-hidden data-icon="inline-start" />
-          ) : (
-            <DownloadSimple data-icon="inline-start" />
-          )}
-          <span className="sr-only sm:not-sr-only">获取文件</span>
-        </Button>
-      ) : recovery === 'reimport' ? (
-        <Button asChild size="sm" variant="ghost">
-          <Link href="/">
-            <ArrowClockwise aria-hidden data-icon="inline-start" />
-            <span className="sr-only sm:not-sr-only">返回首页重新导入</span>
-          </Link>
-        </Button>
-      ) : recovery === 'reparse' ? (
-        <Button asChild size="sm" variant="ghost">
-          <Link href="/">
-            <ArrowClockwise aria-hidden data-icon="inline-start" />
-            <span className="sr-only sm:not-sr-only">重新解析</span>
-          </Link>
-        </Button>
-      ) : recovery === 'retry' ? (
-        <Button
-          disabled={busy}
-          onClick={() => onRetry(item)}
-          size="sm"
-          variant="ghost"
-        >
-          {busy && pendingAction?.type === 'retry' ? (
-            <Spinner aria-hidden data-icon="inline-start" />
-          ) : (
-            <ArrowClockwise data-icon="inline-start" />
-          )}
-          <span className="sr-only sm:not-sr-only">重新下载</span>
-        </Button>
-      ) : (
-        <Button asChild size="sm" variant="ghost">
-          <Link href={detailHref}>
-            <Eye aria-hidden data-icon="inline-start" />
-            <span className="sr-only sm:not-sr-only">查看任务</span>
-          </Link>
-        </Button>
-      )}
+    <>
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button
+            ref={menuTrigger}
+            aria-label={`${item.title} 的操作`}
+            disabled={busy}
+            size="icon"
+            variant="ghost"
+          >
+            {pendingAction ? (
+              <Spinner aria-hidden />
+            ) : (
+              <DotsThree aria-hidden />
+            )}
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end">
+          <DropdownMenuGroup>
+            <DropdownMenuItem asChild>
+              <Link href={detailHref}>
+                <Eye aria-hidden />
+                查看任务
+              </Link>
+            </DropdownMenuItem>
+            {canDownload ? (
+              <DropdownMenuItem
+                disabled={busy}
+                onSelect={() => onDownload(item)}
+              >
+                <DownloadSimple aria-hidden />
+                获取文件
+              </DropdownMenuItem>
+            ) : recovery === 'reimport' ? (
+              <DropdownMenuItem asChild>
+                <Link href="/">
+                  <ArrowClockwise aria-hidden />
+                  返回首页重新导入
+                </Link>
+              </DropdownMenuItem>
+            ) : recovery === 'reparse' ? (
+              <DropdownMenuItem asChild>
+                <Link href="/">
+                  <ArrowClockwise aria-hidden />
+                  重新解析
+                </Link>
+              </DropdownMenuItem>
+            ) : recovery === 'retry' ? (
+              <DropdownMenuItem disabled={busy} onSelect={() => onRetry(item)}>
+                <ArrowClockwise aria-hidden />
+                重新下载
+              </DropdownMenuItem>
+            ) : null}
+            <DropdownMenuItem
+              disabled={busy}
+              variant="destructive"
+              onSelect={() => setDeleteOpen(true)}
+            >
+              <Trash aria-hidden />
+              删除下载记录
+            </DropdownMenuItem>
+          </DropdownMenuGroup>
+        </DropdownMenuContent>
+      </DropdownMenu>
       <DownloadDeleteDialog
         active={isActiveDownloadStatus(item.status)}
         busy={pendingAction?.type === 'delete'}
         disabled={busy}
-        compact
         onDelete={() => onDelete(item)}
+        showTrigger={false}
+        open={deleteOpen}
+        onOpenChange={setDeleteOpen}
+        onCloseAutoFocus={(event) => {
+          event.preventDefault();
+          menuTrigger.current?.focus();
+        }}
       />
-    </div>
+    </>
   );
 }
 
@@ -266,17 +331,15 @@ function LoadingRows() {
       </span>
       <div aria-hidden className="flex flex-col gap-2">
         {['first', 'second', 'third'].map((key) => (
-          <div
-            className="grid grid-cols-[auto_minmax(0,1fr)] items-center gap-4 py-5 sm:grid-cols-[auto_minmax(0,1fr)_auto] sm:gap-6 sm:py-6"
-            key={key}
-          >
-            <Skeleton className="h-16 w-24 sm:w-32" />
-            <div className="flex flex-col gap-2">
-              <Skeleton className="h-4 w-2/5" />
-              <Skeleton className="h-3 w-3/5" />
-            </div>
-            <Skeleton className="col-span-2 h-7 w-28 justify-self-end sm:col-auto" />
-          </div>
+          <Item key={key}>
+            <ItemMedia className="w-24">
+              <Skeleton className="aspect-video w-full" />
+            </ItemMedia>
+            <ItemContent>
+              <Skeleton className="aspect-[16/1] w-2/5" />
+              <Skeleton className="aspect-[16/1] w-3/5" />
+            </ItemContent>
+          </Item>
         ))}
       </div>
     </>

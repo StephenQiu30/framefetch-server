@@ -24,6 +24,10 @@ export function DownloadDeleteDialog({
   compact = false,
   count,
   onDelete,
+  showTrigger = true,
+  open,
+  onOpenChange,
+  onCloseAutoFocus,
 }: {
   active: boolean;
   busy: boolean;
@@ -31,38 +35,44 @@ export function DownloadDeleteDialog({
   compact?: boolean;
   count?: number;
   onDelete: () => Promise<void>;
+  showTrigger?: boolean;
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
+  onCloseAutoFocus?: (event: Event) => void;
 }) {
   return (
-    <AlertDialog>
-      <AlertDialogTrigger asChild>
-        <Button
-          aria-label={compact ? '删除下载记录' : undefined}
-          disabled={disabled || busy}
-          aria-busy={busy}
-          size={compact ? 'icon-sm' : 'default'}
-          variant={compact ? 'ghost' : 'outline'}
-        >
-          {busy ? (
-            <Spinner
-              aria-hidden
-              data-icon={compact ? undefined : 'inline-start'}
-            />
-          ) : (
-            <Trash
-              aria-hidden
-              data-icon={compact ? undefined : 'inline-start'}
-            />
-          )}
-          {compact ? (
-            <span className="sr-only">删除</span>
-          ) : count !== undefined ? (
-            `批量删除（${count}）`
-          ) : (
-            '删除任务'
-          )}
-        </Button>
-      </AlertDialogTrigger>
-      <AlertDialogContent size="sm">
+    <AlertDialog open={open} onOpenChange={onOpenChange}>
+      {showTrigger ? (
+        <AlertDialogTrigger asChild>
+          <Button
+            aria-label={compact ? '删除下载记录' : undefined}
+            disabled={disabled || busy}
+            aria-busy={busy}
+            size={compact ? 'icon' : 'default'}
+            variant={compact ? 'ghost' : 'outline'}
+          >
+            {busy ? (
+              <Spinner
+                aria-hidden
+                data-icon={compact ? undefined : 'inline-start'}
+              />
+            ) : (
+              <Trash
+                aria-hidden
+                data-icon={compact ? undefined : 'inline-start'}
+              />
+            )}
+            {compact ? (
+              <span className="sr-only">删除</span>
+            ) : count !== undefined ? (
+              `批量删除（${count}）`
+            ) : (
+              '删除任务'
+            )}
+          </Button>
+        </AlertDialogTrigger>
+      ) : null}
+      <AlertDialogContent size="sm" onCloseAutoFocus={onCloseAutoFocus}>
         <AlertDialogHeader>
           <AlertDialogMedia>
             <Warning aria-hidden />

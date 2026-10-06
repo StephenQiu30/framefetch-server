@@ -53,7 +53,7 @@ export default function DownloadVideoPreview({
     return (
       <AspectRatio ratio={mediaFrameAspectRatio}>
         <PageErrorNotice
-          className="size-full bg-muted p-5 sm:p-8"
+          className="size-full"
           compact
           message={preview.error ?? '没有可用的视频预览地址。'}
           onRetry={preview.reload}
@@ -70,7 +70,7 @@ export default function DownloadVideoPreview({
         ref={playerRef}
         ariaLabel={`${title}视频预览`}
         aspectRatio="auto"
-        className="size-full overflow-hidden rounded-none bg-black"
+        className="size-full overflow-hidden"
         crossOrigin="anonymous"
         key={preview.source}
         load="eager"

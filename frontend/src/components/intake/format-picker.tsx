@@ -7,7 +7,6 @@ import {
   FieldContent,
   FieldDescription,
   FieldLabel,
-  FieldTitle,
 } from '@/components/ui/field';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { audioCodecLabel } from '@/lib/media-format';
@@ -50,29 +49,30 @@ export default function FormatPicker({
       {formats.map((format) => {
         const plan = format.plan;
         return (
-          <FieldLabel htmlFor={format.id} key={format.id}>
-            <Field orientation="horizontal">
-              {/* FieldContent aligns direct controls to the first text line.
+          <Field orientation="horizontal" key={format.id}>
+            {/* FieldContent aligns direct controls to the first text line.
                   Stretch a layout wrapper to center the radio against both lines. */}
-              <div className="flex self-stretch items-center">
-                <RadioGroupItem id={format.id} value={format.id} />
-              </div>
-              <FieldContent>
-                <FieldTitle>
-                  {plan
-                    ? `${plan.height}P · ${plan.container_preference.toUpperCase()}`
-                    : format.display_name}
-                </FieldTitle>
-                <FieldDescription>
-                  {plan
-                    ? `${plan.width}×${plan.height} · ${plan.video_codec_family.toUpperCase()} · ${audioCodecLabel(plan.audio_codec_family)} · ${fpsLabels[plan.fps_bucket]}`
-                    : mediaKind === 'video_collection'
-                      ? '视频合集 · 视频 ZIP'
-                      : '官方图文 · 原图 ZIP'}
-                </FieldDescription>
-              </FieldContent>
-            </Field>
-          </FieldLabel>
+            <div className="flex self-stretch items-center">
+              <RadioGroupItem
+                aria-labelledby={`${format.id}-label`}
+                aria-describedby={`${format.id}-description`}
+                id={format.id}
+                value={format.id}
+              />
+            </div>
+            <FieldContent>
+              <FieldLabel htmlFor={format.id} id={`${format.id}-label`}>
+                {format.display_name}
+              </FieldLabel>
+              <FieldDescription id={`${format.id}-description`}>
+                {plan
+                  ? `${plan.width}×${plan.height} · ${plan.video_codec_family.toUpperCase()} · ${audioCodecLabel(plan.audio_codec_family)} · ${fpsLabels[plan.fps_bucket]}`
+                  : mediaKind === 'video_collection'
+                    ? '视频合集 · 视频 ZIP'
+                    : '官方图文 · 原图 ZIP'}
+              </FieldDescription>
+            </FieldContent>
+          </Field>
         );
       })}
     </RadioGroup>

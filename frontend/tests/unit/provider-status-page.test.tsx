@@ -36,6 +36,10 @@ describe('provider status page', () => {
     expect(youtube).toHaveTextContent('已接入');
     expect(youtube).toHaveTextContent('优先登录');
     expect(youtube).toHaveTextContent('单视频 · 音视频分离');
+    expect(youtube?.querySelectorAll('[data-slot="badge"]')).toHaveLength(1);
+    expect(
+      screen.getByText('平台身份来自你的 Chrome').closest('[data-slot="item"]'),
+    ).toHaveAttribute('data-variant', 'muted');
     const qqvideo = within(table)
       .getByRole('heading', { name: '腾讯视频' })
       .closest('tr');

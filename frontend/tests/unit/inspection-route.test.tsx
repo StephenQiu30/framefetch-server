@@ -78,22 +78,17 @@ describe('inspection result route', () => {
     expect(
       document.querySelector('[data-slot="media-result-frame"]'),
     ).toBeInTheDocument();
-    const cards = document.querySelectorAll(
-      '[data-slot="media-result"] > [data-slot="card"]',
-    );
-    expect(cards).toHaveLength(2);
-    expect(cards[0]).toHaveClass('ring-0');
-    expect(cards[1]).toHaveClass('ring-0');
-    expect(
-      cards[0].querySelector('[data-slot="card-header"]'),
-    ).toContainElement(
-      screen.getByRole('heading', { name: inspection.title, level: 2 }),
+    const layout = document.querySelector('[data-slot="inspection-layout"]');
+    expect(layout).toHaveAttribute('data-slot', 'inspection-layout');
+    expect(layout?.children).toHaveLength(2);
+    expect(layout?.children[0]).toContainElement(
+      screen.getByRole('heading', { name: inspection.title, level: 1 }),
     );
     expect(
-      cards[1].querySelector('[data-slot="card-footer"]'),
-    ).toContainElement(screen.getByRole('button', { name: '创建下载任务' }));
-    expect(screen.getByRole('button', { name: '创建下载任务' })).toBeEnabled();
-    fireEvent.click(screen.getByRole('button', { name: '创建下载任务' }));
+      document.querySelector('[data-slot="inspection-actions"]'),
+    ).toContainElement(screen.getByRole('button', { name: '开始下载' }));
+    expect(screen.getByRole('button', { name: '开始下载' })).toBeEnabled();
+    fireEvent.click(screen.getByRole('button', { name: '开始下载' }));
     await waitFor(() =>
       expect(push).toHaveBeenCalledWith(`/downloads/detail?jobId=${job().id}`),
     );
@@ -112,7 +107,7 @@ describe('inspection result route', () => {
     renderRoute(`inspectionId=${inspection.id}`);
     expect(await screen.findByText('当前不可下载')).toBeVisible();
     expect(
-      screen.queryByRole('button', { name: '创建下载任务' }),
+      screen.queryByRole('button', { name: '开始下载' }),
     ).not.toBeInTheDocument();
   });
 
@@ -122,11 +117,11 @@ describe('inspection result route', () => {
     expect(
       await screen.findByRole('heading', {
         name: galleryInspection.title,
-        level: 2,
+        level: 1,
       }),
     ).toBeVisible();
     expect(screen.getAllByText(/3 张原图/u).length).toBeGreaterThan(0);
-    expect(screen.getByRole('button', { name: '创建下载任务' })).toBeEnabled();
+    expect(screen.getByRole('button', { name: '开始下载' })).toBeEnabled();
     first.unmount();
 
     mockHttpResponses(videoCollectionInspection);
@@ -134,11 +129,11 @@ describe('inspection result route', () => {
     expect(
       await screen.findByRole('heading', {
         name: videoCollectionInspection.title,
-        level: 2,
+        level: 1,
       }),
     ).toBeVisible();
     expect(screen.getAllByText(/2 个视频/u).length).toBeGreaterThan(0);
-    expect(screen.getByRole('button', { name: '创建下载任务' })).toBeEnabled();
+    expect(screen.getByRole('button', { name: '开始下载' })).toBeEnabled();
   });
 
   it('routes a source requiring an owned file back to the upload intake', async () => {
@@ -154,7 +149,7 @@ describe('inspection result route', () => {
     );
     expect(push).toHaveBeenCalledWith('/');
     expect(
-      screen.queryByRole('button', { name: '创建下载任务' }),
+      screen.queryByRole('button', { name: '开始下载' }),
     ).not.toBeInTheDocument();
   });
 

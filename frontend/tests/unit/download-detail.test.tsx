@@ -97,18 +97,23 @@ describe('DownloadJobView', () => {
       '[data-slot="media-result-frame"]',
     );
     expect(mediaFrame).not.toBeNull();
-    const cards = document.querySelectorAll(
-      '[data-slot="media-result"] > [data-slot="card"]',
-    );
-    expect(cards).toHaveLength(2);
-    expect(cards[0]).toHaveClass('ring-0');
-    expect(cards[1]).toHaveClass('ring-0');
-    expect(cards[0].querySelector('[data-slot="media-result-frame"]')).toBe(
-      mediaFrame,
-    );
-    expect(cards[1]).toContainElement(
+    const layout = document.querySelector('[data-slot="download-job-layout"]');
+    expect(layout?.children).toHaveLength(2);
+    expect(layout?.children[0]).toContainElement(
       document.getElementById('download-status-title'),
     );
+    expect(layout?.children[1]).toContainElement(mediaFrame as HTMLElement);
+    expect(screen.getByRole('button', { name: '获取视频文件' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'AI 拉片分析' })).toBeDisabled();
+    expect(screen.getByRole('table', { name: '任务时间记录' })).toHaveClass(
+      'table-borderless',
+    );
+    expect(screen.getByRole('table', { name: '任务时间记录' })).toHaveAttribute(
+      'tabindex',
+      '0',
+    );
+    expect(screen.queryByText('速度')).toBeNull();
+    expect(screen.queryByText('预计剩余')).toBeNull();
     emitTaskUpdate('download', job('running').id, 2);
     expect((await screen.findAllByText('服务端已完成')).length).toBeGreaterThan(
       0,
@@ -455,7 +460,7 @@ describe('DownloadJobView', () => {
         name: `${inspection.title}视频预览`,
       }),
     ).toBeInTheDocument();
-    expect(screen.getByText(/1920×1080/)).toBeInTheDocument();
+    expect(screen.getAllByText(/1920×1080/).length).toBeGreaterThan(0);
     expect(
       await screen.findByRole('heading', { name: 'AI 智能分析' }),
     ).toBeInTheDocument();

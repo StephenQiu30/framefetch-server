@@ -2,6 +2,7 @@
 
 import { isDownloadEnabled } from '@/components/providers/provider-availability';
 import { Badge } from '@/components/ui/badge';
+import { ItemContent, ItemDescription, ItemTitle } from '@/components/ui/item';
 import { TableCell, TableHead, TableRow } from '@/components/ui/table';
 
 const CAPABILITY_LABELS: Record<API.ProviderCapability, string> = {
@@ -42,29 +43,34 @@ export function ProviderStatusItem({
   return (
     <TableRow>
       <TableHead
-        className="text-left whitespace-normal [overflow-wrap:anywhere] lg:w-1/5"
+        className="whitespace-normal [overflow-wrap:anywhere] lg:w-1/5"
         scope="row"
       >
-        <div className="flex min-w-0 flex-col gap-1.5">
-          <h2 className="font-medium">{provider.display_name}</h2>
-          <p className="font-mono text-xs font-normal text-muted-foreground">
-            {provider.key}
-          </p>
-          <div className="mt-1 flex flex-col gap-2 font-normal lg:hidden">
-            <div className="flex flex-wrap items-center gap-2">
-              <Badge variant="secondary">{status}</Badge>
-              <span className="text-xs text-muted-foreground">{identity}</span>
-            </div>
-            <p className="text-xs text-muted-foreground">{capabilitySummary}</p>
-            <p className="text-sm">{description}</p>
+        <ItemContent className="min-w-0">
+          <div className="flex flex-wrap items-center gap-2">
+            <ItemTitle>
+              <h2>{provider.display_name}</h2>
+            </ItemTitle>
+            <Badge variant={enabled ? 'default' : 'secondary'}>{status}</Badge>
           </div>
-        </div>
+          <ItemDescription>{provider.key}</ItemDescription>
+          <ItemContent className="mt-2 lg:hidden">
+            <ItemDescription className="line-clamp-none">
+              {identity}
+            </ItemDescription>
+            <ItemDescription className="line-clamp-none">
+              {capabilitySummary}
+            </ItemDescription>
+            <ItemDescription className="line-clamp-none">
+              {description}
+            </ItemDescription>
+          </ItemContent>
+        </ItemContent>
       </TableHead>
       <TableCell className="hidden whitespace-normal lg:table-cell">
-        <div className="flex flex-col items-start gap-1.5">
-          <Badge variant="secondary">{status}</Badge>
-          <p className="text-xs text-muted-foreground">{identity}</p>
-        </div>
+        <ItemDescription className="line-clamp-none">
+          {identity}
+        </ItemDescription>
       </TableCell>
       <TableCell className="hidden whitespace-normal lg:table-cell lg:w-1/4">
         {capabilitySummary}

@@ -1,7 +1,9 @@
 import { fireEvent, render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 
-import DownloadState from '@/components/downloads/download-state';
+import DownloadState, {
+  DownloadTaskActions,
+} from '@/components/downloads/download-state';
 import { job } from '../fixtures/download-fixtures';
 
 describe('server artifact readiness is not device delivery', () => {
@@ -10,16 +12,20 @@ describe('server artifact readiness is not device delivery', () => {
     (media_kind) => {
       const onDownload = vi.fn();
       render(
-        <DownloadState
-          action={null}
-          job={{ ...job('succeeded'), media_kind }}
-          onCancel={vi.fn()}
-          onDownload={onDownload}
-          onRetry={vi.fn()}
-        />,
+        <>
+          <DownloadState job={{ ...job('succeeded'), media_kind }} />
+          <DownloadTaskActions
+            action={null}
+            job={{ ...job('succeeded'), media_kind }}
+            onDownload={onDownload}
+            onRetry={vi.fn()}
+          />
+        </>,
       );
 
-      expect(screen.getByText('服务端已完成')).toBeInTheDocument();
+      expect(
+        screen.getByRole('table', { name: '任务时间记录' }),
+      ).toHaveTextContent('服务端已完成');
       expect(screen.getByText(/文件已在服务器完成校验/)).toBeInTheDocument();
       fireEvent.click(screen.getByRole('button', { name: /获取/ }));
       expect(onDownload).toHaveBeenCalledOnce();

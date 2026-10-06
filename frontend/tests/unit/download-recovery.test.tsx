@@ -1,8 +1,8 @@
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 
 import DownloadHistoryList from '@/components/downloads/download-history-list';
-import DownloadState from '@/components/downloads/download-state';
+import { DownloadTaskActions } from '@/components/downloads/download-state';
 import { job } from '../fixtures/download-fixtures';
 
 describe('source-aware download recovery', () => {
@@ -18,7 +18,7 @@ describe('source-aware download recovery', () => {
       onDownload: vi.fn(),
       onRetry: vi.fn(),
     };
-    const view = render(<DownloadState {...props} job={value} />);
+    const view = render(<DownloadTaskActions {...props} job={value} />);
     expect(
       screen.queryByRole('button', { name: /重新下载|重试/ }),
     ).not.toBeInTheDocument();
@@ -43,10 +43,14 @@ describe('source-aware download recovery', () => {
         onDelete={vi.fn()}
       />,
     );
+    fireEvent.pointerDown(
+      screen.getByRole('button', { name: 'Changed media 的操作' }),
+      { button: 0, ctrlKey: false },
+    );
     expect(
-      screen.queryByRole('button', { name: '重新下载' }),
+      screen.queryByRole('menuitem', { name: '重新下载' }),
     ).not.toBeInTheDocument();
-    expect(screen.getByRole('link', { name: '重新解析' })).toHaveAttribute(
+    expect(screen.getByRole('menuitem', { name: '重新解析' })).toHaveAttribute(
       'href',
       '/',
     );
@@ -69,7 +73,7 @@ describe('source-aware download recovery', () => {
         onDownload: vi.fn(),
         onRetry: vi.fn(),
       };
-      const view = render(<DownloadState {...props} job={value} />);
+      const view = render(<DownloadTaskActions {...props} job={value} />);
       expect(
         screen.queryByRole('button', { name: /重新下载|重试/ }),
       ).not.toBeInTheDocument();
@@ -93,11 +97,15 @@ describe('source-aware download recovery', () => {
           onDelete={vi.fn()}
         />,
       );
+      fireEvent.pointerDown(
+        screen.getByRole('button', { name: 'local.mp4 的操作' }),
+        { button: 0, ctrlKey: false },
+      );
       expect(
-        screen.queryByRole('button', { name: '重新下载' }),
+        screen.queryByRole('menuitem', { name: '重新下载' }),
       ).not.toBeInTheDocument();
       expect(
-        screen.getByRole('link', { name: '返回首页重新导入' }),
+        screen.getByRole('menuitem', { name: '返回首页重新导入' }),
       ).toHaveAttribute('href', '/');
       expect(screen.getByText('WechatChannelsPublic')).toBeVisible();
     },
