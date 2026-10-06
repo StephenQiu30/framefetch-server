@@ -20,6 +20,45 @@ from app.services.imports.rules.enums import (
 RESOURCE_ID = UUID("11111111-1111-4111-8111-111111111111")
 
 
+@pytest.mark.parametrize(
+    "source_format", [ImportSourceFormat.MARKDOWN, ImportSourceFormat.TXT]
+)
+async def test_markdown_structure_summary_matches_reader_without_counting_code(
+    tmp_path: Path, source_format: ImportSourceFormat
+) -> None:
+    content = (
+        "# 标题\n\n"
+        "章节\n---\n\n"
+        "> ## 引用中的标题\n\n"
+        "- 项目一\n  - 嵌套项目\n\n"
+        "| 项目 | 内容 |\n| --- | --- |\n| 时长 | 五秒 |\n\n"
+        "```markdown\n# 示例标题\n- 示例列表\n"
+        "| 示例 | 表格 |\n| --- | --- |\n| A | B |\n```\n"
+    ).encode()
+    workspace = tmp_path / "markdown"
+    workspace.mkdir()
+    source = workspace / "source"
+    source.write_bytes(content)
+    result = await TextScreenplayVerifier(
+        tmp_path,
+        TextVerificationSettings(
+            max_size_bytes=4096, max_characters=4096, max_line_characters=200
+        ),
+    )(source, claim(content, source_format))
+
+    assert result.normalized_path.read_bytes() == content
+    assert result.normalized_sha256 == hashlib.sha256(content).hexdigest()
+    assert result.scenes == ()
+    assert result.parse_summary.heading_count == (
+        3 if source_format is ImportSourceFormat.MARKDOWN else 0
+    )
+    assert result.parse_summary.table_count == (
+        1 if source_format is ImportSourceFormat.MARKDOWN else 0
+    )
+    if source_format is ImportSourceFormat.MARKDOWN:
+        assert result.parse_summary.list_item_count == 2
+
+
 def claim(content: bytes, source_format: ImportSourceFormat) -> ImportVerificationClaim:
     return ImportVerificationClaim(
         resource_id=RESOURCE_ID,

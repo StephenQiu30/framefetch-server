@@ -61,7 +61,7 @@ describe('mobile navigation', () => {
       within(resources).getByRole('link', { name: '文档' }),
     ).toHaveAttribute(
       'href',
-      'https://github.com/StephenQiu30/video-server/tree/main/docs',
+      'https://github.com/StephenQiu30/video-server/tree/main/workspace/content',
     );
     expect(screen.getByRole('link', { name: '登录账户' })).toHaveAttribute(
       'href',

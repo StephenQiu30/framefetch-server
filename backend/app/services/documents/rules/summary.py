@@ -3,6 +3,8 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 
+from markdown_it import MarkdownIt
+
 from app.services.documents.rules.screenplay import ScreenplayScene
 from app.services.documents.rules.structure import ScreenplayElementKind
 
@@ -38,17 +40,29 @@ def summarize_document(
     *,
     page_count: int | None = None,
     table_count: int = 0,
+    markdown: bool = False,
 ) -> DocumentParseSummary:
     non_empty_lines = tuple(line for line in text.splitlines() if line.strip())
     kinds = tuple(element.kind for scene in scenes for element in scene.elements)
+    heading_count = sum(
+        kind in {ScreenplayElementKind.HEADING, ScreenplayElementKind.SECTION}
+        for kind in kinds
+    )
+    list_item_count = sum(bool(_LIST_ITEM.match(line)) for line in non_empty_lines)
+    if markdown:
+        tokens = (
+            MarkdownIt("commonmark", {"html": False, "linkify": False})
+            .enable("table")
+            .parse(text)
+        )
+        heading_count = sum(token.type == "heading_open" for token in tokens)
+        list_item_count = sum(token.type == "list_item_open" for token in tokens)
+        table_count = sum(token.type == "table_open" for token in tokens)
     return DocumentParseSummary(
         page_count=page_count,
         paragraph_count=len(non_empty_lines),
-        heading_count=sum(
-            kind in {ScreenplayElementKind.HEADING, ScreenplayElementKind.SECTION}
-            for kind in kinds
-        ),
-        list_item_count=sum(bool(_LIST_ITEM.match(line)) for line in non_empty_lines),
+        heading_count=heading_count,
+        list_item_count=list_item_count,
         table_count=table_count,
         dialogue_block_count=sum(
             kind is ScreenplayElementKind.DIALOGUE for kind in kinds

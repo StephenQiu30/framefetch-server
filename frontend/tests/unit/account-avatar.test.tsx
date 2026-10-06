@@ -47,6 +47,9 @@ describe('account avatar', () => {
 
   it('shows upload entry and validates file type and size inline', () => {
     render(<AccountView />);
+    const initials = screen.getByText('ST');
+    expect(initials).toHaveClass('text-foreground');
+    expect(initials).not.toHaveClass('text-muted-foreground');
     expect(screen.getByRole('button', { name: '上传头像' })).toBeVisible();
     const input = screen.getByLabelText('选择头像图片');
     const openPicker = vi.spyOn(input as HTMLInputElement, 'click');

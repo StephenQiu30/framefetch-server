@@ -23,7 +23,7 @@ export function PublicHomeCapabilities({
   return (
     <ItemGroup className="gap-3">
       {items.map(([eyebrow, title, description]) => (
-        <Item key={title} variant="muted">
+        <Item key={title} variant="muted" role="listitem">
           <ItemContent>
             <Badge className="w-fit" variant="secondary">
               {eyebrow}

@@ -104,7 +104,7 @@ export default function AboutPage() {
           </ItemTitle>
           <ItemGroup>
             {audiences.map(({ name, text }) => (
-              <Item variant="muted" key={name}>
+              <Item variant="muted" key={name} role="listitem">
                 <ItemContent>
                   <ItemTitle>{name}</ItemTitle>
                   <ItemDescription className="line-clamp-none">
@@ -125,7 +125,7 @@ export default function AboutPage() {
           </ItemTitle>
           <ItemGroup>
             {principles.map(({ name, text }) => (
-              <Item variant="muted" key={name}>
+              <Item variant="muted" key={name} role="listitem">
                 <ItemContent>
                   <ItemTitle>{name}</ItemTitle>
                   <ItemDescription className="line-clamp-none">
@@ -166,7 +166,7 @@ export default function AboutPage() {
         </ItemTitle>
         <ItemGroup>
           {repositories.map(({ name, href, text }) => (
-            <Item key={name}>
+            <Item key={name} role="listitem">
               <ItemContent>
                 <ItemTitle>
                   <Button asChild variant="link">

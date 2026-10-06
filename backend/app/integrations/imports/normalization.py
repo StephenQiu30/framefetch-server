@@ -11,7 +11,7 @@ from app.services.import_execution.models import (
     ImportVerificationClaim,
     VerifiedDocumentImport,
 )
-from app.services.imports.rules.enums import ImportErrorCode
+from app.services.imports.rules.enums import ImportErrorCode, ImportSourceFormat
 
 
 class TextLimits(Protocol):
@@ -67,6 +67,7 @@ def normalized_document(
             screenplay.scenes,
             page_count=page_count,
             table_count=table_count,
+            markdown=claim.source_format is ImportSourceFormat.MARKDOWN,
         ),
     )
 

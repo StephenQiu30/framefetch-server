@@ -65,9 +65,7 @@ function SiteFooter({ className }: { className?: string }) {
                 <FooterLink href="/self-hosting/">自托管部署</FooterLink>
                 <FooterLink href="/about/">关于</FooterLink>
                 <FooterLink href={siteConfig.repositoryUrl}>GitHub</FooterLink>
-                <FooterLink href={`${siteConfig.repositoryUrl}/tree/main/docs`}>
-                  文档
-                </FooterLink>
+                <FooterLink href={siteConfig.documentationUrl}>文档</FooterLink>
               </NavigationMenuList>
             </NavigationMenu>
           </div>

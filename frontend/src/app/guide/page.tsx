@@ -100,20 +100,21 @@ export default function GuidePage() {
       </Item>
       <SplitLayout columns="sidebar-start">
         <nav aria-label="指南目录" className="self-start">
-          <ItemGroup>
+          <ul className="flex flex-col gap-4">
             {sections.map(({ id, title: sectionTitle }) => (
-              <Button
-                asChild
-                className="justify-start whitespace-normal"
-                key={id}
-                variant="ghost"
-              >
-                <a href={`#${id}`}>{sectionTitle}</a>
-              </Button>
+              <li key={id}>
+                <Button
+                  asChild
+                  className="w-full justify-start whitespace-normal"
+                  variant="ghost"
+                >
+                  <a href={`#${id}`}>{sectionTitle}</a>
+                </Button>
+              </li>
             ))}
-          </ItemGroup>
+          </ul>
         </nav>
-        <ItemGroup className="gap-6">
+        <ItemGroup className="gap-6" role="presentation">
           {sections.map(
             ({ id, title: sectionTitle, paragraphs, source, sourceLabel }) => (
               <Item asChild variant="muted" key={id}>

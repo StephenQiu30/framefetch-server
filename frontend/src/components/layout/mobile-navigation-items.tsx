@@ -152,7 +152,7 @@ export function MobileNavigationItems({
           <GithubLogoIcon aria-hidden />
           GitHub
         </MobileLink>
-        <MobileLink href={`${siteConfig.repositoryUrl}/tree/main/docs`}>
+        <MobileLink href={siteConfig.documentationUrl}>
           <FileTextIcon aria-hidden />
           文档
         </MobileLink>

@@ -157,7 +157,7 @@ export default function SelfHostingPage() {
             ))}
           </ol>
         </section>
-        <ItemGroup className="gap-6 self-start">
+        <ItemGroup className="gap-6 self-start" role="presentation">
           <Item asChild variant="muted">
             <section id="requirements" aria-labelledby="requirements-title">
               <ItemContent className="gap-4">
