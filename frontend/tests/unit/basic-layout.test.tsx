@@ -527,11 +527,21 @@ describe('BasicLayout', () => {
       'id',
       'login-title',
     );
-    const preview = container.querySelector('[data-slot="auth-preview-panel"]');
-    expect(preview).toHaveClass('hidden', 'lg:flex');
-    expect(preview?.querySelector('[inert]')).toHaveAttribute(
-      'aria-hidden',
-      'true',
+    const intro = container.querySelector<HTMLElement>(
+      '[data-slot="auth-intro-panel"]',
+    );
+    expect(intro).toHaveClass('hidden', 'lg:flex');
+    expect(intro?.querySelector('[inert], [aria-hidden="true"]')).toBeNull();
+    const capabilities = within(intro as HTMLElement).getByRole('list');
+    expect(within(capabilities).getAllByRole('listitem')).toHaveLength(3);
+    expect(capabilities).toHaveTextContent(
+      '下载公开视频选择画质，完成后校验文件完整性。',
+    );
+    expect(capabilities).toHaveTextContent(
+      '在线播放下载完成的视频可直接在任务页播放。',
+    );
+    expect(capabilities).toHaveTextContent(
+      'AI 拉片分析生成分镜、场景与报告，可导出 Markdown 或 DOCX。',
     );
     expect(
       screen.getByText('粘贴链接，带走任意公开视频。'),

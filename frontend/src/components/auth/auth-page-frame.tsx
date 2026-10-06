@@ -1,31 +1,16 @@
 'use client';
 
-import { CheckCircleIcon, LinkIcon } from '@phosphor-icons/react';
 import type { ReactNode } from 'react';
 import { PageHeader } from '@/components/layout/page-header';
 import { SplitLayout } from '@/components/layout/split-layout';
-import MediaCover from '@/components/media/media-cover';
-import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
 import {
   Field,
   FieldDescription,
   FieldError,
   FieldLabel,
 } from '@/components/ui/field';
-import {
-  InputGroup,
-  InputGroupAddon,
-  InputGroupInput,
-} from '@/components/ui/input-group';
-import {
-  Item,
-  ItemContent,
-  ItemDescription,
-  ItemMedia,
-  ItemTitle,
-} from '@/components/ui/item';
-import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
+import { InputGroup } from '@/components/ui/input-group';
+import { Item, ItemContent } from '@/components/ui/item';
 
 type AuthPageFrameProps = {
   children: ReactNode;
@@ -59,7 +44,7 @@ export function AuthPageFrame({
         <Item
           variant="muted"
           className="hidden flex-col justify-center lg:flex"
-          data-slot="auth-preview-panel"
+          data-slot="auth-intro-panel"
         >
           <ItemContent className="w-full max-w-md flex-none gap-8">
             <div className="flex flex-col gap-3">
@@ -73,59 +58,26 @@ export function AuthPageFrame({
                 自动列出可用画质，下载完成后校验文件，并可直接在线播放。
               </p>
             </div>
-            <div aria-hidden inert className="flex flex-col gap-3">
-              <div className="flex items-center gap-2">
-                <InputGroup>
-                  <InputGroupAddon>
-                    <LinkIcon />
-                  </InputGroupAddon>
-                  <InputGroupInput
-                    readOnly
-                    tabIndex={-1}
-                    value="https://www.bilibili.com/video/…"
-                  />
-                </InputGroup>
-                <Button tabIndex={-1}>解析链接</Button>
-              </div>
-              <Item variant="outline">
-                <ItemMedia className="w-36">
-                  <MediaCover
-                    alt=""
-                    className="w-full"
-                    compact
-                    fallback={{
-                      detail: '12:48',
-                      eyebrow: '哔哩哔哩',
-                      title: '城市夜景延时摄影合集',
-                    }}
-                  />
-                </ItemMedia>
-                <ItemContent className="gap-2">
-                  <ItemTitle>城市夜景延时摄影合集</ItemTitle>
-                  <ItemDescription>哔哩哔哩 · 公开内容</ItemDescription>
-                  <RadioGroup disabled value="1080">
-                    {[
-                      ['1080', '1080p · MP4'],
-                      ['2160', '2160p · WebM'],
-                    ].map(([value, label]) => (
-                      <div className="flex items-center gap-2" key={value}>
-                        <RadioGroupItem value={value} />
-                        <span className="text-sm">{label}</span>
-                      </div>
-                    ))}
-                  </RadioGroup>
-                </ItemContent>
-              </Item>
-              <Item variant="outline">
-                <ItemMedia variant="icon">
-                  <CheckCircleIcon />
-                </ItemMedia>
-                <ItemContent>
-                  <ItemTitle>下载完成，文件已校验</ItemTitle>
-                </ItemContent>
-                <Badge variant="secondary">可在线播放</Badge>
-              </Item>
-            </div>
+            <ul className="flex flex-col gap-4">
+              <li className="flex flex-col gap-1">
+                <span className="font-medium">下载公开视频</span>
+                <span className="text-sm leading-6 text-muted-foreground">
+                  选择画质，完成后校验文件完整性。
+                </span>
+              </li>
+              <li className="flex flex-col gap-1">
+                <span className="font-medium">在线播放</span>
+                <span className="text-sm leading-6 text-muted-foreground">
+                  下载完成的视频可直接在任务页播放。
+                </span>
+              </li>
+              <li className="flex flex-col gap-1">
+                <span className="font-medium">AI 拉片分析</span>
+                <span className="text-sm leading-6 text-muted-foreground">
+                  生成分镜、场景与报告，可导出 Markdown 或 DOCX。
+                </span>
+              </li>
+            </ul>
           </ItemContent>
         </Item>
       </SplitLayout>
