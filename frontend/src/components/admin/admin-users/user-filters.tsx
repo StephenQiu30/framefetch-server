@@ -47,7 +47,6 @@ export function UserFilters({
           <FieldLabel htmlFor="user-search">搜索用户名或邮箱</FieldLabel>
           <InputGroup>
             <InputGroupInput
-              className="h-full"
               id="user-search"
               onChange={(event) => onDraftSearch(event.target.value)}
               placeholder="搜索用户名或邮箱"

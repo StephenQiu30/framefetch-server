@@ -45,9 +45,7 @@ export function BulkSelectionBar({
           <FieldLabel htmlFor={id}>全选本页</FieldLabel>
         </Field>
       ) : null}
-      <span className="text-sm text-muted-foreground" aria-live="polite">
-        {count ? `已选 ${count} 项` : '勾选记录以批量操作'}
-      </span>
+      <span aria-live="polite">{count ? `已选 ${count} 项` : null}</span>
       {count > 0 ? (
         <div className="flex flex-wrap items-center gap-2">
           {children}

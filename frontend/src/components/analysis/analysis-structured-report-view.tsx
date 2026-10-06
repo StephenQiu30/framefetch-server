@@ -3,7 +3,7 @@
 import AnalysisEditorialReview from '@/components/analysis/analysis-editorial-review';
 import AnalysisReportPreview from '@/components/analysis/analysis-report-preview';
 import { Button } from '@/components/ui/button';
-import { Item } from '@/components/ui/item';
+import { Item, ItemDescription, ItemTitle } from '@/components/ui/item';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 import { formatMillisecondRange, formatMilliseconds } from '@/lib/format';
@@ -28,7 +28,7 @@ export default function AnalysisStructuredReportView({
   return (
     <Tabs className="mt-10 gap-0" defaultValue="report-sections">
       <AnalysisEditorialReview result={result} />
-      <div className="grid grid-cols-2 gap-3 py-4 sm:gap-5">
+      <div className="grid grid-cols-2 gap-3 sm:gap-5">
         <Metric label="报告章节" value={`${result.sections.length}`} />
         <Metric
           label={result.media ? '视频时长' : '来源类型'}
@@ -38,10 +38,12 @@ export default function AnalysisStructuredReportView({
         />
       </div>
       <div className="mt-8 w-full">
-        <h3 className="text-xl font-medium tracking-tight">摘要</h3>
-        <p className="mt-3 whitespace-pre-line text-base leading-8 text-muted-foreground">
+        <ItemTitle className="line-clamp-none">
+          <h3>摘要</h3>
+        </ItemTitle>
+        <ItemDescription className="line-clamp-none mt-3 whitespace-pre-line">
           {result.summary}
-        </p>
+        </ItemDescription>
       </div>
       <div className="mt-10 overflow-x-auto">
         <TabsList className="w-max" variant="line">
@@ -56,30 +58,31 @@ export default function AnalysisStructuredReportView({
           {result.sections.map((section, index) => (
             <Item asChild className="block" key={section.id}>
               <li>
-                <p className="text-xs text-muted-foreground">
+                <ItemDescription className="line-clamp-none">
                   章节 {index + 1}
-                </p>
-                <h4 className="mt-2 text-xl font-medium">{section.heading}</h4>
+                </ItemDescription>
+                <h4 className="mt-2">{section.heading}</h4>
                 {result.media ? (
-                  <p className="mt-4 whitespace-pre-line leading-8 text-muted-foreground">
+                  <ItemDescription className="line-clamp-none mt-4 whitespace-pre-line">
                     {section.body}
-                  </p>
+                  </ItemDescription>
                 ) : (
                   <div className="mt-4 min-w-0">
                     <AnalysisReportPreview markdown={section.body} />
                   </div>
                 )}
                 {section.items.length ? (
-                  <ul className="mt-4 flex flex-col gap-2 list-disc pl-5 leading-7">
+                  <ul className="mt-4 flex flex-col gap-2 list-disc">
                     {section.items.map((item) => (
                       <li key={item}>{item}</li>
                     ))}
                   </ul>
                 ) : null}
                 {result.media && section.evidence.length ? (
-                  <div className="mt-5 flex flex-col gap-1 text-sm text-muted-foreground">
+                  <div className="mt-5 flex flex-col gap-1">
                     {section.evidence.map((evidence) => (
-                      <p
+                      <ItemDescription
+                        className="line-clamp-none"
                         key={`${evidence.start_ms}-${evidence.end_ms}-${evidence.note}`}
                       >
                         <Button
@@ -96,18 +99,19 @@ export default function AnalysisStructuredReportView({
                           )}
                         </Button>{' '}
                         {evidence.note}
-                      </p>
+                      </ItemDescription>
                     ))}
                   </div>
                 ) : null}
                 {section.citations?.length ? (
-                  <div className="mt-5 flex min-w-0 flex-col gap-3 text-sm text-muted-foreground">
+                  <div className="mt-5 flex min-w-0 flex-col gap-3">
                     {section.citations.map((citation) => (
-                      <p
+                      <ItemDescription
+                        className="line-clamp-none"
                         key={`${citation.source_sha256}-${citation.start}-${citation.end}`}
                       >
                         原文第 {citation.start + 1}–{citation.end} 个字符
-                      </p>
+                      </ItemDescription>
                     ))}
                   </div>
                 ) : null}
@@ -116,18 +120,18 @@ export default function AnalysisStructuredReportView({
           ))}
         </ol>
         {sourceDigests.length ? (
-          <div className="mt-8 min-w-0 text-xs text-muted-foreground">
+          <div className="mt-8 min-w-0">
             {sourceDigests.map((sha) => (
-              <p key={sha}>
+              <ItemDescription className="line-clamp-none" key={sha}>
                 原文 SHA-256：<code className="break-all">{sha}</code>
-              </p>
+              </ItemDescription>
             ))}
           </div>
         ) : null}
         {result.limitations.length ? (
-          <div className="mt-8 py-6">
-            <h4 className="font-medium">事实边界与待核验项</h4>
-            <ul className="mt-3 flex flex-col gap-2 list-disc pl-5 leading-7 text-muted-foreground">
+          <div className="mt-8">
+            <h4>事实边界与待核验项</h4>
+            <ul className="mt-3 flex flex-col gap-2 list-disc">
               {result.limitations.map((limitation) => (
                 <li key={limitation}>{limitation}</li>
               ))}
@@ -147,8 +151,10 @@ export default function AnalysisStructuredReportView({
 function Metric({ label, value }: { label: string; value: string }) {
   return (
     <div>
-      <p className="text-xs text-muted-foreground">{label}</p>
-      <p className="mt-1 text-2xl tabular-nums">{value}</p>
+      <ItemDescription className="line-clamp-none">{label}</ItemDescription>
+      <ItemTitle className="line-clamp-none">
+        <p className="mt-1 tabular-nums">{value}</p>
+      </ItemTitle>
     </div>
   );
 }

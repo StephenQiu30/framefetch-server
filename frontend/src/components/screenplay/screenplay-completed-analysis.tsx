@@ -1,5 +1,4 @@
 import { ArrowClockwise, DownloadSimple } from '@phosphor-icons/react';
-
 import AnalysisDeleteDialog from '@/components/analysis/analysis-delete-dialog';
 import { AnalysisReportStatusCode } from '@/components/analysis/analysis-panel-model';
 import AnalysisReportDownloadLink from '@/components/analysis/analysis-report-download-link';
@@ -8,6 +7,7 @@ import { FeedbackNotice } from '@/components/layout/feedback-notice';
 import { ScreenplayResultView } from '@/components/screenplay/screenplay-result-view';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { ItemDescription, ItemTitle } from '@/components/ui/item';
 import { Spinner } from '@/components/ui/spinner';
 
 export function ScreenplayCompletedAnalysis({
@@ -54,13 +54,12 @@ export function ScreenplayCompletedAnalysis({
     <>
       <div className="flex flex-col gap-6">
         <div className="min-w-0 w-full">
-          <h2
-            className="w-full text-xl font-semibold tracking-tight"
-            id="screenplay-analysis-title"
-          >
-            {title}
-          </h2>
-          <p className="mt-3 text-sm text-muted-foreground">
+          <ItemTitle className="line-clamp-none">
+            <h2 className="w-full" id="screenplay-analysis-title">
+              {title}
+            </h2>
+          </ItemTitle>
+          <ItemDescription className="line-clamp-none mt-3">
             {legacyReport
               ? '历史 Skill 报告 · 仅展示已保存的报告正文'
               : job.result.kind === 'screenplay_rewrite'
@@ -68,13 +67,11 @@ export function ScreenplayCompletedAnalysis({
                 : job.result.kind === 'structured_report'
                   ? '文档整理 · 请对照上方已上传的原文核查结构与引用'
                   : 'AI 剧本故事审稿 · 请对照上方已上传的剧本原文核查结论'}
-          </p>
+          </ItemDescription>
         </div>
         <div className="flex flex-wrap items-center gap-3">
           <Badge variant="default">已完成</Badge>
-          <span className="text-sm text-muted-foreground tabular-nums">
-            第 {job.run_no} 次执行
-          </span>
+          <span className="tabular-nums">第 {job.run_no} 次执行</span>
           {reportAvailable ? (
             <>
               <Button asChild variant="outline">

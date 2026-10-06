@@ -85,7 +85,7 @@ export function AdminUsersScreen({
       {result.error && result.items.length > 0 ? (
         <FeedbackNotice
           action={
-            <Button onClick={actions.onRetry} size="sm" variant="outline">
+            <Button onClick={actions.onRetry} size="default" variant="outline">
               <ArrowClockwise aria-hidden data-icon="inline-start" />
               重新加载
             </Button>

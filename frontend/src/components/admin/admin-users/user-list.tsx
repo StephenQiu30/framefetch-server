@@ -38,7 +38,7 @@ export function UserList({
             <Button
               aria-label={`管理用户 ${item.username}`}
               disabled={self}
-              size="sm"
+              size="default"
               title={self ? '不能修改或删除当前登录管理员' : '管理用户'}
               type="button"
               variant="ghost"
@@ -108,14 +108,9 @@ export function UserList({
                 <div className="flex min-w-0 flex-col gap-2">
                   <span className="break-all">{item.username}</span>
                   <div className="flex flex-col gap-2 lg:hidden">
-                    <span className="break-all text-xs text-muted-foreground">
-                      {item.email}
-                    </span>
+                    <span className="break-all">{item.email}</span>
                     {badges(item)}
-                    <time
-                      className="text-xs text-muted-foreground"
-                      dateTime={item.created_at}
-                    >
+                    <time dateTime={item.created_at}>
                       {formatUserDate(item.created_at)}
                     </time>
                   </div>

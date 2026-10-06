@@ -1,5 +1,4 @@
 import { CheckCircle, WarningCircle } from '@phosphor-icons/react';
-
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -20,6 +19,7 @@ import {
 } from '@/components/ui/field';
 import { Form } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
+import { ItemDescription } from '@/components/ui/item';
 import { Spinner } from '@/components/ui/spinner';
 import { Switch } from '@/components/ui/switch';
 
@@ -48,7 +48,9 @@ export function ProviderCatalogEditor({
     >
       <DialogContent className="max-h-svh overflow-y-auto overscroll-contain sm:max-w-lg">
         <DialogHeader>
-          <p className="mb-4 text-sm font-medium">平台目录</p>
+          <ItemDescription className="line-clamp-none mb-4">
+            平台目录
+          </ItemDescription>
           <DialogTitle>
             {creating ? '新增平台' : `编辑 ${editor.displayName}`}
           </DialogTitle>

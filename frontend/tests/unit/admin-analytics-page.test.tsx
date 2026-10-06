@@ -74,10 +74,7 @@ describe('administrator usage analytics', () => {
     ).toBeInTheDocument();
     expect(screen.getByText('最近一天 71.4%')).toBeInTheDocument();
 
-    expect(screen.getAllByRole('meter')).toHaveLength(2);
-    expect(
-      screen.getByRole('meter', { name: '抖音占全部下载的62.5%' }),
-    ).toHaveAttribute('value', '62.5');
+    expect(screen.getByText('抖音：62.5%')).toBeInTheDocument();
     expect(
       screen.queryByRole('table', { name: '各视频源下载表现' }),
     ).not.toBeInTheDocument();

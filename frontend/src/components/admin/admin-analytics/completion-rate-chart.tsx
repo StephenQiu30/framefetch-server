@@ -2,13 +2,13 @@
 
 import { TrendUpIcon } from '@phosphor-icons/react';
 import { Area, AreaChart, CartesianGrid, XAxis, YAxis } from 'recharts';
-
 import {
   type ChartConfig,
   ChartContainer,
   ChartTooltip,
   ChartTooltipContent,
 } from '@/components/ui/chart';
+import { ItemDescription, ItemTitle } from '@/components/ui/item';
 import {
   Table,
   TableBody,
@@ -42,16 +42,15 @@ export function CompletionRateChart({ daily }: { daily: DailyPoint[] }) {
 
   return (
     <div className="w-full">
-      <h2
-        className="flex items-center gap-2 text-xl font-medium tracking-tight"
-        id="completion-rate-title"
-      >
-        <TrendUpIcon aria-hidden className="size-4 text-muted-foreground" />
-        完成率走势
-      </h2>
-      <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">
+      <ItemTitle className="line-clamp-none">
+        <h2 className="flex items-center gap-2" id="completion-rate-title">
+          <TrendUpIcon aria-hidden />
+          完成率走势
+        </h2>
+      </ItemTitle>
+      <ItemDescription className="line-clamp-none mt-2 max-w-2xl">
         按天观察成功完成任务的比例变化。
-      </p>
+      </ItemDescription>
       <ChartContainer
         aria-label="每日下载成功率面积图"
         className="mt-8 w-full md:aspect-[3/1]"
@@ -78,10 +77,10 @@ export function CompletionRateChart({ daily }: { daily: DailyPoint[] }) {
               <ChartTooltipContent
                 formatter={(value, name) => (
                   <div className="flex min-w-32 items-center justify-between gap-5">
-                    <span className="text-muted-foreground">
+                    <span>
                       {String(name) === 'rate' ? '成功率' : String(name)}
                     </span>
-                    <span className="font-mono font-medium tabular-nums">
+                    <span className="tabular-nums">
                       {formatPercent(Number(value))}
                     </span>
                   </div>
@@ -103,10 +102,10 @@ export function CompletionRateChart({ daily }: { daily: DailyPoint[] }) {
           />
         </AreaChart>
       </ChartContainer>
-      <p className="mt-5 text-sm font-medium tabular-nums">
+      <ItemDescription className="line-clamp-none mt-5 tabular-nums">
         最近一天 {formatPercent(latest)}
-      </p>
-      <Table className="sr-only">
+      </ItemDescription>
+      <Table className="table-borderless sr-only">
         <TableCaption>每日下载成功率精确数据</TableCaption>
         <TableHeader>
           <TableRow>

@@ -3,6 +3,8 @@
 import { cn } from 'cn';
 import Link from 'next/link';
 import { PageErrorNotice } from '@/components/layout/page-error-notice';
+import { PageHeader } from '@/components/layout/page-header';
+import { PageNavigation } from '@/components/layout/page-navigation';
 import { Button } from '@/components/ui/button';
 import { displayError } from '@/lib/request-error';
 
@@ -17,9 +19,13 @@ export function RouteErrorView({
 }) {
   return (
     <div
-      className={cn('flex flex-1 items-center py-14 sm:py-20', className)}
+      className={cn('inner-page flex flex-col gap-8', className)}
       data-slot="route-error"
     >
+      <div>
+        <PageNavigation fallbackHref="/" />
+        <PageHeader title="页面暂时无法打开。" />
+      </div>
       <PageErrorNotice
         className="flex-1"
         message={displayError(error)}
@@ -31,7 +37,7 @@ export function RouteErrorView({
           </Button>
         }
         title="页面暂时无法打开。"
-        titleAs="h1"
+        titleAs="h2"
       />
     </div>
   );

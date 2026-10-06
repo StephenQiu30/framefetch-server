@@ -214,9 +214,7 @@ export function HistoryRecordFilters({
           />
         ) : null}
         {search.get('document_id') || search.get('download_id') ? (
-          <span className="pb-2 text-sm text-muted-foreground">
-            仅查看此素材的记录
-          </span>
+          <span>仅查看此素材的记录</span>
         ) : null}
       </div>
     </div>

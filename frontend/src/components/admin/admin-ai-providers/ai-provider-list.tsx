@@ -14,7 +14,13 @@ import {
 import { type DataColumn, DataTable } from '@/components/layout/data-table';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Item, ItemContent, ItemMedia, ItemTitle } from '@/components/ui/item';
+import {
+  Item,
+  ItemContent,
+  ItemDescription,
+  ItemMedia,
+  ItemTitle,
+} from '@/components/ui/item';
 import {
   isDirectApiEngine,
   isLocalCodexProvider,
@@ -27,9 +33,9 @@ export function ExecutionRoute({
   active: API.AiProviderProfileResponse;
 }) {
   return (
-    <div className="mt-5 flex flex-wrap items-center gap-2 text-sm">
+    <div className="mt-5 flex flex-wrap items-center gap-2">
       <RouteNode icon={<Robot />} label="本机 Agent" />
-      <ArrowRight aria-hidden className="size-4 text-muted-foreground" />
+      <ArrowRight aria-hidden />
       <RouteNode
         icon={<TerminalWindow />}
         label={
@@ -38,7 +44,7 @@ export function ExecutionRoute({
             : `${providerEngineLabel(active.engine)} CLI`
         }
       />
-      <ArrowRight aria-hidden className="size-4 text-muted-foreground" />
+      <ArrowRight aria-hidden />
       <RouteNode
         icon={active.auth_mode === 'api_key' ? <Cloud /> : <Key />}
         label={
@@ -67,19 +73,21 @@ function ProviderRowColumns(
         return (
           <div className="flex min-w-0 flex-col gap-2">
             <div className="flex flex-wrap items-center gap-2">
-              <h3 className="font-medium">{item.display_name}</h3>
+              <ItemTitle className="line-clamp-none">
+                <h3>{item.display_name}</h3>
+              </ItemTitle>
               {item.is_active ? (
                 <Badge variant="default">当前线路</Badge>
               ) : null}
               {localCodex ? <Badge variant="secondary">系统兜底</Badge> : null}
             </div>
-            <p className="break-all text-xs text-muted-foreground">
+            <ItemDescription className="line-clamp-none break-all">
               {item.key}
-            </p>
-            <p className="break-all text-xs text-muted-foreground lg:hidden">
+            </ItemDescription>
+            <ItemDescription className="line-clamp-none break-all lg:hidden">
               {providerEngineLabel(item.engine)} · {item.model} ·{' '}
               {connectionLabel(item)}
-            </p>
+            </ItemDescription>
           </div>
         );
       },
@@ -91,10 +99,8 @@ function ProviderRowColumns(
       cell: (item) => {
         return (
           <div className="flex min-w-0 flex-col gap-1">
-            <span className="break-all font-mono text-xs">{item.model}</span>
-            <span className="break-all text-muted-foreground">
-              {connectionLabel(item)}
-            </span>
+            <span className="break-all">{item.model}</span>
+            <span className="break-all">{connectionLabel(item)}</span>
           </div>
         );
       },
@@ -121,7 +127,7 @@ function ProviderRowColumns(
             {!item.is_active ? (
               <Button
                 onClick={() => onActivate(item)}
-                size="sm"
+                size="default"
                 variant="outline"
               >
                 启用
@@ -130,7 +136,7 @@ function ProviderRowColumns(
             <Button
               aria-label={`编辑 ${item.display_name}`}
               onClick={() => onEdit(item)}
-              size="icon-sm"
+              size="icon"
               variant="ghost"
             >
               <PencilSimple aria-hidden />
@@ -139,7 +145,7 @@ function ProviderRowColumns(
               aria-label={`删除 ${item.display_name}`}
               disabled={item.is_active || localCodex}
               onClick={() => onDelete(item)}
-              size="icon-sm"
+              size="icon"
               title={localCodex ? '系统兜底线路不可删除' : undefined}
               variant="ghost"
             >

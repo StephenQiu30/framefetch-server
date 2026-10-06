@@ -3,7 +3,7 @@ export const publicQuestions = [
     id: 'what-is-framefetch',
     question: '帧取 FrameFetch 是什么？',
     answer:
-      '帧取是面向创作者、内容研究者和开发者的 MIT 开源自托管视频解析与 AI 分析平台。它把已获授权的媒体链接、本地视频和剧本文档组织为任务，并提供素材管理、结构化分析与报告导出。',
+      '帧取是 MIT 开源、可自托管的个人视频下载与分析工具。它支持检查公开、免费、非 DRM 的视频链接，导入有权处理的本地视频与剧本文档，并管理处理记录、AI 分析和报告导出。',
   },
   {
     id: 'ai-reports',

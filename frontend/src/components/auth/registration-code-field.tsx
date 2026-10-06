@@ -9,6 +9,7 @@ import { AuthField } from '@/components/auth/auth-page-frame';
 import { isValidEmail } from '@/components/auth/register-form-model';
 import { Button } from '@/components/ui/button';
 import { InputGroupInput } from '@/components/ui/input-group';
+import { ItemDescription } from '@/components/ui/item';
 import { Spinner } from '@/components/ui/spinner';
 import { displayError } from '@/lib/request-error';
 
@@ -143,7 +144,6 @@ export function RegistrationCodeField({
           aria-invalid={Boolean(error)}
           aria-describedby={error ? 'verificationCode-error' : undefined}
           disabled={disabled || verified}
-          className="h-full"
           placeholder="6 位验证码"
         />
       </AuthField>
@@ -184,9 +184,9 @@ export function RegistrationCodeField({
                 : '获取验证码'}
         </Button>
       </div>
-      <p role="status" className="text-sm text-muted-foreground">
+      <ItemDescription role="status" className="line-clamp-none">
         {message}
-      </p>
+      </ItemDescription>
     </div>
   );
 }

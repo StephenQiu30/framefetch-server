@@ -1,4 +1,5 @@
 'use client';
+
 import { ArrowClockwiseIcon } from '@phosphor-icons/react';
 import { useQuery } from '@tanstack/react-query';
 import { useRef, useState } from 'react';
@@ -24,6 +25,12 @@ import {
 import { Field, FieldGroup, FieldLabel } from '@/components/ui/field';
 import { Form } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
+import {
+  Item,
+  ItemContent,
+  ItemDescription,
+  ItemTitle,
+} from '@/components/ui/item';
 import {
   Select,
   SelectContent,
@@ -135,7 +142,7 @@ export function OperationLogsView() {
         <FieldGroup className="grid gap-4 sm:grid-cols-2 lg:grid-cols-[minmax(0,2fr)_repeat(4,minmax(0,1fr))]">
           <Field>
             <FieldLabel htmlFor="log-search">操作人或操作名称</FieldLabel>
-            <div className="flex gap-2">
+            <div className="flex min-w-0 gap-2">
               <Input
                 id="log-search"
                 maxLength={128}
@@ -223,9 +230,13 @@ export function OperationLogsView() {
           </Field>
         </FieldGroup>
       </Form>
-      <p className="text-sm text-muted-foreground">
-        展示日志启用后的操作。请求结果与系统任务状态分别记录；“结果未确认”表示请求尚未结束或执行曾中断。
-      </p>
+      <Item variant="muted">
+        <ItemContent>
+          <ItemDescription className="line-clamp-none">
+            展示日志启用后的操作。请求结果与系统任务状态分别记录；“结果未确认”表示请求尚未结束或执行曾中断。
+          </ItemDescription>
+        </ItemContent>
+      </Item>
       {invalidDates ? (
         <PageErrorNotice message="结束时间不能早于开始时间。" />
       ) : logs.isPending ? (
@@ -249,23 +260,44 @@ export function OperationLogsView() {
                 {
                   id: '时间',
                   header: '时间',
-                  className: 'whitespace-normal',
+                  className: 'hidden whitespace-normal sm:table-cell',
                   cell: (item) => <> {time(item.created_at)} </>,
                 },
                 {
                   id: '操作人',
                   header: '操作人',
-                  className: 'whitespace-normal',
+                  className: 'hidden whitespace-normal sm:table-cell',
                   cell: (item) => <> {item.actor_name ?? '未识别账户'} </>,
                 },
                 {
                   id: '操作',
                   header: '操作',
+                  hideable: false,
                   className: 'whitespace-normal',
                   cell: (item) => (
                     <>
-                      <div>{item.description}</div>
-                      <div className="text-xs text-muted-foreground">
+                      <ItemTitle className="line-clamp-none">
+                        {item.description}
+                      </ItemTitle>
+                      <div className="mt-2 flex flex-col gap-2 sm:hidden">
+                        <ItemDescription>
+                          {time(item.created_at)} ·{' '}
+                          {item.actor_name ?? '未识别账户'}
+                        </ItemDescription>
+                        <ItemDescription className="line-clamp-none">
+                          对象：{item.resource_key ?? item.resource_id ?? '—'}
+                        </ItemDescription>
+                        <Badge
+                          variant={
+                            item.outcome === 'failed'
+                              ? 'destructive'
+                              : 'secondary'
+                          }
+                        >
+                          {resultLabel(item)}
+                        </Badge>
+                      </div>
+                      <div>
                         {item.source === 'task'
                           ? '系统任务'
                           : item.route.includes('/admin/')
@@ -278,7 +310,7 @@ export function OperationLogsView() {
                 {
                   id: '对象',
                   header: '对象',
-                  className: 'whitespace-normal',
+                  className: 'hidden whitespace-normal sm:table-cell',
                   cell: (item) => (
                     <>
                       <span
@@ -296,7 +328,7 @@ export function OperationLogsView() {
                 {
                   id: '结果',
                   header: '结果',
-                  className: 'whitespace-normal',
+                  className: 'hidden whitespace-normal sm:table-cell',
                   cell: (item) => (
                     <>
                       <Badge
@@ -374,7 +406,7 @@ export function OperationLogsView() {
             </DialogDescription>
           </DialogHeader>
           {selected ? (
-            <dl className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-4 gap-y-3 text-sm">
+            <dl className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-4 gap-y-3">
               {Object.entries({
                 '日志 ID': selected.id,
                 操作人: selected.actor_name ?? '未识别账户',
@@ -392,7 +424,7 @@ export function OperationLogsView() {
                 错误码: selected.error_code ?? '—',
               }).map(([label, value]) => (
                 <div key={label} className="contents">
-                  <dt className="text-muted-foreground">{label}</dt>
+                  <dt>{label}</dt>
                   <dd className="min-w-0 break-all">{value}</dd>
                 </div>
               ))}

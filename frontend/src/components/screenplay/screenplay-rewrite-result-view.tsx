@@ -6,6 +6,7 @@ import {
   Metric,
   ResultTab,
 } from '@/components/screenplay/screenplay-result-primitives';
+import { ItemDescription, ItemTitle } from '@/components/ui/item';
 import {
   Table,
   TableBody,
@@ -35,7 +36,7 @@ export default function ScreenplayRewriteResultView({
 }) {
   return (
     <Tabs className="mt-10 gap-0" defaultValue="summary">
-      <div className="grid gap-5 py-4 sm:grid-cols-3">
+      <div className="grid gap-5 sm:grid-cols-3">
         <Metric label="源场景" value={`${result.source_scene_count}`} />
         <Metric label="输出场景" value={`${result.output_scene_count}`} />
         <Metric
@@ -53,12 +54,9 @@ export default function ScreenplayRewriteResultView({
       </div>
       <TabsContent value="summary">
         <div>
-          <h3
-            className="text-xl font-medium tracking-tight"
-            id="rewrite-glossary-title"
-          >
-            统一术语
-          </h3>
+          <ItemTitle className="line-clamp-none">
+            <h3 id="rewrite-glossary-title">统一术语</h3>
+          </ItemTitle>
           {result.glossary.length ? (
             <Table className="table-borderless mt-4 text-left">
               <TableCaption className="sr-only">
@@ -88,19 +86,16 @@ export default function ScreenplayRewriteResultView({
               </TableBody>
             </Table>
           ) : (
-            <p className="mt-4 py-7 text-muted-foreground">
+            <ItemDescription className="line-clamp-none mt-4">
               本次改写没有需要单独统一的术语。
-            </p>
+            </ItemDescription>
           )}
         </div>
         <div className="mt-10 max-w-4xl">
-          <h3
-            className="text-xl font-medium tracking-tight"
-            id="rewrite-summary-title"
-          >
-            修改摘要
-          </h3>
-          <ul className="mt-4 flex flex-col gap-2 list-disc pl-5 leading-7 text-muted-foreground">
+          <ItemTitle className="line-clamp-none">
+            <h3 id="rewrite-summary-title">修改摘要</h3>
+          </ItemTitle>
+          <ul className="mt-4 flex flex-col gap-2 list-disc">
             {result.change_summary.map((summary) => (
               <li key={summary}>{summary}</li>
             ))}
@@ -109,9 +104,9 @@ export default function ScreenplayRewriteResultView({
       </TabsContent>
       {reportMarkdown ? (
         <TabsContent value="report">
-          <p className="mb-6 max-w-3xl text-sm leading-6 text-muted-foreground">
+          <ItemDescription className="line-clamp-none mb-6 max-w-3xl">
             以下正文由受限 AI 按源场景顺序确定性合并，仅用于改写与本地化参考。
-          </p>
+          </ItemDescription>
           <AnalysisReportPreview markdown={reportMarkdown} />
         </TabsContent>
       ) : null}

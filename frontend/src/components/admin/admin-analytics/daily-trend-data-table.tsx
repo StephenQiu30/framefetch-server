@@ -12,7 +12,7 @@ type DailyPoint = API.DownloadAnalyticsResponse['daily'][number];
 
 export function DailyTrendDataTable({ points }: { points: DailyPoint[] }) {
   return (
-    <Table className="sr-only">
+    <Table className="table-borderless sr-only">
       <TableCaption>每日下载趋势精确数据</TableCaption>
       <TableHeader>
         <TableRow>

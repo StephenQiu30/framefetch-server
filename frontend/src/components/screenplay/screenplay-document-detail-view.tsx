@@ -8,6 +8,7 @@ import { useMemo, useState } from 'react';
 import { deleteDocument as deleteScreenplayDocument } from '@/api/documents';
 import { FeedbackNotice } from '@/components/layout/feedback-notice';
 import { PageErrorNotice } from '@/components/layout/page-error-notice';
+import { PageHeader } from '@/components/layout/page-header';
 import { PageNavigation } from '@/components/layout/page-navigation';
 import { SplitLayout } from '@/components/layout/split-layout';
 import ScreenplayAnalysisPanel from '@/components/screenplay/screenplay-analysis-panel';
@@ -52,14 +53,12 @@ const tocSkeletonKeys = [
   'toc-6',
 ] as const;
 
-const workspaceClassName = 'mt-10 lg:mt-12';
-const headerClassName =
-  'flex flex-col gap-5 sm:flex-row sm:items-start sm:justify-between sm:gap-8';
+const workspaceClassName = 'mt-8';
 const headerActionsClassName =
   'flex w-full flex-col gap-2 sm:w-auto sm:flex-row';
-const previewColumnClassName = 'min-w-0 lg:min-h-0 lg:overflow-hidden';
+const previewColumnClassName = 'min-w-0 lg:overflow-hidden';
 const tocColumnClassName =
-  'order-first min-w-0 lg:order-none lg:min-h-0 lg:overflow-hidden';
+  'order-first min-w-0 lg:order-none lg:overflow-hidden';
 
 export default function ScreenplayDocumentDetailView({
   documentId,
@@ -114,7 +113,7 @@ export default function ScreenplayDocumentDetailView({
           presentation={state.error ? 'inline' : 'toast'}
           action={
             state.error ? (
-              <Button onClick={state.refresh} size="sm" variant="outline">
+              <Button onClick={state.refresh} size="default" variant="outline">
                 重新加载
               </Button>
             ) : null
@@ -127,46 +126,51 @@ export default function ScreenplayDocumentDetailView({
       ) : null}
       {state.document ? (
         <>
-          <header className={headerClassName}>
-            <div className="min-w-0">
-              <Badge
-                aria-live="polite"
-                variant={documentStatusVariant(state.document.status)}
-              >
-                {documentStatusLabels[state.document.status]}
-              </Badge>
-              <h1 className="mt-4 break-words text-2xl font-semibold tracking-tight sm:text-3xl">
+          <PageHeader
+            title={
+              <span className="[overflow-wrap:anywhere]">
                 {state.document.title}
-              </h1>
-              <p className="mt-3 break-all text-sm text-muted-foreground">
+              </span>
+            }
+            description={
+              <span className="[overflow-wrap:anywhere]">
                 {state.document.original_filename}
-              </p>
-            </div>
-            <div className={headerActionsClassName}>
-              {state.document.status === ImportStatusCode.Uploading &&
-              state.document.error_code ? (
-                <ScreenplayUploadDialog label="重新上传" />
-              ) : null}
-              <Button
-                className="w-full sm:w-auto"
-                disabled={state.loading}
-                onClick={state.refresh}
-                type="button"
-                variant="outline"
-              >
-                {state.loading ? (
-                  <Spinner aria-hidden data-icon="inline-start" />
-                ) : (
-                  <ArrowClockwise aria-hidden data-icon="inline-start" />
-                )}
-                刷新
-              </Button>
-              <ScreenplayDocumentDeleteDialog
-                busy={deleting}
-                onDelete={remove}
-              />
-            </div>
-          </header>
+              </span>
+            }
+            action={
+              <div className={headerActionsClassName}>
+                {state.document.status === ImportStatusCode.Uploading &&
+                state.document.error_code ? (
+                  <ScreenplayUploadDialog label="重新上传" />
+                ) : null}
+                <Button
+                  className="w-full sm:w-auto"
+                  disabled={state.loading}
+                  onClick={state.refresh}
+                  type="button"
+                  variant="outline"
+                >
+                  {state.loading ? (
+                    <Spinner aria-hidden data-icon="inline-start" />
+                  ) : (
+                    <ArrowClockwise aria-hidden data-icon="inline-start" />
+                  )}
+                  刷新
+                </Button>
+                <ScreenplayDocumentDeleteDialog
+                  busy={deleting}
+                  onDelete={remove}
+                />
+              </div>
+            }
+          />
+          <Badge
+            aria-live="polite"
+            className="mt-4"
+            variant={documentStatusVariant(state.document.status)}
+          >
+            {documentStatusLabels[state.document.status]}
+          </Badge>
           <div className="mt-6">
             <Button asChild variant="outline">
               <Link
@@ -213,21 +217,20 @@ export function DocumentDetailSkeleton() {
         正在读取剧本文档
       </span>
       <PageNavigation fallbackHref="/documents" />
-      <header className={headerClassName}>
-        <div className="min-w-0 flex-1">
-          <Skeleton className="h-6 w-24" />
-          <Skeleton className="mt-4 h-8 w-2/5 sm:h-9" />
-          <Skeleton className="mt-3 h-5 w-1/3" />
-        </div>
-        <div className={headerActionsClassName}>
-          <Skeleton className="h-8 w-full sm:w-16" />
-          <Skeleton className="h-8 w-full sm:w-24" />
-        </div>
-      </header>
+      <PageHeader
+        title="剧本文档"
+        description="正在读取剧本文档"
+        action={
+          <div className={headerActionsClassName}>
+            <Skeleton className="h-8 w-full sm:w-16" />
+            <Skeleton className="h-8 w-full sm:w-24" />
+          </div>
+        }
+      />
       <div className="mt-6">
         <Skeleton className="h-8 w-52" />
       </div>
-      <div className="mt-8 py-5 sm:mt-10 sm:py-6">
+      <div className="mt-8">
         <Skeleton className="h-6 w-24" />
         <div className="mt-5 grid grid-cols-2 gap-x-6 gap-y-5 sm:grid-cols-4 lg:grid-cols-8">
           {metadataSkeletonKeys.map((key) => (
@@ -250,7 +253,7 @@ export function DocumentDetailSkeleton() {
             <Skeleton className="h-6 w-28" />
             <Skeleton className="h-4 w-20" />
           </div>
-          <div className="mt-4 flex max-h-dvh min-h-0 flex-col gap-6 overflow-hidden px-5 py-6 sm:px-8 sm:py-8">
+          <div className="mt-4 flex max-h-dvh flex-col gap-6 overflow-hidden">
             {['first', 'second', 'third', 'fourth'].map((key) => (
               <div className="flex flex-col gap-3" key={key}>
                 <Skeleton className="h-6 w-3/5" />
@@ -264,10 +267,10 @@ export function DocumentDetailSkeleton() {
         <div
           className={`${tocColumnClassName} lg:grid lg:h-full lg:grid-rows-[auto_minmax(0,1fr)]`}
         >
-          <div className="pb-3">
+          <div>
             <Skeleton className="h-5 w-16" />
           </div>
-          <div className="mt-3 flex min-h-0 flex-col gap-3 overflow-y-auto">
+          <div className="mt-3 flex flex-col gap-3 overflow-y-auto">
             {tocSkeletonKeys.map((key) => (
               <Skeleton className="h-4 w-full" key={key} />
             ))}
@@ -288,12 +291,14 @@ function DocumentDetailError({
   return (
     <div className="inner-page">
       <PageNavigation fallbackHref="/documents" />
+      <PageHeader title="剧本文档" />
       <PageErrorNotice
+        className="mt-8"
         message={error}
         onRetry={onRetry}
         retryLabel="重新加载"
         title="剧本文档暂时不可用"
-        titleAs="h1"
+        titleAs="h2"
       />
     </div>
   );

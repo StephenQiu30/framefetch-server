@@ -1,6 +1,15 @@
 import { PageHeader } from '@/components/layout/page-header';
 import { PageNavigation } from '@/components/layout/page-navigation';
+import { SplitLayout } from '@/components/layout/split-layout';
 import { breadcrumbList, JsonLd } from '@/components/seo/json-ld';
+import { Button } from '@/components/ui/button';
+import {
+  Item,
+  ItemContent,
+  ItemDescription,
+  ItemGroup,
+  ItemTitle,
+} from '@/components/ui/item';
 import { publicMetadata } from '@/lib/public-metadata';
 import { siteConfig } from '@/lib/site';
 
@@ -73,78 +82,88 @@ export default function GuidePage() {
     ]),
   };
   return (
-    <article className="inner-page">
-      <JsonLd data={breadcrumbs} />
-      <PageNavigation
-        fallbackHref="/"
-        breadcrumbs={[{ label: '帧取', href: '/' }, { label: '使用指南' }]}
-      />
-      <PageHeader title="从素材到分析报告" description={description} />
-      <p className="mt-6 max-w-3xl text-sm leading-7 text-muted-foreground">
-        本指南介绍当前产品流程。配置与实现以链接的仓库文档为准，实例可用性以实际检查结果为准。
-      </p>
-      <nav aria-label="指南目录" className="mt-10">
-        <ol className="grid gap-3 text-sm">
-          {sections.map(({ id, title: sectionTitle }) => (
-            <li key={id}>
-              <a
-                className="focus-ring underline underline-offset-4"
-                href={`#${id}`}
+    <article className="inner-page flex flex-col gap-8">
+      <div>
+        <JsonLd data={breadcrumbs} />
+        <PageNavigation
+          fallbackHref="/"
+          breadcrumbs={[{ label: '帧取', href: '/' }, { label: '使用指南' }]}
+        />
+        <PageHeader title="从素材到分析报告" description={description} />
+      </div>
+      <Item variant="muted">
+        <ItemContent>
+          <ItemDescription className="line-clamp-none">
+            本指南介绍当前产品流程。配置与实现以链接的仓库文档为准，实例可用性以实际检查结果为准。
+          </ItemDescription>
+        </ItemContent>
+      </Item>
+      <SplitLayout columns="sidebar-start">
+        <nav aria-label="指南目录" className="self-start">
+          <ItemGroup>
+            {sections.map(({ id, title: sectionTitle }) => (
+              <Button
+                asChild
+                className="justify-start whitespace-normal"
+                key={id}
+                variant="ghost"
               >
-                {sectionTitle}
-              </a>
-            </li>
-          ))}
-        </ol>
-      </nav>
-      {sections.map(
-        ({ id, title: sectionTitle, paragraphs, source, sourceLabel }) => (
-          <section
-            aria-labelledby={`${id}-title`}
-            className="scroll-mt-24 py-12"
-            data-slot="borderless-section"
-            id={id}
-            key={id}
-          >
-            <h2
-              className="text-xl font-semibold tracking-tight"
-              id={`${id}-title`}
-            >
-              {sectionTitle}
-            </h2>
-            {paragraphs.map((paragraph) => (
-              <p
-                className="mt-5 max-w-3xl leading-8 text-muted-foreground"
-                key={paragraph}
-              >
-                {paragraph}
-              </p>
+                <a href={`#${id}`}>{sectionTitle}</a>
+              </Button>
             ))}
-            <a
-              className="focus-ring mt-6 inline-block text-sm underline underline-offset-4"
-              href={
-                source.startsWith('https:')
-                  ? source
-                  : `${siteConfig.repositoryUrl}${source}`
-              }
-            >
-              {sourceLabel}
-            </a>
-          </section>
-        ),
-      )}
-      <a
-        className="focus-ring text-sm underline underline-offset-4"
-        href="/#questions"
-      >
-        返回首页常见问题
-      </a>
-      <a
-        className="focus-ring ml-6 text-sm underline underline-offset-4"
-        href="/self-hosting/"
-      >
-        自托管部署指南
-      </a>
+          </ItemGroup>
+        </nav>
+        <ItemGroup className="gap-6">
+          {sections.map(
+            ({ id, title: sectionTitle, paragraphs, source, sourceLabel }) => (
+              <Item asChild variant="muted" key={id}>
+                <section
+                  id={id}
+                  aria-labelledby={`${id}-title`}
+                  className="scroll-mt-24"
+                >
+                  <ItemContent className="gap-4">
+                    <ItemTitle className="line-clamp-none">
+                      <h2 id={`${id}-title`}>{sectionTitle}</h2>
+                    </ItemTitle>
+                    {paragraphs.map((paragraph) => (
+                      <ItemDescription
+                        className="line-clamp-none"
+                        key={paragraph}
+                      >
+                        {paragraph}
+                      </ItemDescription>
+                    ))}
+                    <Button
+                      asChild
+                      className="self-start whitespace-normal"
+                      variant="ghost"
+                    >
+                      <a
+                        href={
+                          source.startsWith('https:')
+                            ? source
+                            : `${siteConfig.repositoryUrl}${source}`
+                        }
+                      >
+                        {sourceLabel}
+                      </a>
+                    </Button>
+                  </ItemContent>
+                </section>
+              </Item>
+            ),
+          )}
+        </ItemGroup>
+      </SplitLayout>
+      <nav aria-label="延伸阅读" className="flex flex-wrap gap-3">
+        <Button asChild variant="ghost">
+          <a href="/#questions">返回首页常见问题</a>
+        </Button>
+        <Button asChild variant="ghost">
+          <a href="/self-hosting/">自托管部署指南</a>
+        </Button>
+      </nav>
     </article>
   );
 }

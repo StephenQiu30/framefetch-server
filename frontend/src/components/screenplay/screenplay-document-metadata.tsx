@@ -51,25 +51,24 @@ export function ScreenplayDocumentMetadata({
     : [];
 
   return (
-    <div className="mt-8 py-5 sm:mt-10 sm:py-6">
+    <div className="mt-8 sm:mt-10">
       <div className="flex items-baseline justify-between gap-4">
-        <h2
-          className="text-lg font-medium tracking-tight"
-          id="document-metadata-title"
-        >
-          文档信息
-        </h2>
-        <span className="text-xs text-muted-foreground">导入摘要</span>
+        <ItemTitle className="line-clamp-none">
+          <h2 id="document-metadata-title">文档信息</h2>
+        </ItemTitle>
+        <span>导入摘要</span>
       </div>
       <MetadataGrid
-        className="mt-5 grid grid-cols-2 gap-x-6 gap-y-5 text-sm sm:grid-cols-4 lg:grid-cols-8"
+        className="mt-5 grid grid-cols-2 gap-x-6 gap-y-5 sm:grid-cols-4 lg:grid-cols-8"
         fields={fields}
       />
       {parseFields.length ? (
         <div className="mt-7">
-          <h3 className="text-sm font-medium">基础解析</h3>
+          <ItemTitle className="line-clamp-none">
+            <h3>基础解析</h3>
+          </ItemTitle>
           <MetadataGrid
-            className="mt-4 grid grid-cols-2 gap-x-6 gap-y-5 text-sm sm:grid-cols-3 lg:grid-cols-6"
+            className="mt-4 grid grid-cols-2 gap-x-6 gap-y-5 sm:grid-cols-3 lg:grid-cols-6"
             fields={parseFields}
           />
         </div>
@@ -88,7 +87,7 @@ export function ScreenplayDocumentMetadata({
           <div className="min-w-0">
             <AlertTitle>需要人工核对</AlertTitle>
             <AlertDescription>
-              <ul className="mt-1 flex flex-col gap-1 list-disc pl-4">
+              <ul className="mt-1 flex flex-col gap-1 list-disc">
                 {document.quality_warnings.map((warning) => (
                   <li key={warning}>{qualityWarningLabel(warning)}</li>
                 ))}
@@ -113,7 +112,7 @@ function MetadataGrid({
       {fields.map(([label, value]) => (
         <Item className="min-w-0 items-start" key={label} role="listitem">
           <ItemContent className="gap-1">
-            <ItemTitle>{label}</ItemTitle>
+            <ItemTitle className="line-clamp-none">{label}</ItemTitle>
             <ItemDescription
               className="line-clamp-none truncate tabular-nums"
               title={value}

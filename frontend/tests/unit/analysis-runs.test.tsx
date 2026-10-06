@@ -26,13 +26,17 @@ describe('analysis run history', () => {
   it('reads terminal history when the same run finishes before the polling interval', async () => {
     mockHttpResponses({ items: [run], next_before_run_no: null });
     const view = render(<AnalysisRuns id="task-1" runNo={1} active />);
-    expect(await screen.findByText('正在分析')).toBeInTheDocument();
+    expect(
+      await screen.findByRole('row', { name: /正在分析/ }),
+    ).toBeInTheDocument();
     mockHttpResponses({
       items: [{ ...run, status: 'succeeded' }],
       next_before_run_no: null,
     });
     view.rerender(<AnalysisRuns id="task-1" runNo={1} active={false} />);
-    expect(await screen.findByText('分析已完成')).toBeInTheDocument();
+    expect(
+      await screen.findByRole('row', { name: /分析已完成/ }),
+    ).toBeInTheDocument();
     expect(httpRequests()).toHaveLength(2);
   });
   it('identifies retained historical drafts and translates failure reasons', async () => {

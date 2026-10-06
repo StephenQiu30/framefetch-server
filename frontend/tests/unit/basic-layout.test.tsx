@@ -521,8 +521,9 @@ describe('BasicLayout', () => {
       'login-title',
     );
     expect(
-      screen.queryByRole('link', { name: '返回上一步' }),
-    ).not.toBeInTheDocument();
+      screen.getByRole('link', { name: '返回上一步' }),
+    ).toBeInTheDocument();
+    expect(screen.getByText('FrameFetch 万能视频下载器')).toBeInTheDocument();
     expect(screen.getByLabelText('邮箱地址')).toHaveAttribute(
       'aria-describedby',
       'email-error',

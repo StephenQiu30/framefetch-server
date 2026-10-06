@@ -75,7 +75,7 @@ export function ProviderCatalogList({
               <div className="flex min-w-0 flex-col gap-2">
                 <span>{item.display_name}</span>
                 <div className="flex flex-col gap-2 lg:hidden">
-                  <span className="break-all text-xs text-muted-foreground">
+                  <span className="break-all">
                     {item.key} · 排序 {item.sort_order}
                   </span>
                   {badges(item)}

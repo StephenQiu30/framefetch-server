@@ -1,5 +1,4 @@
 import { CheckCircle, WarningCircle } from '@phosphor-icons/react';
-
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import {
@@ -20,6 +19,7 @@ import {
 } from '@/components/ui/field';
 import { Form } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
+import { ItemDescription } from '@/components/ui/item';
 import {
   Select,
   SelectContent,
@@ -62,7 +62,9 @@ export function UserEditor({
     >
       <DialogContent className="max-h-svh overflow-y-auto overscroll-contain sm:max-w-lg">
         <DialogHeader>
-          <p className="mb-4 text-sm font-medium">账户权限</p>
+          <ItemDescription className="line-clamp-none mb-4">
+            账户权限
+          </ItemDescription>
           <DialogTitle>
             管理用户{editor.user ? `：${editor.user.username}` : ''}
           </DialogTitle>

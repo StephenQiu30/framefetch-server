@@ -36,6 +36,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+import { ItemDescription, ItemTitle } from '@/components/ui/item';
 import { Progress } from '@/components/ui/progress';
 import { Skeleton } from '@/components/ui/skeleton';
 import { privateQueryKey } from '@/lib/query-keys';
@@ -105,7 +106,7 @@ export function IntentHistoryDialog({
         </DialogHeader>
 
         {intent.isPending && item ? (
-          <div role="status" className="flex flex-col gap-3 py-4">
+          <div role="status" className="flex flex-col gap-3">
             <span className="sr-only">正在读取解析详情</span>
             <Skeleton aria-hidden className="h-5 w-28" />
             <Skeleton aria-hidden className="h-4 w-4/5" />
@@ -120,18 +121,18 @@ export function IntentHistoryDialog({
           />
         ) : null}
         {snapshot ? (
-          <div className="flex flex-col gap-3 py-2">
+          <div className="flex flex-col gap-3">
             <Badge variant={intentStatusVariant(snapshot.status)}>
               {intentTitle(snapshot.status)}
             </Badge>
-            <p className="text-sm leading-6 text-muted-foreground">
+            <ItemDescription className="line-clamp-none">
               {intentDescription(snapshot)}
-            </p>
+            </ItemDescription>
           </div>
         ) : null}
 
         {jobId && download.isPending ? (
-          <div role="status" className="flex flex-col gap-3 py-4">
+          <div role="status" className="flex flex-col gap-3">
             <span className="sr-only">正在读取下载任务</span>
             <Skeleton aria-hidden className="aspect-video w-full" />
             <Skeleton aria-hidden className="h-4 w-3/5" />
@@ -149,7 +150,6 @@ export function IntentHistoryDialog({
           <div className="flex flex-col gap-4">
             <MediaCover
               alt={`${job.title || item?.title || '媒体'}封面`}
-              className="rounded-md"
               fallback={{
                 eyebrow: job.source_label,
                 title: job.title || item?.title,
@@ -157,23 +157,23 @@ export function IntentHistoryDialog({
               src={job.thumbnail_url}
             />
             <div className="flex flex-col gap-2">
-              <h3 className="text-base font-medium">
-                {job.title || item?.title || '媒体下载任务'}
-              </h3>
+              <ItemTitle className="line-clamp-none">
+                <h3>{job.title || item?.title || '媒体下载任务'}</h3>
+              </ItemTitle>
               <Badge variant={statusVariant(job.status)}>
                 {statusLabels[job.status]}
               </Badge>
-              <p className="text-sm leading-6 text-muted-foreground">
+              <ItemDescription className="line-clamp-none">
                 {statusHeading(job)}。{statusDescription(job)}
-              </p>
+              </ItemDescription>
               {job.status === DownloadStatusCode.Failed ? (
                 <Alert variant="destructive">
                   <AlertDescription>{failureDescription(job)}</AlertDescription>
                 </Alert>
               ) : null}
               {isActiveDownloadStatus(job.status) ? (
-                <div className="flex flex-col gap-2 pt-2">
-                  <div className="flex justify-between text-sm">
+                <div className="flex flex-col gap-2">
+                  <div className="flex justify-between">
                     <span>{displayStage(job)}</span>
                     <span className="tabular-nums">{job.progress}%</span>
                   </div>

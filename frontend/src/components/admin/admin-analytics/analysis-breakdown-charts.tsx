@@ -2,7 +2,6 @@
 
 import type { ReactNode } from 'react';
 import { Label, Pie, PieChart } from 'recharts';
-
 import { SplitLayout } from '@/components/layout/split-layout';
 import {
   type ChartConfig,
@@ -12,6 +11,7 @@ import {
   ChartTooltip,
   ChartTooltipContent,
 } from '@/components/ui/chart';
+import { ItemTitle } from '@/components/ui/item';
 
 import { formatInteger, formatPercent } from './analytics-format';
 
@@ -89,9 +89,9 @@ function DistributionChart({
 }) {
   return (
     <section aria-labelledby={`${id}-title`} className="min-w-0">
-      <h2 className="text-xl font-medium tracking-tight" id={`${id}-title`}>
-        {title}
-      </h2>
+      <ItemTitle className="line-clamp-none">
+        <h2 id={`${id}-title`}>{title}</h2>
+      </ItemTitle>
       <div className="mt-6 grid items-center gap-6 sm:grid-cols-2">
         <ChartContainer
           aria-label={chartLabel}
@@ -126,7 +126,7 @@ function DistributionChart({
                       y={viewBox.cy}
                     >
                       <tspan
-                        className="fill-foreground text-2xl font-medium tabular-nums"
+                        className="fill-foreground tabular-nums"
                         x={viewBox.cx}
                         y={viewBox.cy}
                         dy="-0.25em"
@@ -134,7 +134,7 @@ function DistributionChart({
                         {formatInteger(total)}
                       </tspan>
                       <tspan
-                        className="fill-muted-foreground text-xs"
+                        className="fill-muted-foreground"
                         x={viewBox.cx}
                         y={viewBox.cy}
                         dy="1.75em"
@@ -155,7 +155,7 @@ function DistributionChart({
         </ChartContainer>
         <dl
           aria-label={summaryLabel}
-          className="grid grid-cols-[minmax(0,1fr)_auto] gap-x-4 gap-y-4 text-sm tabular-nums"
+          className="grid grid-cols-[minmax(0,1fr)_auto] gap-x-4 gap-y-4 tabular-nums"
         >
           {data.map((point) => (
             <DistributionEntry
@@ -182,12 +182,10 @@ function DistributionEntry({
 }) {
   return (
     <>
-      <dt className="text-muted-foreground">{label}</dt>
+      <dt>{label}</dt>
       <dd className="flex flex-wrap justify-end gap-x-2">
-        <span className="font-medium">{formatInteger(value)}</span>
-        <span className="text-muted-foreground">
-          {formatPercent(total > 0 ? (value / total) * 100 : 0)}
-        </span>
+        <span>{formatInteger(value)}</span>
+        <span>{formatPercent(total > 0 ? (value / total) * 100 : 0)}</span>
       </dd>
     </>
   );

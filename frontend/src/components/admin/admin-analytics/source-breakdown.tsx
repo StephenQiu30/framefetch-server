@@ -3,13 +3,13 @@
 import { ChartBarIcon } from '@phosphor-icons/react';
 import { Bar, BarChart, CartesianGrid, XAxis, YAxis } from 'recharts';
 import { PageEmptyNotice } from '@/components/layout/page-empty-notice';
-
 import {
   type ChartConfig,
   ChartContainer,
   ChartTooltip,
   ChartTooltipContent,
 } from '@/components/ui/chart';
+import { ItemDescription, ItemTitle } from '@/components/ui/item';
 
 import {
   ANALYTICS_CHART_COLOR,
@@ -43,16 +43,15 @@ export function SourceBreakdown({
 
   return (
     <div className="w-full">
-      <h2
-        className="flex items-center gap-2 text-xl font-medium tracking-tight"
-        id="source-breakdown-title"
-      >
-        <ChartBarIcon aria-hidden className="size-4 text-muted-foreground" />
-        来源贡献
-      </h2>
-      <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">
+      <ItemTitle className="line-clamp-none">
+        <h2 className="flex items-center gap-2" id="source-breakdown-title">
+          <ChartBarIcon aria-hidden />
+          来源贡献
+        </h2>
+      </ItemTitle>
+      <ItemDescription className="line-clamp-none mt-2 max-w-2xl">
         对比主要视频源的任务量与占比。
-      </p>
+      </ItemDescription>
       {sorted.length === 0 ? (
         <PageEmptyNotice
           compact
@@ -90,15 +89,15 @@ export function SourceBreakdown({
                   <ChartTooltipContent
                     formatter={(value, _name, item) => (
                       <div className="grid min-w-36 grid-cols-[1fr_auto] items-center gap-x-5 gap-y-1">
-                        <span className="col-span-2 font-medium">
+                        <span className="col-span-2">
                           {String(item.payload.name)}
                         </span>
-                        <span className="text-muted-foreground">任务数</span>
-                        <span className="text-right font-mono font-medium tabular-nums">
+                        <span>任务数</span>
+                        <span className="text-right tabular-nums">
                           {formatInteger(Number(value))}
                         </span>
-                        <span className="text-muted-foreground">占比</span>
-                        <span className="text-right font-mono font-medium tabular-nums">
+                        <span>占比</span>
+                        <span className="text-right tabular-nums">
                           {formatPercent(Number(item.payload.share))}
                         </span>
                       </div>
@@ -123,25 +122,18 @@ export function SourceBreakdown({
           <ol className="sr-only">
             {visible.map((source) => (
               <li key={source.source_key}>
-                <meter
-                  aria-label={`${source.name}占全部下载的${formatPercent(source.share)}`}
-                  max={100}
-                  min={0}
-                  value={Number(source.share.toFixed(1))}
-                >
-                  {formatPercent(source.share)}
-                </meter>
+                {source.name}：{formatPercent(source.share)}
               </li>
             ))}
           </ol>
         </>
       )}
-      <p className="mt-5 text-sm font-medium tabular-nums">
+      <ItemDescription className="line-clamp-none mt-5 tabular-nums">
         {formatInteger(sorted.length)} 个来源
         {hiddenCount > 0
           ? ` · 其余 ${formatInteger(hiddenCount)} 个可在明细中查看`
           : ' · 已全部展示'}
-      </p>
+      </ItemDescription>
     </div>
   );
 }

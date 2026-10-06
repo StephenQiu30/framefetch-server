@@ -1,5 +1,4 @@
 import { Trash } from '@phosphor-icons/react';
-
 import { FeedbackNotice } from '@/components/layout/feedback-notice';
 import {
   AlertDialog,
@@ -13,6 +12,7 @@ import {
 } from '@/components/ui/alert-dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { ItemDescription } from '@/components/ui/item';
 import { Label } from '@/components/ui/label';
 import { Spinner } from '@/components/ui/spinner';
 
@@ -62,9 +62,9 @@ export function StorageCleanupDialog({
             type="number"
             value={days}
           />
-          <p className="text-xs text-muted-foreground">
+          <ItemDescription className="line-clamp-none">
             默认 30 天，范围 1–3650 天。
-          </p>
+          </ItemDescription>
         </div>
         {error ? (
           <FeedbackNotice

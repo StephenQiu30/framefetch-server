@@ -4,172 +4,135 @@ import {
   GithubLogoIcon,
 } from '@phosphor-icons/react/dist/ssr';
 import Link from 'next/link';
-
 import {
   PublicHomeCapabilities,
   PublicHomeSafeguards,
   PublicHomeWorkflow,
 } from '@/components/intake/public-home-details';
 import { PublicHomeFaq } from '@/components/intake/public-home-faq';
-import { EditorialIntro } from '@/components/layout/editorial-intro';
+import { PageHeader } from '@/components/layout/page-header';
 import { SplitLayout } from '@/components/layout/split-layout';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import {
+  Item,
+  ItemContent,
+  ItemDescription,
+  ItemTitle,
+} from '@/components/ui/item';
 import { siteConfig } from '@/lib/site';
 
 const capabilities = [
   [
     '公开视频',
-    '公开视频工作流',
-    '解析有权处理的公开链接，选择真实可用格式，并跟踪下载与最终制品。',
+    '粘贴链接，选择画质',
+    '检查公开、免费、非 DRM 的视频链接，选择实际可用的格式并下载。平台与链接是否可用，以解析结果和最终文件为准。',
   ],
   [
-    '剧本文档',
-    '剧本与文档处理',
-    '导入获授权的剧本文档，在同一工作区完成规范化、分析与处理记录。',
+    '本地导入',
+    '视频与剧本文档',
+    '导入有权处理的本地视频，以及 Markdown、Fountain、TXT、PDF 或 DOCX 剧本文档，在工作区查看与管理。',
   ],
   [
     'AI 分析',
-    '结构化 AI 视频分析',
-    '围绕场景、分镜、高光和内容资产生成结构化结果与运行证据。',
+    '从素材到分析报告',
+    '按所选分析方式生成场景、分镜或报告，并导出 Markdown / DOCX。需要可用的 AI 服务和分析 Worker。',
   ],
 ] as const;
-
 const workflow = [
-  ['解析', '识别公开媒体或文章中的候选视频'],
-  ['选择', '确认目标与格式，避免隐式下载'],
-  ['执行', '由隔离 Worker 处理下载、导入和分析'],
-  ['交付', '通过授权短时入口预览或获取制品'],
+  ['解析', '粘贴公开视频链接，或导入本地视频与剧本'],
+  ['选择', '确认目标与可用画质'],
+  ['执行', '查看下载、导入与分析的处理进度'],
+  ['交付', '预览文件，下载素材或导出报告'],
 ] as const;
-
 const safeguards = [
-  '浏览器会话采用 HttpOnly Cookie；原生客户端使用可轮换令牌。',
-  '下载、导入与 AI 分析通过独立队列和 Worker 执行。',
-  '短时制品入口、所有者隔离与授权边界贯穿完整链路。',
-  '公开视频并不等于可自由使用，请仅处理已获授权的内容。',
+  '下载范围为可证明公开、免费、非 DRM 的 HTTP(S) 内容；实际能力以当前实例的链接检查为准。',
+  '无法确认可下载的内容，可导入自己有权处理的本地文件。',
+  '素材与任务保存在自己的部署中；使用外部 AI 服务时，分析所需内容会发送到该服务。',
+  '公开视频不等于可自由使用，请仅处理已获授权的内容。',
 ] as const;
 
 export function PublicHome() {
   return (
-    <div className="flex flex-col pb-6" data-home-view-root="public">
-      <SplitLayout
-        className="gap-12 pb-12 pt-10 sm:pt-12 lg:gap-24 lg:pb-16 lg:pt-14"
-        columns="primary"
-        data-slot="borderless-section"
-      >
-        <EditorialIntro
-          description="开源、自托管地完成公开视频解析、本地视频与剧本文档导入、制品管理和 AI 分析。数据与运行边界由你掌控。"
-          eyebrow="帧取 FrameFetch · 开源视频工作流"
-          title={
-            <>
-              把素材，
-              <span className="block sm:inline">带回本地。</span>
-            </>
-          }
-          titleClassName="max-w-4xl sm:whitespace-nowrap"
-        >
-          <div className="mt-8 flex flex-wrap gap-3">
-            <Button asChild size="lg">
-              <Link href="/user/register">
-                创建本地账户
-                <ArrowRightIcon aria-hidden data-icon="inline-end" />
-              </Link>
-            </Button>
-            <Button asChild size="lg" variant="secondary">
-              <a
-                href={siteConfig.repositoryUrl}
-                rel="noreferrer"
-                target="_blank"
-              >
-                <GithubLogoIcon aria-hidden data-icon="inline-start" />
-                查看源代码
-                <ArrowUpRightIcon aria-hidden data-icon="inline-end" />
-              </a>
-            </Button>
-          </div>
-        </EditorialIntro>
-
-        <div>
-          <Badge className="w-fit" variant="secondary">
-            工作流
-          </Badge>
-          <h2
-            className="mt-4 text-xl font-medium leading-snug"
-            id="workflow-title"
-          >
-            一套可审计的完整链路
-          </h2>
-          <p className="mt-2 text-sm text-muted-foreground">
-            从识别到交付，每一步都有明确边界。
-          </p>
-          <div className="mt-8">
-            <PublicHomeWorkflow items={workflow} />
-          </div>
-        </div>
-      </SplitLayout>
-
-      <div
-        className="scroll-mt-24 py-12 lg:py-16"
-        data-slot="borderless-section"
-        id="capabilities"
-      >
-        <EditorialIntro
-          as="h2"
-          description="Web 控制面、API 与 Worker 共享同一套权限、任务和制品模型，适合个人本地使用，也便于团队自托管。"
-          eyebrow="核心功能"
-          title="视频解析、剧本处理与 AI 分析"
-          titleId="capabilities-title"
-        />
-        <PublicHomeCapabilities items={capabilities} />
-      </div>
-
-      <SplitLayout
-        className="scroll-mt-24 gap-12 py-12 lg:gap-24 lg:py-16"
-        data-slot="borderless-section"
-        id="architecture"
-      >
-        <EditorialIntro
-          as="h2"
-          description="FastAPI、Next.js、PostgreSQL、RabbitMQ、MinIO、FFmpeg 与 yt-dlp 组成可独立部署的工作流。MIT 许可证允许你免费检查、修改和自托管。"
-          eyebrow="自托管架构"
-          title="开源，不交出数据控制权"
-          titleId="architecture-title"
-        />
-        <div>
-          <Badge className="w-fit" variant="secondary">
-            安全边界
-          </Badge>
-          <h3 className="mt-4 text-xl font-medium leading-snug">
-            运行与授权边界
-          </h3>
-          <p className="mt-2 text-sm text-muted-foreground">
-            把访问、执行和交付拆成可检查的边界。
-          </p>
-          <div className="mt-8">
-            <PublicHomeSafeguards items={safeguards} />
-          </div>
-        </div>
-      </SplitLayout>
-
-      <PublicHomeFaq />
-
-      <div
-        className="flex flex-col items-start justify-between gap-8 py-12 sm:flex-row sm:items-end lg:py-16"
-        data-slot="borderless-section"
-      >
-        <EditorialIntro
-          as="h2"
-          description="从仓库的 Quick Start、架构文档和安全边界开始，按需启用媒体解析、剧本工作流与 AI 服务。"
-          eyebrow="快速开始"
-          title="在自己的基础设施上运行 FrameFetch"
-        />
-        <Button asChild size="lg" variant="secondary">
-          <a href={`${siteConfig.repositoryUrl}/blob/main/README.md#快速开始`}>
-            阅读部署说明
+    <div
+      className="inner-page flex flex-col gap-12"
+      data-home-view-root="public"
+    >
+      <PageHeader
+        size="lg"
+        title="FrameFetch 万能视频下载器"
+        description="粘贴公开视频链接，选择画质并下载。也可以导入本地视频与剧本文档，按需进行 AI 分析。"
+      />
+      <div className="flex flex-wrap gap-3">
+        <Button asChild>
+          <Link href="/user/register">
+            创建本地账户
+            <ArrowRightIcon aria-hidden data-icon="inline-end" />
+          </Link>
+        </Button>
+        <Button asChild variant="secondary">
+          <a href={siteConfig.repositoryUrl} rel="noreferrer" target="_blank">
+            <GithubLogoIcon aria-hidden data-icon="inline-start" />
+            查看源代码
             <ArrowUpRightIcon aria-hidden data-icon="inline-end" />
           </a>
         </Button>
+        <Button asChild variant="ghost">
+          <Link href="/user/login">登录账户</Link>
+        </Button>
       </div>
+      <SplitLayout columns="primary">
+        <section
+          aria-labelledby="capabilities-title"
+          className="flex flex-col gap-4"
+          id="capabilities"
+        >
+          <ItemTitle>
+            <h2 id="capabilities-title">下载、导入与分析</h2>
+          </ItemTitle>
+          <PublicHomeCapabilities items={capabilities} />
+        </section>
+        <section
+          aria-labelledby="workflow-title"
+          className="flex flex-col gap-4"
+        >
+          <ItemTitle>
+            <h2 id="workflow-title">从链接到文件</h2>
+          </ItemTitle>
+          <PublicHomeWorkflow items={workflow} />
+        </section>
+      </SplitLayout>
+      <SplitLayout columns="primary" id="architecture">
+        <section
+          aria-labelledby="architecture-title"
+          className="flex flex-col gap-4"
+        >
+          <ItemTitle>
+            <h2 id="architecture-title">开源，可自托管</h2>
+          </ItemTitle>
+          <Item variant="muted">
+            <ItemContent>
+              <ItemTitle>在自己的基础设施上运行</ItemTitle>
+              <ItemDescription className="line-clamp-none">
+                帧取是 MIT
+                开源的个人视频工具。源码可自行部署、使用和修改，服务器、存储、流量与外部
+                AI 服务的运行成本由你承担。
+              </ItemDescription>
+            </ItemContent>
+          </Item>
+          <Button asChild className="self-start" variant="secondary">
+            <a
+              href={`${siteConfig.repositoryUrl}/blob/main/README.md#快速开始`}
+            >
+              阅读部署说明
+              <ArrowUpRightIcon aria-hidden data-icon="inline-end" />
+            </a>
+          </Button>
+        </section>
+        <section aria-label="下载与使用边界">
+          <PublicHomeSafeguards items={safeguards} />
+        </section>
+      </SplitLayout>
+      <PublicHomeFaq />
     </div>
   );
 }

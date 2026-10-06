@@ -4,7 +4,7 @@ export function AnalyticsLoading() {
   return (
     <div
       aria-label="正在加载下载分析"
-      className="flex flex-col gap-12"
+      className="flex flex-col gap-8"
       role="status"
     >
       <span className="sr-only">正在加载下载分析</span>
@@ -22,7 +22,7 @@ export function AnalyticsLoading() {
         ))}
       </div>
       <Skeleton className="w-full aspect-video md:aspect-[3/1]" />
-      <div className="flex flex-col gap-20 sm:gap-28">
+      <div className="flex flex-col gap-8">
         {['status', 'completion', 'sources'].map((key) => (
           <div key={key}>
             <Skeleton className="h-6 w-32" />

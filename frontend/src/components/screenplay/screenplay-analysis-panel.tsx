@@ -11,6 +11,7 @@ import { PageErrorNotice } from '@/components/layout/page-error-notice';
 import { ScreenplayAnalysisJobState } from '@/components/screenplay/screenplay-analysis-job-state';
 import { ScreenplayCompletedAnalysis } from '@/components/screenplay/screenplay-completed-analysis';
 import { Button } from '@/components/ui/button';
+import { ItemDescription, ItemTitle } from '@/components/ui/item';
 import { Spinner } from '@/components/ui/spinner';
 
 export default function ScreenplayAnalysisPanel({
@@ -44,7 +45,7 @@ export default function ScreenplayAnalysisPanel({
 
   if (state.loading && state.action !== 'start') {
     return (
-      <div className="py-12" role="status">
+      <div role="status">
         <Spinner aria-hidden className="mr-2 inline" />
         正在读取分析记录
       </div>
@@ -66,7 +67,7 @@ export default function ScreenplayAnalysisPanel({
     !isVideoAnalysisResult(state.job.result, state.job.input_kind);
 
   return (
-    <div className="mt-14 py-12 sm:mt-16 sm:py-16">
+    <div className="mt-14 sm:mt-16">
       {succeeded && state.job ? (
         <>
           {state.error ? (
@@ -75,7 +76,7 @@ export default function ScreenplayAnalysisPanel({
                 state.errorKind === 'sync' ? (
                   <Button
                     variant="outline"
-                    size="sm"
+                    size="default"
                     onClick={() => void state.retryPoll()}
                   >
                     恢复同步
@@ -100,15 +101,12 @@ export default function ScreenplayAnalysisPanel({
       ) : (
         <>
           <div className="max-w-3xl">
-            <h2
-              className="text-xl font-semibold tracking-tight"
-              id="screenplay-analysis-title"
-            >
-              文档分析
-            </h2>
-            <p className="mt-4 max-w-2xl leading-7 text-muted-foreground">
+            <ItemTitle className="line-clamp-none">
+              <h2 id="screenplay-analysis-title">文档分析</h2>
+            </ItemTitle>
+            <ItemDescription className="line-clamp-none mt-4 max-w-2xl">
               审阅故事结构、人物和对白，或整理已有文章、公众号和小红书文档。任务使用这份文档，原文保留。
-            </p>
+            </ItemDescription>
           </div>
           {state.error ? (
             <FeedbackNotice
@@ -116,7 +114,7 @@ export default function ScreenplayAnalysisPanel({
                 state.errorKind === 'sync' ? (
                   <Button
                     variant="outline"
-                    size="sm"
+                    size="default"
                     onClick={() => void state.retryPoll()}
                   >
                     恢复同步
@@ -148,7 +146,9 @@ export default function ScreenplayAnalysisPanel({
       )}
       {state.job && newAnalysisForJobId === state.job.id ? (
         <div className="mt-10 max-w-3xl" id="new-screenplay-analysis">
-          <h3 className="mb-4 text-xl font-medium">使用最新 Skill 新建任务</h3>
+          <ItemTitle className="line-clamp-none">
+            <h3 className="mb-4">使用最新 Skill 新建任务</h3>
+          </ItemTitle>
           <AnalysisConfigurator
             inputId={documentId}
             busy={state.action === 'start'}

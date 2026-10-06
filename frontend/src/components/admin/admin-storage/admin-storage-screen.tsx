@@ -86,7 +86,7 @@ export function AdminStorageScreen({
       {error && items.length > 0 ? (
         <FeedbackNotice
           action={
-            <Button onClick={onRetry} size="sm" variant="outline">
+            <Button onClick={onRetry} size="default" variant="outline">
               <ArrowClockwise aria-hidden data-icon="inline-start" />
               重新加载
             </Button>
@@ -98,7 +98,7 @@ export function AdminStorageScreen({
       ) : null}
 
       {loading && items.length === 0 ? (
-        <div className="flex flex-col gap-4 py-5">
+        <div className="flex flex-col gap-4">
           {['one', 'two', 'three', 'four', 'five'].map((key) => (
             <Skeleton className="h-14 w-full" key={key} />
           ))}

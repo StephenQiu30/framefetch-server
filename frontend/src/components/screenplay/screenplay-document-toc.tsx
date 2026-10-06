@@ -5,6 +5,7 @@ import { cn } from 'cn';
 import Link from 'next/link';
 import { markdownToEditorDocument } from '@/components/editor/document';
 import { richTextToPlainText } from '@/components/editor/rich-text';
+import { ItemDescription, ItemTitle } from '@/components/ui/item';
 import {
   NavigationMenu,
   NavigationMenuItem,
@@ -36,30 +37,22 @@ export function ScreenplayDocumentToc({
   return (
     <NavigationMenu
       aria-labelledby="screenplay-toc-title"
-      className="block max-w-none flex-none lg:grid lg:h-full lg:min-h-0 lg:items-stretch lg:justify-stretch lg:grid-rows-[auto_minmax(0,1fr)] lg:overflow-hidden"
+      className="block max-w-none flex-none lg:grid lg:h-full lg:items-stretch lg:justify-stretch lg:grid-rows-[auto_minmax(0,1fr)] lg:overflow-hidden"
       orientation="vertical"
       viewport={false}
     >
-      <div className="flex items-center justify-between gap-4 pb-3">
+      <div className="flex items-center justify-between gap-4">
         <div className="flex items-center gap-2">
-          <List
-            aria-hidden
-            className="size-4 text-muted-foreground"
-            weight="regular"
-          />
-          <h2 className="text-sm font-medium" id="screenplay-toc-title">
-            目录
-          </h2>
+          <List aria-hidden weight="regular" />
+          <ItemTitle className="line-clamp-none">
+            <h2 id="screenplay-toc-title">目录</h2>
+          </ItemTitle>
         </div>
-        {headings.length ? (
-          <span className="text-xs text-muted-foreground">
-            {headings.length} 节
-          </span>
-        ) : null}
+        {headings.length ? <span>{headings.length} 节</span> : null}
       </div>
 
       {headings.length ? (
-        <div className="mt-3 min-h-0 overflow-y-auto overscroll-contain scrollbar-thin">
+        <div className="mt-3 overflow-y-auto overscroll-contain scrollbar-thin">
           <NavigationMenuList className="w-full flex-none flex-col items-stretch justify-start gap-0.5">
             {headings.map((heading) => (
               <NavigationMenuItem key={heading.id}>
@@ -80,9 +73,9 @@ export function ScreenplayDocumentToc({
           </NavigationMenuList>
         </div>
       ) : (
-        <p className="mt-4 text-sm leading-6 text-muted-foreground">
+        <ItemDescription className="line-clamp-none mt-4">
           当前文档没有可用的标题目录。
-        </p>
+        </ItemDescription>
       )}
     </NavigationMenu>
   );

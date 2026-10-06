@@ -2,7 +2,6 @@
 
 import { CaretDownIcon } from '@phosphor-icons/react';
 import { Area, AreaChart, CartesianGrid, XAxis, YAxis } from 'recharts';
-
 import { Button } from '@/components/ui/button';
 import {
   type ChartConfig,
@@ -17,6 +16,7 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from '@/components/ui/collapsible';
+import { ItemDescription, ItemTitle } from '@/components/ui/item';
 import {
   Table,
   TableBody,
@@ -42,18 +42,15 @@ export function AnalysisTrendChart({ daily }: { daily: DailyPoint[] }) {
   );
   return (
     <section aria-labelledby="analysis-trend-title" className="min-w-0">
-      <h2
-        className="text-xl font-medium tracking-tight"
-        id="analysis-trend-title"
-      >
-        每日分析趋势
-      </h2>
-      <p
-        className="mt-2 text-sm leading-6 text-muted-foreground"
+      <ItemTitle className="line-clamp-none">
+        <h2 id="analysis-trend-title">每日分析趋势</h2>
+      </ItemTitle>
+      <ItemDescription
+        className="line-clamp-none mt-2"
         id="analysis-trend-description"
       >
         按创建日期（UTC）统计分析执行记录，重试和重新执行分别计数。
-      </p>
+      </ItemDescription>
       <ChartContainer
         aria-describedby="analysis-trend-description"
         aria-label="每日 AI 分析执行趋势图"

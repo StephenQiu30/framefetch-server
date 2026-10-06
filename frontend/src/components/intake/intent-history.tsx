@@ -42,6 +42,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import { ItemDescription, ItemTitle } from '@/components/ui/item';
 import { Skeleton } from '@/components/ui/skeleton';
 import { usePageSelection } from '@/hooks/use-page-selection';
 import { privateQueryKey } from '@/lib/query-keys';
@@ -137,7 +138,9 @@ export function IntentHistory({
       />
       <section aria-label="已提交的解析" className="mt-6">
         <div className="flex items-center justify-between gap-4">
-          <h2 className="text-base font-medium">解析任务</h2>
+          <ItemTitle className="line-clamp-none">
+            <h2>解析任务</h2>
+          </ItemTitle>
           <Button
             variant="outline"
             disabled={history.isFetching}
@@ -158,7 +161,7 @@ export function IntentHistory({
             <div aria-hidden className="mt-4 flex flex-col gap-2">
               {['first', 'second', 'third'].map((key) => (
                 <div
-                  className="flex items-center justify-between gap-4 py-5"
+                  className="flex items-center justify-between gap-4"
                   key={key}
                 >
                   <div className="flex min-w-0 flex-1 flex-col gap-2">
@@ -199,9 +202,9 @@ export function IntentHistory({
           />
         ) : null}
         {bulk.busy ? (
-          <p role="status">
+          <ItemDescription className="line-clamp-none" role="status">
             正在创建下载任务：{bulk.progress.completed} / {bulk.progress.total}
-          </p>
+          </ItemDescription>
         ) : null}
         {bulk.message ? (
           <FeedbackNotice
@@ -248,9 +251,7 @@ export function IntentHistory({
                   >
                     批量下载（{selection.selected.length}）
                   </Button>
-                  <span className="text-sm text-muted-foreground">
-                    按默认画质创建下载任务
-                  </span>
+                  <span>按默认画质创建下载任务</span>
                 </BulkSelectionBar>
               }
               columns={[
@@ -259,21 +260,26 @@ export function IntentHistory({
                   header: '内容',
                   cell: (item) => (
                     <div className="min-w-0 whitespace-normal">
-                      <p className="line-clamp-2 break-words font-medium">
+                      <ItemDescription className="line-clamp-none line-clamp-2 break-words">
                         {item.title || '媒体解析'}
-                      </p>
-                      <p className="mt-1 text-xs text-muted-foreground">
+                      </ItemDescription>
+                      <ItemDescription className="line-clamp-none mt-1">
                         {historyRecordLabel(item)}
                         {isAnalysisRecord(item)
                           ? ` · ${skillNames.get(item.skill_id) ?? item.skill_id} · ${item.output_language}`
                           : ''}
-                      </p>
+                      </ItemDescription>
                       {isAnalysisRecord(item) &&
                       item.source_availability === 'unavailable' ? (
-                        <p className="mt-1 text-xs text-muted-foreground">
+                        <ItemDescription className="line-clamp-none mt-1">
                           源文件不可用 · 已有结果仍可查看
-                        </p>
+                        </ItemDescription>
                       ) : null}
+                      <time className="sm:hidden" dateTime={item.created_at}>
+                        {new Date(item.created_at).toLocaleString('zh-CN', {
+                          hour12: false,
+                        })}
+                      </time>
                       <Badge
                         className="mt-1.5 sm:hidden"
                         variant={historyRecordVariant(item)}
@@ -288,10 +294,7 @@ export function IntentHistory({
                   header: '提交时间',
                   className: 'hidden w-44 sm:table-cell',
                   cell: (item) => (
-                    <time
-                      className="text-muted-foreground"
-                      dateTime={item.created_at}
-                    >
+                    <time dateTime={item.created_at}>
                       {new Date(item.created_at).toLocaleString('zh-CN', {
                         hour12: false,
                       })}
@@ -316,7 +319,7 @@ export function IntentHistory({
                   hideable: false,
                   cell: (item) =>
                     item.record_type !== 'parse' ? (
-                      <Button asChild variant="ghost" size="sm">
+                      <Button asChild variant="ghost" size="default">
                         <Link href={historyRecordHref(item)}>
                           {item.record_type === 'document_parse'
                             ? '查看文档'
@@ -326,7 +329,7 @@ export function IntentHistory({
                     ) : (
                       <Button
                         variant="ghost"
-                        size="sm"
+                        size="default"
                         onClick={(event) => {
                           if (
                             item.status === IntentStatusCode.Ready &&

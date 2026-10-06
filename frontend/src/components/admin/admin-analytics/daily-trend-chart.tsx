@@ -1,4 +1,5 @@
 import { PageEmptyNotice } from '@/components/layout/page-empty-notice';
+import { ItemDescription, ItemTitle } from '@/components/ui/item';
 import { DailyTrendDataTable } from './daily-trend-data-table';
 import { DailyTrendPlot } from './daily-trend-plot';
 
@@ -12,15 +13,12 @@ export function DailyTrendChart({ daily }: { daily: DailyPoint[] }) {
   return (
     <div className="w-full">
       <div className="flex flex-col gap-2">
-        <h2
-          className="text-xl font-medium tracking-tight"
-          id="daily-trend-title"
-        >
-          每日下载趋势
-        </h2>
-        <p className="max-w-2xl text-sm leading-6 text-muted-foreground">
+        <ItemTitle className="line-clamp-none">
+          <h2 id="daily-trend-title">每日下载趋势</h2>
+        </ItemTitle>
+        <ItemDescription className="line-clamp-none max-w-2xl">
           使用面积对比每日创建任务与成功完成任务。
-        </p>
+        </ItemDescription>
       </div>
       <div className="mt-8">
         <p className="sr-only" id="daily-trend-description">

@@ -4,15 +4,21 @@ import {
   Plus,
   WarningCircle,
 } from '@phosphor-icons/react';
+import { useState } from 'react';
 import type { BulkDeleteOptions } from '@/components/layout/bulk-delete-selection';
 import { FeedbackNotice } from '@/components/layout/feedback-notice';
 import { PageEmptyNotice } from '@/components/layout/page-empty-notice';
 import { PageErrorNotice } from '@/components/layout/page-error-notice';
 import { PageHeader } from '@/components/layout/page-header';
 import { PageNavigation } from '@/components/layout/page-navigation';
+import {
+  DEFAULT_PAGE_SIZE,
+  PagePagination,
+} from '@/components/layout/page-pagination';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { ItemDescription, ItemTitle } from '@/components/ui/item';
 import { Skeleton } from '@/components/ui/skeleton';
 
 import { ExecutionRoute, ProviderTable } from './ai-provider-list';
@@ -42,9 +48,19 @@ export function AiProviderScreen({
   onEdit,
   onRetry,
 }: Props) {
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
+  const currentPage = Math.min(
+    page,
+    Math.max(1, Math.ceil(items.length / pageSize)),
+  );
+  const visible = items.slice(
+    (currentPage - 1) * pageSize,
+    currentPage * pageSize,
+  );
   const active = items.find((item) => item.is_active);
   return (
-    <div aria-busy={loading} className="flex flex-col gap-12">
+    <div aria-busy={loading} className="flex flex-col gap-8">
       <div>
         <PageNavigation fallbackHref="/" />
         <PageHeader
@@ -70,7 +86,7 @@ export function AiProviderScreen({
         ) : (
           <FeedbackNotice
             action={
-              <Button onClick={onRetry} size="sm" variant="outline">
+              <Button onClick={onRetry} size="default" variant="outline">
                 <ArrowClockwise aria-hidden data-icon="inline-start" />
                 重新加载
               </Button>
@@ -85,28 +101,29 @@ export function AiProviderScreen({
       <div>
         <div className="mb-5 flex flex-wrap items-end justify-between gap-3">
           <div>
-            <p className="text-sm font-medium text-muted-foreground">
+            <ItemDescription className="line-clamp-none">
               当前执行链路
-            </p>
-            <h2
-              className="mt-1 text-xl font-semibold tracking-tight"
-              id="active-ai-route"
-            >
-              Agent 与模型连接状态
-            </h2>
+            </ItemDescription>
+            <ItemTitle className="line-clamp-none">
+              <h2 className="mt-1" id="active-ai-route">
+                Agent 与模型连接状态
+              </h2>
+            </ItemTitle>
           </div>
           <Badge variant={agentAvailable ? 'default' : 'destructive'}>
             {agentAvailable ? 'Agent 在线' : 'Agent 离线'}
           </Badge>
         </div>
-        <div className="py-4 sm:py-6">
+        <div>
           {loading && !active ? (
             <Skeleton className="h-20 w-full" />
           ) : active ? (
             <div className="grid gap-7 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center">
               <div>
                 <div className="flex flex-wrap items-center gap-2">
-                  <h3 className="text-xl font-medium">{active.display_name}</h3>
+                  <ItemTitle className="line-clamp-none">
+                    <h3>{active.display_name}</h3>
+                  </ItemTitle>
                   <Badge variant="default">已启用</Badge>
                   <Badge variant="secondary">
                     {active.auth_mode === 'host_login'
@@ -117,14 +134,18 @@ export function AiProviderScreen({
                 <ExecutionRoute active={active} />
               </div>
               <div className="lg:text-right">
-                <p className="text-xs text-muted-foreground">模型</p>
-                <p className="mt-1 font-mono text-sm">{active.model}</p>
+                <ItemDescription className="line-clamp-none">
+                  模型
+                </ItemDescription>
+                <ItemDescription className="line-clamp-none mt-1">
+                  {active.model}
+                </ItemDescription>
               </div>
             </div>
           ) : (
-            <p className="text-sm text-muted-foreground">
+            <ItemDescription className="line-clamp-none">
               尚未启用 Provider。新增配置后将其设为当前线路。
-            </p>
+            </ItemDescription>
           )}
         </div>
         {!agentAvailable ? (
@@ -142,24 +163,32 @@ export function AiProviderScreen({
 
       <div>
         <div className="mb-5 flex items-center justify-between gap-4">
-          <h2
-            className="text-xl font-medium tracking-tight"
-            id="ai-provider-list"
-          >
-            Provider 配置
-          </h2>
+          <ItemTitle className="line-clamp-none">
+            <h2 id="ai-provider-list">Provider 配置</h2>
+          </ItemTitle>
         </div>
         <div className="flex flex-col gap-1">
           {loading && items.length === 0 ? (
             ['one', 'two', 'three'].map((key) => (
-              <div className="py-5" key={key}>
+              <div key={key}>
                 <Skeleton className="h-14 w-full" />
               </div>
             ))
           ) : items.length > 0 ? (
             <ProviderTable
-              bulk={bulk}
-              items={items}
+              bulk={
+                bulk
+                  ? {
+                      ...bulk,
+                      scope: JSON.stringify([
+                        bulk.scope,
+                        currentPage,
+                        pageSize,
+                      ]),
+                    }
+                  : undefined
+              }
+              items={visible}
               onActivate={onActivate}
               onDelete={onDelete}
               onEdit={onEdit}
@@ -179,6 +208,20 @@ export function AiProviderScreen({
             />
           )}
         </div>
+        {items.length > 0 ? (
+          <PagePagination
+            ariaLabel="AI 配置分页"
+            page={currentPage}
+            pageSize={pageSize}
+            pages={Math.ceil(items.length / pageSize)}
+            busy={loading}
+            onPageChange={setPage}
+            onPageSizeChange={(size) => {
+              setPageSize(size);
+              setPage(1);
+            }}
+          />
+        ) : null}
       </div>
     </div>
   );

@@ -6,6 +6,7 @@ import { listContentVersions } from '@/api/analyses';
 import AnalysisReportPreview from '@/components/analysis/analysis-report-preview';
 import { FeedbackNotice } from '@/components/layout/feedback-notice';
 import { Button } from '@/components/ui/button';
+import { ItemDescription } from '@/components/ui/item';
 import { privateQueryKey } from '@/lib/query-keys';
 import { displayError } from '@/lib/request-error';
 
@@ -24,12 +25,13 @@ export default function ContentReportHistory({
       listContentVersions({ analysis_id: analysisId }, { signal }),
   });
   return (
-    <details
-      className="text-sm"
-      onToggle={(event) => setOpen(event.currentTarget.open)}
-    >
-      <summary className="cursor-pointer py-2 font-medium">报告历史</summary>
-      {query.isFetching ? <p role="status">正在读取报告历史…</p> : null}
+    <details onToggle={(event) => setOpen(event.currentTarget.open)}>
+      <summary className="cursor-pointer">报告历史</summary>
+      {query.isFetching ? (
+        <ItemDescription className="line-clamp-none" role="status">
+          正在读取报告历史…
+        </ItemDescription>
+      ) : null}
       {query.error ? (
         <FeedbackNotice
           title="报告历史读取失败"

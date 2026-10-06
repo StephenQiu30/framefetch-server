@@ -190,7 +190,7 @@ export default function AnalysisConfigurator({
             onClick={() =>
               selected && updateDraft({ customPrompt: selected.default_prompt })
             }
-            size="sm"
+            size="default"
             type="button"
             variant="ghost"
           >
@@ -207,7 +207,7 @@ export default function AnalysisConfigurator({
           rows={5}
           value={prompt}
         />
-        <div className="flex items-start justify-between gap-4 text-sm text-muted-foreground">
+        <div className="flex items-start justify-between gap-4">
           <span>
             可补充阅读对象、分析重点或希望整理的问题，也可以清空使用任务默认要求。
           </span>

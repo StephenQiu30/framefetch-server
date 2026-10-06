@@ -21,6 +21,26 @@ describe('PublicHome', () => {
     );
   });
 
+  it('describes the downloader and its public content boundary', () => {
+    render(<PublicHome />);
+    expect(
+      screen.getByRole('heading', {
+        level: 1,
+        name: 'FrameFetch 万能视频下载器',
+      }),
+    ).toBeInTheDocument();
+    expect(
+      within(
+        screen.getByRole('region', { name: '下载、导入与分析' }),
+      ).getByText(/检查公开、免费、非 DRM 的视频链接，选择实际可用的格式/),
+    ).toBeInTheDocument();
+    expect(
+      within(
+        screen.getByRole('region', { name: '下载、导入与分析' }),
+      ).getByText(/导入有权处理的本地视频/),
+    ).toBeInTheDocument();
+  });
+
   it('keeps the workflow as an ordered accessible list', () => {
     render(<PublicHome />);
 

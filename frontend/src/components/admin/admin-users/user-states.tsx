@@ -20,7 +20,7 @@ export function AdminSkeleton({ rowsOnly = false }: { rowsOnly?: boolean }) {
       )}
       <div className="flex flex-col gap-2">
         {['first', 'second', 'third', 'fourth', 'fifth'].map((row) => (
-          <div className="py-3" key={row}>
+          <div key={row}>
             <Skeleton className="h-12 w-full" />
           </div>
         ))}

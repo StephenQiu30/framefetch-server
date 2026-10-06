@@ -62,7 +62,7 @@ function AnalysisAnalyticsLoading() {
   return (
     <div
       aria-label="正在加载 AI 分析统计"
-      className="flex flex-col gap-10 sm:gap-12"
+      className="flex flex-col gap-8"
       role="status"
     >
       <span className="sr-only">正在加载 AI 分析统计</span>

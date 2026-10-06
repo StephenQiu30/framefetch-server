@@ -1,6 +1,5 @@
 import { ArrowClockwiseIcon } from '@phosphor-icons/react';
 import type { ReactNode } from 'react';
-
 import { AnalyticsKpis } from '@/components/admin/admin-analytics/analytics-kpis';
 import { AnalyticsLoading } from '@/components/admin/admin-analytics/analytics-states';
 import { CompletionRateChart } from '@/components/admin/admin-analytics/completion-rate-chart';
@@ -9,10 +8,12 @@ import { SourceBreakdown } from '@/components/admin/admin-analytics/source-break
 import { SourcePerformance } from '@/components/admin/admin-analytics/source-performance';
 import { StatusDistributionChart } from '@/components/admin/admin-analytics/status-distribution-chart';
 import { FeedbackNotice } from '@/components/layout/feedback-notice';
+import { PageEmptyNotice } from '@/components/layout/page-empty-notice';
 import { PageErrorNotice } from '@/components/layout/page-error-notice';
 import { PageHeader } from '@/components/layout/page-header';
 import { PageNavigation } from '@/components/layout/page-navigation';
 import { Button } from '@/components/ui/button';
+import { Item, ItemContent, ItemDescription } from '@/components/ui/item';
 import {
   Select,
   SelectContent,
@@ -60,7 +61,7 @@ export function AdminAnalyticsScreen({
   return (
     <Tabs
       aria-busy={loading}
-      className="gap-10 sm:gap-12"
+      className="gap-8"
       onValueChange={(value) => {
         if (value === 'downloads' || value === 'analysis') onTabChange(value);
       }}
@@ -73,9 +74,9 @@ export function AdminAnalyticsScreen({
             <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
               <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
                 {dateRange ? (
-                  <p className="text-xs text-muted-foreground tabular-nums">
+                  <ItemDescription className="line-clamp-none tabular-nums">
                     {formatDateRange(dateRange.start, dateRange.end)}
-                  </p>
+                  </ItemDescription>
                 ) : null}
                 <Select
                   value={String(days)}
@@ -125,10 +126,18 @@ export function AdminAnalyticsScreen({
         <TabsTrigger value="downloads">下载</TabsTrigger>
         <TabsTrigger value="analysis">AI 分析</TabsTrigger>
       </TabsList>
-      <TabsContent className="flex flex-col gap-10 sm:gap-12" value="downloads">
+      <Item variant="muted">
+        <ItemContent>
+          <ItemDescription className="line-clamp-none">
+            图表聚焦后可用左右方向键读取数据；精确数值可在图表明细中查看。AI
+            统计按分析执行记录计数，不代表模型请求次数、Token 或费用。
+          </ItemDescription>
+        </ItemContent>
+      </Item>
+      <TabsContent className="flex flex-col gap-8" value="downloads">
         {downloadContent}
       </TabsContent>
-      <TabsContent className="flex flex-col gap-10 sm:gap-12" value="analysis">
+      <TabsContent className="flex flex-col gap-8" value="analysis">
         {analysisContent}
       </TabsContent>
     </Tabs>
@@ -158,7 +167,7 @@ export function DownloadAnalyticsContent({
       {error && data ? (
         <FeedbackNotice
           action={
-            <Button onClick={onRetry} size="sm" variant="outline">
+            <Button onClick={onRetry} size="default" variant="outline">
               重新加载
             </Button>
           }
@@ -168,11 +177,19 @@ export function DownloadAnalyticsContent({
         />
       ) : null}
       {loading && !data ? <AnalyticsLoading /> : null}
-      {data ? <DailyTrendChart daily={data.daily} /> : null}
       {data && data.summary.total > 0 ? (
-        <div className="flex flex-col gap-10 sm:gap-12">
+        <DailyTrendChart daily={data.daily} />
+      ) : null}
+      {data && data.summary.total === 0 ? (
+        <PageEmptyNotice
+          title="当前周期还没有下载数据"
+          description="切换统计周期，或创建下载任务后再查看。"
+        />
+      ) : null}
+      {data && data.summary.total > 0 ? (
+        <div className="flex flex-col gap-8">
           <AnalyticsKpis summary={data.summary} />
-          <div className="flex flex-col gap-10 sm:gap-12">
+          <div className="flex flex-col gap-8">
             <StatusDistributionChart summary={data.summary} />
             <CompletionRateChart daily={data.daily} />
             <SourceBreakdown

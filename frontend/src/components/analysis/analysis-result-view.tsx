@@ -9,7 +9,7 @@ import AnalysisReportPreview from '@/components/analysis/analysis-report-preview
 import AnalysisSceneList from '@/components/analysis/analysis-scene-list';
 import { PageEmptyNotice } from '@/components/layout/page-empty-notice';
 import { Button } from '@/components/ui/button';
-import { Item } from '@/components/ui/item';
+import { Item, ItemDescription, ItemTitle } from '@/components/ui/item';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 import { formatMilliseconds } from '@/lib/format';
@@ -36,7 +36,7 @@ export default function AnalysisResultView({
 }) {
   return (
     <Tabs className="mt-10 gap-0" defaultValue={defaultView}>
-      <div className="grid grid-cols-2 gap-4 py-4 sm:grid-cols-4 sm:gap-5">
+      <div className="grid grid-cols-2 gap-4 sm:grid-cols-4 sm:gap-5">
         <Metric label="分镜数量" value={`${result.shot_count}`} />
         <Metric label="场景数量" value={`${result.scenes.length}`} />
         <Metric
@@ -46,10 +46,12 @@ export default function AnalysisResultView({
         <Metric label="视觉资产" value={`${result.assets.length}`} />
       </div>
       <div className="mt-8 w-full">
-        <h3 className="text-xl font-medium tracking-tight">视觉摘要</h3>
-        <p className="mt-3 text-base leading-8 text-muted-foreground">
+        <ItemTitle className="line-clamp-none">
+          <h3>视觉摘要</h3>
+        </ItemTitle>
+        <ItemDescription className="line-clamp-none mt-3">
           {result.summary.text}
-        </p>
+        </ItemDescription>
       </div>
       <div className="mt-10 overflow-x-auto">
         <TabsList className="w-max" variant="line">
@@ -80,18 +82,18 @@ export default function AnalysisResultView({
                 />
                 <div>
                   <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
-                    <strong className="font-medium">分镜 {shot.index}</strong>
-                    <span className="text-xs text-muted-foreground">
+                    <strong>分镜 {shot.index}</strong>
+                    <span>
                       {shot.shot_size} · {shot.camera_motion}
                     </span>
                   </div>
-                  <p className="mt-2 leading-7 text-muted-foreground">
+                  <ItemDescription className="line-clamp-none mt-2">
                     {shot.description}
-                  </p>
+                  </ItemDescription>
                   {shot.visual_tags.length ? (
-                    <p className="mt-3 text-xs text-muted-foreground">
+                    <ItemDescription className="line-clamp-none mt-3">
                       {shot.visual_tags.join(' · ')}
-                    </p>
+                    </ItemDescription>
                   ) : null}
                 </div>
               </li>
@@ -106,15 +108,15 @@ export default function AnalysisResultView({
               <Item asChild className="block" key={highlight.id}>
                 <li>
                   <div className="flex items-start justify-between gap-4">
-                    <strong className="font-medium">{highlight.title}</strong>
-                    <span className="text-sm text-muted-foreground tabular-nums">
-                      评分 {highlight.score}
-                    </span>
+                    <strong>{highlight.title}</strong>
+                    <span className="tabular-nums">评分 {highlight.score}</span>
                   </div>
-                  <p className="mt-3 leading-7 text-muted-foreground">
+                  <ItemDescription className="line-clamp-none mt-3">
                     {highlight.description}
-                  </p>
-                  <p className="mt-3 text-sm">{highlight.reason}</p>
+                  </ItemDescription>
+                  <ItemDescription className="line-clamp-none mt-3">
+                    {highlight.reason}
+                  </ItemDescription>
                   <TimeButton
                     milliseconds={highlight.start_ms}
                     onSelect={onSelectTime}
@@ -138,15 +140,13 @@ export default function AnalysisResultView({
             {result.assets.map((asset) => (
               <Item asChild className="block" key={asset.id}>
                 <li>
-                  <p className="text-xs text-muted-foreground">
+                  <ItemDescription className="line-clamp-none">
                     {assetTypeLabels[asset.type] ?? asset.type}
-                  </p>
-                  <strong className="mt-3 block font-medium">
-                    {asset.label}
-                  </strong>
-                  <p className="mt-2 text-sm leading-6 text-muted-foreground">
+                  </ItemDescription>
+                  <strong className="mt-3 block">{asset.label}</strong>
+                  <ItemDescription className="line-clamp-none mt-2">
                     {asset.description}
-                  </p>
+                  </ItemDescription>
                   <TimeButton
                     milliseconds={asset.first_seen_ms}
                     onSelect={onSelectTime}
@@ -196,8 +196,10 @@ function TimeButton({
 function Metric({ label, value }: { label: string; value: string }) {
   return (
     <div>
-      <p className="text-xs text-muted-foreground">{label}</p>
-      <p className="mt-1 text-2xl tabular-nums">{value}</p>
+      <ItemDescription className="line-clamp-none">{label}</ItemDescription>
+      <ItemTitle className="line-clamp-none">
+        <p className="mt-1 tabular-nums">{value}</p>
+      </ItemTitle>
     </div>
   );
 }

@@ -19,6 +19,7 @@ import { useAnalysisJob } from '@/components/analysis/use-analysis-job';
 import { useAnalysisSkills } from '@/components/analysis/use-analysis-skills';
 import ContentResultView from '@/components/content/content-result-view';
 import { historyRecordLabel } from '@/components/intake/history-record-presentation';
+import { DataTable } from '@/components/layout/data-table';
 import { FeedbackNotice } from '@/components/layout/feedback-notice';
 import { PageEmptyNotice } from '@/components/layout/page-empty-notice';
 import { PageErrorNotice } from '@/components/layout/page-error-notice';
@@ -31,6 +32,8 @@ import {
 import { ScreenplayResultView } from '@/components/screenplay/screenplay-result-view';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { ItemDescription, ItemTitle } from '@/components/ui/item';
+import { Skeleton } from '@/components/ui/skeleton';
 import { localizedErrorMessage } from '@/lib/error-messages';
 import { privateQueryKey } from '@/lib/query-keys';
 import { displayError } from '@/lib/request-error';
@@ -43,10 +46,13 @@ export default function AnalysisDetailRoute() {
       {id ? (
         <AnalysisDetail key={id} id={id} />
       ) : (
-        <PageEmptyNotice
-          title="缺少分析记录"
-          description="请从我的处理记录选择一条分析记录。"
-        />
+        <div className="flex flex-col gap-8">
+          <PageHeader title="AI 分析详情" />
+          <PageEmptyNotice
+            title="缺少分析记录"
+            description="请从我的处理记录选择一条分析记录。"
+          />
+        </div>
       )}
     </div>
   );
@@ -60,17 +66,27 @@ function AnalysisDetail({ id }: { id: string }) {
   });
   if (record.isPending)
     return (
-      <p className="py-12" role="status">
-        正在读取分析记录…
-      </p>
+      <div
+        className="flex flex-col gap-6"
+        role="status"
+        aria-label="正在读取分析记录"
+      >
+        <PageHeader title="AI 分析详情" />
+        <Skeleton className="h-8 w-2/3" />
+        <Skeleton className="aspect-video w-full" />
+      </div>
     );
   if (record.error && !record.data)
     return (
-      <PageErrorNotice
-        title="分析记录不可用"
-        message={displayError(record.error)}
-        onRetry={() => void record.refetch()}
-      />
+      <div className="flex flex-col gap-8">
+        <PageHeader title="AI 分析详情" />
+        <PageErrorNotice
+          title="分析记录不可用"
+          titleAs="h2"
+          message={displayError(record.error)}
+          onRetry={() => void record.refetch()}
+        />
+      </div>
     );
   if (!record.data) return null;
   return <AnalysisDetailContent record={record.data} />;
@@ -115,7 +131,7 @@ function AnalysisDetailContent({
   return (
     <>
       <PageHeader
-        title={record.title}
+        title={<span className="[overflow-wrap:anywhere]">{record.title}</span>}
         description={`${historyRecordLabel(record)} · ${skillName} · ${record.output_language}`}
       />
       <div className="mt-6 flex flex-wrap gap-3">
@@ -129,14 +145,14 @@ function AnalysisDetailContent({
         ) : null}
       </div>
       {record.source_availability === 'unavailable' ? (
-        <p className="mt-4 text-sm text-muted-foreground">
+        <ItemDescription className="line-clamp-none mt-4">
           源文件不可用，无法重新执行；已有分析结果仍可查看。
-        </p>
+        </ItemDescription>
       ) : null}
       {state.loading ? (
-        <p className="py-10" role="status">
+        <ItemDescription className="line-clamp-none" role="status">
           正在读取分析结果…
-        </p>
+        </ItemDescription>
       ) : null}
       {state.error ? (
         <FeedbackNotice
@@ -169,7 +185,7 @@ function AnalysisDetailContent({
                 ? '正在取消'
                 : statusLabels[job.status]}
             </Badge>
-            <span className="text-sm text-muted-foreground">
+            <span>
               {job.run_trigger === 'manual_edit'
                 ? `第 ${job.run_no} 份报告 · 历史人工稿`
                 : `第 ${job.run_no} 次执行`}
@@ -326,7 +342,9 @@ export function AnalysisRuns({
   });
   return (
     <section className="mt-12" aria-label="运行记录">
-      <h2 className="text-xl font-medium">运行记录</h2>
+      <ItemTitle className="line-clamp-none">
+        <h2>运行记录</h2>
+      </ItemTitle>
       {runs.error ? (
         <FeedbackNotice
           className="mt-4"
@@ -336,30 +354,70 @@ export function AnalysisRuns({
           action={<Button onClick={() => void runs.refetch()}>重试</Button>}
         />
       ) : null}
-      {runs.isPending ? <p role="status">正在读取运行记录…</p> : null}
-      <ol className="mt-4">
-        {runs.data?.items.map((run) => (
-          <li key={run.id} className="flex flex-wrap gap-4 py-4 text-sm">
-            <span>
-              {run.trigger === 'manual_edit'
-                ? `第 ${run.run_no} 份报告 · 历史人工稿`
-                : `第 ${run.run_no} 次`}
-            </span>
-            <span>{statusLabels[run.status]}</span>
-            <time dateTime={run.created_at}>
-              {new Date(run.created_at).toLocaleString('zh-CN', {
-                hour12: false,
-              })}
-            </time>
-            {run.error_code ? (
-              <span>
-                {localizedErrorMessage(run.error_code) ??
-                  '这次运行未完成，请查看任务状态。'}
-              </span>
-            ) : null}
-          </li>
-        ))}
-      </ol>
+      {runs.isPending ? (
+        <ItemDescription className="line-clamp-none" role="status">
+          正在读取运行记录…
+        </ItemDescription>
+      ) : null}
+      {runs.data?.items.length ? (
+        <DataTable
+          data={runs.data.items}
+          caption="分析运行记录"
+          getRowId={(run) => run.id}
+          columns={[
+            {
+              id: 'run',
+              header: '执行',
+              hideable: false,
+              cell: (run) => (
+                <div className="flex flex-col gap-2">
+                  <ItemTitle>
+                    {run.trigger === 'manual_edit'
+                      ? `第 ${run.run_no} 份报告 · 历史人工稿`
+                      : `第 ${run.run_no} 次`}
+                  </ItemTitle>
+                  <div className="flex flex-col gap-2 sm:hidden">
+                    <Badge variant="secondary">
+                      {statusLabels[run.status]}
+                    </Badge>
+                    <time dateTime={run.created_at}>
+                      {new Date(run.created_at).toLocaleString('zh-CN', {
+                        hour12: false,
+                      })}
+                    </time>
+                  </div>
+                  {run.error_code ? (
+                    <ItemDescription className="line-clamp-none">
+                      {localizedErrorMessage(run.error_code) ??
+                        '这次运行未完成，请查看任务状态。'}
+                    </ItemDescription>
+                  ) : null}
+                </div>
+              ),
+            },
+            {
+              id: 'status',
+              header: '状态',
+              className: 'hidden sm:table-cell',
+              cell: (run) => (
+                <Badge variant="secondary">{statusLabels[run.status]}</Badge>
+              ),
+            },
+            {
+              id: 'created',
+              header: '创建时间',
+              className: 'hidden sm:table-cell',
+              cell: (run) => (
+                <time dateTime={run.created_at}>
+                  {new Date(run.created_at).toLocaleString('zh-CN', {
+                    hour12: false,
+                  })}
+                </time>
+              ),
+            },
+          ]}
+        />
+      ) : null}
       {runs.data ? (
         <PagePagination
           pageSize={pageSize}

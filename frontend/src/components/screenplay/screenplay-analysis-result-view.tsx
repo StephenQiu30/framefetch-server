@@ -20,7 +20,7 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from '@/components/ui/accordion';
-import { ItemGroup } from '@/components/ui/item';
+import { ItemDescription, ItemGroup, ItemTitle } from '@/components/ui/item';
 import { Tabs, TabsContent, TabsList } from '@/components/ui/tabs';
 
 function SceneReviewList({
@@ -37,9 +37,9 @@ function SceneReviewList({
 
   return (
     <div className="flex flex-col gap-6">
-      <p className="text-muted-foreground text-sm">
+      <ItemDescription className="line-clamp-none">
         共 {scenes.length} 场。按原剧本顺序查看；展开场景可阅读具体判断。
-      </p>
+      </ItemDescription>
       <Accordion type="multiple">
         <ol className="flex flex-col gap-3" start={first + 1}>
           {visibleScenes.map((scene, index) => (
@@ -55,7 +55,7 @@ function SceneReviewList({
                     <Detail label="节奏">{scene.pacing}</Detail>
                   </ItemGroup>
                   {scene.findings.length > 0 && (
-                    <ul className="mt-4 list-disc flex flex-col gap-1 pl-5 text-sm text-muted-foreground">
+                    <ul className="mt-4 list-disc flex flex-col gap-1">
                       {scene.findings.map((finding) => (
                         <li key={finding}>{finding}</li>
                       ))}
@@ -98,15 +98,12 @@ export default function ScreenplayAnalysisResultView({
         className="flex flex-col gap-6"
       >
         <div>
-          <h2
-            id="screenplay-review-heading"
-            className="text-2xl font-semibold tracking-tight"
-          >
-            审稿重点
-          </h2>
-          <p className="text-muted-foreground mt-2 text-sm">
+          <ItemTitle className="line-clamp-none">
+            <h2 id="screenplay-review-heading">审稿重点</h2>
+          </ItemTitle>
+          <ItemDescription className="line-clamp-none mt-2">
             先看需要修改的地方，再看值得保留的设计。
-          </p>
+          </ItemDescription>
         </div>
         <FindingList
           heading="优先修改"
@@ -162,8 +159,10 @@ export default function ScreenplayAnalysisResultView({
           {result.characters.length ? (
             <ul className="flex flex-col gap-6">
               {result.characters.map((character) => (
-                <li key={character.id} className="flex flex-col gap-4 py-4">
-                  <h3 className="font-semibold">{character.name}</h3>
+                <li key={character.id} className="flex flex-col gap-4">
+                  <ItemTitle className="line-clamp-none">
+                    <h3>{character.name}</h3>
+                  </ItemTitle>
                   <ItemGroup className="grid gap-4 sm:grid-cols-3">
                     <Detail label="目标">{character.goal}</Detail>
                     <Detail label="冲突">{character.conflict}</Detail>
@@ -173,7 +172,9 @@ export default function ScreenplayAnalysisResultView({
               ))}
             </ul>
           ) : (
-            <p className="text-muted-foreground">本次结果没有独立人物条目。</p>
+            <ItemDescription className="line-clamp-none">
+              本次结果没有独立人物条目。
+            </ItemDescription>
           )}
         </TabsContent>
         <TabsContent value="dialogue" className="flex flex-col gap-6">

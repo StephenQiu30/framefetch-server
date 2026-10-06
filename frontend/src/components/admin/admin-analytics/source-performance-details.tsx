@@ -1,3 +1,4 @@
+import { ItemDescription } from '@/components/ui/item';
 import {
   Table,
   TableBody,
@@ -31,10 +32,12 @@ export function SourcePerformanceDetails({ sources }: { sources: Source[] }) {
           {sources.map((source) => (
             <TableRow key={source.source_key}>
               <TableHead className="text-left whitespace-normal" scope="row">
-                <p className="truncate font-medium">{sourceLabel(source)}</p>
-                <p className="mt-1 truncate font-mono text-xs text-muted-foreground">
+                <ItemDescription className="line-clamp-none truncate">
+                  {sourceLabel(source)}
+                </ItemDescription>
+                <ItemDescription className="line-clamp-none mt-1 truncate">
                   {source.source_key}
-                </p>
+                </ItemDescription>
               </TableHead>
               <MetricCell value={formatInteger(source.total)} />
               <MetricCell value={formatPercent(source.success_rate)} />
@@ -78,11 +81,11 @@ function MetricCell({ value }: { value: string }) {
 
 function StatusSummary({ source }: { source: Source }) {
   return (
-    <span className="flex flex-wrap gap-x-3 gap-y-1 text-xs text-muted-foreground tabular-nums">
-      <span className="text-chart-2">成功 {source.succeeded}</span>
-      <span className="text-destructive">失败 {source.failed}</span>
+    <span className="flex flex-wrap gap-x-3 gap-y-1 tabular-nums">
+      <span>成功 {source.succeeded}</span>
+      <span>失败 {source.failed}</span>
       <span>取消 {source.cancelled}</span>
-      <span className="text-chart-1">进行中 {source.active}</span>
+      <span>进行中 {source.active}</span>
     </span>
   );
 }

@@ -5,6 +5,7 @@ import { useState } from 'react';
 import { getContentSource } from '@/api/analyses';
 import { FeedbackNotice } from '@/components/layout/feedback-notice';
 import { Button } from '@/components/ui/button';
+import { ItemDescription } from '@/components/ui/item';
 import { privateQueryKey } from '@/lib/query-keys';
 import { displayError } from '@/lib/request-error';
 
@@ -23,12 +24,13 @@ export default function ContentSourceReview({
       getContentSource({ analysis_id: analysisId }, { signal }),
   });
   return (
-    <details
-      className="text-sm"
-      onToggle={(event) => setOpen(event.currentTarget.open)}
-    >
-      <summary className="cursor-pointer py-2 font-medium">来源回查</summary>
-      {query.isFetching ? <p role="status">正在读取材料…</p> : null}
+    <details onToggle={(event) => setOpen(event.currentTarget.open)}>
+      <summary className="cursor-pointer">来源回查</summary>
+      {query.isFetching ? (
+        <ItemDescription className="line-clamp-none" role="status">
+          正在读取材料…
+        </ItemDescription>
+      ) : null}
       {query.error ? (
         <FeedbackNotice
           title="材料读取失败"
@@ -42,13 +44,15 @@ export default function ContentSourceReview({
           <li
             key={`${citation.block_id}-${citation.material_id}-${citation.segment_id}-${citation.quote}`}
           >
-            <p>{citation.quote}</p>
-            <p className="mt-1 text-muted-foreground">
+            <ItemDescription className="line-clamp-none">
+              {citation.quote}
+            </ItemDescription>
+            <ItemDescription className="line-clamp-none mt-1">
               {query.data?.materials.find(
                 (material) => material.id === citation.material_id,
               )?.title ?? citation.material_id}{' '}
               · {citation.segment_id}
-            </p>
+            </ItemDescription>
           </li>
         ))}
       </ul>
@@ -58,9 +62,9 @@ export default function ContentSourceReview({
             {material.title}
             {material.role === 'author_style' ? ' · 作者范文' : ''}
           </summary>
-          <p className="mt-3 whitespace-pre-wrap break-words leading-7">
+          <ItemDescription className="line-clamp-none mt-3 whitespace-pre-wrap break-words">
             {material.text}
-          </p>
+          </ItemDescription>
         </details>
       ))}
     </details>

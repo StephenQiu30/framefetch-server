@@ -2,7 +2,6 @@
 
 import { FileText, UploadSimple, X } from '@phosphor-icons/react';
 import { type FormEvent, useId, useRef } from 'react';
-
 import {
   IntakeControlRow,
   IntakePickerButton,
@@ -12,6 +11,7 @@ import { FeedbackNotice } from '@/components/layout/feedback-notice';
 import { Button } from '@/components/ui/button';
 import { Form } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
+import { ItemDescription } from '@/components/ui/item';
 import { Progress } from '@/components/ui/progress';
 import { Spinner } from '@/components/ui/spinner';
 import { formatFileSize } from '@/lib/format';
@@ -104,17 +104,10 @@ export function ScreenplayUploadForm({
     />
   );
   const fileDescription = (
-    <p
-      className={
-        workspace
-          ? 'text-sm leading-6 text-muted-foreground'
-          : 'mt-2 text-xs text-muted-foreground'
-      }
-      id={descriptionId}
-    >
+    <ItemDescription className={workspace ? '' : 'mt-2'} id={descriptionId}>
       支持 DOCX、PDF、TXT、Markdown 和 Fountain
       格式。选择文件后，点击“上传剧本”开始导入。
-    </p>
+    </ItemDescription>
   );
   const errorNotice = error ? (
     <FeedbackNotice
@@ -128,19 +121,25 @@ export function ScreenplayUploadForm({
   ) : null;
   const progressNotice = busy ? (
     <div className="mt-4">
-      <div className="mb-3 flex min-h-9 items-center justify-between gap-4">
-        <p aria-live="polite" className="text-sm" role="status">
+      <div className="mb-3 flex items-center justify-between gap-4">
+        <ItemDescription
+          aria-live="polite"
+          className="line-clamp-none"
+          role="status"
+        >
           {phaseLabels[phase]}
-        </p>
+        </ItemDescription>
         <div className="flex items-center gap-3">
-          <span
-            aria-hidden
-            className="text-xs tabular-nums text-muted-foreground"
-          >
+          <span aria-hidden className="tabular-nums">
             {progress}%
           </span>
           {canCancel ? (
-            <Button onClick={onCancel} size="sm" type="button" variant="ghost">
+            <Button
+              onClick={onCancel}
+              size="default"
+              type="button"
+              variant="ghost"
+            >
               <X aria-hidden data-icon="inline-start" />
               取消上传
             </Button>

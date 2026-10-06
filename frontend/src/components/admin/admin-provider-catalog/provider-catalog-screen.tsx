@@ -16,6 +16,7 @@ import {
   PagePagination,
 } from '@/components/layout/page-pagination';
 import { Button } from '@/components/ui/button';
+import { Item, ItemContent, ItemDescription } from '@/components/ui/item';
 import { Skeleton } from '@/components/ui/skeleton';
 
 import type { CatalogResultState } from './model';
@@ -73,9 +74,13 @@ export function ProviderCatalogScreen({
         />
       </div>
 
-      <div className="flex flex-wrap items-center justify-between gap-4 text-sm text-muted-foreground">
-        <p>“仅目录”条目不会获得真实下载能力。</p>
-      </div>
+      <Item variant="muted">
+        <ItemContent>
+          <ItemDescription className="line-clamp-none">
+            “仅目录”条目不会获得真实下载能力。
+          </ItemDescription>
+        </ItemContent>
+      </Item>
 
       {result.error && result.items.length === 0 ? (
         <PageErrorNotice
@@ -88,7 +93,7 @@ export function ProviderCatalogScreen({
       {result.error && result.items.length > 0 ? (
         <FeedbackNotice
           action={
-            <Button onClick={onRetry} size="sm" variant="outline">
+            <Button onClick={onRetry} size="default" variant="outline">
               <ArrowClockwise aria-hidden data-icon="inline-start" />
               重新加载
             </Button>
@@ -198,7 +203,7 @@ function CatalogSkeleton() {
       role="status"
     >
       {['first', 'second', 'third', 'fourth'].map((row) => (
-        <div className="py-4" key={row}>
+        <div key={row}>
           <Skeleton className="h-12 w-full" />
         </div>
       ))}

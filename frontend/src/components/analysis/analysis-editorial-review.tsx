@@ -1,4 +1,5 @@
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { ItemDescription } from '@/components/ui/item';
 
 export default function AnalysisEditorialReview({
   result,
@@ -23,17 +24,19 @@ export default function AnalysisEditorialReview({
         </Alert>
       ) : null}
       {review.findings.length ? (
-        <details className="text-sm">
-          <summary className="cursor-pointer py-2 font-medium">
+        <details>
+          <summary className="cursor-pointer">
             审校意见（{review.findings.length}）
           </summary>
           <ul className="mt-3 grid gap-4">
             {review.findings.map((finding) => (
               <li key={`${finding.block_id}-${finding.problem}`}>
-                <p className="font-medium">{finding.problem}</p>
-                <p className="mt-1 text-muted-foreground">
+                <ItemDescription className="line-clamp-none">
+                  {finding.problem}
+                </ItemDescription>
+                <ItemDescription className="line-clamp-none mt-1">
                   {finding.correction}
-                </p>
+                </ItemDescription>
               </li>
             ))}
           </ul>

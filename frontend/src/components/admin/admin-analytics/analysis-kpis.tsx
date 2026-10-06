@@ -52,15 +52,16 @@ export function AnalysisKpis({
     <ItemGroup className="grid grid-cols-2 gap-x-6 gap-y-6 sm:grid-cols-4">
       {metrics.map((metric) => (
         <Item
+          variant="muted"
           className="min-w-0 items-start"
           key={metric.label}
           role="listitem"
         >
-          <ItemContent className="gap-0">
-            <ItemTitle>{metric.label}</ItemTitle>
-            <p className="mt-3 text-2xl font-medium leading-none tracking-tight tabular-nums sm:text-3xl">
-              {metric.value}
-            </p>
+          <ItemContent className="gap-2">
+            <ItemTitle className="line-clamp-none">{metric.label}</ItemTitle>
+            <ItemTitle className="line-clamp-none">
+              <p className="mt-3 tabular-nums">{metric.value}</p>
+            </ItemTitle>
             <ItemDescription className="mt-3 line-clamp-none">
               {metric.detail}
             </ItemDescription>

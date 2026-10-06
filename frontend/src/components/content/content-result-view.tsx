@@ -4,6 +4,7 @@ import AnalysisReportPreview from '@/components/analysis/analysis-report-preview
 import ContentReportHistory from '@/components/content/content-report-history';
 import ContentSourceReview from '@/components/content/content-source-review';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { ItemDescription, ItemTitle } from '@/components/ui/item';
 
 export default function ContentResultView({
   result,
@@ -41,48 +42,48 @@ export default function ContentResultView({
         {markdown ? (
           <AnalysisReportPreview markdown={markdown} />
         ) : (
-          <article className="space-y-5 text-base leading-8">
+          <article className="space-y-5">
             {result.title ? (
-              <h2 className="text-2xl font-medium">{result.title}</h2>
+              <ItemTitle className="line-clamp-none">
+                <h2>{result.title}</h2>
+              </ItemTitle>
             ) : null}
             {result.blocks.map((block) =>
               block.type === 'heading' ? (
-                <h3 key={block.id} className="text-xl font-medium">
-                  {block.text}
-                </h3>
+                <ItemTitle key={block.id}>
+                  <h3>{block.text}</h3>
+                </ItemTitle>
               ) : block.type === 'list' ? (
                 block.ordered ? (
-                  <ol key={block.id} className="list-decimal pl-6">
+                  <ol key={block.id} className="list-decimal">
                     {block.items.map((text) => (
                       <li key={`${block.id}-${text}`}>{text}</li>
                     ))}
                   </ol>
                 ) : (
-                  <ul key={block.id} className="list-disc pl-6">
+                  <ul key={block.id} className="list-disc">
                     {block.items.map((text) => (
                       <li key={`${block.id}-${text}`}>{text}</li>
                     ))}
                   </ul>
                 )
               ) : block.type === 'quote' ? (
-                <blockquote
+                <blockquote key={block.id}>{block.text}</blockquote>
+              ) : (
+                <ItemDescription
                   key={block.id}
-                  className="pl-4 text-muted-foreground"
+                  className="line-clamp-none whitespace-pre-line"
                 >
                   {block.text}
-                </blockquote>
-              ) : (
-                <p key={block.id} className="whitespace-pre-line">
-                  {block.text}
-                </p>
+                </ItemDescription>
               ),
             )}
           </article>
         )}
       </section>
       {review?.findings.length ? (
-        <details className="text-sm">
-          <summary className="cursor-pointer py-2 font-medium">
+        <details>
+          <summary className="cursor-pointer">
             {historicalEdit ? '历史审校记录' : '审校意见'}（
             {review.findings.length}）
           </summary>
@@ -91,10 +92,12 @@ export default function ContentResultView({
               <li
                 key={`${finding.block_id}-${finding.category}-${finding.problem}`}
               >
-                <p className="font-medium">{finding.problem}</p>
-                <p className="mt-1 text-muted-foreground">
+                <ItemDescription className="line-clamp-none">
+                  {finding.problem}
+                </ItemDescription>
+                <ItemDescription className="line-clamp-none mt-1">
                   {finding.correction}
-                </p>
+                </ItemDescription>
               </li>
             ))}
           </ul>

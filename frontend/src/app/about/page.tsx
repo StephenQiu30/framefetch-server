@@ -1,10 +1,19 @@
 import { PageHeader } from '@/components/layout/page-header';
 import { PageNavigation } from '@/components/layout/page-navigation';
+import { SplitLayout } from '@/components/layout/split-layout';
 import { breadcrumbList, JsonLd } from '@/components/seo/json-ld';
+import { Button } from '@/components/ui/button';
+import {
+  Item,
+  ItemContent,
+  ItemDescription,
+  ItemGroup,
+  ItemTitle,
+} from '@/components/ui/item';
 import { publicMetadata } from '@/lib/public-metadata';
 import { absoluteUrl, siteConfig } from '@/lib/site';
 
-const title = '关于帧取 FrameFetch：开源媒体工作流的定位、原则与边界';
+const title = '关于帧取 FrameFetch：开源个人视频工具的定位、原则与边界';
 const description =
   '帧取 FrameFetch 是 MIT 开源、可自托管的视频解析、剧本文档处理与 AI 视频分析项目。了解它面向谁、采用哪些工程原则、如何处理内容授权，以及服务端与移动端仓库的关系。';
 export const metadata = publicMetadata(title, description, '/about/');
@@ -19,7 +28,7 @@ const audiences = [
     text: '把视频与剧本文档组织为可追踪的任务，并导出 Markdown / DOCX 报告用于审阅。',
   },
   {
-    name: '开发者与团队',
+    name: '开发者',
     text: '在自己的基础设施上运行 FastAPI、Next.js 与 Worker，通过 OpenAPI 契约扩展 Web 或移动端。',
   },
 ];
@@ -78,126 +87,109 @@ export default function AboutPage() {
   };
 
   return (
-    <article className="inner-page">
-      <JsonLd data={structuredData} />
-      <PageNavigation
-        fallbackHref="/"
-        breadcrumbs={[{ label: '帧取', href: '/' }, { label: '关于' }]}
-      />
-      <PageHeader title="关于帧取" description={description} />
-
-      <section
-        aria-labelledby="audience-title"
-        className="scroll-mt-24 py-12"
-        data-slot="borderless-section"
-        id="audience"
-      >
-        <h2
-          className="text-xl font-semibold tracking-tight"
-          id="audience-title"
+    <article className="inner-page flex flex-col gap-8">
+      <div>
+        <JsonLd data={structuredData} />
+        <PageNavigation fallbackHref="/" />
+        <PageHeader title="关于帧取" description={description} />
+      </div>
+      <SplitLayout>
+        <section
+          id="audience"
+          aria-labelledby="audience-title"
+          className="flex flex-col gap-4"
         >
-          帧取为谁而做？
-        </h2>
-        <dl className="mt-5 grid max-w-3xl gap-5">
-          {audiences.map(({ name, text }) => (
-            <div key={name}>
-              <dt className="font-medium">{name}</dt>
-              <dd className="mt-1 leading-8 text-muted-foreground">{text}</dd>
-            </div>
-          ))}
-        </dl>
-      </section>
-
-      <section
-        aria-labelledby="principles-title"
-        className="scroll-mt-24 py-12"
-        data-slot="borderless-section"
-        id="principles"
-      >
-        <h2
-          className="text-xl font-semibold tracking-tight"
-          id="principles-title"
+          <ItemTitle>
+            <h2 id="audience-title">帧取为谁而做？</h2>
+          </ItemTitle>
+          <ItemGroup>
+            {audiences.map(({ name, text }) => (
+              <Item variant="muted" key={name}>
+                <ItemContent>
+                  <ItemTitle>{name}</ItemTitle>
+                  <ItemDescription className="line-clamp-none">
+                    {text}
+                  </ItemDescription>
+                </ItemContent>
+              </Item>
+            ))}
+          </ItemGroup>
+        </section>
+        <section
+          id="principles"
+          aria-labelledby="principles-title"
+          className="flex flex-col gap-4"
         >
-          为什么采用异步工作流架构？
-        </h2>
-        <dl className="mt-5 grid max-w-3xl gap-5">
-          {principles.map(({ name, text }) => (
-            <div key={name}>
-              <dt className="font-medium">{name}</dt>
-              <dd className="mt-1 leading-8 text-muted-foreground">{text}</dd>
-            </div>
-          ))}
-        </dl>
-      </section>
-
+          <ItemTitle>
+            <h2 id="principles-title">为什么采用异步工作流架构？</h2>
+          </ItemTitle>
+          <ItemGroup>
+            {principles.map(({ name, text }) => (
+              <Item variant="muted" key={name}>
+                <ItemContent>
+                  <ItemTitle>{name}</ItemTitle>
+                  <ItemDescription className="line-clamp-none">
+                    {text}
+                  </ItemDescription>
+                </ItemContent>
+              </Item>
+            ))}
+          </ItemGroup>
+        </section>
+      </SplitLayout>
+      <Item asChild variant="muted">
+        <section id="boundaries" aria-labelledby="boundaries-title">
+          <ItemContent className="gap-4">
+            <ItemTitle>
+              <h2 id="boundaries-title">下载与使用边界</h2>
+            </ItemTitle>
+            <ItemDescription className="line-clamp-none">
+              默认只处理用户有权使用、公开、免费且非 DRM 的 HTTP(S)
+              内容。账号身份不扩张下载范围，受保护的内容可通过有权处理的本地文件导入。私网
+              URL、任意 yt-dlp 参数和 shell 输入始终禁止。
+            </ItemDescription>
+            <ItemDescription className="line-clamp-none">
+              MIT
+              许可证授予软件的使用、修改和分发权，不代表授予第三方媒体的下载、复制或分析权。项目不提供官方
+              SaaS、公共演示站或服务可用性 SLA。
+            </ItemDescription>
+          </ItemContent>
+        </section>
+      </Item>
       <section
-        aria-labelledby="boundaries-title"
-        className="scroll-mt-24 py-12"
-        data-slot="borderless-section"
-        id="boundaries"
-      >
-        <h2
-          className="text-xl font-semibold tracking-tight"
-          id="boundaries-title"
-        >
-          帧取不做什么？
-        </h2>
-        <p className="mt-5 max-w-3xl leading-8 text-muted-foreground">
-          帧取不是规避平台限制的下载脚本。默认只处理用户有权使用、公开、免费且非
-          DRM 的 HTTP(S)
-          内容；受保护、会员、私密、购买或地域限制内容不属于项目目标。私网
-          URL、任意 yt-dlp 参数和 shell 输入始终禁止。
-        </p>
-        <p className="mt-5 max-w-3xl leading-8 text-muted-foreground">
-          MIT
-          许可证授予软件的使用、修改和分发权，不代表授予任何第三方媒体内容的下载、复制或分析权。项目不提供官方
-          SaaS、公共演示站或服务可用性 SLA。
-        </p>
-      </section>
-
-      <section
-        aria-labelledby="repositories-title"
-        className="scroll-mt-24 py-12"
-        data-slot="borderless-section"
         id="repositories"
+        aria-labelledby="repositories-title"
+        className="flex flex-col gap-4"
       >
-        <h2
-          className="text-xl font-semibold tracking-tight"
-          id="repositories-title"
-        >
-          源码在哪里？
-        </h2>
-        <ul className="mt-5 grid max-w-3xl gap-5">
+        <ItemTitle>
+          <h2 id="repositories-title">源码在哪里？</h2>
+        </ItemTitle>
+        <ItemGroup>
           {repositories.map(({ name, href, text }) => (
-            <li key={name}>
-              <a
-                className="focus-ring font-medium underline underline-offset-4"
-                href={href}
-              >
-                {name}
-              </a>
-              <p className="mt-1 leading-8 text-muted-foreground">{text}</p>
-            </li>
+            <Item key={name}>
+              <ItemContent>
+                <ItemTitle>
+                  <Button asChild variant="link">
+                    <a href={href}>{name}</a>
+                  </Button>
+                </ItemTitle>
+                <ItemDescription className="line-clamp-none">
+                  {text}
+                </ItemDescription>
+              </ItemContent>
+            </Item>
           ))}
-        </ul>
-        <p className="mt-6 max-w-3xl leading-8 text-muted-foreground">
+        </ItemGroup>
+        <ItemDescription className="line-clamp-none">
           项目由{' '}
-          <a
-            className="focus-ring underline underline-offset-4"
-            href={siteConfig.maintainer.url}
-          >
-            {siteConfig.maintainer.name}
-          </a>{' '}
+          <a href={siteConfig.maintainer.url}>{siteConfig.maintainer.name}</a>{' '}
           维护，欢迎通过 Issue 或 Pull Request 参与 Provider
-          适配、可靠性、前端与移动端体验、AI 报告、测试和文档建设。安全问题请按{' '}
-          <a
-            className="focus-ring underline underline-offset-4"
-            href={`${siteConfig.repositoryUrl}/blob/main/SECURITY.md`}
-          >
+          适配、前端与移动端体验、AI 报告、测试和文档建设。安全问题请按{' '}
+          <a href={`${siteConfig.repositoryUrl}/blob/main/SECURITY.md`}>
             安全策略
           </a>{' '}
           私下报告。
-        </p>
+        </ItemDescription>
       </section>
     </article>
   );

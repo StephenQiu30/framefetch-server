@@ -36,6 +36,7 @@ import {
 } from '@/components/ui/field';
 import { Form } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
+import { ItemDescription, ItemTitle } from '@/components/ui/item';
 import {
   Select,
   SelectContent,
@@ -58,9 +59,9 @@ import {
 type Notice = { text: string } | null;
 const MAX_AVATAR_UPLOAD_BYTES = 4 * 1024 * 1024;
 const AVATAR_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp']);
-const formClassName = 'mt-14 sm:mt-16';
+const formClassName = 'mt-8';
 const summaryClassName = 'flex min-w-0 flex-col gap-4 self-start';
-const identityClassName = 'flex flex-col items-center gap-3 text-center';
+const identityClassName = 'flex flex-col items-start gap-3';
 
 export function AccountView() {
   const { user, loading, setUser, refreshUser } = useAuth();
@@ -241,10 +242,12 @@ export function AccountView() {
                 <AvatarImage alt="" src={avatarUrl(user)} />
                 <AvatarFallback>{initials}</AvatarFallback>
               </Avatar>
-              <h2 className="text-base font-medium leading-snug">
-                {user.username}
-              </h2>
-              <p className="text-sm text-muted-foreground">{user.email}</p>
+              <ItemTitle className="line-clamp-none">
+                <h2 className="[overflow-wrap:anywhere]">{user.username}</h2>
+              </ItemTitle>
+              <ItemDescription className="line-clamp-none [overflow-wrap:anywhere]">
+                {user.email}
+              </ItemDescription>
               <Badge variant="secondary">{role}</Badge>
             </div>
             <div>
@@ -265,10 +268,10 @@ export function AccountView() {
                 type="file"
               />
               <Field
-                className="items-center text-center"
+                className="items-start"
                 data-invalid={avatarError ? true : undefined}
               >
-                <FieldGroup className="flex-row flex-wrap justify-center gap-2">
+                <FieldGroup className="flex-row flex-wrap gap-2">
                   <Button
                     aria-describedby={
                       avatarError ? 'avatar-help avatar-error' : 'avatar-help'
@@ -297,11 +300,7 @@ export function AccountView() {
                     </Button>
                   ) : null}
                 </FieldGroup>
-                <FieldDescription
-                  aria-live="polite"
-                  className="text-center"
-                  id="avatar-help"
-                >
+                <FieldDescription aria-live="polite" id="avatar-help">
                   JPEG、PNG 或 WebP，最大 4 MB。上传后自动裁切为方形。
                 </FieldDescription>
                 {avatarError ? (
@@ -313,17 +312,14 @@ export function AccountView() {
 
           <FieldSet className="min-w-0 gap-6">
             <FieldLegend variant="label">资料字段</FieldLegend>
-            <FieldGroup className="grid auto-rows-fr gap-6">
+            <FieldGroup className="gap-6">
               <Field>
                 <FieldLabel
                   className="w-full justify-between"
                   htmlFor="username"
                 >
                   用户名
-                  <span
-                    aria-hidden="true"
-                    className="text-xs text-muted-foreground tabular-nums"
-                  >
+                  <span aria-hidden="true" className="tabular-nums">
                     {usernameLength(username)}/32
                   </span>
                 </FieldLabel>

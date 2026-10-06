@@ -2,6 +2,7 @@
 
 import AnalysisEditorialReview from '@/components/analysis/analysis-editorial-review';
 import { Button } from '@/components/ui/button';
+import { ItemDescription, ItemTitle } from '@/components/ui/item';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 import { formatMillisecondRange } from '@/lib/format';
@@ -20,15 +21,14 @@ export default function AnalysisArticleResultView({
         <TabsTrigger value="evidence">回查依据</TabsTrigger>
       </TabsList>
       <TabsContent value="article">
-        <article
-          aria-label="文章正文"
-          className="mt-8 max-w-3xl break-words text-base leading-8"
-        >
-          <h2 className="text-2xl font-medium tracking-tight sm:text-3xl">
-            {result.title}
-          </h2>
+        <article aria-label="文章正文" className="mt-8 max-w-3xl break-words">
+          <ItemTitle className="line-clamp-none">
+            <h2>{result.title}</h2>
+          </ItemTitle>
           {result.lead ? (
-            <p className="mt-6 whitespace-pre-line">{result.lead}</p>
+            <ItemDescription className="line-clamp-none mt-6 whitespace-pre-line">
+              {result.lead}
+            </ItemDescription>
           ) : null}
           {result.sections.map((section) => (
             <section
@@ -36,9 +36,11 @@ export default function AnalysisArticleResultView({
               key={section.id}
             >
               {section.title ? (
-                <h3 className="text-xl font-medium">{section.title}</h3>
+                <ItemTitle className="line-clamp-none">
+                  <h3>{section.title}</h3>
+                </ItemTitle>
               ) : null}
-              <p
+              <ItemDescription
                 className={
                   section.title
                     ? 'mt-4 whitespace-pre-line'
@@ -46,11 +48,13 @@ export default function AnalysisArticleResultView({
                 }
               >
                 {section.body}
-              </p>
+              </ItemDescription>
             </section>
           ))}
           {result.closing ? (
-            <p className="mt-8 whitespace-pre-line">{result.closing}</p>
+            <ItemDescription className="line-clamp-none mt-8 whitespace-pre-line">
+              {result.closing}
+            </ItemDescription>
           ) : null}
         </article>
         <AnalysisEditorialReview result={result} />
@@ -59,10 +63,10 @@ export default function AnalysisArticleResultView({
         <div className="mt-8 max-w-3xl break-words">
           {result.sections.map((section, index) => (
             <section className="mb-8" key={section.id}>
-              <h3 className="text-lg font-medium">
-                {section.title || `段落 ${index + 1}`}
-              </h3>
-              <ul className="mt-3 flex flex-col gap-3 text-sm leading-7 text-muted-foreground">
+              <ItemTitle className="line-clamp-none">
+                <h3>{section.title || `段落 ${index + 1}`}</h3>
+              </ItemTitle>
+              <ul className="mt-3 flex flex-col gap-3">
                 {section.evidence.map((evidence) => (
                   <li
                     key={`${evidence.start_ms}-${evidence.end_ms}-${evidence.note}`}
@@ -88,8 +92,10 @@ export default function AnalysisArticleResultView({
           ))}
           {result.key_points.length ? (
             <>
-              <h3 className="text-lg font-medium">要点核对</h3>
-              <ul className="mt-3 flex flex-col gap-3 list-disc pl-5 leading-7 text-muted-foreground">
+              <ItemTitle className="line-clamp-none">
+                <h3>要点核对</h3>
+              </ItemTitle>
+              <ul className="mt-3 flex flex-col gap-3 list-disc">
                 {result.key_points.map((point) => (
                   <li key={point}>{point}</li>
                 ))}
@@ -98,8 +104,10 @@ export default function AnalysisArticleResultView({
           ) : null}
           {result.limitations.length ? (
             <section className="mt-8">
-              <h3 className="text-lg font-medium">待核验信息</h3>
-              <ul className="mt-3 flex flex-col gap-2 list-disc pl-5 leading-7 text-muted-foreground">
+              <ItemTitle className="line-clamp-none">
+                <h3>待核验信息</h3>
+              </ItemTitle>
+              <ul className="mt-3 flex flex-col gap-2 list-disc">
                 {result.limitations.map((limitation) => (
                   <li key={limitation}>{limitation}</li>
                 ))}

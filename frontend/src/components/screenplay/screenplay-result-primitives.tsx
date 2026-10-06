@@ -24,22 +24,26 @@ export function FindingList({
 }) {
   return (
     <div className={className}>
-      <h3 className="mb-4 text-lg font-medium tracking-tight">{heading}</h3>
+      <ItemTitle className="line-clamp-none">
+        <h3 className="mb-4">{heading}</h3>
+      </ItemTitle>
       {items.length ? (
         <ul className="flex flex-col gap-2">
           {items.map((item) => (
             <Item asChild className="block" key={item.id}>
               <li>
-                <strong className="font-medium">{item.title}</strong>
-                <p className="mt-2 leading-7 text-muted-foreground">
+                <strong>{item.title}</strong>
+                <ItemDescription className="line-clamp-none mt-2">
                   {item.description}
-                </p>
+                </ItemDescription>
               </li>
             </Item>
           ))}
         </ul>
       ) : (
-        <p className="py-7 text-muted-foreground">{emptyMessage}</p>
+        <ItemDescription className="line-clamp-none">
+          {emptyMessage}
+        </ItemDescription>
       )}
     </div>
   );
@@ -55,7 +59,7 @@ export function Detail({
   return (
     <Item className="items-start" role="listitem">
       <ItemContent className="gap-1">
-        <ItemTitle>{label}</ItemTitle>
+        <ItemTitle className="line-clamp-none">{label}</ItemTitle>
         <ItemDescription className="line-clamp-none">
           {children}
         </ItemDescription>
@@ -67,8 +71,10 @@ export function Detail({
 export function Metric({ label, value }: { label: string; value: string }) {
   return (
     <div>
-      <p className="text-xs text-muted-foreground">{label}</p>
-      <p className="mt-1 text-xl tabular-nums sm:text-2xl">{value}</p>
+      <ItemDescription className="line-clamp-none">{label}</ItemDescription>
+      <ItemTitle className="line-clamp-none">
+        <p className="mt-1 tabular-nums">{value}</p>
+      </ItemTitle>
     </div>
   );
 }

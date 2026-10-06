@@ -16,6 +16,7 @@ import {
 } from '@/components/screenplay/screenplay-document-format';
 import { ScreenplayUploadDialog } from '@/components/screenplay/screenplay-upload-dialog';
 import { Badge } from '@/components/ui/badge';
+import { Item, ItemDescription, ItemTitle } from '@/components/ui/item';
 import { Skeleton } from '@/components/ui/skeleton';
 
 export function ScreenplayDocumentList({
@@ -73,16 +74,15 @@ function DocumentRowColumns(
         const detailHref = `/documents/detail?documentId=${encodeURIComponent(document.id)}`;
         return (
           <div className="flex min-w-0 flex-col gap-1">
-            <Link
-              className="focus-ring line-clamp-2 rounded-sm text-sm font-medium leading-snug hover:text-muted-foreground"
-              href={detailHref}
-            >
-              {document.title}
-            </Link>
-            <span className="line-clamp-2 break-all text-xs text-muted-foreground">
+            <Item asChild>
+              <Link href={detailHref}>
+                <ItemTitle className="line-clamp-2">{document.title}</ItemTitle>
+              </Link>
+            </Item>
+            <ItemDescription className="line-clamp-2 break-all">
               {document.original_filename}
-            </span>
-            <div className="flex flex-col gap-1 text-xs text-muted-foreground sm:hidden">
+            </ItemDescription>
+            <div className="flex flex-col gap-1 sm:hidden">
               <span>
                 {documentFormatLabels[document.source_format]} ·{' '}
                 {languageLabel(document.detected_language)}
@@ -132,9 +132,7 @@ function DocumentRowColumns(
               {document.scene_count ?? '-'} 个场景 ·{' '}
               {document.character_count?.toLocaleString('zh-CN') ?? '-'} 个字符
             </span>
-            <span className="text-xs text-muted-foreground">
-              {languageLabel(document.detected_language)}
-            </span>
+            <span>{languageLabel(document.detected_language)}</span>
           </div>
         );
       },
@@ -178,10 +176,7 @@ function LoadingRows() {
       </span>
       <div aria-hidden className="flex flex-col gap-2">
         {['first', 'second', 'third'].map((key) => (
-          <div
-            className="grid grid-cols-[minmax(0,1fr)_auto] gap-5 py-6"
-            key={key}
-          >
+          <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-5" key={key}>
             <div className="flex flex-col gap-2">
               <Skeleton className="h-5 w-2/5" />
               <Skeleton className="h-4 w-3/5" />

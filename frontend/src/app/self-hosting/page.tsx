@@ -1,6 +1,17 @@
 import { PageHeader } from '@/components/layout/page-header';
 import { PageNavigation } from '@/components/layout/page-navigation';
+import { SplitLayout } from '@/components/layout/split-layout';
 import { breadcrumbList, JsonLd } from '@/components/seo/json-ld';
+import { Button } from '@/components/ui/button';
+import { Field, FieldLabel } from '@/components/ui/field';
+import {
+  Item,
+  ItemContent,
+  ItemDescription,
+  ItemGroup,
+  ItemTitle,
+} from '@/components/ui/item';
+import { Textarea } from '@/components/ui/textarea';
 import { publicMetadata } from '@/lib/public-metadata';
 import { absoluteUrl, siteConfig } from '@/lib/site';
 
@@ -92,126 +103,123 @@ export default function SelfHostingPage() {
   };
 
   return (
-    <article className="inner-page">
-      <JsonLd data={structuredData} />
-      <PageNavigation
-        fallbackHref="/"
-        breadcrumbs={[{ label: '帧取', href: '/' }, { label: '自托管部署' }]}
-      />
-      <PageHeader title="自托管部署指南" description={description} />
-      <p className="mt-6 max-w-3xl text-sm leading-7 text-muted-foreground">
-        本页摘录当前部署流程。命令与配置以仓库 README
-        为准；平台登录、换机与故障恢复请阅读对应设计文档。
-      </p>
-
-      <section
-        aria-labelledby="requirements-title"
-        className="scroll-mt-24 py-12"
-        data-slot="borderless-section"
-        id="requirements"
-      >
-        <h2
-          className="text-xl font-semibold tracking-tight"
-          id="requirements-title"
+    <article className="inner-page flex flex-col gap-8">
+      <div>
+        <JsonLd data={structuredData} />
+        <PageNavigation fallbackHref="/" />
+        <PageHeader title="自托管部署指南" description={description} />
+      </div>
+      <Item variant="muted">
+        <ItemContent>
+          <ItemDescription className="line-clamp-none">
+            本页摘录当前部署流程。命令与配置以仓库 README
+            为准；平台登录、换机与故障恢复请阅读对应设计文档。
+          </ItemDescription>
+        </ItemContent>
+      </Item>
+      <SplitLayout columns="primary">
+        <section
+          id="steps"
+          aria-labelledby="steps-title"
+          className="flex flex-col gap-4"
         >
-          运行帧取需要准备什么？
-        </h2>
-        <ul className="mt-5 grid max-w-3xl list-disc gap-3 pl-5 leading-8 text-muted-foreground">
-          {requirements.map((item) => (
-            <li key={item}>{item}</li>
-          ))}
-        </ul>
-      </section>
-
-      <section
-        aria-labelledby="steps-title"
-        className="scroll-mt-24 py-12"
-        data-slot="borderless-section"
-        id="steps"
-      >
-        <h2 className="text-xl font-semibold tracking-tight" id="steps-title">
-          如何用 Docker Compose 部署？
-        </h2>
-        <ol className="mt-5 grid max-w-3xl gap-10">
-          {steps.map(({ id, title: stepTitle, text, code }, index) => (
-            <li className="min-w-0 scroll-mt-24" id={id} key={id}>
-              <h3 className="font-medium">
-                {index + 1}. {stepTitle}
-              </h3>
-              <p className="mt-3 break-words leading-8 text-muted-foreground">
-                {text}
-              </p>
-              <pre
-                title={`${stepTitle}命令`}
-                className="mt-4 overflow-x-auto rounded-md bg-muted p-4 font-mono text-xs leading-6"
-                // biome-ignore lint/a11y/noNoninteractiveTabindex: Scrollable commands need keyboard access.
-                tabIndex={0}
-              >
-                <code>{code}</code>
-              </pre>
-            </li>
-          ))}
-        </ol>
-      </section>
-
-      <section
-        aria-labelledby="ai-title"
-        className="scroll-mt-24 py-12"
-        data-slot="borderless-section"
-        id="ai-analysis"
-      >
-        <h2 className="text-xl font-semibold tracking-tight" id="ai-title">
-          AI 视频分析是否必须启用？
-        </h2>
-        <p className="mt-5 max-w-3xl leading-8 text-muted-foreground">
-          不是。AI Worker 独立于业务 Compose 运行，可复用宿主机已登录的 Codex
-          App Server，或由管理员在 Web 中配置受支持的模型
-          Provider。只需要下载与剧本文档导入时，在 .env 中设置
-          ANALYSIS_ENABLED=false；关闭 AI 不影响下载和文档导入。
-        </p>
-        <p className="mt-5 max-w-3xl leading-8 text-muted-foreground">
-          使用外部模型时，分析所需内容会发送到该服务，并可能产生费用。启用前应确认素材授权和模型服务的数据处理约定。
-        </p>
-      </section>
-
-      <section
-        aria-labelledby="production-title"
-        className="scroll-mt-24 py-12"
-        data-slot="borderless-section"
-        id="production"
-      >
-        <h2
-          className="text-xl font-semibold tracking-tight"
-          id="production-title"
-        >
-          公开上线前应检查什么？
-        </h2>
-        <ul className="mt-5 grid max-w-3xl list-disc gap-3 pl-5 leading-8 text-muted-foreground">
-          {productionChecklist.map((item) => (
-            <li key={item}>{item}</li>
-          ))}
-        </ul>
-      </section>
-
-      <nav aria-label="延伸阅读" className="flex flex-wrap gap-x-6 gap-y-3">
-        <a
-          className="focus-ring text-sm underline underline-offset-4"
-          href={`${siteConfig.repositoryUrl}#快速开始`}
-        >
-          README 快速开始
-        </a>
-        <a
-          className="focus-ring text-sm underline underline-offset-4"
-          href={`${siteConfig.repositoryUrl}/blob/main/workspace/content/design/README.md`}
-        >
-          系统设计
-        </a>
-        <a
-          className="focus-ring text-sm underline underline-offset-4"
-          href="/guide/"
-        >
-          使用指南
-        </a>
+          <ItemTitle>
+            <h2 id="steps-title">如何用 Docker Compose 部署？</h2>
+          </ItemTitle>
+          <ol className="flex min-w-0 flex-col gap-4">
+            {steps.map(({ id, title: stepTitle, text, code }, index) => (
+              <Item asChild key={id} variant="muted">
+                <li id={id} className="scroll-mt-24">
+                  <ItemContent className="min-w-0 gap-4">
+                    <ItemTitle className="line-clamp-none">
+                      <h3>
+                        {index + 1}. {stepTitle}
+                      </h3>
+                    </ItemTitle>
+                    <ItemDescription className="line-clamp-none">
+                      {text}
+                    </ItemDescription>
+                    <Field>
+                      <FieldLabel htmlFor={`${id}-command`}>
+                        {stepTitle}命令
+                      </FieldLabel>
+                      <Textarea
+                        id={`${id}-command`}
+                        readOnly
+                        rows={code.split('\n').length + 1}
+                        value={code}
+                        wrap="off"
+                      />
+                    </Field>
+                  </ItemContent>
+                </li>
+              </Item>
+            ))}
+          </ol>
+        </section>
+        <ItemGroup className="gap-6 self-start">
+          <Item asChild variant="muted">
+            <section id="requirements" aria-labelledby="requirements-title">
+              <ItemContent className="gap-4">
+                <ItemTitle className="line-clamp-none">
+                  <h2 id="requirements-title">运行帧取需要准备什么？</h2>
+                </ItemTitle>
+                {requirements.map((item) => (
+                  <ItemDescription className="line-clamp-none" key={item}>
+                    {item}
+                  </ItemDescription>
+                ))}
+              </ItemContent>
+            </section>
+          </Item>
+          <Item asChild variant="muted">
+            <section id="ai-analysis" aria-labelledby="ai-title">
+              <ItemContent className="gap-4">
+                <ItemTitle className="line-clamp-none">
+                  <h2 id="ai-title">AI 视频分析是否必须启用？</h2>
+                </ItemTitle>
+                <ItemDescription className="line-clamp-none">
+                  不是。AI Worker 独立于业务 Compose 运行，可复用宿主机已登录的
+                  Codex App Server，或由管理员在 Web 中配置受支持的模型
+                  Provider。只需要下载与剧本文档导入时，在 .env 中设置
+                  ANALYSIS_ENABLED=false；关闭 AI 不影响下载和文档导入。
+                </ItemDescription>
+                <ItemDescription className="line-clamp-none">
+                  使用外部模型时，分析所需内容会发送到该服务，并可能产生费用。启用前应确认素材授权和模型服务的数据处理约定。
+                </ItemDescription>
+              </ItemContent>
+            </section>
+          </Item>
+          <Item asChild variant="muted">
+            <section id="production" aria-labelledby="production-title">
+              <ItemContent className="gap-4">
+                <ItemTitle>
+                  <h2 id="production-title">公开上线前应检查什么？</h2>
+                </ItemTitle>
+                {productionChecklist.map((item) => (
+                  <ItemDescription className="line-clamp-none" key={item}>
+                    {item}
+                  </ItemDescription>
+                ))}
+              </ItemContent>
+            </section>
+          </Item>
+        </ItemGroup>
+      </SplitLayout>
+      <nav aria-label="延伸阅读" className="flex flex-wrap gap-3">
+        <Button asChild variant="ghost">
+          <a href={`${siteConfig.repositoryUrl}#快速开始`}>README 快速开始</a>
+        </Button>
+        <Button asChild variant="ghost">
+          <a
+            href={`${siteConfig.repositoryUrl}/blob/main/workspace/content/design/README.md`}
+          >
+            系统设计
+          </a>
+        </Button>
+        <Button asChild variant="ghost">
+          <a href="/guide/">使用指南</a>
+        </Button>
       </nav>
     </article>
   );

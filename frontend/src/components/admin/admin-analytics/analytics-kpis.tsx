@@ -56,30 +56,35 @@ export function AnalyticsKpis({
     <div>
       <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between sm:gap-6">
         <div>
-          <h2 className="text-xl font-medium tracking-tight">周期概览</h2>
-          <p className="mt-1 text-sm leading-6 text-muted-foreground">
+          <ItemTitle className="line-clamp-none">
+            <h2>周期概览</h2>
+          </ItemTitle>
+          <ItemDescription className="line-clamp-none mt-1">
             当前统计周期的核心下载指标。
-          </p>
+          </ItemDescription>
         </div>
-        <p className="text-xs text-muted-foreground sm:block">数据自动汇总</p>
+        <ItemDescription className="line-clamp-none sm:block">
+          数据自动汇总
+        </ItemDescription>
       </div>
-      <ItemGroup className="mt-10 grid grid-cols-2 gap-x-8 gap-y-12 sm:grid-cols-4 sm:gap-10">
+      <ItemGroup className="mt-6 grid grid-cols-2 gap-x-8 gap-y-4 sm:grid-cols-4 sm:gap-4">
         {metrics.map((metric) => {
           return (
             <Item
+              variant="muted"
               className="min-w-0 items-start"
               key={metric.label}
               role="listitem"
             >
-              <ItemContent className="gap-0">
+              <ItemContent className="gap-2">
                 <ItemTitle className="flex items-center gap-2">
-                  <metric.icon aria-hidden className="size-4" />
+                  <metric.icon aria-hidden />
                   {metric.label}
                 </ItemTitle>
-                <p className="mt-3 text-3xl sm:text-4xl font-semibold leading-none tracking-tight tabular-nums">
-                  {metric.value}
-                </p>
-                <ItemDescription className="mt-3 min-h-9 sm:min-h-0">
+                <ItemTitle className="line-clamp-none">
+                  <p className="mt-3 tabular-nums">{metric.value}</p>
+                </ItemTitle>
+                <ItemDescription className="mt-3">
                   {metric.detail}
                 </ItemDescription>
               </ItemContent>

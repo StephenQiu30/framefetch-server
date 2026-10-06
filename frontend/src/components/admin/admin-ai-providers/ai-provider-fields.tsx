@@ -243,7 +243,7 @@ function ApiKeyFields({
           value={editor.apiKey}
         />
         <FieldDescription className="flex items-center gap-1.5">
-          <Key aria-hidden className="size-4" />
+          <Key aria-hidden />
           保存后仅显示“已配置”，不会再次返回明文。
         </FieldDescription>
       </Field>

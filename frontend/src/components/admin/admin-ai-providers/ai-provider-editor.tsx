@@ -1,5 +1,4 @@
 import { CheckCircle } from '@phosphor-icons/react';
-
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -10,6 +9,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Form } from '@/components/ui/form';
+import { ItemDescription } from '@/components/ui/item';
 import { Spinner } from '@/components/ui/spinner';
 
 import { AiProviderFields } from './ai-provider-fields';
@@ -48,7 +48,9 @@ export function AiProviderEditor({
         }}
       >
         <DialogHeader>
-          <p className="mb-4 text-sm font-medium text-primary">AI 分析路由</p>
+          <ItemDescription className="line-clamp-none mb-4">
+            AI 分析路由
+          </ItemDescription>
           <DialogTitle>
             {creating ? '新增 AI 服务' : `编辑 ${editor.displayName}`}
           </DialogTitle>

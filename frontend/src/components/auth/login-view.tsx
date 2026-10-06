@@ -14,6 +14,7 @@ import { Button } from '@/components/ui/button';
 import { FieldGroup } from '@/components/ui/field';
 import { Form } from '@/components/ui/form';
 import { InputGroupInput } from '@/components/ui/input-group';
+import { ItemDescription } from '@/components/ui/item';
 import { Spinner } from '@/components/ui/spinner';
 import { authRedirect } from '@/lib/auth-redirect';
 import { displayError } from '@/lib/request-error';
@@ -97,7 +98,6 @@ export function LoginView() {
               aria-describedby={errors.email ? 'email-error' : undefined}
               aria-invalid={Boolean(errors.email)}
               autoComplete="email"
-              className="h-full"
               id="login-email"
               name="email"
               placeholder="name@example.com"
@@ -114,7 +114,6 @@ export function LoginView() {
               aria-describedby={errors.password ? 'password-error' : undefined}
               aria-invalid={Boolean(errors.password)}
               autoComplete="current-password"
-              className="h-full"
               id="login-password"
               minLength={8}
               name="password"
@@ -142,15 +141,12 @@ export function LoginView() {
           ) : null}
         </Button>
       </Form>
-      <p className="mt-7 text-sm text-muted-foreground">
+      <ItemDescription className="line-clamp-none mt-7">
         还没有账户？{' '}
-        <Link
-          className="focus-ring rounded-sm font-medium text-foreground underline underline-offset-4 decoration-foreground/25 hover:decoration-foreground"
-          href={`/user/register${search}`}
-        >
-          创建账户
-        </Link>
-      </p>
+        <Button asChild variant="link">
+          <Link href={`/user/register${search}`}>创建账户</Link>
+        </Button>
+      </ItemDescription>
     </AuthPageFrame>
   );
 }

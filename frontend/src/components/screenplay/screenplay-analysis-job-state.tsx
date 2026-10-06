@@ -26,6 +26,7 @@ import {
 } from '@/components/ui/alert-dialog';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { ItemDescription } from '@/components/ui/item';
 import { Progress } from '@/components/ui/progress';
 import { Spinner } from '@/components/ui/spinner';
 import { localizedErrorMessage } from '@/lib/error-messages';
@@ -43,7 +44,7 @@ export function ScreenplayAnalysisJobState({
   const cancellable = isActiveAnalysisStatus(job.status);
   return (
     <div className="mt-10 w-full">
-      <div className="flex justify-between gap-4 text-sm font-medium">
+      <div className="flex justify-between gap-4">
         <span>{statusLabels[job.status]}</span>
         <span className="tabular-nums">{job.progress}%</span>
       </div>
@@ -52,13 +53,13 @@ export function ScreenplayAnalysisJobState({
         className="mt-3"
         value={job.progress}
       />
-      <p className="mt-3 text-sm text-muted-foreground">
+      <ItemDescription className="line-clamp-none mt-3">
         第 {job.run_no} 次执行 · 当前阶段：
         {job.stage ? stageLabels[job.stage] : '等待调度'} ·{' '}
         {job.attempt > 0
           ? `本次第 ${job.attempt} 个技术尝试`
           : '尚未开始技术尝试'}
-      </p>
+      </ItemDescription>
       <div className="mt-2">
         <AnalysisStorageNotice />
       </div>
@@ -74,13 +75,13 @@ export function ScreenplayAnalysisJobState({
           title="剧本任务失败"
         />
       ) : null}
-      <p aria-live="polite" className="mt-2 text-xs text-muted-foreground">
+      <ItemDescription aria-live="polite" className="line-clamp-none mt-2">
         {state.socketStatus === TaskSocketStatusCode.Connected
           ? '实时状态已连接'
           : state.socketStatus === TaskSocketStatusCode.Degraded
             ? '实时连接中断，正在低频恢复'
             : '正在连接实时状态'}
-      </p>
+      </ItemDescription>
       <div className="mt-7 flex flex-wrap gap-3">
         {cancellable ? <CancelControl state={state} /> : null}
         {job.status === AnalysisStatusCode.Failed ||
@@ -115,7 +116,7 @@ export function ScreenplayAnalysisJobState({
         />
       </div>
       {job.result && !isVideoAnalysisResult(job.result, job.input_kind) ? (
-        <div className="mt-10 pt-10">
+        <div className="mt-10">
           <Badge variant="secondary">上一版本结果</Badge>
           <ScreenplayResultView
             reportMarkdown={job.report_markdown}

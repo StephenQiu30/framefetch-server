@@ -89,7 +89,7 @@ export default function ScreenplayDocumentsView() {
         {state.error && state.data ? (
           <FeedbackNotice
             action={
-              <Button onClick={state.refresh} size="sm" variant="outline">
+              <Button onClick={state.refresh} size="default" variant="outline">
                 <ArrowClockwise aria-hidden data-icon="inline-start" />
                 重新加载
               </Button>
