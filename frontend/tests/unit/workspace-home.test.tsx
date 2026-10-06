@@ -24,7 +24,7 @@ describe('WorkspaceHome', () => {
     expect(
       screen.getByRole('tablist', { name: '选择内容来源' }),
     ).toBeInTheDocument();
-    expect(screen.getByRole('tab', { name: '链接解析' })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: '链接下载' })).toBeInTheDocument();
     expect(screen.getByRole('tab', { name: '本地视频' })).toBeInTheDocument();
     expect(screen.getByRole('tab', { name: '剧本文档' })).toBeInTheDocument();
     expect(

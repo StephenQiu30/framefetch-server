@@ -10,7 +10,7 @@ describe('ContentIntakeHero', () => {
   it('renders the controlled intake mode immediately', () => {
     const { rerender } = render(hero('link'));
 
-    expect(screen.getByRole('tabpanel', { name: '链接解析' })).toBeVisible();
+    expect(screen.getByRole('tabpanel', { name: '链接下载' })).toBeVisible();
 
     rerender(hero('video'));
 

@@ -63,7 +63,7 @@ describe('quick parse', () => {
     identity.authenticated = false;
     navigation.pathname = '/user/register';
     render(<Harness />);
-    fireEvent.click(screen.getByRole('button', { name: '快捷操作' }));
+    fireEvent.click(screen.getByRole('button', { name: '搜索或粘贴链接' }));
     fireEvent.click(screen.getByRole('option', { name: '登录后使用' }));
     expect(navigation.push).toHaveBeenCalledWith('/user/login?redirect=%2F');
     expect(httpRequests()).toHaveLength(0);

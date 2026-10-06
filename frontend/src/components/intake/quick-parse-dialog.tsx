@@ -278,13 +278,14 @@ export function QuickParseDialog() {
       <Button
         aria-haspopup="dialog"
         aria-keyshortcuts="Meta+K Control+K"
-        aria-label="快捷操作"
+        aria-label="搜索或粘贴链接"
+        className="w-60 justify-start"
         onClick={openDialog}
-        variant="ghost"
+        variant="secondary"
       >
         <MagnifyingGlassIcon aria-hidden data-icon="inline-start" />
-        快捷操作
-        <Kbd className="hidden sm:inline-flex">⌘ / Ctrl K</Kbd>
+        <span className="flex-1 text-left">搜索或粘贴链接</span>
+        <Kbd>⌘K</Kbd>
       </Button>
       <Dialog onOpenChange={setOpen} open={open}>
         <DialogContent

@@ -7,6 +7,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { toast } from 'sonner';
 import { AuthStatusCode, useAuth } from '@/components/auth/auth-provider';
+import { QuickParseDialog } from '@/components/intake/quick-parse-dialog';
 import { DesktopNavigation } from '@/components/layout/desktop-navigation';
 import { HeaderAccount } from '@/components/layout/header-account';
 import { MobileNavigation } from '@/components/layout/mobile-navigation';
@@ -76,8 +77,21 @@ function SiteHeader() {
 
   return (
     <header className="sticky top-0 z-40 bg-background">
-      <div className="content-shell flex h-16 items-center justify-between">
-        <BrandLink />
+      <div className="content-shell flex h-16 items-center justify-between gap-6">
+        <div className="flex min-w-0 items-center gap-6">
+          <BrandLink />
+          {headerAuthPending || authView ? null : (
+            <div className="hidden lg:block" data-slot="header-navigation">
+              <DesktopNavigation
+                documentsActive={documentsActive}
+                historyActive={historyActive}
+                homeActive={homeActive}
+                providersActive={providersActive}
+                publicView={publicView}
+              />
+            </div>
+          )}
+        </div>
         <div
           aria-busy={(headerAuthPending && loading) || undefined}
           className="flex min-w-0 shrink-0 items-center justify-end gap-2"
@@ -91,22 +105,13 @@ function SiteHeader() {
             />
           ) : (
             <div className="flex min-w-0 flex-1 items-center justify-end gap-2">
+              <div className="hidden lg:block" data-slot="header-quick-actions">
+                <QuickParseDialog />
+              </div>
               {authView ? (
                 <ThemeToggle />
               ) : (
                 <>
-                  <div
-                    className="hidden min-w-0 flex-1 items-center justify-end lg:flex"
-                    data-slot="header-navigation"
-                  >
-                    <DesktopNavigation
-                      documentsActive={documentsActive}
-                      historyActive={historyActive}
-                      homeActive={homeActive}
-                      providersActive={providersActive}
-                      publicView={publicView}
-                    />
-                  </div>
                   <ThemeToggle />
                   {publicView ? (
                     <>

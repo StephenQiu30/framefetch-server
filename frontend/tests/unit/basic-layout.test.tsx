@@ -64,7 +64,7 @@ describe('BasicLayout', () => {
     '/user/login',
     '/user/register',
     '/guide/',
-  ])('mounts quick actions outside the header on %s', (pathname) => {
+  ])('mounts quick actions in the header on %s', (pathname) => {
     runtime.pathname = pathname;
     render(
       <BasicLayout>
@@ -72,14 +72,15 @@ describe('BasicLayout', () => {
       </BasicLayout>,
     );
     expect(
-      within(screen.getByRole('banner')).queryByRole('button', {
-        name: '快捷操作',
+      within(screen.getByRole('banner')).getByRole('button', {
+        name: '搜索或粘贴链接',
+      }),
+    ).toBeInTheDocument();
+    expect(
+      within(screen.getByRole('contentinfo')).queryByRole('button', {
+        name: '搜索或粘贴链接',
       }),
     ).not.toBeInTheDocument();
-    const footer = screen.getByRole('contentinfo');
-    expect(
-      within(footer).getByRole('button', { name: '快捷操作' }),
-    ).toBeInTheDocument();
     fireEvent.keyDown(document, { key: 'k', ctrlKey: true });
     expect(screen.getAllByRole('dialog', { name: '快捷操作' })).toHaveLength(1);
     expect(
@@ -112,7 +113,7 @@ describe('BasicLayout', () => {
         within(footer).getByText(/请仅处理已获授权内容/),
       ).toBeInTheDocument();
       expect(
-        within(footer).queryByRole('button', { name: '快捷操作' }),
+        within(footer).queryByRole('button', { name: '搜索或粘贴链接' }),
       ).not.toBeInTheDocument();
       expect(
         within(footer).queryByRole('navigation', { name: '项目链接' }),

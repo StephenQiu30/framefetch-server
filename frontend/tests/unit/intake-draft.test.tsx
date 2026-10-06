@@ -56,7 +56,7 @@ describe('identity-owned intake draft', () => {
       'aria-selected',
       'true',
     );
-    fireEvent.mouseDown(screen.getByRole('tab', { name: '链接解析' }), {
+    fireEvent.mouseDown(screen.getByRole('tab', { name: '链接下载' }), {
       button: 0,
       ctrlKey: false,
     });

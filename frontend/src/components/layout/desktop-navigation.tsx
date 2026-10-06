@@ -1,11 +1,4 @@
-import {
-  ArrowUpRightIcon,
-  ClockCounterClockwiseIcon,
-  FileTextIcon,
-  GithubLogoIcon,
-  HouseIcon,
-  PulseIcon,
-} from '@phosphor-icons/react';
+import { ArrowUpRightIcon, GithubLogoIcon } from '@phosphor-icons/react';
 import Link from 'next/link';
 import type { ReactNode } from 'react';
 import {
@@ -38,7 +31,7 @@ export function DesktopNavigation({
       className="hidden max-w-none flex-none lg:flex"
       viewport={false}
     >
-      <NavigationMenuList className="gap-2">
+      <NavigationMenuList className="gap-1">
         {publicView ? (
           <>
             <NavigationLink href="/#capabilities">产品能力</NavigationLink>
@@ -52,19 +45,15 @@ export function DesktopNavigation({
         ) : (
           <>
             <NavigationLink active={homeActive} href="/">
-              <HouseIcon aria-hidden />
               首页
             </NavigationLink>
             <NavigationLink active={historyActive} href="/history">
-              <ClockCounterClockwiseIcon aria-hidden />
               下载记录
             </NavigationLink>
             <NavigationLink active={documentsActive} href="/documents">
-              <FileTextIcon aria-hidden />
               剧本文档
             </NavigationLink>
             <NavigationLink active={providersActive} href="/providers">
-              <PulseIcon aria-hidden />
               平台状态
             </NavigationLink>
           </>

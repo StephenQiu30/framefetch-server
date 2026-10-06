@@ -3,7 +3,6 @@
 import { cn } from 'cn';
 import Link from 'next/link';
 import { useSyncExternalStore } from 'react';
-import { QuickParseDialog } from '@/components/intake/quick-parse-dialog';
 import { buttonVariants } from '@/components/ui/button';
 import {
   NavigationMenu,
@@ -56,7 +55,6 @@ function SiteFooter({ className }: { className?: string }) {
         </div>
         {showFooterActions ? (
           <div className="flex min-w-0 flex-wrap items-center gap-3">
-            <QuickParseDialog />
             <NavigationMenu
               aria-label="项目链接"
               className="min-w-0 max-w-none"

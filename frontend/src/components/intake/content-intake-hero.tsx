@@ -24,15 +24,15 @@ export function ContentIntakeHero({
   videoForm: ReactNode;
 }) {
   return (
-    <div className="flex flex-col gap-10 sm:gap-12">
+    <div className="flex flex-col gap-6">
       <PageHeader
         size="lg"
-        description="解析公开视频、图片与合集链接，或上传本地视频与剧本文档。"
-        title="把素材，带回本地。"
+        description="粘贴视频页或分享链接，帧取列出可用画质，下载完成后自动校验文件完整性。"
+        title="下载任意公开视频"
       />
 
       <Tabs
-        className="w-full gap-6"
+        className="w-full gap-4"
         onValueChange={(value) => onModeChange(value as IntakeMode)}
         value={mode}
       >
@@ -43,7 +43,7 @@ export function ContentIntakeHero({
         >
           <TabsTrigger className="min-w-0" disabled={disabled} value="link">
             <LinkSimple aria-hidden />
-            链接解析
+            链接下载
           </TabsTrigger>
           <TabsTrigger className="min-w-0" disabled={disabled} value="video">
             <FileVideo aria-hidden />
