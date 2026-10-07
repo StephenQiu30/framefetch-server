@@ -353,7 +353,7 @@ def test_personal_plugin_errors_keep_stable_public_classification(
 
     context = ProviderFailureContext(provider, "https://example.com/fixture", True)
     assert classify_provider_failure(
-        context, f"ERROR: FrameFetch {reason}".encode()
+        context, f"ERROR: Framefetch {reason}".encode()
     ) == (
         "content_protected" if reason != "login_required" else "login_required",
         422,

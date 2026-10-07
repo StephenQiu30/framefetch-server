@@ -74,7 +74,7 @@ async def test_real_flight_fallback_warning_keeps_successful_gallery(
 async def test_gallery_assets_do_not_override_paid_content_restrictions(
     tmp_path: Path, reason: ContentRestriction
 ) -> None:
-    warning = f"FrameFetch {reason.value}".encode() + b"\n" + WARNING
+    warning = f"Framefetch {reason.value}".encode() + b"\n" + WARNING
     with pytest.raises(RunnerFailure) as caught:
         await commands(tmp_path, gallery(), warning).inspect(URL, tmp_path)
     assert caught.value.code == "content_protected"
@@ -120,7 +120,7 @@ async def test_content_restrictions_precede_drm_and_other_warnings_on_all_assets
 ) -> None:
     warning = (
         b"This format is DRM protected\nHTTP Error 429\nThis video requires login\n"
-        + f"FrameFetch {reason.value}".encode()
+        + f"Framefetch {reason.value}".encode()
     )
     with pytest.raises(RunnerFailure) as caught:
         await commands(tmp_path, payload, warning).inspect(URL, tmp_path)
@@ -167,7 +167,7 @@ async def test_content_restriction_precedes_collection_validation(
 ) -> None:
     with pytest.raises(RunnerFailure) as caught:
         await commands(
-            tmp_path, payload, f"FrameFetch {reason.value}".encode()
+            tmp_path, payload, f"Framefetch {reason.value}".encode()
         ).inspect(URL, tmp_path)
     assert caught.value.code == "content_protected"
     assert caught.value.status == 422

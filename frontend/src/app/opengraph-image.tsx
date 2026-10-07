@@ -3,7 +3,7 @@ import { ImageResponse } from 'next/og';
 import { socialPalette } from '@/lib/site';
 
 export const alt =
-  'FrameFetch — self-hosted media workflow and AI video analysis';
+  'Framefetch — self-hosted media workflow and AI video analysis';
 export const size = { width: 1200, height: 630 };
 export const contentType = 'image/png';
 

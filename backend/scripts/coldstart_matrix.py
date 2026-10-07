@@ -361,7 +361,7 @@ def runtime(args: argparse.Namespace, output: Path, facts: Json) -> Iterator[Non
                     "services": {
                         "session-runner": {
                             "volumes": [
-                                "coldstart_browser:/var/lib/video-browser",
+                                "coldstart_browser:/var/lib/framefetch-browser",
                                 "coldstart_work:/work",
                             ],
                             "environment": {
@@ -426,7 +426,7 @@ def runtime(args: argparse.Namespace, output: Path, facts: Json) -> Iterator[Non
             log=output / "containers.log",
         )
         if (
-            f"/var/lib/video-browser={volumes[0]}" not in inspect
+            f"/var/lib/framefetch-browser={volumes[0]}" not in inspect
             or f"/work={volumes[1]}" not in inspect
         ):
             raise MatrixFailure("coldstart_volume_not_mounted")

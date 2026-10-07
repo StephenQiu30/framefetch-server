@@ -68,11 +68,11 @@ describe('public SEO metadata', () => {
     expect(response.status).toBe(200);
     expect(response.headers.get('content-type')).toContain('text/plain');
     const body = await response.text();
-    expect(body).toMatch(/^# 帧取 FrameFetch\n\n> /);
+    expect(body).toMatch(/^# 帧取 Framefetch\n\n> /);
     for (const path of ['/', '/guide/', '/self-hosting/', '/about/']) {
       expect(body).toContain(`(https://framefetch.example${path})`);
     }
-    expect(body).toContain('### 帧取 FrameFetch 是什么？');
+    expect(body).toContain('### 帧取 Framefetch 是什么？');
 
     vi.resetModules();
     vi.stubEnv('SITE_INDEXABLE', 'false');
@@ -104,7 +104,7 @@ describe('public SEO metadata', () => {
     }
   });
 
-  it('describes an installable FrameFetch web application', () => {
+  it('describes an installable Framefetch web application', () => {
     expect(manifest()).toMatchObject({
       short_name: '帧取',
       start_url: '/',

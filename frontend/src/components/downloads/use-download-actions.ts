@@ -75,7 +75,7 @@ export function useDownloadActions(jobId?: string) {
           action: 'download',
           file: await issueDownloadUrl(
             { ...params, preview: false },
-            { headers: { 'X-FrameFetch-Download-Client': 'local-web' } },
+            { headers: { 'X-Framefetch-Download-Client': 'local-web' } },
           ),
         };
       await deleteDownload(params);

@@ -1,6 +1,6 @@
 # Frontend
 
-帧取 Web 前端，属于 video-server。使用 Next.js App Router、React、TypeScript strict、Tailwind CSS、shadcn/ui、Radix 与 Phosphor。工程遵循 create-next-app 的 src 目录与 @/* 别名；唯一视觉设计标准是根 [design.md](../design.md)。
+帧取 Web 前端，属于 framefetch-server。使用 Next.js App Router、React、TypeScript strict、Tailwind CSS、shadcn/ui、Radix 与 Phosphor。工程遵循 create-next-app 的 src 目录与 @/* 别名；唯一视觉设计标准是根 [design.md](../design.md)。
 
 ## 开发与验证
 

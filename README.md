@@ -1,24 +1,24 @@
 <p align="center">
-  <img src="assets/readme/hero.svg" width="100%" alt="帧取 · FrameFetch Server / Web — 自托管的素材获取与分析工作站" />
+  <img src="assets/readme/hero.svg" width="100%" alt="帧取 · Framefetch Server / Web — 自托管的素材获取与分析工作站" />
 </p>
 
-# <img src="frontend/public/logo.png" width="36" alt="帧取正式 Logo" /> 帧取 · FrameFetch Server / Web
+# <img src="frontend/public/logo.png" width="36" alt="帧取正式 Logo" /> 帧取 · Framefetch Server / Web
 
 **自托管的素材获取与分析工作站。** 导入有权使用的视频与文档，调用内置 Skill，核对依据并导出 Markdown / DOCX 报告。
 
-[![CI 状态](https://github.com/StephenQiu30/video-server/actions/workflows/ci.yml/badge.svg)](https://github.com/StephenQiu30/video-server/actions/workflows/ci.yml)
+[![CI 状态](https://github.com/StephenQiu30/framefetch-server/actions/workflows/ci.yml/badge.svg)](https://github.com/StephenQiu30/framefetch-server/actions/workflows/ci.yml)
 [![MIT License](https://img.shields.io/badge/license-MIT-111111.svg)](LICENSE)
-[![Preview release](https://img.shields.io/github/v/release/StephenQiu30/video-server?include_prereleases&color=111111)](https://github.com/StephenQiu30/video-server/releases)
+[![Preview release](https://img.shields.io/github/v/release/StephenQiu30/framefetch-server?include_prereleases&color=111111)](https://github.com/StephenQiu30/framefetch-server/releases)
 
 [快速开始](#快速开始) · [从素材到报告](#从素材到报告) · [内置 Skill](#内置-skill) · [使用范围](#使用范围与部署要求) · [设计文档](workspace/content/design/README.md) · [English](README.en.md)
 
-![FrameFetch Web／桌面同源报告：演示分镜、时间依据与 Markdown／DOCX 导出](assets/readme/current-web-ai-report.png)
+![Framefetch Web／桌面同源报告：演示分镜、时间依据与 Markdown／DOCX 导出](assets/readme/current-web-ai-report.png)
 
 > 已发布版本的 Web／桌面同源页面演示。当前内置 Skill 范围与真实验收见执行计划。
 
 ## 帧取是什么
 
-面向创作者、内容研究者和开发者，帧取把自己的素材与报告放在同一工作站。本仓库提供 **FastAPI 接口、Next.js Web 工作区与后台处理**；[桌面端](https://github.com/StephenQiu30/video-electron)和 [App](https://github.com/StephenQiu30/video-app) 连接同一服务。
+面向创作者、内容研究者和开发者，帧取把自己的素材与报告放在同一工作站。本仓库提供 **FastAPI 接口、Next.js Web 工作区与后台处理**；[桌面端](https://github.com/StephenQiu30/framefetch-electron)和 [App](https://github.com/StephenQiu30/framefetch-app) 连接同一服务。
 
 - **接入素材**：按平台实际能力获取有权使用的媒体，也可导入自己的 MP4 与已有文档。
 - **核对依据**：视频观察关联抽样帧和源时间，文本分析关联原文单元与引用；模型结论需要对照来源核查。
@@ -29,6 +29,8 @@
 
 本机使用 `docker-compose.yml`，生产使用 `docker-compose-prod.yml`。先部署 Server，再让浏览器、Electron 或 App 连接。平台身份按 Registry 声明从普通 Chrome 扩展取得，接入方法见下文。
 
+业务 Compose 项目名为 `framefetch-server`。`runner_work` 与 `browser_profiles` 默认绑定现有持久卷 `video-server_runner_work`、`video-server_browser_profiles`，保留任务文件与浏览器会话；其他卷名可通过 `RUNNER_WORK_VOLUME_NAME`、`BROWSER_PROFILES_VOLUME_NAME` 指定。数据库、队列、对象存储与鉴权标识保持其现有配置。
+
 ### 前置条件
 
 - Docker Engine 与 Docker Compose
@@ -38,8 +40,8 @@
 ### 本机启动（macOS，单人自用）
 
 ```bash
-git clone https://github.com/StephenQiu30/video-server.git
-cd video-server
+git clone https://github.com/StephenQiu30/framefetch-server.git
+cd framefetch-server
 test -f .env || cp .env.example .env
 
 # 确认 .env 连接本机已运行的 PostgreSQL、RabbitMQ、Redis、MinIO 与 Temporal
@@ -76,7 +78,7 @@ Temporal 的存储与备份由现有服务管理，项目重启只重启业务�
 
 Runner、yt-dlp、媒体 HTTP/FFmpeg、浏览器与 IP 观测共用 EgressBinding 的代理地址。Squid 的 `3128` 监听固定为 `cn_residential`，`3129` 固定为 `global_residential`；宿主对应 `127.0.0.1:13128`、`127.0.0.1:13129`。平台选择由 Registry 决定，Generic 直链按 `.cn` 域名选择国内路由，其余走境外路由。
 
-部署者应自行取得静态 ISP/住宅节点，在宿主 Clash/Mihomo 中定义两个固定 HTTP 入站，分别绑定国内家宽出口与境外住宅节点。不要使用自动测速、负载均衡或会自动切换节点的组；解析与下载必须使用同一节点。先导入供应商提供的住宅节点订阅，或按供应商协议新增节点并命名为 `GLOBAL-ISP`。例如 SOCKS5 住宅节点的宿主配置如下；地址、端口和凭据由供应商提供，示例值只是占位符，不能写入本仓库或 FrameFetch 环境变量：
+部署者应自行取得静态 ISP/住宅节点，在宿主 Clash/Mihomo 中定义两个固定 HTTP 入站，分别绑定国内家宽出口与境外住宅节点。不要使用自动测速、负载均衡或会自动切换节点的组；解析与下载必须使用同一节点。先导入供应商提供的住宅节点订阅，或按供应商协议新增节点并命名为 `GLOBAL-ISP`。例如 SOCKS5 住宅节点的宿主配置如下；地址、端口和凭据由供应商提供，示例值只是占位符，不能写入本仓库或 Framefetch 环境变量：
 
 ```yaml
 proxies:
@@ -128,7 +130,7 @@ uv run python -m app.workers.identity.cli install
 uv run python -m app.workers.identity.cli check
 ```
 
-`install` 生成独立配对密钥和 Runner Bearer，宿主配置默认为 `~/Library/Application Support/FrameFetch/identity.env`；也可用 `--env-file /绝对路径/identity.env` 指定已有独立 `0600` 身份配置，保留其 Runner Bearer 并补建配对密钥。已有安装升级会保留两份密钥，只更新项目目录内的生成文件并重启本服务。不得把项目 `.env` 当作宿主身份配置。安装注册 `gui/<uid>` 下的普通 LaunchAgent，不要求 Aqua 会话、钥匙串授权或完全磁盘访问；服务运行依赖此 checkout 的 backend 与 uv 虚拟环境，不要删除它们。`uninstall` 停止并移除本 LaunchAgent，保留配对文件以便重装。
+`install` 生成独立配对密钥和 Runner Bearer，宿主配置默认为 `~/Library/Application Support/Framefetch/identity.env`；也可用 `--env-file /绝对路径/identity.env` 指定已有独立 `0600` 身份配置，保留其 Runner Bearer 并补建配对密钥。已有安装升级会保留两份密钥，只更新项目目录内的生成文件并重启本服务。不得把项目 `.env` 当作宿主身份配置。安装注册 `gui/<uid>` 下的普通 LaunchAgent，不要求 Aqua 会话、钥匙串授权或完全磁盘访问；服务运行依赖此 checkout 的 backend 与 uv 虚拟环境，不要删除它们。`uninstall` 停止并移除本 LaunchAgent，保留配对文件以便重装。
 
 在 Chrome 扩展页加载主工作区的 `extension/`（必须是绝对路径）。只加载到日常登录的一个普通 Profile；扩展申请 cookies、alarms、declarativeNetRequestWithHostAccess，host 权限限定 Registry 的 Cookie 域、视频号精确 `https://yuanbao.tencent.com/*` 与本机 WebSocket，不申请 scripting、广泛 tabs 或历史权限。1.3.3 的视频号解析在 Service Worker 内部通过固定 HTTP 接口完成：按解析接口 URL 读取当前 Profile 的 `hy_user`／`hy_token`，认证头及 Cookie 留在 Chrome，不导出给宿主或 Runner，不缓存凭据。打包的声明式规则仅将本扩展对固定元宝解析接口的 POST 请求 Origin 设置为元宝官网，补齐服务端来源校验所需的请求头；规则不匹配网页、其他扩展、其他接口或方法，不修改响应头。解析前确认规则集启用，否则在读取凭据之前终止。新增的是请求头修改能力，未扩大站点权限；升级时需要用户知悉并启用这一能力。解析与下载重解析均无需打开元宝页面，不执行页面脚本，也没有页面回退分支；账号切换、期限、重定向与响应大小均受校验。首次登录或登录过期时，通过面板“登录元宝”完成正常登录，再关闭页面即可。面板显示实际版本、连接、登录材料可用性及最近一次解析子因；材料可用不代表账号仍获服务端认可。加载后 `check` 报告实际连接状态与版本；Chrome 停止或尚未加载时显示 `connected=false`、`version=null`。升级后从主工作区重新执行 `install`，再在 Chrome 扩展页点一次“重新加载”。不要从 git worktree 加载；install 自动定位主工作区，LaunchAgent 也使用主工作区的 backend。
 
@@ -213,9 +215,9 @@ Web 工作区提供解析详情、下载记录、个人处理记录、视频播�
 
 | 项目                                                                 | 角色与特点                                                                                                                                 |
 | -------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
-| **[video-server](https://github.com/StephenQiu30/video-server)**     | FastAPI + Next.js：浏览器工作区、统一接口、媒体处理、AI、存储、报告与管理                                                                  |
-| **[video-electron](https://github.com/StephenQiu30/video-electron)** | Electron 桌面客户端：随包 React 页面复用 Web 业务源码，连接自托管 Server；提供原生窗口、菜单、按服务地址隔离的持久会话和系统文件保存对话框 |
-| **[video-app](https://github.com/StephenQiu30/video-app)**           | Flutter iOS／Android 客户端：原生文件选择、受控任务轮询、视频播放、报告阅读、保存与分享，连接同一 Server                                   |
+| **[framefetch-server](https://github.com/StephenQiu30/framefetch-server)**     | FastAPI + Next.js：浏览器工作区、统一接口、媒体处理、AI、存储、报告与管理                                                                  |
+| **[framefetch-electron](https://github.com/StephenQiu30/framefetch-electron)** | Electron 桌面客户端：随包 React 页面复用 Web 业务源码，连接自托管 Server；提供原生窗口、菜单、按服务地址隔离的持久会话和系统文件保存对话框 |
+| **[framefetch-app](https://github.com/StephenQiu30/framefetch-app)**           | Flutter iOS／Android 客户端：原生文件选择、受控任务轮询、视频播放、报告阅读、保存与分享，连接同一 Server                                   |
 
 桌面端和 App 是同一工作站的客户端，媒体提取、处理和 AI 执行由服务端及宿主 AI Worker 承担。原件、规范化文本和报告保存在部署者配置的服务端存储中，切换客户端无需建立另一套媒体任务或业务库。
 
@@ -236,9 +238,9 @@ Electron 从安装包读取页面和品牌资源，API 与 WebSocket 连接配�
 
 | 项目         | 当前预览                                                                                   | 发行内容                                                   |
 | ------------ | ------------------------------------------------------------------------------------------ | ---------------------------------------------------------- |
-| Server / Web | [v0.3.0-beta.2](https://github.com/StephenQiu30/video-server/releases/tag/v0.3.0-beta.2)   | 自托管源码与 Compose 部署方式                              |
-| App          | [v0.2.0-beta.1](https://github.com/StephenQiu30/video-app/releases/tag/v0.2.0-beta.1)      | iOS／Android 源码；未附 APK、IPA 或商店安装包              |
-| Desktop      | [v0.2.0-beta.1](https://github.com/StephenQiu30/video-electron/releases/tag/v0.2.0-beta.1) | macOS Apple Silicon DMG、Windows x64 安装包与 SHA-256 清单 |
+| Server / Web | [v0.3.0-beta.2](https://github.com/StephenQiu30/framefetch-server/releases/tag/v0.3.0-beta.2)   | 自托管源码与 Compose 部署方式                              |
+| App          | [v0.2.0-beta.1](https://github.com/StephenQiu30/framefetch-app/releases/tag/v0.2.0-beta.1)      | iOS／Android 源码；未附 APK、IPA 或商店安装包              |
+| Desktop      | [v0.2.0-beta.1](https://github.com/StephenQiu30/framefetch-electron/releases/tag/v0.2.0-beta.1) | macOS Apple Silicon DMG、Windows x64 安装包与 SHA-256 清单 |
 
 这些版本均为 Beta 预览。桌面安装包未签名，macOS 未公证；干净安装、升级与真实 Server 完整业务需要独立验证。Git tag 标识发行快照：当前预览内嵌 Server/API/Worker 包版本仍为 `0.2.0`，App 为 `0.1.0+1`，桌面包为 `0.2.0`。部署相关组件时使用匹配源码与服务端契约，不能仅凭 tag 数字判断兼容性。
 
@@ -248,17 +250,17 @@ README 描述当前主分支；固定版本的安装、升级步骤和验证范�
 
 **任务历史。** 查看素材、任务状态和后续操作，从历史回到详情继续处理。
 
-![FrameFetch Web／桌面同源页面：演示任务历史与处理状态](assets/readme/current-web-history.png)
+![Framefetch Web／桌面同源页面：演示任务历史与处理状态](assets/readme/current-web-history.png)
 
 **素材入口。** 从链接、本地视频或已有文档开始，继续查看处理结果。
 
-![FrameFetch Web／桌面同源工作区：链接、本地视频与剧本文档入口](assets/readme/current-web-workspace.png)
+![Framefetch Web／桌面同源工作区：链接、本地视频与剧本文档入口](assets/readme/current-web-workspace.png)
 
 **文档工作区。** 阅读已有正文，在文档详情调用相容的分析或整理 Skill。
 
-![FrameFetch Web／桌面同源页面：午夜来客演示剧本、场景与分析入口](assets/readme/current-web-screenplay.png)
+![Framefetch Web／桌面同源页面：午夜来客演示剧本、场景与分析入口](assets/readme/current-web-screenplay.png)
 
-以上为 Web 与桌面同源页面，图片由 2026-10-03 当前生产构建的 Electron Renderer 捕获，使用正式 Logo、共享业务组件与主题，未重绘页面。任务记录、城市漫步分析和午夜来客剧本文字均为演示数据，用于说明功能与报告结构，不含真实账户或私人素材。各端界面与构建说明分别见 [App README](https://github.com/StephenQiu30/video-app#readme) 和 [桌面端 README](https://github.com/StephenQiu30/video-electron#readme)。
+以上为 Web 与桌面同源页面，图片由 2026-10-03 当前生产构建的 Electron Renderer 捕获，使用正式 Logo、共享业务组件与主题，未重绘页面。任务记录、城市漫步分析和午夜来客剧本文字均为演示数据，用于说明功能与报告结构，不含真实账户或私人素材。各端界面与构建说明分别见 [App README](https://github.com/StephenQiu30/framefetch-app#readme) 和 [桌面端 README](https://github.com/StephenQiu30/framefetch-electron#readme)。
 
 <details>
 <summary>适用场景与技术架构</summary>
@@ -353,7 +355,7 @@ docker-compose-prod.yml  生产业务差异
 
 ## 路线图
 
-平台支持与验证限制见[解析引擎](workspace/content/design/14-解析引擎.md#13-验证状态)，其他未完成工作见[BACKLOG](BACKLOG.md)，内置 Skill 实施及验证见[PRD](workspace/content/prd/PRD-内置Skill能力整合.md)与[执行计划](workspace/content/plan/PLAN-内置Skill能力整合.md)。欢迎在 [Issues](https://github.com/StephenQiu30/video-server/issues) 中讨论优先级，带有 `good first issue` / `help wanted` 标签的任务适合首次参与。
+平台支持与验证限制见[解析引擎](workspace/content/design/14-解析引擎.md#13-验证状态)，其他未完成工作见[BACKLOG](BACKLOG.md)，内置 Skill 实施及验证见[PRD](workspace/content/prd/PRD-内置Skill能力整合.md)与[执行计划](workspace/content/plan/PLAN-内置Skill能力整合.md)。欢迎在 [Issues](https://github.com/StephenQiu30/framefetch-server/issues) 中讨论优先级，带有 `good first issue` / `help wanted` 标签的任务适合首次参与。
 
 ## 参与贡献
 
@@ -367,15 +369,15 @@ docker-compose-prod.yml  生产业务差异
 
 提交变更时，请保持实现、OpenAPI 契约、测试、运行手册和验收证据一致，并只提交小而完整、可独立验证的改动。
 
-如果帧取对你的创作、研究或自托管实践有帮助，欢迎点亮 **Star**，并关注 [Releases](https://github.com/StephenQiu30/video-server/releases) 获取版本更新；这也是项目持续维护的最大动力。
+如果帧取对你的创作、研究或自托管实践有帮助，欢迎点亮 **Star**，并关注 [Releases](https://github.com/StephenQiu30/framefetch-server/releases) 获取版本更新；这也是项目持续维护的最大动力。
 
 ## 引用
 
-在论文、报告或课程材料中使用帧取时，可点击仓库侧栏的 “Cite this repository”，或直接使用根目录的 [`CITATION.cff`](CITATION.cff)。版本变更见 [Releases](https://github.com/StephenQiu30/video-server/releases)。
+在论文、报告或课程材料中使用帧取时，可点击仓库侧栏的 “Cite this repository”，或直接使用根目录的 [`CITATION.cff`](CITATION.cff)。版本变更见 [Releases](https://github.com/StephenQiu30/framefetch-server/releases)。
 
 ## 许可证
 
-FrameFetch 基于 [MIT License](LICENSE) 开源。MIT 许可证授予软件使用、修改和分发权，不代表授予任何第三方媒体内容的下载、复制或分析权。
+Framefetch 基于 [MIT License](LICENSE) 开源。MIT 许可证授予软件使用、修改和分发权，不代表授予任何第三方媒体内容的下载、复制或分析权。
 
 公开网站的索引配置、生成式搜索可发现性与上线核查见 [Web 体验与 SEO](workspace/content/design/11-Web体验.md)。个人自托管实例默认不开放索引。
 

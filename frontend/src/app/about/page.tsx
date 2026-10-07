@@ -13,9 +13,9 @@ import {
 import { publicMetadata } from '@/lib/public-metadata';
 import { absoluteUrl, siteConfig } from '@/lib/site';
 
-const title = '关于帧取 FrameFetch：开源个人视频工具的定位、原则与边界';
+const title = '关于帧取 Framefetch：开源个人视频工具的定位、原则与边界';
 const description =
-  '帧取 FrameFetch 是 MIT 开源、可自托管的视频解析、剧本文档处理与 AI 视频分析项目。了解它面向谁、采用哪些工程原则、如何处理内容授权，以及服务端与移动端仓库的关系。';
+  '帧取 Framefetch 是 MIT 开源、可自托管的视频解析、剧本文档处理与 AI 视频分析项目。了解它面向谁、采用哪些工程原则、如何处理内容授权，以及服务端与移动端仓库的关系。';
 export const metadata = publicMetadata(title, description, '/about/');
 
 const audiences = [
@@ -54,14 +54,14 @@ const principles = [
 
 const repositories = [
   {
-    name: 'video-server',
+    name: 'framefetch-server',
     href: siteConfig.repositoryUrl,
     text: 'FastAPI API、Next.js Web、下载 / 文档 / 报告 Worker、隔离 Media Runner 与 Docker Compose 部署。',
   },
   {
-    name: 'video-app',
+    name: 'framefetch-app',
     href: siteConfig.mobileRepositoryUrl,
-    text: '连接自托管 video-server 的 Flutter iOS / Android 客户端；媒体处理与 AI 推理仍在服务端执行。',
+    text: '连接自托管 framefetch-server 的 Flutter iOS / Android 客户端；媒体处理与 AI 推理仍在服务端执行。',
   },
 ];
 

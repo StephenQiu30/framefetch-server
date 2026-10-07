@@ -77,7 +77,7 @@ def test_windows_install_stops_then_verifies_running(
 
     assert actions[0] == "stop"
     assert actions[1][0:2] == ("schtasks", "/Create")  # type: ignore[index]
-    assert actions[2] == ("schtasks", "/Run", "/TN", "FrameFetchAnalysisAgent")
+    assert actions[2] == ("schtasks", "/Run", "/TN", "FramefetchAnalysisAgent")
 
 
 def test_windows_install_preserves_definition_when_stop_fails(
@@ -111,7 +111,7 @@ def test_windows_uninstall_stops_before_delete(
 
     agent_platforms.uninstall_agent()
 
-    assert actions == [("schtasks", "/Delete", "/TN", "FrameFetchAnalysisAgent", "/F")]
+    assert actions == [("schtasks", "/Delete", "/TN", "FramefetchAnalysisAgent", "/F")]
     assert not paths.definition.exists()
 
 

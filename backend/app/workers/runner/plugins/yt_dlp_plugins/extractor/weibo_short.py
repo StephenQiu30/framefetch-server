@@ -61,4 +61,4 @@ class WeiboOfficialShortIE(InfoExtractor):  # type: ignore[misc]
 
 
 def _failure(code: str, share_id: str) -> ExtractorError:
-    return ExtractorError(f"FrameFetch {code}", video_id=share_id, expected=True)
+    return ExtractorError(f"Framefetch {code}", video_id=share_id, expected=True)

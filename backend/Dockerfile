@@ -48,7 +48,7 @@ COPY --link --from=node-runtime /usr/local/bin/node /usr/local/bin/node
 # The Python lock pins the driver and its exact Chromium revision together.
 RUN python -m playwright install --with-deps --no-shell chromium \
     && chmod -R a+rX /opt/playwright \
-    && install -d -o 10001 -g 10001 -m 0700 /var/lib/video-browser
+    && install -d -o 10001 -g 10001 -m 0700 /var/lib/framefetch-browser
 
 # nodriver needs a visible Chromium under Xvfb. Container isolation supplies the
 # sandbox boundary; never use a host Chrome executable or Profile.

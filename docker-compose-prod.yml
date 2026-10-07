@@ -1,10 +1,12 @@
+name: framefetch-server
+
 x-backend-build: &backend-build
   context: ./backend
   dockerfile: Dockerfile
 
 x-media-runner: &media-runner
   build: *backend-build
-  image: video-server:prod
+  image: framefetch-server:prod
   restart: unless-stopped
   stop_grace_period: 90s
   shm_size: 256m
@@ -65,15 +67,15 @@ x-runner-environment: &runner-environment
   RUNNER_MAX_OUTPUT_BYTES: "${RUNNER_MAX_OUTPUT_BYTES:-21474836480}"
   RUNNER_MAX_WORKSPACE_BYTES: "${RUNNER_MAX_WORKSPACE_BYTES:-42949672960}"
   RUNNER_BROWSER_ENABLED: "${RUNNER_BROWSER_ENABLED:-true}"
-  RUNNER_BROWSER_PROFILE_ROOT: /var/lib/video-browser
+  RUNNER_BROWSER_PROFILE_ROOT: /var/lib/framefetch-browser
   PEERTUBE_ALLOWED_INSTANCES: "${PEERTUBE_ALLOWED_INSTANCES:-[]}"
 
 services:
   # Applies backend/sql/schema.sql (idempotent) before any service starts.
   migrate:
     build: *backend-build
-    image: video-server:prod
-    container_name: video-migrate
+    image: framefetch-server:prod
+    container_name: framefetch-migrate
     restart: "no"
     read_only: true
     tmpfs: ["/tmp:rw,noexec,nosuid,size=16m"]
@@ -88,8 +90,8 @@ services:
 
   api:
     build: *backend-build
-    image: video-server:prod
-    container_name: video-api
+    image: framefetch-server:prod
+    container_name: framefetch-api
     depends_on:
       migrate:
         condition: service_completed_successfully
@@ -223,8 +225,8 @@ services:
       args:
         SITE_URL: "${SITE_URL:?SITE_URL is required}"
         SITE_INDEXABLE: "${SITE_INDEXABLE:-false}"
-    image: video-frontend:prod
-    container_name: video-frontend
+    image: framefetch-frontend:prod
+    container_name: framefetch-frontend
     restart: unless-stopped
     environment:
       AUTH_WEB_COOKIE_NAME: '${AUTH_WEB_COOKIE_NAME:-video_web_session}'
@@ -269,8 +271,8 @@ services:
   # downloads, imports and report publication.
   worker:
     build: *backend-build
-    image: video-server:prod
-    container_name: video-worker
+    image: framefetch-server:prod
+    container_name: framefetch-worker
     restart: unless-stopped
     stop_grace_period: 90s
     environment:
@@ -415,7 +417,7 @@ services:
     <<: *media-runner
     tmpfs:
       - /tmp:rw,noexec,nosuid,size=512m
-      - /tmp/video-browser:rw,noexec,nosuid,uid=10001,gid=10001,mode=0700,size=256m
+      - /tmp/framefetch-browser:rw,noexec,nosuid,uid=10001,gid=10001,mode=0700,size=256m
       - /tmp/framefetch-identity:rw,noexec,nosuid,uid=10001,gid=10001,mode=0700,size=16m
     container_name: session-runner
     read_only: true
@@ -432,7 +434,7 @@ services:
       - youtube_pot_net
     volumes:
       - runner_work:/work
-      - browser_profiles:/var/lib/video-browser
+      - browser_profiles:/var/lib/framefetch-browser
     depends_on:
       egress-proxy:
         condition: service_healthy
@@ -445,10 +447,10 @@ services:
     restart: unless-stopped
     read_only: true
     entrypoint:
-      ["/usr/local/bin/node", "/opt/video/youtube-pot-supervisor.mjs"]
+      ["/usr/local/bin/node", "/opt/framefetch/youtube-pot-supervisor.mjs"]
     healthcheck:
       test:
-        ["CMD", "/usr/local/bin/node", "/opt/video/youtube-pot-supervisor.mjs", "--check-health"]
+        ["CMD", "/usr/local/bin/node", "/opt/framefetch/youtube-pot-supervisor.mjs", "--check-health"]
       interval: 10s
       timeout: 5s
       retries: 3
@@ -460,7 +462,7 @@ services:
     volumes:
       - type: bind
         source: ./backend/app/workers/runner/youtube-pot-supervisor.mjs
-        target: /opt/video/youtube-pot-supervisor.mjs
+        target: /opt/framefetch/youtube-pot-supervisor.mjs
         read_only: true
         bind:
           create_host_path: false
@@ -472,7 +474,9 @@ services:
 
 volumes:
   runner_work:
+    name: "${RUNNER_WORK_VOLUME_NAME:-video-server_runner_work}"
   browser_profiles:
+    name: "${BROWSER_PROFILES_VOLUME_NAME:-video-server_browser_profiles}"
 
 networks:
   app_net:

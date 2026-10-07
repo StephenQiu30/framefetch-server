@@ -22,7 +22,7 @@ export function useVideoPreviewSource(downloadId: string) {
         preview: true,
       },
       {
-        headers: { 'X-FrameFetch-Download-Client': 'local-web' },
+        headers: { 'X-Framefetch-Download-Client': 'local-web' },
       },
     )
       .then((result) => {

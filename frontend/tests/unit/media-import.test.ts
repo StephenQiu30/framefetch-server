@@ -58,7 +58,7 @@ describe('local media import transport', () => {
     expect(progress.at(-1)).toBe(100);
     expect(FakeXMLHttpRequest.instances[0]).toMatchObject({
       headers: {
-        'X-FrameFetch-Upload-Target': 'https://storage.example/upload-part-1',
+        'X-Framefetch-Upload-Target': 'https://storage.example/upload-part-1',
       },
       method: 'PUT',
       url: '/storage-upload',
@@ -79,7 +79,7 @@ describe('local media import transport', () => {
         url: '/api/media-imports',
       },
       {
-        headers: { 'X-FrameFetch-Upload-Client': 'local-web' },
+        headers: { 'X-Framefetch-Upload-Client': 'local-web' },
         method: 'POST',
         url: `/api/media-imports/${resource.id}/upload-sessions`,
       },
@@ -193,7 +193,7 @@ describe('local media import transport', () => {
         url: '/api/documents',
       },
       {
-        headers: { 'X-FrameFetch-Upload-Client': 'local-web' },
+        headers: { 'X-Framefetch-Upload-Client': 'local-web' },
         method: 'POST',
         url: `/api/documents/${resource.id}/upload-sessions`,
       },

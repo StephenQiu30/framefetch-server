@@ -157,7 +157,7 @@ class RabbitMqRealtimeConsumer:
                 self._url,
                 heartbeat=self._heartbeat,
                 reconnect_interval=self._reconnect_interval,
-                connection_name="video-server-realtime-gateway",
+                connection_name="framefetch-server-realtime-gateway",
             ),
             timeout=self._connection_timeout,
         )

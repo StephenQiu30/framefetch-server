@@ -65,7 +65,7 @@ export async function importLocalVideo(
       resource_id: encodeURIComponent(resource.id),
     },
     {
-      headers: { 'X-FrameFetch-Upload-Client': 'local-web' },
+      headers: { 'X-Framefetch-Upload-Client': 'local-web' },
     },
   );
   if (session.resource_id !== resource.id) {

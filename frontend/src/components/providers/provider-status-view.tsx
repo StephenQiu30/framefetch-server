@@ -90,7 +90,7 @@ export function ProviderStatusView() {
           <ItemContent>
             <ItemTitle>平台身份来自你的 Chrome</ItemTitle>
             <ItemDescription className="line-clamp-none">
-              需要登录的平台通过 FrameFetch 扩展读取你日常使用的 Chrome
+              需要登录的平台通过 Framefetch 扩展读取你日常使用的 Chrome
               登录态；公开内容无需登录。身份材料不会扩大可下载的内容范围。
             </ItemDescription>
           </ItemContent>

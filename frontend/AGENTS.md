@@ -1,6 +1,6 @@
 # frontend 协作规范
 
-本目录是 `video-server` 的 Web 前端，遵循根 [AGENTS.md](../AGENTS.md)。目录与接口规则见 [PROJECT.md 第 6 节](../PROJECT.md#6-前端)，视觉标准只有根 [design.md](../design.md)。
+本目录是 `framefetch-server` 的 Web 前端，遵循根 [AGENTS.md](../AGENTS.md)。目录与接口规则见 [PROJECT.md 第 6 节](../PROJECT.md#6-前端)，视觉标准只有根 [design.md](../design.md)。
 
 ## 工作方式
 

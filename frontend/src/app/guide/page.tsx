@@ -20,9 +20,9 @@ import {
 import { publicMetadata } from '@/lib/public-metadata';
 import { siteConfig } from '@/lib/site';
 
-const title = '视频解析、AI 分析与自托管使用指南 · 帧取 FrameFetch';
+const title = '视频解析、AI 分析与自托管使用指南 · 帧取 Framefetch';
 const description =
-  '了解 FrameFetch 如何导入视频与文档、调用内置 Skill 分析影视和整理文章，以及查看和导出报告。';
+  '了解 Framefetch 如何导入视频与文档、调用内置 Skill 分析影视和整理文章，以及查看和导出报告。';
 export const metadata = publicMetadata(title, description, '/guide/');
 
 const sections = [
@@ -51,7 +51,7 @@ const sections = [
     id: 'deployment',
     title: '自托管需要部署哪些服务？',
     paragraphs: [
-      'video-server 包含 Next.js Web 页面、FastAPI API，以及独立的下载、媒体处理与 AI Worker。Docker Compose 管理业务服务，并连接部署者已有的 PostgreSQL、RabbitMQ、Redis 和 MinIO。默认 Web 端口为 8101，API 端口为 8111。',
+      'framefetch-server 包含 Next.js Web 页面、FastAPI API，以及独立的下载、媒体处理与 AI Worker。Docker Compose 管理业务服务，并连接部署者已有的 PostgreSQL、RabbitMQ、Redis 和 MinIO。默认 Web 端口为 8101，API 端口为 8111。',
       '使用根 README 的快速开始说明安装和配置，按实际需求启用模型服务与媒体 Provider。MIT 许可证开放源代码；基础设施、存储、流量和外部模型的费用由部署者承担。',
       '自托管不表示数据永远不离开设备：使用外部 AI Provider 时，分析所需内容会发送到该服务。启用模型前应核对其数据处理约定，并确认素材可用于该分析。',
     ],
@@ -62,7 +62,7 @@ const sections = [
     id: 'clients',
     title: 'Web 与 iOS / Android 客户端如何选择？',
     paragraphs: [
-      'Web 随 video-server 部署，适合在浏览器中管理素材、任务、分析报告与管理员配置。video-app 是单独维护的 Flutter 原生客户端，面向 iOS 和 Android，需要连接可访问的 video-server。',
+      'Web 随 framefetch-server 部署，适合在浏览器中管理素材、任务、分析报告与管理员配置。framefetch-app 是单独维护的 Flutter 原生客户端，面向 iOS 和 Android，需要连接可访问的 framefetch-server。',
       '手机端负责上传、任务操作与结果展示，媒体处理与 AI 推理仍由服务端完成。当前移动端从源码构建，不提供 App Store 或 Google Play 预构建安装包，也不提供离线 AI。',
     ],
     source: siteConfig.mobileRepositoryUrl,

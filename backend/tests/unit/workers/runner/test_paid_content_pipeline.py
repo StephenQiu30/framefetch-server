@@ -20,7 +20,7 @@ def test_content_markers_have_priority_over_login_hints(reason) -> None:
         "bilibili", "https://www.bilibili.com/video/BV1xx411c7mD", False
     )
     assert classify_provider_failure(
-        context, f"FrameFetch {reason.value}; login required".encode()
+        context, f"Framefetch {reason.value}; login required".encode()
     ) == ("content_protected", 422)
 
 

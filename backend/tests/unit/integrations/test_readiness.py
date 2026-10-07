@@ -32,7 +32,7 @@ def rabbitmq_is_available(monkeypatch: pytest.MonkeyPatch) -> None:
     ) -> FakeConnection:
         assert url == "amqp://user:redacted@rabbit.test:5672/"
         assert timeout == 1
-        assert client_properties["connection_name"] == "video-server-api-readiness"
+        assert client_properties["connection_name"] == "framefetch-server-api-readiness"
         return FakeConnection()
 
     monkeypatch.setattr(aio_pika, "connect", connect)

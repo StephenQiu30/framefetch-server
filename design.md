@@ -1,6 +1,6 @@
-# FrameFetch 界面设计规范
+# Framefetch 界面设计规范
 
-本文件是 FrameFetch 界面唯一的视觉设计标准。Web 直接实现本文；`video-electron` 同步本文原文；`video-app` 在自己的 `design.md` 中只记录 Flutter 映射与原生差异。
+本文件是 Framefetch 界面唯一的视觉设计标准。Web 直接实现本文；`framefetch-electron` 同步本文原文；`framefetch-app` 在自己的 `design.md` 中只记录 Flutter 映射与原生差异。
 
 设计方向：黑白灰中性色、Geist 排版、紧凑控件、清晰留白、整体无边框。层级通过留白、对齐与中性底面表达，不依赖描边、分隔线或装饰色。
 

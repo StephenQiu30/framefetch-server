@@ -464,11 +464,11 @@ def test_anonymous_runner_retains_private_network_and_workspace() -> None:
         assert set(runner["networks"]) == {"runner_egress_net", "youtube_pot_net"}
         assert runner["volumes"] == [
             "runner_work:/work",
-            "browser_profiles:/var/lib/video-browser",
+            "browser_profiles:/var/lib/framefetch-browser",
         ]
         assert (
             runner["environment"]["RUNNER_BROWSER_PROFILE_ROOT"]
-            == "/var/lib/video-browser"
+            == "/var/lib/framefetch-browser"
         )
         assert runner["shm_size"] == "256m"
         assert "ports" not in runner
@@ -515,7 +515,7 @@ def test_compose_application_roles_share_the_selected_release_image() -> None:
                 assert config["image"] == f"video-session-browser:{tag}", name
             else:
                 assert "target" not in build, name
-                assert config["image"] == f"video-server:{tag}", name
+                assert config["image"] == f"framefetch-server:{tag}", name
 
 
 def test_runtime_base_images_are_pinned_without_host_architecture_override() -> None:

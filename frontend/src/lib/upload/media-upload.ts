@@ -4,7 +4,7 @@ import { bytesToHex } from '@noble/hashes/utils.js';
 const HASH_CHUNK_BYTES = 4 * 1024 * 1024;
 const ETAG_PATTERN = /^(?:[0-9a-f]{32}|"[0-9a-f]{32}")$/iu;
 const UPLOAD_PROXY_PATH = '/storage-upload';
-const UPLOAD_TARGET_HEADER = 'X-FrameFetch-Upload-Target';
+const UPLOAD_TARGET_HEADER = 'X-Framefetch-Upload-Target';
 
 export class MediaTransferError extends Error {
   constructor(message: string) {

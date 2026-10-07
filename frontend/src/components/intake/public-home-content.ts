@@ -1,7 +1,7 @@
 export const publicQuestions = [
   {
     id: 'what-is-framefetch',
-    question: '帧取 FrameFetch 是什么？',
+    question: '帧取 Framefetch 是什么？',
     answer:
       '帧取是 MIT 开源、可自托管的个人视频下载与分析工具。它支持检查公开、免费、非 DRM 的视频链接，导入有权处理的本地视频与剧本文档，并管理处理记录、AI 分析和报告导出。',
   },
@@ -33,6 +33,6 @@ export const publicQuestions = [
     id: 'mobile-app',
     question: '手机端是否能独立运行 AI 分析？',
     answer:
-      'iOS 和 Android 客户端位于独立的 video-app 仓库，使用 Flutter 构建并连接自托管 video-server。媒体处理与 AI 推理由服务端执行，手机端不内置离线提取器或离线 AI 模型。',
+      'iOS 和 Android 客户端位于独立的 framefetch-app 仓库，使用 Flutter 构建并连接自托管 framefetch-server。媒体处理与 AI 推理由服务端执行，手机端不内置离线提取器或离线 AI 模型。',
   },
 ] as const;

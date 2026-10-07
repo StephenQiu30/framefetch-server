@@ -59,7 +59,7 @@ export function PublicHome() {
     >
       <PageHeader
         size="lg"
-        title="FrameFetch 万能视频下载器"
+        title="Framefetch 万能视频下载器"
         description="粘贴公开视频链接，选择画质并下载。也可以导入本地视频与剧本文档，按需进行 AI 分析。"
       />
       <div className="flex flex-wrap gap-3">

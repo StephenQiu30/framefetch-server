@@ -11,7 +11,7 @@ import { BackLink } from '@/components/layout/back-link';
 import { NavigationHistoryProvider } from '@/components/layout/navigation-history';
 import { markNavigationPush } from '@/components/layout/navigation-state';
 
-const STORAGE_KEY = 'video-server:navigation-history';
+const STORAGE_KEY = 'framefetch-server:navigation-history';
 const HISTORY_ENTRY_KEY = '__videoServerNavigationEntryId';
 
 type StoredState = {

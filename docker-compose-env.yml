@@ -1,4 +1,4 @@
-name: video-server-env
+name: framefetch-server-env
 
 # Disposable infrastructure fixture for GitHub CI only.
 # Local development and deployment reuse existing host services.
@@ -7,7 +7,7 @@ name: video-server-env
 services:
   postgres:
     image: postgres:18
-    container_name: video-env-postgres
+    container_name: framefetch-env-postgres
     restart: unless-stopped
     environment:
       POSTGRES_DB: "${POSTGRES_DB:-video}"
@@ -28,7 +28,7 @@ services:
 
   database-init:
     image: postgres:18
-    container_name: video-env-database-init
+    container_name: framefetch-env-database-init
     restart: "no"
     environment:
       POSTGRES_DB: "${POSTGRES_DB:-video}"
@@ -47,7 +47,7 @@ services:
 
   rabbitmq:
     image: rabbitmq:3.13-management-alpine
-    container_name: video-env-rabbitmq
+    container_name: framefetch-env-rabbitmq
     hostname: rabbitmq
     restart: unless-stopped
     environment:
@@ -70,7 +70,7 @@ services:
 
   rabbitmq-init:
     image: rabbitmq:3.13-management-alpine
-    container_name: video-env-rabbitmq-init
+    container_name: framefetch-env-rabbitmq-init
     restart: "no"
     environment:
       RABBITMQ_DEFAULT_USER: "${RABBITMQ_DEFAULT_USER:-video}"
@@ -127,7 +127,7 @@ services:
 
   redis:
     image: redis:8-alpine
-    container_name: video-env-redis
+    container_name: framefetch-env-redis
     restart: unless-stopped
     command: ["redis-server", "--appendonly", "yes"]
     ports:
@@ -145,7 +145,7 @@ services:
 
   minio:
     image: minio/minio@sha256:14cea493d9a34af32f524e538b8346cf79f3321eff8e708c1e2960462bd8936e
-    container_name: video-env-minio
+    container_name: framefetch-env-minio
     restart: unless-stopped
     environment:
       MINIO_ROOT_USER: "${MINIO_ACCESS_KEY:-minio}"
@@ -168,7 +168,7 @@ services:
 
   minio-init:
     image: minio/mc@sha256:a7fe349ef4bd8521fb8497f55c6042871b2ae640607cf99d9bede5e9bdf11727
-    container_name: video-env-minio-init
+    container_name: framefetch-env-minio-init
     restart: "no"
     environment:
       MINIO_ACCESS_KEY: "${MINIO_ACCESS_KEY:-minio}"

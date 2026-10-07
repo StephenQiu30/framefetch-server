@@ -3,12 +3,12 @@ name: video-breakdown
 description: 按用户用途拆出镜头、场景或资产记录，用可回看的位置组织素材；只交付所选的整理结果。
 license: MIT
 metadata:
-  video-server-display-name: 素材拆解
-  video-server-default-prompt: 按我的用途整理素材。默认按叙事片段列出内容与位置；需要分镜、场景或资产时只生成相应记录，不附无关评测。
-  video-server-order: "30"
-  video-server-input-kinds: video
-  video-server-output-contract: structured-report
-  video-server-modules: drama-shot-craft, zh-copywriting-guidelines
+  framefetch-server-display-name: 素材拆解
+  framefetch-server-default-prompt: 按我的用途整理素材。默认按叙事片段列出内容与位置；需要分镜、场景或资产时只生成相应记录，不附无关评测。
+  framefetch-server-order: "30"
+  framefetch-server-input-kinds: video
+  framefetch-server-output-contract: structured-report
+  framefetch-server-modules: drama-shot-craft, zh-copywriting-guidelines
 ---
 
 # Purpose

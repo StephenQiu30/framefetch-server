@@ -74,7 +74,7 @@ class RunnerSettings(ProviderEgressSettings):
     cookie_source_token: SecretStr | None = None
     cookie_source_port: int = Field(default=19101, ge=1024, le=65535)
     runner_identity_tmpfs_root: Path = Path("/tmp/framefetch-identity")
-    runner_workspace_root: Path = Path("/var/lib/video-runner")
+    runner_workspace_root: Path = Path("/var/lib/framefetch-runner")
     peertube_allowed_instances: frozenset[str] = frozenset()
 
     runner_ytdlp_bin: str = "yt-dlp"
@@ -86,8 +86,8 @@ class RunnerSettings(ProviderEgressSettings):
     runner_ffprobe_bin: str = "ffprobe"
 
     runner_browser_enabled: bool = False
-    runner_browser_profile_root: Path = Path("/var/lib/video-browser")
-    runner_browser_temp_root: Path = Path("/tmp/video-browser")
+    runner_browser_profile_root: Path = Path("/var/lib/framefetch-browser")
+    runner_browser_temp_root: Path = Path("/tmp/framefetch-browser")
     runner_browser_launch_timeout_seconds: float = Field(default=30, gt=0, le=60)
     runner_browser_page_timeout_seconds: float = Field(default=45, gt=0, le=120)
     runner_browser_max_profile_bytes: int = Field(

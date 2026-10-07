@@ -58,7 +58,7 @@ class WechatChannelsPublicIE(InfoExtractor):  # type: ignore[misc]
         parse_data: Mapping[str, Any] = {}
         if not formats:
             raise ExtractorError(
-                "FrameFetch login_required: WeChat Channels needs account identity",
+                "Framefetch login_required: WeChat Channels needs account identity",
                 expected=True,
             )
 

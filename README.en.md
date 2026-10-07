@@ -1,24 +1,24 @@
 <p align="center">
-  <img src="assets/readme/hero.en.svg" width="100%" alt="FrameFetch Server / Web — A self-hosted workstation for material acquisition and analysis" />
+  <img src="assets/readme/hero.en.svg" width="100%" alt="Framefetch Server / Web — A self-hosted workstation for material acquisition and analysis" />
 </p>
 
-# <img src="frontend/public/logo.png" width="36" alt="Official FrameFetch logo" /> FrameFetch Server / Web
+# <img src="frontend/public/logo.png" width="36" alt="Official Framefetch logo" /> Framefetch Server / Web
 
 **A self-hosted workstation for material acquisition and analysis.** Import authorized video and documents, invoke built-in Skills, inspect the evidence, and export Markdown / DOCX reports.
 
-[![CI](https://github.com/StephenQiu30/video-server/actions/workflows/ci.yml/badge.svg)](https://github.com/StephenQiu30/video-server/actions/workflows/ci.yml)
+[![CI](https://github.com/StephenQiu30/framefetch-server/actions/workflows/ci.yml/badge.svg)](https://github.com/StephenQiu30/framefetch-server/actions/workflows/ci.yml)
 [![MIT License](https://img.shields.io/badge/license-MIT-111111.svg)](LICENSE)
-[![Preview release](https://img.shields.io/github/v/release/StephenQiu30/video-server?include_prereleases&color=111111)](https://github.com/StephenQiu30/video-server/releases)
+[![Preview release](https://img.shields.io/github/v/release/StephenQiu30/framefetch-server?include_prereleases&color=111111)](https://github.com/StephenQiu30/framefetch-server/releases)
 
 [Quick start](#quick-start) · [Workflow](#from-material-to-report) · [Skills](#built-in-skills) · [Scope](#scope-and-deployment-requirements) · [Documentation](workspace/content/design/README.md) · [简体中文](README.md)
 
-![Shared FrameFetch Web/desktop report: demo shots, time evidence and Markdown/DOCX exports](assets/readme/current-web-ai-report.png)
+![Shared Framefetch Web/desktop report: demo shots, time evidence and Markdown/DOCX exports](assets/readme/current-web-ai-report.png)
 
 > Shared Web/desktop page demonstration from a released version. See the execution plan for the current Skill scope and real acceptance evidence.
 
-## What is FrameFetch?
+## What is Framefetch?
 
-For creators, content researchers and developers who want to manage their own sources and reports. This repository provides **FastAPI APIs, a Next.js Web workspace and background processing**; [Desktop](https://github.com/StephenQiu30/video-electron) and [App](https://github.com/StephenQiu30/video-app) connect to the same server.
+For creators, content researchers and developers who want to manage their own sources and reports. This repository provides **FastAPI APIs, a Next.js Web workspace and background processing**; [Desktop](https://github.com/StephenQiu30/framefetch-electron) and [App](https://github.com/StephenQiu30/framefetch-app) connect to the same server.
 
 - **Bring in sources**: authorized media links, local MP4 and existing text documents. Availability follows each platform's actual capability.
 - **Review evidence**: video observations refer to sampled frames and source times; text analysis refers to source units and quotations. Check model conclusions against the original.
@@ -29,6 +29,8 @@ For creators, content researchers and developers who want to manage their own so
 
 Use `docker-compose.yml` locally and `docker-compose-prod.yml` in production. Deploy the Server, then connect Web, Electron or mobile clients. Platform identity follows the Registry declarations through the ordinary Chrome extension.
 
+The business Compose project is named `framefetch-server`. `runner_work` and `browser_profiles` bind to the existing persistent volumes `video-server_runner_work` and `video-server_browser_profiles` by default, preserving task files and browser sessions. Set `RUNNER_WORK_VOLUME_NAME` and `BROWSER_PROFILES_VOLUME_NAME` to use other volumes. Database, queue, object storage and authentication identifiers keep their existing configuration.
+
 ### Requirements
 
 - Docker Engine and Docker Compose
@@ -38,8 +40,8 @@ Use `docker-compose.yml` locally and `docker-compose-prod.yml` in production. De
 ### Automatic local start (macOS)
 
 ```bash
-git clone https://github.com/StephenQiu30/video-server.git
-cd video-server
+git clone https://github.com/StephenQiu30/framefetch-server.git
+cd framefetch-server
 test -f .env || cp .env.example .env
 
 # Configure .env to reuse existing PostgreSQL, RabbitMQ, Redis, MinIO and Temporal
@@ -66,7 +68,7 @@ uv run --project backend python -m app.workers.bootstrap_admin \
 
 ### Identity and upgrades
 
-Platform identity uses `FrameFetch`, an MV3 extension loaded from the main checkout's `extension/`, and a per-user `cookie-source` LaunchAgent. From the main checkout's `backend/`, run:
+Platform identity uses `Framefetch`, an MV3 extension loaded from the main checkout's `extension/`, and a per-user `cookie-source` LaunchAgent. From the main checkout's `backend/`, run:
 
 ```bash
 uv run python -m app.workers.identity.cli install
@@ -148,9 +150,9 @@ Original pages and invocation, six real model fixtures and MD/DOCX exports passe
 
 | Project                                                              | Role and features                                                                                                                                                                |
 | -------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **[video-server](https://github.com/StephenQiu30/video-server)**     | FastAPI + Next.js: browser workspace, unified API, media processing, AI, storage, reports and administration                                                                     |
-| **[video-electron](https://github.com/StephenQiu30/video-electron)** | Electron client: bundled React pages reuse Web business source and connect to a self-hosted Server; native windows/menus, persistent per-server sessions and system save dialogs |
-| **[video-app](https://github.com/StephenQiu30/video-app)**           | Flutter iOS/Android client: native file selection, controlled job polling, playback, report reading, saving and sharing through the same Server                                  |
+| **[framefetch-server](https://github.com/StephenQiu30/framefetch-server)**     | FastAPI + Next.js: browser workspace, unified API, media processing, AI, storage, reports and administration                                                                     |
+| **[framefetch-electron](https://github.com/StephenQiu30/framefetch-electron)** | Electron client: bundled React pages reuse Web business source and connect to a self-hosted Server; native windows/menus, persistent per-server sessions and system save dialogs |
+| **[framefetch-app](https://github.com/StephenQiu30/framefetch-app)**           | Flutter iOS/Android client: native file selection, controlled job polling, playback, report reading, saving and sharing through the same Server                                  |
 
 Desktop and mobile are clients of the same workstation. The server and host AI Worker perform extraction, media processing and AI execution. Originals, normalized text and reports reside in the configured server storage; switching clients does not create another media pipeline or business database.
 
@@ -158,7 +160,7 @@ Electron reads pages and brand assets from its bundle and connects API/WebSocket
 
 ## Scope and deployment requirements
 
-FrameFetch is in public preview. This round of built-in Skill improvements retains original pages and has passed acceptance on the tested platforms. Results and boundaries are tracked in the [execution plan](workspace/content/plan/PLAN-内置Skill能力整合.md). CI covers deterministic engineering checks; actual model execution, native file delivery, physical devices and platform cold starts require their own evidence. Screenshots illustrate interfaces and do not establish that validation.
+Framefetch is in public preview. This round of built-in Skill improvements retains original pages and has passed acceptance on the tested platforms. Results and boundaries are tracked in the [execution plan](workspace/content/plan/PLAN-内置Skill能力整合.md). CI covers deterministic engineering checks; actual model execution, native file delivery, physical devices and platform cold starts require their own evidence. Screenshots illustrate interfaces and do not establish that validation.
 
 - Process authorized HTTP(S), non-DRM material. Registered integrations include YouTube, Bilibili, Douyin, TikTok, Xiaohongshu, Kuaishou and Weibo; actual links depend on content scope, identity, network and platform changes. WeChat Channels supports downloading official clear share files and requires a valid Yuanbao login in Chrome; no Yuanbao page needs to be open; official-account articles provide source discovery. See [parse engine verification status](workspace/content/design/14-解析引擎.md#13-验证状态) for exact platform status and complete-file evidence.
 - Source and build workflows are self-hosted. The operator provides servers, infrastructure, storage, network and models. External models may incur charges and receive the text or frames needed for analysis.
@@ -171,9 +173,9 @@ The three public previews connect to the same Server:
 
 | Project      | Current preview                                                                            | Distribution                                                        |
 | ------------ | ------------------------------------------------------------------------------------------ | ------------------------------------------------------------------- |
-| Server / Web | [v0.3.0-beta.2](https://github.com/StephenQiu30/video-server/releases/tag/v0.3.0-beta.2)   | Self-hosted source and Compose deployment                           |
-| App          | [v0.2.0-beta.1](https://github.com/StephenQiu30/video-app/releases/tag/v0.2.0-beta.1)      | iOS/Android source; no attached APK, IPA or store package           |
-| Desktop      | [v0.2.0-beta.1](https://github.com/StephenQiu30/video-electron/releases/tag/v0.2.0-beta.1) | macOS Apple Silicon DMG, Windows x64 installer and SHA-256 manifest |
+| Server / Web | [v0.3.0-beta.2](https://github.com/StephenQiu30/framefetch-server/releases/tag/v0.3.0-beta.2)   | Self-hosted source and Compose deployment                           |
+| App          | [v0.2.0-beta.1](https://github.com/StephenQiu30/framefetch-app/releases/tag/v0.2.0-beta.1)      | iOS/Android source; no attached APK, IPA or store package           |
+| Desktop      | [v0.2.0-beta.1](https://github.com/StephenQiu30/framefetch-electron/releases/tag/v0.2.0-beta.1) | macOS Apple Silicon DMG, Windows x64 installer and SHA-256 manifest |
 
 All are Beta previews. Desktop installers are unsigned and the macOS build is not notarized; clean installation, upgrades and complete real-Server workflows require separate validation. Git tags identify release snapshots: embedded Server/API/Worker package versions remain `0.2.0`, App is `0.1.0+1`, and desktop packages are `0.2.0`. Use matching source and Server contracts when deploying; tag numbers alone do not establish compatibility.
 
@@ -183,24 +185,24 @@ This README describes the current main branch. For a fixed version, use its Rele
 
 **Job history.** View material, processing states and next actions, then return to details to continue.
 
-![Shared FrameFetch Web/desktop pages: demo job history and processing states](assets/readme/current-web-history.png)
+![Shared Framefetch Web/desktop pages: demo job history and processing states](assets/readme/current-web-history.png)
 
 **Material intake.** Start with a link, local video or existing document, then continue to processing results.
 
-![Shared FrameFetch Web/desktop workspace: links, local video and screenplay inputs](assets/readme/current-web-workspace.png)
+![Shared Framefetch Web/desktop workspace: links, local video and screenplay inputs](assets/readme/current-web-workspace.png)
 
 **Document reader.** Read existing text and invoke a supported built-in analysis or formatting Skill.
 
-![Shared FrameFetch Web/desktop pages: Midnight Visitor demo screenplay, scenes and analysis entry](assets/readme/current-web-screenplay.png)
+![Shared Framefetch Web/desktop pages: Midnight Visitor demo screenplay, scenes and analysis entry](assets/readme/current-web-screenplay.png)
 
-These shared Web/desktop pages were captured from the current production Electron Renderer on 2026-10-03, using the official logo, shared business components and theme without redrawing the interface. Job records, City Walk analysis and Midnight Visitor screenplay text are demo data illustrating features and report structure, with no real accounts or private material. For client interfaces and builds, see the [App README](https://github.com/StephenQiu30/video-app#readme) and [desktop README](https://github.com/StephenQiu30/video-electron#readme).
+These shared Web/desktop pages were captured from the current production Electron Renderer on 2026-10-03, using the official logo, shared business components and theme without redrawing the interface. Job records, City Walk analysis and Midnight Visitor screenplay text are demo data illustrating features and report structure, with no real accounts or private material. For client interfaces and builds, see the [App README](https://github.com/StephenQiu30/framefetch-app#readme) and [desktop README](https://github.com/StephenQiu30/framefetch-electron#readme).
 
 <details>
 <summary>Use cases and technical architecture</summary>
 
 ## Use cases
 
-| Your task                               | How FrameFetch helps                                                                                         |
+| Your task                               | How Framefetch helps                                                                                         |
 | --------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
 | Study finished videos                   | Check candidate cuts, actual frames and source times; add your own visual and sound notes                    |
 | Compare screenplays and videos          | Review candidate matches, continuity findings and uncovered ranges against fixed text and sampled frames     |
@@ -274,7 +276,7 @@ pnpm build
 
 ## Roadmap
 
-Platform support and validation limits are described in [the parsing design](workspace/content/design/14-解析引擎.md#13-验证状态); other unfinished work is listed in [BACKLOG](BACKLOG.md) (Chinese); built-in Skills are defined in the [PRD](workspace/content/prd/PRD-内置Skill能力整合.md), with work packages and acceptance checklists in the [execution plan](workspace/content/plan/PLAN-内置Skill能力整合.md). Implementation and verification evidence are recorded in that plan. Discuss priorities in [Issues](https://github.com/StephenQiu30/video-server/issues) — tasks labeled `good first issue` or `help wanted` are a good place to start.
+Platform support and validation limits are described in [the parsing design](workspace/content/design/14-解析引擎.md#13-验证状态); other unfinished work is listed in [BACKLOG](BACKLOG.md) (Chinese); built-in Skills are defined in the [PRD](workspace/content/prd/PRD-内置Skill能力整合.md), with work packages and acceptance checklists in the [execution plan](workspace/content/plan/PLAN-内置Skill能力整合.md). Implementation and verification evidence are recorded in that plan. Discuss priorities in [Issues](https://github.com/StephenQiu30/framefetch-server/issues) — tasks labeled `good first issue` or `help wanted` are a good place to start.
 
 ## Contributing
 
@@ -282,14 +284,14 @@ Contributions to provider adapters, reliability, web and mobile UX, AI reports, 
 
 Keep implementation, OpenAPI contracts, tests, operations documentation and acceptance evidence aligned. Prefer small, independently verifiable changes.
 
-If FrameFetch helps your creative work, research or self-hosting setup, please give it a **Star** and watch [Releases](https://github.com/StephenQiu30/video-server/releases) for updates — it is the best way to keep the project maintained.
+If Framefetch helps your creative work, research or self-hosting setup, please give it a **Star** and watch [Releases](https://github.com/StephenQiu30/framefetch-server/releases) for updates — it is the best way to keep the project maintained.
 
 ## Citation
 
-To cite FrameFetch in papers, reports or course material, use “Cite this repository” in the GitHub sidebar or the root [`CITATION.cff`](CITATION.cff). See [Releases](https://github.com/StephenQiu30/video-server/releases) for version history.
+To cite Framefetch in papers, reports or course material, use “Cite this repository” in the GitHub sidebar or the root [`CITATION.cff`](CITATION.cff). See [Releases](https://github.com/StephenQiu30/framefetch-server/releases) for version history.
 
 ## License
 
-FrameFetch is available under the [MIT License](LICENSE). The software license does not grant rights to download, copy or analyze third-party media.
+Framefetch is available under the [MIT License](LICENSE). The software license does not grant rights to download, copy or analyze third-party media.
 
 For public-site indexing and generative-search visibility, see [Web experience and SEO](workspace/content/design/11-Web体验.md) (Chinese). Private self-hosted instances default to noindex; intentionally public sites must opt in with `SITE_INDEXABLE=true` and a stable `SITE_URL` at build and runtime.

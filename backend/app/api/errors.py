@@ -460,7 +460,7 @@ def error_response(request: Request, error: AppError) -> JSONResponse:
             media_type="application/problem+json",
             headers=error.headers,
             content={
-                "type": f"urn:video-server:error:{error.code}",
+                "type": f"urn:framefetch-server:error:{error.code}",
                 "title": error.title,
                 "status": error.status,
                 "detail": error.detail,

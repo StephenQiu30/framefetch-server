@@ -61,7 +61,7 @@ def offline_visitor_session(monkeypatch: pytest.MonkeyPatch) -> None:
     ],
 )
 def test_douyin_raw_restrictions(item, reason) -> None:
-    with pytest.raises(ExtractorError, match=f"FrameFetch {reason}"):
+    with pytest.raises(ExtractorError, match=f"Framefetch {reason}"):
         enforce_douyin_access(item)
 
 

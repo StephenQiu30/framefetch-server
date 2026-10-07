@@ -187,7 +187,7 @@ describe('typed API client', () => {
         preview: false,
       },
       {
-        headers: { 'X-FrameFetch-Download-Client': 'local-web' },
+        headers: { 'X-Framefetch-Download-Client': 'local-web' },
       },
     );
     await getLiveness();
@@ -202,7 +202,7 @@ describe('typed API client', () => {
       '/health/ready',
     ]);
     expect(httpRequests()[3]).toMatchObject({
-      headers: { 'X-FrameFetch-Download-Client': 'local-web' },
+      headers: { 'X-Framefetch-Download-Client': 'local-web' },
     });
   });
 

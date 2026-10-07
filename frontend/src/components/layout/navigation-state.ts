@@ -1,8 +1,8 @@
 import { createUuid } from '@/lib/uuid';
 
-const STORAGE_KEY = 'video-server:navigation-history';
+const STORAGE_KEY = 'framefetch-server:navigation-history';
 const HISTORY_ENTRY_KEY = '__videoServerNavigationEntryId';
-export const NAVIGATION_PUSH_EVENT = 'video-server:navigation-push';
+export const NAVIGATION_PUSH_EVENT = 'framefetch-server:navigation-push';
 
 const MAX_ENTRIES = 32;
 

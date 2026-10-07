@@ -94,7 +94,7 @@ async def test_robust_topology_and_confirmed_mandatory_publish(monkeypatch) -> N
         assert parse_qs(parsed.query) == {
             "heartbeat": ["60"],
             "reconnect_interval": ["5"],
-            "name": ["video-server-outbox"],
+            "name": ["framefetch-server-outbox"],
         }
         assert kwargs["timeout"] == 10
         return connection

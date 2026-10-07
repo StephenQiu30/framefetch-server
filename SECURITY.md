@@ -13,7 +13,7 @@
 
 **身份材料**
 
-- 平台身份只来自用户普通 Chrome Profile 中的 `FrameFetch` 扩展。宿主 cookie-source 只监听 `127.0.0.1`，与扩展之间使用独立配对密钥双向 HMAC 认证并校验固定扩展 Origin；Runner 以独占 Bearer 按次请求材料。
+- 平台身份只来自用户普通 Chrome Profile 中的 `Framefetch` 扩展。宿主 cookie-source 只监听 `127.0.0.1`，与扩展之间使用独立配对密钥双向 HMAC 认证并校验固定扩展 Origin；Runner 以独占 Bearer 按次请求材料。
 - 不读取 Chrome Profile 文件、不访问钥匙串、不解密 Cookie、不需要完全磁盘访问。材料只存在于 Runner 内存与操作私有 tmpfs，操作结束即清理。
 - 配对配置为当前用户 `0600`、目录 `0700`。该机制不能防御同一用户下的恶意进程。
 

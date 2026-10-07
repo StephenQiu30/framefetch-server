@@ -1,6 +1,6 @@
-# video-server 工程规范
+# framefetch-server 工程规范
 
-本文规定 `video-server` 的技术栈、进程拓扑、目录职责、接口链路与命名规则。协作与交付见 [AGENTS.md](AGENTS.md)，运行方式见 [README.md](README.md)，界面视觉见 [design.md](design.md)。`video-app` 与 `video-electron` 是独立仓库，各自维护规范。
+本文规定 `framefetch-server` 的技术栈、进程拓扑、目录职责、接口链路与命名规则。协作与交付见 [AGENTS.md](AGENTS.md)，运行方式见 [README.md](README.md)，界面视觉见 [design.md](design.md)。`framefetch-app` 与 `framefetch-electron` 是独立仓库，各自维护规范。
 
 ## 1. 技术栈
 
@@ -13,7 +13,7 @@
 | 前端 | Next.js App Router、React、TypeScript strict、Tailwind CSS、shadcn/ui（Radix）、Phosphor |
 | 前端依赖 | pnpm；`packageManager` 固定版本，唯一 `pnpm-lock.yaml` |
 | 接口契约 | FastAPI 注解生成 OpenAPI；`@umijs/openapi` 生成前端 `src/api` |
-| 身份 | 用户普通 Chrome 中的 MV3 扩展 `FrameFetch` 与宿主 cookie-source |
+| 身份 | 用户普通 Chrome 中的 MV3 扩展 `Framefetch` 与宿主 cookie-source |
 | 检查 | 后端 Ruff、mypy、pytest；前端 Biome、TypeScript、Vitest、Next.js build；扩展 `node --test` |
 
 精确版本只在依赖清单与锁文件中维护。新依赖必须承担明确职责，脚手架默认带入但未使用的依赖应删除。
@@ -40,7 +40,7 @@
 ## 3. 仓库结构
 
 ```text
-video-server/
+framefetch-server/
 ├── backend/                  FastAPI、Worker、Runner、当前态 SQL 与测试
 ├── frontend/                 Next.js Web
 ├── extension/                身份扩展源码；manifest.json 与 config.local.json 由安装命令生成，不入库
@@ -131,7 +131,7 @@ backend/
 - `frontend/src/api/` 只由生成器写入，禁止手改、复制 DTO 或建别名层。生成配置只在 `frontend/openapi2ts.config.ts`。
 - CI 从后端源码导出 schema，重新生成并检查 Git 差异；不得用运行中的旧服务验证新代码。
 - 文件流、Range、WebSocket、健康探针与指标按各自协议实现，不由 REST 生成器代替。
-- 原生 App 使用 `/api/app/v1` 契约；修改须连同 `video-app` 一起验收。
+- 原生 App 使用 `/api/app/v1` 契约；修改须连同 `framefetch-app` 一起验收。
 
 ### 5.1 响应与异常
 

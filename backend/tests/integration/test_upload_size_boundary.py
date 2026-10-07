@@ -50,7 +50,7 @@ async def test_upload_signature_rejects_larger_and_smaller_parts():
         proxy = os.getenv("TEST_NEXT_UPLOAD_ORIGIN")
         if proxy:
             targets.append(
-                (f"{proxy}/storage-upload", {"X-FrameFetch-Upload-Target": url})
+                (f"{proxy}/storage-upload", {"X-Framefetch-Upload-Target": url})
             )
         async with httpx.AsyncClient(trust_env=False) as client:
             for target, headers in targets:

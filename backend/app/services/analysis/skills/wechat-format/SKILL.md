@@ -3,12 +3,12 @@ name: wechat-format
 description: 把已有文档按阅读层次组织，保留原有正文、标题、代码和引用；不发布或补写。
 license: MIT
 metadata:
-  video-server-display-name: 公众号文档整理
-  video-server-default-prompt: 按公众号长文阅读层次整理现有文档；保留全文，不添加营销标题、摘要和事实。
-  video-server-order: "71"
-  video-server-input-kinds: screenplay
-  video-server-output-contract: structured-report
-  video-server-modules: humanizer-zh, zh-copywriting-guidelines, baoyu-article-title
+  framefetch-server-display-name: 公众号文档整理
+  framefetch-server-default-prompt: 按公众号长文阅读层次整理现有文档；保留全文，不添加营销标题、摘要和事实。
+  framefetch-server-order: "71"
+  framefetch-server-input-kinds: screenplay
+  framefetch-server-output-contract: structured-report
+  framefetch-server-modules: humanizer-zh, zh-copywriting-guidelines, baoyu-article-title
 ---
 
 # Purpose

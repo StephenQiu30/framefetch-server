@@ -53,7 +53,7 @@ def create_app(
 ) -> FastAPI:
     effective = settings or get_settings()
     application = FastAPI(
-        title="视频下载与分析服务 API",
+        title="Framefetch API",
         description=API_DESCRIPTION,
         docs_url="/docs",
         license_info={"name": "MIT", "identifier": "MIT"},

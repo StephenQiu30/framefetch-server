@@ -44,7 +44,7 @@ function SiteFooter({ className }: { className?: string }) {
       <div className="content-shell flex min-h-16 flex-wrap items-center justify-between gap-x-8 gap-y-3 py-5 text-sm text-muted-foreground">
         <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
           <Link className="focus-ring font-medium text-foreground" href="/">
-            帧取 · FrameFetch
+            帧取 · Framefetch
           </Link>
           <span>
             <Link className="focus-ring" href={siteConfig.licenseUrl}>

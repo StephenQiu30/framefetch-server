@@ -198,7 +198,7 @@ class RabbitMqDownloadConsumer:
                 self._url,
                 heartbeat=self._heartbeat,
                 reconnect_interval=self._reconnect_interval,
-                connection_name="video-server-download-worker",
+                connection_name="framefetch-server-download-worker",
             ),
             timeout=self._connection_timeout,
         )

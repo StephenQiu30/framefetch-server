@@ -64,7 +64,7 @@ const publicDestinations = [
     keywords: '部署',
     icon: HardDrivesIcon,
   },
-  { label: '关于', href: '/about/', keywords: 'FrameFetch', icon: InfoIcon },
+  { label: '关于', href: '/about/', keywords: 'Framefetch', icon: InfoIcon },
 ] as const;
 
 const accountDestinations = [

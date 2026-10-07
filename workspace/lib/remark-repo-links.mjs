@@ -3,7 +3,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { visit } from 'unist-util-visit';
 
-const repository = 'https://github.com/StephenQiu30/video-server';
+const repository = 'https://github.com/StephenQiu30/framefetch-server';
 const contentDir = path.join(path.dirname(fileURLToPath(import.meta.url)), '../content');
 const repoRoot = path.join(contentDir, '../..');
 

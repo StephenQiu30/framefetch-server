@@ -8,7 +8,7 @@ let starting = false;
 let retryAt = 0;
 let activeProtocol = null;
 let lastParseCause = null;
-const backoff = new FrameFetchIdentity.Backoff();
+const backoff = new FramefetchIdentity.Backoff();
 
 chrome.alarms.onAlarm.addListener(alarm => { if (alarm.name === ALARM) void initialize(); });
 chrome.runtime.onStartup.addListener(() => { void initialize(); });
@@ -35,7 +35,7 @@ async function popupRequest(type) {
       await initialize();
     }
   }
-  const session = await FrameFetchYuanbaoHTTP.status(chrome);
+  const session = await FramefetchYuanbaoHTTP.status(chrome);
   return { connected: activeProtocol?.authenticated === true, version: chrome.runtime.getManifest().version,
     session, busy: activeProtocol?.busy === true, cause: lastParseCause };
 }
@@ -64,10 +64,10 @@ async function initialize() {
     let heartbeat = null;
     let lastSeen = Date.now();
     const send = message => { if (!closed && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(message)); };
-    const protocol = new FrameFetchIdentity.Protocol(config, details => chrome.cookies.getAll(details), send, chrome.runtime.getManifest().version,
+    const protocol = new FramefetchIdentity.Protocol(config, details => chrome.cookies.getAll(details), send, chrome.runtime.getManifest().version,
       async (canonicalUrl, deadlineMs) => {
         lastParseCause = null;
-        const result = await FrameFetchYuanbaoHTTP.parseShare(chrome, canonicalUrl, deadlineMs);
+        const result = await FramefetchYuanbaoHTTP.parseShare(chrome, canonicalUrl, deadlineMs);
         lastParseCause = result.cause ?? null;
         return result;
       });
@@ -77,7 +77,7 @@ async function initialize() {
     ws.onmessage = event => {
       let message;
       try {
-        if (closed || typeof event.data !== 'string' || new TextEncoder().encode(event.data).length > FrameFetchIdentity.MAX_MESSAGE_BYTES) throw new Error('invalid_message');
+        if (closed || typeof event.data !== 'string' || new TextEncoder().encode(event.data).length > FramefetchIdentity.MAX_MESSAGE_BYTES) throw new Error('invalid_message');
         message = JSON.parse(event.data);
         if (!message || typeof message !== 'object' || Array.isArray(message)) throw new Error('invalid_message');
       } catch { ws.close(); return; }

@@ -15,7 +15,7 @@ from pathlib import Path
 from xml.sax.saxutils import escape
 
 SERVICE_ID = "com.framefetch.analysis-agent"
-WINDOWS_TASK = "FrameFetchAnalysisAgent"
+WINDOWS_TASK = "FramefetchAnalysisAgent"
 BACKEND_ROOT = Path(__file__).resolve().parents[3]
 PROJECT_ROOT = BACKEND_ROOT.parent
 SYSTEMD_SERVICE = "framefetch-analysis-agent.service"
@@ -116,11 +116,11 @@ def agent_paths() -> AgentPaths:
     if sys.platform == "win32":
         base = (
             Path(os.environ.get("LOCALAPPDATA", Path.home() / "AppData" / "Local"))
-            / "FrameFetch"
+            / "Framefetch"
         )
         definition = base / "analysis-agent.xml"
     elif sys.platform == "darwin":
-        base = Path.home() / "Library" / "Logs" / "FrameFetch"
+        base = Path.home() / "Library" / "Logs" / "Framefetch"
         definition = Path.home() / "Library" / "LaunchAgents" / f"{SERVICE_ID}.plist"
     else:
         base = (
@@ -297,7 +297,7 @@ def _systemd_unit(paths: AgentPaths, env_file: Path = DEFAULT_ENV_FILE) -> str:
     return "\n".join(
         (
             "[Unit]",
-            "Description=FrameFetch AI analysis agent",
+            "Description=Framefetch AI analysis agent",
             "After=network-online.target",
             "",
             "[Service]",
@@ -327,7 +327,7 @@ def _windows_task_xml(env_file: Path = DEFAULT_ENV_FILE) -> str:
     return f"""<?xml version="1.0" encoding="UTF-16"?>
 <Task version="1.4" xmlns="http://schemas.microsoft.com/windows/2004/02/mit/task">
   <RegistrationInfo>
-    <Description>FrameFetch AI analysis agent</Description>
+    <Description>Framefetch AI analysis agent</Description>
   </RegistrationInfo>
   <Triggers><LogonTrigger><Enabled>true</Enabled></LogonTrigger></Triggers>
   <Principals>

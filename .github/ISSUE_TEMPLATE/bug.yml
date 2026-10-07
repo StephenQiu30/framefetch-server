@@ -1,12 +1,12 @@
 name: Bug 报告
-description: 报告可复现的 FrameFetch API、Web、Worker 或部署问题
+description: 报告可复现的 Framefetch API、Web、Worker 或部署问题
 title: "[Bug]: "
 labels: ["bug"]
 body:
   - type: markdown
     attributes:
       value: |
-        感谢你帮助改进 FrameFetch。提交前请搜索已有 Issue，并删除 Token、Cookie、`.env` 内容、完整媒体 URL、预签名 URL、用户媒体与其他敏感信息。
+        感谢你帮助改进 Framefetch。提交前请搜索已有 Issue，并删除 Token、Cookie、`.env` 内容、完整媒体 URL、预签名 URL、用户媒体与其他敏感信息。
 
   - type: dropdown
     id: component

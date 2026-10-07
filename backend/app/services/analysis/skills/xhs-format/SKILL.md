@@ -3,12 +3,12 @@ name: xhs-format
 description: 按已有内容组织小红书文档段落；保留原文与已有标签，不制作图卡或补写经历。
 license: MIT
 metadata:
-  video-server-display-name: 小红书文档整理
-  video-server-default-prompt: 组织已有小红书文档，保留完整原文和已有标题、标签；不补写亲历、事实或生成图卡。
-  video-server-order: "72"
-  video-server-input-kinds: screenplay
-  video-server-output-contract: structured-report
-  video-server-modules: humanizer-zh, zh-copywriting-guidelines, baoyu-article-title
+  framefetch-server-display-name: 小红书文档整理
+  framefetch-server-default-prompt: 组织已有小红书文档，保留完整原文和已有标题、标签；不补写亲历、事实或生成图卡。
+  framefetch-server-order: "72"
+  framefetch-server-input-kinds: screenplay
+  framefetch-server-output-contract: structured-report
+  framefetch-server-modules: humanizer-zh, zh-copywriting-guidelines, baoyu-article-title
 ---
 
 # Purpose

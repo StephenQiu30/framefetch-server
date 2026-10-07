@@ -114,7 +114,7 @@ describe('BasicLayout', () => {
 
       const footer = screen.getByRole('contentinfo');
       expect(
-        within(footer).getByRole('link', { name: '帧取 · FrameFetch' }),
+        within(footer).getByRole('link', { name: '帧取 · Framefetch' }),
       ).toBeInTheDocument();
       expect(
         within(footer).getByText(/请仅处理已获授权内容/),
@@ -239,7 +239,10 @@ describe('BasicLayout', () => {
       ).toHaveAttribute('href', '/#architecture');
       expect(
         within(navigation).getByRole('link', { name: 'GitHub' }),
-      ).toHaveAttribute('href', 'https://github.com/StephenQiu30/video-server');
+      ).toHaveAttribute(
+        'href',
+        'https://github.com/StephenQiu30/framefetch-server',
+      );
       expect(screen.getByRole('link', { name: '登录' })).toHaveAttribute(
         'href',
         '/user/login',

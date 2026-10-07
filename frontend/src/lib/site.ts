@@ -26,18 +26,19 @@ export function resolveSiteUrl(value: string | undefined): URL {
 }
 
 export const siteConfig = {
-  name: '帧取 FrameFetch',
+  name: '帧取 Framefetch',
   shortName: '帧取',
-  title: '帧取 FrameFetch — 开源自托管的视频解析与 AI 分析平台',
+  title: '帧取 Framefetch — 开源自托管的视频解析与 AI 分析平台',
   description:
-    '帧取 FrameFetch 是 MIT 开源的自托管视频解析与 AI 分析平台，支持本地视频导入、剧本文档处理、分镜分析，以及 Markdown / DOCX 报告导出。',
+    '帧取 Framefetch 是 MIT 开源的自托管视频解析与 AI 分析平台，支持本地视频导入、剧本文档处理、分镜分析，以及 Markdown / DOCX 报告导出。',
   englishDescription:
-    'FrameFetch is a self-hosted open-source workflow for authorized video parsing, local media import, screenplay processing, and AI video analysis with Markdown and DOCX reports.',
-  repositoryUrl: 'https://github.com/StephenQiu30/video-server',
+    'Framefetch is a self-hosted open-source workflow for authorized video parsing, local media import, screenplay processing, and AI video analysis with Markdown and DOCX reports.',
+  repositoryUrl: 'https://github.com/StephenQiu30/framefetch-server',
   documentationUrl:
-    'https://github.com/StephenQiu30/video-server/tree/main/workspace/content',
-  mobileRepositoryUrl: 'https://github.com/StephenQiu30/video-app',
-  licenseUrl: 'https://github.com/StephenQiu30/video-server/blob/main/LICENSE',
+    'https://github.com/StephenQiu30/framefetch-server/tree/main/workspace/content',
+  mobileRepositoryUrl: 'https://github.com/StephenQiu30/framefetch-app',
+  licenseUrl:
+    'https://github.com/StephenQiu30/framefetch-server/blob/main/LICENSE',
   maintainer: {
     name: 'StephenQiu30',
     url: 'https://github.com/StephenQiu30',

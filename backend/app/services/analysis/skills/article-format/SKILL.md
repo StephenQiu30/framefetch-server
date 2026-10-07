@@ -3,12 +3,12 @@ name: article-format
 description: 按已有论点、论据和说明顺序组织原文段落；保留作者立场、限制和引用，不代写文章。
 license: MIT
 metadata:
-  video-server-display-name: 文章文档整理
-  video-server-default-prompt: 按原文论证与说明结构分组，保留全文、原有标题、段落和作者表达。
-  video-server-order: "70"
-  video-server-input-kinds: screenplay
-  video-server-output-contract: structured-report
-  video-server-modules: humanizer-zh, zh-copywriting-guidelines, baoyu-article-title
+  framefetch-server-display-name: 文章文档整理
+  framefetch-server-default-prompt: 按原文论证与说明结构分组，保留全文、原有标题、段落和作者表达。
+  framefetch-server-order: "70"
+  framefetch-server-input-kinds: screenplay
+  framefetch-server-output-contract: structured-report
+  framefetch-server-modules: humanizer-zh, zh-copywriting-guidelines, baoyu-article-title
 ---
 
 # Purpose

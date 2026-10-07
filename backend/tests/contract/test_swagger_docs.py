@@ -17,7 +17,7 @@ def test_swagger_ui_and_openapi_contract_are_available(tmp_path: Path) -> None:
     assert schema_response.status_code == 200
 
     schema = schema_response.json()
-    assert schema["info"]["title"] == "视频下载与分析服务 API"
+    assert schema["info"]["title"] == "Framefetch API"
     assert {tag["name"] for tag in schema["tags"]} == {
         "system",
         "auth",

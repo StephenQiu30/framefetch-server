@@ -134,6 +134,6 @@
     } finally { clearTimeout(timer); controller?.abort(); api.cookies.onChanged.removeListener(changed); }
   }
   const api = { parseShare, status, CAUSES, MAX_CAPTURE_BYTES, PARSE_URL };
-  globalThis.FrameFetchYuanbaoHTTP = api;
+  globalThis.FramefetchYuanbaoHTTP = api;
   if (typeof module !== 'undefined') module.exports = api;
 })();

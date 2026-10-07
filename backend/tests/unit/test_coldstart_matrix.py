@@ -85,13 +85,13 @@ def native_context(**overrides):
     return {
         "provider_key": "wechat_channels",
         "resolved_layer": "L3",
-        "client": "actual-native",
+        "client": "wechat_channels:authenticated_http",
         "egress_route": "cn_residential",
         "egress_class": "unknown",
         "egress_observed_ip": None,
         "identity_used": True,
         "identity_digest": "a" * 64,
-        "browser_context_kind": "authenticated",
+        "browser_context_kind": "none",
         **overrides,
     }
 
@@ -258,7 +258,7 @@ def test_runtime_waits_after_identity_restart_and_restores_on_failure(
     monkeypatch, tmp_path, reconnect_failure
 ):
     monkeypatch.setattr(matrix, "LOCK", tmp_path / "lock")
-    monkeypatch.setattr(matrix, "compose_project", lambda output: "video-server")
+    monkeypatch.setattr(matrix, "compose_project", lambda output: "framefetch-server")
     facts, events = {}, []
 
     def run(argv, **kwargs):
@@ -267,7 +267,7 @@ def test_runtime_waits_after_identity_restart_and_restores_on_failure(
         elif "inspect" in argv:
             events.append("inspect")
             return (
-                f"/var/lib/video-browser={facts['browser_volume']} "
+                f"/var/lib/framefetch-browser={facts['browser_volume']} "
                 f"/work={facts['work_volume']}"
             )
         elif kwargs["log"].name == "restore.log":
@@ -655,6 +655,7 @@ def test_official_share_unverified_metadata_blocks_even_decodable_delivery(
         {"identity_digest": "not-a-native-digest"},
         {"resolved_layer": "L1"},
         {"browser_context_kind": "anonymous"},
+        {"browser_context_kind": "authenticated"},
     ],
 )
 def test_official_share_requires_actual_native_account_context(change, tmp_path):
@@ -776,7 +777,7 @@ def test_runtime_failure_restores_volumes_and_releases_lock(monkeypatch, tmp_pat
         return ""
 
     monkeypatch.setattr(matrix, "run_command", run)
-    monkeypatch.setattr(matrix, "compose_project", lambda output: "video-server")
+    monkeypatch.setattr(matrix, "compose_project", lambda output: "framefetch-server")
     facts = {}
     with pytest.raises(matrix.MatrixFailure):
         with matrix.runtime(
@@ -1054,11 +1055,13 @@ def test_worktree_reuses_single_existing_compose_project(monkeypatch, tmp_path):
     monkeypatch.setattr(
         matrix,
         "run_command",
-        lambda *a, **kw: "video-server\nvideo-server\nvideo-server\n",
+        lambda *a, **kw: "framefetch-server\nframefetch-server\nframefetch-server\n",
     )
-    assert matrix.compose_project(tmp_path) == "video-server"
+    assert matrix.compose_project(tmp_path) == "framefetch-server"
     monkeypatch.setattr(
-        matrix, "run_command", lambda *a, **kw: "video-server\nother\nvideo-server\n"
+        matrix,
+        "run_command",
+        lambda *a, **kw: "framefetch-server\nother\nframefetch-server\n",
     )
     with pytest.raises(matrix.MatrixFailure, match="shared_compose_project_not_found"):
         matrix.compose_project(tmp_path)

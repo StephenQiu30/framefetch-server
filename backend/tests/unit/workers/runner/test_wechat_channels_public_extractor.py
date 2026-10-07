@@ -325,7 +325,7 @@ def test_missing_declared_session_is_an_explicit_auth_failure():
     error = classify_provider_failure(
         ProviderFailureContext("wechat_channels", SHARE_URL, False),
         (
-            b"FrameFetch login_required: this WeChat Channels video "
+            b"Framefetch login_required: this WeChat Channels video "
             b"needs account identity"
         ),
     )

@@ -167,6 +167,6 @@
     reset() { this.attempt = 0; }
   }
   const api = { Protocol, Backoff, proof, filterCookies, MAX_MESSAGE_BYTES, MAX_PARSE_MESSAGE_BYTES };
-  globalThis.FrameFetchIdentity = api;
+  globalThis.FramefetchIdentity = api;
   if (typeof module !== 'undefined') module.exports = api;
 })();

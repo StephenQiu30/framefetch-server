@@ -2,7 +2,7 @@
 
 ## 我们的承诺
 
-FrameFetch 社区致力于为所有参与者提供开放、友善、无骚扰的协作环境，不因年龄、身体特征、残障、族群、性别身份与表达、经验水平、教育程度、社会经济状况、国籍、外貌、种族、宗教或性取向而区别对待。
+Framefetch 社区致力于为所有参与者提供开放、友善、无骚扰的协作环境，不因年龄、身体特征、残障、族群、性别身份与表达、经验水平、教育程度、社会经济状况、国籍、外貌、种族、宗教或性取向而区别对待。
 
 本准则适用于维护者、贡献者、Issue 与 Pull Request 参与者，以及在其他公开场合代表本项目的人。
 
@@ -39,4 +39,4 @@ FrameFetch 社区致力于为所有参与者提供开放、友善、无骚扰的
 
 ## 致谢
 
-本准则参考 [Contributor Covenant 2.1](https://www.contributor-covenant.org/version/2/1/code_of_conduct/) 的原则，并根据 FrameFetch 的开源媒体、安全和内容授权边界进行了调整。
+本准则参考 [Contributor Covenant 2.1](https://www.contributor-covenant.org/version/2/1/code_of_conduct/) 的原则，并根据 Framefetch 的开源媒体、安全和内容授权边界进行了调整。

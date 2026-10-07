@@ -128,7 +128,7 @@ def build_runtime_readiness(
         connection = await aio_pika.connect(
             settings.rabbitmq_url,
             timeout=settings.readiness_timeout_seconds,
-            client_properties={"connection_name": "video-server-api-readiness"},
+            client_properties={"connection_name": "framefetch-server-api-readiness"},
         )
         await connection.close()
 

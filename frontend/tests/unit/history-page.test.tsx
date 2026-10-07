@@ -151,7 +151,7 @@ describe('download history', () => {
     );
     expect(runtime.issueDownloadUrl).toHaveBeenCalledWith(
       { job_id: 'history-job-1', preview: false },
-      { headers: { 'X-FrameFetch-Download-Client': 'local-web' } },
+      { headers: { 'X-Framefetch-Download-Client': 'local-web' } },
     );
   });
 

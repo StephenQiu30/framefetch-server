@@ -373,6 +373,105 @@ wheels = [
 ]
 
 [[package]]
+name = "framefetch-server-backend"
+version = "0.2.0"
+source = { editable = "." }
+dependencies = [
+    { name = "aio-pika" },
+    { name = "asyncpg" },
+    { name = "bgutil-ytdlp-pot-provider" },
+    { name = "botocore" },
+    { name = "cryptography" },
+    { name = "email-validator" },
+    { name = "fastapi" },
+    { name = "httpx" },
+    { name = "langchain-core" },
+    { name = "langchain-deepseek" },
+    { name = "markdown-it-py" },
+    { name = "minio" },
+    { name = "openai" },
+    { name = "packaging" },
+    { name = "pamqp" },
+    { name = "pillow" },
+    { name = "playwright" },
+    { name = "pwdlib", extra = ["argon2"] },
+    { name = "pydantic" },
+    { name = "pydantic-settings" },
+    { name = "pyjwt" },
+    { name = "pypdf" },
+    { name = "python-docx" },
+    { name = "python-dotenv" },
+    { name = "pyyaml" },
+    { name = "redis" },
+    { name = "sqlalchemy", extra = ["asyncio"] },
+    { name = "starlette" },
+    { name = "temporalio" },
+    { name = "uvicorn", extra = ["standard"] },
+    { name = "websockets" },
+    { name = "yt-dlp", extra = ["curl-cffi", "default"] },
+    { name = "yt-dlp-ejs" },
+    { name = "yt-dlp-getpot-wpc" },
+]
+
+[package.dev-dependencies]
+dev = [
+    { name = "botocore-stubs" },
+    { name = "mypy" },
+    { name = "pytest" },
+    { name = "pytest-asyncio" },
+    { name = "ruff" },
+    { name = "types-pyyaml" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "aio-pika", specifier = ">=9.5,<10" },
+    { name = "asyncpg", specifier = ">=0.30,<1" },
+    { name = "bgutil-ytdlp-pot-provider", specifier = "==2.0.0" },
+    { name = "botocore", specifier = ">=1.40,<2" },
+    { name = "cryptography", specifier = ">=45,<47" },
+    { name = "email-validator", specifier = ">=2.2,<3" },
+    { name = "fastapi", specifier = ">=0.139,<1" },
+    { name = "httpx", specifier = ">=0.28,<1" },
+    { name = "langchain-core", specifier = ">=1,<2" },
+    { name = "langchain-deepseek", specifier = "==1.1.0" },
+    { name = "markdown-it-py", specifier = ">=4,<5" },
+    { name = "minio", specifier = ">=7.2,<8" },
+    { name = "openai", specifier = ">=3,<4" },
+    { name = "packaging", specifier = ">=24,<27" },
+    { name = "pamqp", specifier = ">=3.3,<4" },
+    { name = "pillow", specifier = ">=12,<13" },
+    { name = "playwright", specifier = "==1.63.0" },
+    { name = "pwdlib", extras = ["argon2"], specifier = ">=0.3,<1" },
+    { name = "pydantic", specifier = ">=2.7,<3" },
+    { name = "pydantic-settings", specifier = ">=2.7,<3" },
+    { name = "pyjwt", specifier = ">=2.10,<3" },
+    { name = "pypdf", specifier = "==6.16.0" },
+    { name = "python-docx", specifier = ">=1.2,<2" },
+    { name = "python-dotenv", specifier = ">=1,<2" },
+    { name = "pyyaml", specifier = ">=6.0,<7" },
+    { name = "redis", specifier = ">=6.4,<7" },
+    { name = "sqlalchemy", extras = ["asyncio"], specifier = ">=2.0,<3" },
+    { name = "starlette", specifier = ">=1,<2" },
+    { name = "temporalio", specifier = "==1.33.0" },
+    { name = "uvicorn", extras = ["standard"], specifier = ">=0.34,<1" },
+    { name = "websockets", specifier = ">=16.1,<17" },
+    { name = "yt-dlp", extras = ["default", "curl-cffi"], url = "https://github.com/yt-dlp/yt-dlp/archive/51bab8a0116f4d8004c315706d809782607d5847.tar.gz" },
+    { name = "yt-dlp-ejs", specifier = "==0.8.0" },
+    { name = "yt-dlp-getpot-wpc", specifier = "==1.1.2" },
+]
+
+[package.metadata.requires-dev]
+dev = [
+    { name = "botocore-stubs", specifier = ">=1.40,<2" },
+    { name = "mypy", specifier = ">=1.15,<2" },
+    { name = "pytest", specifier = ">=8.3,<9" },
+    { name = "pytest-asyncio", specifier = ">=0.25,<1" },
+    { name = "ruff", specifier = ">=0.9,<1" },
+    { name = "types-pyyaml", specifier = ">=6.0,<7" },
+]
+
+[[package]]
 name = "greenlet"
 version = "3.5.4"
 source = { registry = "https://pypi.org/simple" }
@@ -1532,105 +1631,6 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/5f/6f/e62b4dfc7ad6518e7eff2516f680d02a0f6eb62c0c212e152ca708a0085e/uvloop-0.22.1-cp312-cp312-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:7b5b1ac819a3f946d3b2ee07f09149578ae76066d70b44df3fa990add49a82e4", size = 4426307, upload-time = "2025-10-16T22:16:32.917Z" },
     { url = "https://files.pythonhosted.org/packages/90/60/97362554ac21e20e81bcef1150cb2a7e4ffdaf8ea1e5b2e8bf7a053caa18/uvloop-0.22.1-cp312-cp312-musllinux_1_2_aarch64.whl", hash = "sha256:e047cc068570bac9866237739607d1313b9253c3051ad84738cbb095be0537b2", size = 4131970, upload-time = "2025-10-16T22:16:34.015Z" },
     { url = "https://files.pythonhosted.org/packages/99/39/6b3f7d234ba3964c428a6e40006340f53ba37993f46ed6e111c6e9141d18/uvloop-0.22.1-cp312-cp312-musllinux_1_2_x86_64.whl", hash = "sha256:512fec6815e2dd45161054592441ef76c830eddaad55c8aa30952e6fe1ed07c0", size = 4296343, upload-time = "2025-10-16T22:16:35.149Z" },
-]
-
-[[package]]
-name = "video-server-backend"
-version = "0.2.0"
-source = { editable = "." }
-dependencies = [
-    { name = "aio-pika" },
-    { name = "asyncpg" },
-    { name = "bgutil-ytdlp-pot-provider" },
-    { name = "botocore" },
-    { name = "cryptography" },
-    { name = "email-validator" },
-    { name = "fastapi" },
-    { name = "httpx" },
-    { name = "langchain-core" },
-    { name = "langchain-deepseek" },
-    { name = "markdown-it-py" },
-    { name = "minio" },
-    { name = "openai" },
-    { name = "packaging" },
-    { name = "pamqp" },
-    { name = "pillow" },
-    { name = "playwright" },
-    { name = "pwdlib", extra = ["argon2"] },
-    { name = "pydantic" },
-    { name = "pydantic-settings" },
-    { name = "pyjwt" },
-    { name = "pypdf" },
-    { name = "python-docx" },
-    { name = "python-dotenv" },
-    { name = "pyyaml" },
-    { name = "redis" },
-    { name = "sqlalchemy", extra = ["asyncio"] },
-    { name = "starlette" },
-    { name = "temporalio" },
-    { name = "uvicorn", extra = ["standard"] },
-    { name = "websockets" },
-    { name = "yt-dlp", extra = ["curl-cffi", "default"] },
-    { name = "yt-dlp-ejs" },
-    { name = "yt-dlp-getpot-wpc" },
-]
-
-[package.dev-dependencies]
-dev = [
-    { name = "botocore-stubs" },
-    { name = "mypy" },
-    { name = "pytest" },
-    { name = "pytest-asyncio" },
-    { name = "ruff" },
-    { name = "types-pyyaml" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "aio-pika", specifier = ">=9.5,<10" },
-    { name = "asyncpg", specifier = ">=0.30,<1" },
-    { name = "bgutil-ytdlp-pot-provider", specifier = "==2.0.0" },
-    { name = "botocore", specifier = ">=1.40,<2" },
-    { name = "cryptography", specifier = ">=45,<47" },
-    { name = "email-validator", specifier = ">=2.2,<3" },
-    { name = "fastapi", specifier = ">=0.139,<1" },
-    { name = "httpx", specifier = ">=0.28,<1" },
-    { name = "langchain-core", specifier = ">=1,<2" },
-    { name = "langchain-deepseek", specifier = "==1.1.0" },
-    { name = "markdown-it-py", specifier = ">=4,<5" },
-    { name = "minio", specifier = ">=7.2,<8" },
-    { name = "openai", specifier = ">=3,<4" },
-    { name = "packaging", specifier = ">=24,<27" },
-    { name = "pamqp", specifier = ">=3.3,<4" },
-    { name = "pillow", specifier = ">=12,<13" },
-    { name = "playwright", specifier = "==1.63.0" },
-    { name = "pwdlib", extras = ["argon2"], specifier = ">=0.3,<1" },
-    { name = "pydantic", specifier = ">=2.7,<3" },
-    { name = "pydantic-settings", specifier = ">=2.7,<3" },
-    { name = "pyjwt", specifier = ">=2.10,<3" },
-    { name = "pypdf", specifier = "==6.16.0" },
-    { name = "python-docx", specifier = ">=1.2,<2" },
-    { name = "python-dotenv", specifier = ">=1,<2" },
-    { name = "pyyaml", specifier = ">=6.0,<7" },
-    { name = "redis", specifier = ">=6.4,<7" },
-    { name = "sqlalchemy", extras = ["asyncio"], specifier = ">=2.0,<3" },
-    { name = "starlette", specifier = ">=1,<2" },
-    { name = "temporalio", specifier = "==1.33.0" },
-    { name = "uvicorn", extras = ["standard"], specifier = ">=0.34,<1" },
-    { name = "websockets", specifier = ">=16.1,<17" },
-    { name = "yt-dlp", extras = ["default", "curl-cffi"], url = "https://github.com/yt-dlp/yt-dlp/archive/51bab8a0116f4d8004c315706d809782607d5847.tar.gz" },
-    { name = "yt-dlp-ejs", specifier = "==0.8.0" },
-    { name = "yt-dlp-getpot-wpc", specifier = "==1.1.2" },
-]
-
-[package.metadata.requires-dev]
-dev = [
-    { name = "botocore-stubs", specifier = ">=1.40,<2" },
-    { name = "mypy", specifier = ">=1.15,<2" },
-    { name = "pytest", specifier = ">=8.3,<9" },
-    { name = "pytest-asyncio", specifier = ">=0.25,<1" },
-    { name = "ruff", specifier = ">=0.9,<1" },
-    { name = "types-pyyaml", specifier = ">=6.0,<7" },
 ]
 
 [[package]]

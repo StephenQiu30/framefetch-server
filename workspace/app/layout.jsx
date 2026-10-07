@@ -8,7 +8,7 @@ export const metadata = {
   description: '帧取服务端的产品需求、系统设计与执行计划',
 };
 
-const repository = 'https://github.com/StephenQiu30/video-server';
+const repository = 'https://github.com/StephenQiu30/framefetch-server';
 
 export default async function RootLayout({ children }) {
   return (

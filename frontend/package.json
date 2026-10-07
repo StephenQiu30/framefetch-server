@@ -1,5 +1,5 @@
 {
-  "name": "video-server-frontend",
+  "name": "framefetch-server-frontend",
   "version": "0.2.0",
   "private": true,
   "type": "module",

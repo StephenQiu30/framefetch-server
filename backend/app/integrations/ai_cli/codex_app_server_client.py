@@ -129,7 +129,7 @@ class CodexAppServerClient:
             "initialize",
             {
                 "clientInfo": {
-                    "name": "video_server",
+                    "name": "framefetch_server",
                     "title": "Video Server",
                     "version": "1",
                 },

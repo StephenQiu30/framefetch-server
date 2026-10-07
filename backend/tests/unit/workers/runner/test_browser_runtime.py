@@ -324,9 +324,9 @@ def test_native_anonymous_volume_and_private_task_tmpfs_ownership(filename):
         (Path(__file__).resolve().parents[5] / filename).read_text()
     )
     runner = compose["services"]["session-runner"]
-    assert "browser_profiles:/var/lib/video-browser" in runner["volumes"]
+    assert "browser_profiles:/var/lib/framefetch-browser" in runner["volumes"]
     mounts = {line.split(":", 1)[0]: line.split(":", 1)[1] for line in runner["tmpfs"]}
-    for root in ("/tmp/video-browser", "/tmp/framefetch-identity"):
+    for root in ("/tmp/framefetch-browser", "/tmp/framefetch-identity"):
         flags = mounts[root].split(",")
         assert {"rw", "noexec", "nosuid", "uid=10001", "gid=10001", "mode=0700"} <= set(
             flags

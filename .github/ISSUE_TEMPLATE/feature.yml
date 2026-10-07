@@ -1,12 +1,12 @@
 name: 功能建议
-description: 为 FrameFetch 服务端、Web 或 AI 分析提出可验证的改进建议
+description: 为 Framefetch 服务端、Web 或 AI 分析提出可验证的改进建议
 title: "[Feature]: "
 labels: ["enhancement"]
 body:
   - type: markdown
     attributes:
       value: |
-        FrameFetch 以 workspace/content/design/README.md 为设计基线交付。请先描述用户问题与价值；移动端交互建议请提交到 video-app。
+        Framefetch 以 workspace/content/design/README.md 为设计基线交付。请先描述用户问题与价值；移动端交互建议请提交到 framefetch-app。
 
   - type: textarea
     id: problem

@@ -33,7 +33,7 @@ def agent_path() -> Path:
 
 
 def default_env_file() -> Path:
-    return Path.home() / "Library/Application Support/FrameFetch/identity.env"
+    return Path.home() / "Library/Application Support/Framefetch/identity.env"
 
 
 def agent_spec(env_file: Path) -> dict[str, object]:

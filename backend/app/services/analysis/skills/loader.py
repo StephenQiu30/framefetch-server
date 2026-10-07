@@ -19,13 +19,13 @@ _SKILL_ID = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
 _REFERENCE_NAME = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]*\.md$")
 _TOP_LEVEL_FIELDS = {"name", "description", "license", "metadata"}
 _REQUIRED_PRODUCT_FIELDS = {
-    "video-server-display-name",
-    "video-server-default-prompt",
-    "video-server-order",
-    "video-server-input-kinds",
-    "video-server-output-contract",
+    "framefetch-server-display-name",
+    "framefetch-server-default-prompt",
+    "framefetch-server-order",
+    "framefetch-server-input-kinds",
+    "framefetch-server-output-contract",
 }
-_OPTIONAL_PRODUCT_FIELDS = {"video-server-references", "video-server-modules"}
+_OPTIONAL_PRODUCT_FIELDS = {"framefetch-server-references", "framefetch-server-modules"}
 
 
 def load_skill(path: Path) -> AnalysisSkill:
@@ -46,23 +46,27 @@ def load_skill(path: Path) -> AnalysisSkill:
     skill_id = required_string(metadata["name"], "name", path, maximum=64)
     if skill_id != path.parent.name or _SKILL_ID.fullmatch(skill_id) is None:
         raise ValueError(f"invalid analysis skill id: {path}")
-    input_kinds = _input_kinds(product["video-server-input-kinds"], path)
-    result_contract = _result_contract(product["video-server-output-contract"], path)
+    input_kinds = _input_kinds(product["framefetch-server-input-kinds"], path)
+    result_contract = _result_contract(
+        product["framefetch-server-output-contract"], path
+    )
     _validate_contract(input_kinds, result_contract, path)
-    raw_modules = product.get("video-server-modules")
+    raw_modules = product.get("framefetch-server-modules")
     instructions = _compile_instructions(
-        body, product.get("video-server-references"), raw_modules, path
+        body, product.get("framefetch-server-references"), raw_modules, path
     )
     return AnalysisSkill(
         id=skill_id,
-        display_name=bounded(product["video-server-display-name"], path, 128),
+        display_name=bounded(product["framefetch-server-display-name"], path, 128),
         description=required_string(
             metadata["description"], "description", path, maximum=1024
         ),
-        default_prompt=bounded(product["video-server-default-prompt"], path, 4_000),
+        default_prompt=bounded(
+            product["framefetch-server-default-prompt"], path, 4_000
+        ),
         instructions=instructions,
         instructions_sha256=hashlib.sha256(instructions.encode()).hexdigest(),
-        order=_order(product["video-server-order"], path),
+        order=_order(product["framefetch-server-order"], path),
         input_kinds=input_kinds,
         result_contract=result_contract,
     )

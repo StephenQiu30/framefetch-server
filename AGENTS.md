@@ -1,10 +1,10 @@
-# video-server 协作规范
+# framefetch-server 协作规范
 
 本文件约束在本仓库工作的代码代理与贡献者：怎么读、怎么改、怎么验证、怎么交付。技术栈、目录与接口链路见 [PROJECT.md](PROJECT.md)，界面视觉见 [design.md](design.md)，安全边界见 [SECURITY.md](SECURITY.md)，提交格式见 [CONTRIBUTING.md](CONTRIBUTING.md)。规则冲突时以用户最新要求为准，其次是本文件。
 
 ## 产品定位
 
-帧取（FrameFetch）是单人自托管的视频解析、下载与分析工具。所有设计按个人工具取舍：不建设账号池、准入审批、运营金丝雀、多租户隔离或商业化能力。
+帧取（Framefetch）是单人自托管的视频解析、下载与分析工具。所有设计按个人工具取舍：不建设账号池、准入审批、运营金丝雀、多租户隔离或商业化能力。
 
 ## 不可违反的边界
 
@@ -13,7 +13,7 @@
 - official_share 只适用于视频号：交付用户提交分享链接对应的微信官方非加密文件，候选时长只用于传输完整性校验，不宣称独立原长或原作品完整性已获证明。
 - identity 与 content_scope 是两个独立维度，读取账号材料不等于放宽内容范围。
 - 不解密媒体、不取得内容密钥、不转换保护流、不调用第三方公共解析站；无法证明为 clear 完整媒体时返回 `content_protected` 并引导文件导入。
-- 平台身份只来自用户普通 Chrome 中的 `FrameFetch` 扩展；不读取 Chrome Profile 文件、不访问钥匙串、不解密 Cookie。Cookie 不进入业务 JSON、日志、队列、Temporal History 或持久字段。
+- 平台身份只来自用户普通 Chrome 中的 `Framefetch` 扩展；不读取 Chrome Profile 文件、不访问钥匙串、不解密 Cookie。Cookie 不进入业务 JSON、日志、队列、Temporal History 或持久字段。
 - 用户输入不得携带私网 URL、任意 yt-dlp 参数或 shell 片段。
 - ExecutionContext 只保存解析引擎第 9 节的十二字段非敏感摘要；失败按第 8 节的十三类记录 layer、stage、gate、结构化 evidence 与摘要。
 - 任何 Secret 不得进入前端、API 响应、异常、快照、测试夹具或普通日志；普通日志不记录完整 Prompt、抽帧或原始模型响应。

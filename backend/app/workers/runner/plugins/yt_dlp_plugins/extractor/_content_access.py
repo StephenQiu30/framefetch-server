@@ -13,7 +13,7 @@ from yt_dlp.utils import ExtractorError  # type: ignore[import-untyped]
 
 
 def reject(reason: str) -> NoReturn:
-    raise ExtractorError(f"FrameFetch {reason}", expected=True)
+    raise ExtractorError(f"Framefetch {reason}", expected=True)
 
 
 def _flag(data: dict[str, Any], *keys: str) -> bool:

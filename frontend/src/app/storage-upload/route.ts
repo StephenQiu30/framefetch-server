@@ -6,7 +6,7 @@ import type { NextRequest } from 'next/server';
 
 import { internalStorageTarget, resolveTarget } from './target';
 
-const TARGET_HEADER = 'X-FrameFetch-Upload-Target';
+const TARGET_HEADER = 'X-Framefetch-Upload-Target';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';

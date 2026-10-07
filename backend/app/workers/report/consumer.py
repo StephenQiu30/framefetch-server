@@ -78,7 +78,7 @@ class RabbitMqReportConsumer:
                 self._url,
                 heartbeat=self._heartbeat,
                 reconnect_interval=self._reconnect_interval,
-                connection_name="video-server-report-worker",
+                connection_name="framefetch-server-report-worker",
             ),
             timeout=self._connection_timeout,
         )

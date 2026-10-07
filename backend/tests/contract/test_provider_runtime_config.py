@@ -56,7 +56,7 @@ def test_youtube_sidecar_and_runners_can_only_egress_through_a_gateway() -> None
         assert sidecar["healthcheck"]["test"] == [
             "CMD",
             "/usr/local/bin/node",
-            "/opt/video/youtube-pot-supervisor.mjs",
+            "/opt/framefetch/youtube-pot-supervisor.mjs",
             "--check-health",
         ]
         assert (

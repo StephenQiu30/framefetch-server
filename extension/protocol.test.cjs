@@ -38,7 +38,7 @@ function timedProtocol(getAll, observeCompletion) {
     clearTimeout: timer => timers.delete(timer),
   });
   vm.runInContext(fs.readFileSync(__dirname + '/protocol.js', 'utf8'), context);
-  const protocol = new context.FrameFetchIdentity.Protocol({ domains: ['instagram.com', 'v.qq.com'] }, getAll,
+  const protocol = new context.FramefetchIdentity.Protocol({ domains: ['instagram.com', 'v.qq.com'] }, getAll,
     message => sent.push(JSON.parse(JSON.stringify(message))), '1.0.0');
   protocol.authenticated = true;
   return { protocol, timers, sent, advance: ms => {

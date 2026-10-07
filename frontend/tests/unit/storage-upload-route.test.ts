@@ -42,7 +42,7 @@ describe('same-origin storage upload route', () => {
       body: new Blob(['screenplay']),
       headers: {
         'Content-Type': 'text/plain',
-        'X-FrameFetch-Upload-Target': signedTarget,
+        'X-Framefetch-Upload-Target': signedTarget,
       },
       method: 'PUT',
     });

@@ -29,8 +29,8 @@ class RabbitMqPublisher:
         publish_timeout: float = 10,
         heartbeat: int = 60,
         reconnect_interval: float = 5,
-        connection_name: str = "video-server-outbox",
-        app_id: str = "video-server-outbox",
+        connection_name: str = "framefetch-server-outbox",
+        app_id: str = "framefetch-server-outbox",
     ) -> None:
         if not url:
             raise ValueError("RabbitMQ URL cannot be blank")

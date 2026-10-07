@@ -30,7 +30,7 @@ export function publicMetadata(
           url: absoluteUrl('/opengraph-image/'),
           width: 1200,
           height: 630,
-          alt: 'FrameFetch — self-hosted video parsing and AI analysis',
+          alt: 'Framefetch — self-hosted video parsing and AI analysis',
         },
       ],
     },

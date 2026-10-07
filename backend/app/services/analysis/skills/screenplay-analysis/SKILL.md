@@ -3,13 +3,13 @@ name: screenplay-analysis
 description: 对已上传的中英文剧本做完整故事审稿，先找主要问题和有效机制，再审阅结构、人物、场景与对白；不代写剧情，也不推断未提供的媒体。
 license: MIT
 metadata:
-  video-server-display-name: 剧本审阅
-  video-server-default-prompt: 先找出影响故事理解和人物选择的主要问题与有效机制，再按原文审阅结构、人物、场景和对白；修改建议写清问题、影响与目标。
-  video-server-order: "60"
-  video-server-input-kinds: screenplay
-  video-server-output-contract: screenplay-analysis
-  video-server-modules: drama-story-script, drama-anti-template, sw-character-conflict, sw-dialogue, humanizer-zh, zh-copywriting-guidelines
-  video-server-references: references/output-contract.md, shared/report-writing.md, shared/screenplay-coverage-writing.md
+  framefetch-server-display-name: 剧本审阅
+  framefetch-server-default-prompt: 先找出影响故事理解和人物选择的主要问题与有效机制，再按原文审阅结构、人物、场景和对白；修改建议写清问题、影响与目标。
+  framefetch-server-order: "60"
+  framefetch-server-input-kinds: screenplay
+  framefetch-server-output-contract: screenplay-analysis
+  framefetch-server-modules: drama-story-script, drama-anti-template, sw-character-conflict, sw-dialogue, humanizer-zh, zh-copywriting-guidelines
+  framefetch-server-references: references/output-contract.md, shared/report-writing.md, shared/screenplay-coverage-writing.md
 ---
 
 # 剧本故事审稿

@@ -3,12 +3,12 @@ name: video-review
 description: 围绕用户的观看目标审阅成片的叙事、镜头、剪辑与连续性，给出有定位的优先修改和保留理由。
 license: MIT
 metadata:
-  video-server-display-name: 成片审阅
-  video-server-default-prompt: 找出最影响观众理解或观看体验的具体问题与值得保留的表达；按影响排序，写清位置、原因和修改目标，不凑问题数量。
-  video-server-order: "10"
-  video-server-input-kinds: video
-  video-server-output-contract: structured-report
-  video-server-modules: drama-edit-cut-craft, drama-shot-grammar, drama-blocking-playbooks, zh-copywriting-guidelines
+  framefetch-server-display-name: 成片审阅
+  framefetch-server-default-prompt: 找出最影响观众理解或观看体验的具体问题与值得保留的表达；按影响排序，写清位置、原因和修改目标，不凑问题数量。
+  framefetch-server-order: "10"
+  framefetch-server-input-kinds: video
+  framefetch-server-output-contract: structured-report
+  framefetch-server-modules: drama-edit-cut-craft, drama-shot-grammar, drama-blocking-playbooks, zh-copywriting-guidelines
 ---
 
 # Purpose

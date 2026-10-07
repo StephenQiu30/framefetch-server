@@ -35,15 +35,15 @@ async def run(queue_name: str, actor: str, reason: str) -> None:
         publish_timeout=settings.rabbitmq_publish_timeout_seconds,
         heartbeat=settings.rabbitmq_heartbeat_seconds,
         reconnect_interval=settings.rabbitmq_reconnect_interval_seconds,
-        connection_name="video-server-dlq-replay",
-        app_id="video-server-dlq-replay",
+        connection_name="framefetch-server-dlq-replay",
+        app_id="framefetch-server-dlq-replay",
     )
     connection = await aio_pika.connect_robust(
         configured_rabbitmq_url(
             url,
             heartbeat=settings.rabbitmq_heartbeat_seconds,
             reconnect_interval=settings.rabbitmq_reconnect_interval_seconds,
-            connection_name="video-server-dlq-reader",
+            connection_name="framefetch-server-dlq-reader",
         ),
         timeout=settings.rabbitmq_connection_timeout_seconds,
     )

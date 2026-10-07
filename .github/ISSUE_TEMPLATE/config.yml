@@ -1,11 +1,11 @@
 blank_issues_enabled: false
 contact_links:
   - name: iOS / Android 客户端问题
-    url: https://github.com/StephenQiu30/video-app/issues
-    about: Flutter App 的界面、构建或原生行为问题请提交到 video-app 仓库。
+    url: https://github.com/StephenQiu30/framefetch-app/issues
+    about: Flutter App 的界面、构建或原生行为问题请提交到 framefetch-app 仓库。
   - name: 安全漏洞报告说明
-    url: https://github.com/StephenQiu30/video-server/security/policy
+    url: https://github.com/StephenQiu30/framefetch-server/security/policy
     about: 请先阅读安全策略，不要在公开 Issue 中披露漏洞、凭据或用户内容。
   - name: 自托管部署指南
-    url: https://github.com/StephenQiu30/video-server#快速开始
+    url: https://github.com/StephenQiu30/framefetch-server#快速开始
     about: 提问前请先对照 README 快速开始与 workspace/content/design/README.md 系统设计。

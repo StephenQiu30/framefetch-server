@@ -342,7 +342,7 @@ def _notice_entry(plan: ImportPlan, today: date, registered: list[str]) -> str:
             else "no findings"
         ),
         "- Local use: none until a product Skill opts in with "
-        "`video-server-modules`; update this entry when it does.",
+        "`framefetch-server-modules`; update this entry when it does.",
         "",
     ]
     return "\n".join(lines)

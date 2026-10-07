@@ -50,7 +50,7 @@ for line in sys.stdin:
     message = json.loads(line)
     method = message.get("method")
     if method == "initialize":
-        assert message["params"]["clientInfo"]["name"] == "video_server"
+        assert message["params"]["clientInfo"]["name"] == "framefetch_server"
         assert message["params"]["capabilities"]["experimentalApi"] is True
         print(json.dumps({{"id": 1, "result": {{"userAgent": "fake"}}}}), flush=True)
     elif method == "initialized":

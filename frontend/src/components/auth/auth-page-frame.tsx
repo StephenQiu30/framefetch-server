@@ -49,7 +49,7 @@ export function AuthPageFrame({
           <ItemContent className="w-full max-w-md flex-none gap-8">
             <div className="flex flex-col gap-3">
               <p className="text-sm font-medium text-muted-foreground">
-                FrameFetch 万能视频下载器
+                Framefetch 万能视频下载器
               </p>
               <p className="text-balance text-3xl font-medium tracking-tight">
                 粘贴链接，带走任意公开视频。

@@ -21,9 +21,9 @@ import { Textarea } from '@/components/ui/textarea';
 import { publicMetadata } from '@/lib/public-metadata';
 import { absoluteUrl, siteConfig } from '@/lib/site';
 
-const title = '自托管部署指南：用 Docker Compose 运行帧取 FrameFetch';
+const title = '自托管部署指南：用 Docker Compose 运行帧取 Framefetch';
 const description =
-  '从克隆仓库到首个管理员登录：帧取 FrameFetch 的运行环境要求、Docker Compose 启动步骤、端口与健康检查、可选 AI 分析 Worker，以及公开上线前的检查清单。';
+  '从克隆仓库到首个管理员登录：帧取 Framefetch 的运行环境要求、Docker Compose 启动步骤、端口与健康检查、可选 AI 分析 Worker，以及公开上线前的检查清单。';
 export const metadata = publicMetadata(title, description, '/self-hosting/');
 
 const requirements = [
@@ -39,7 +39,7 @@ const steps = [
     title: '克隆仓库并准备环境文件',
     text: '复制示例配置后，把 .env 中的连接信息改为本机已运行的 PostgreSQL、RabbitMQ、Redis 与 MinIO。真实密钥只写入未提交的 .env 或 Secret Manager。',
     code: `git clone ${siteConfig.repositoryUrl}.git
-cd video-server
+cd framefetch-server
 test -f .env || cp .env.example .env`,
   },
   {
