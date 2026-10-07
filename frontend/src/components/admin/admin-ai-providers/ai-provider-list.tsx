@@ -67,7 +67,7 @@ function ProviderRowColumns(
       id: '服务',
       header: '服务',
       hideable: false,
-      className: 'whitespace-normal',
+      className: 'w-full whitespace-normal [overflow-wrap:anywhere] lg:w-1/3',
       cell: (item) => {
         const localCodex = isLocalCodexProvider(item.key);
         return (
@@ -95,7 +95,8 @@ function ProviderRowColumns(
     {
       id: '模型与连接',
       header: '模型与连接',
-      className: 'hidden lg:table-cell',
+      className:
+        'hidden whitespace-normal [overflow-wrap:anywhere] lg:table-cell lg:w-1/3',
       cell: (item) => {
         return (
           <div className="flex min-w-0 flex-col gap-1">
@@ -108,7 +109,7 @@ function ProviderRowColumns(
     {
       id: '执行引擎',
       header: '执行引擎',
-      className: 'hidden lg:table-cell',
+      className: 'hidden whitespace-nowrap lg:table-cell',
       cell: (item) => {
         return (
           <Badge variant="secondary">{providerEngineLabel(item.engine)}</Badge>
@@ -119,7 +120,7 @@ function ProviderRowColumns(
       id: '操作',
       header: '操作',
       hideable: false,
-      className: 'text-right',
+      className: 'text-right whitespace-nowrap',
       cell: (item) => {
         const localCodex = isLocalCodexProvider(item.key);
         return (

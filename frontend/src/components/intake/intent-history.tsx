@@ -33,6 +33,7 @@ import { PageErrorNotice } from '@/components/layout/page-error-notice';
 import { PageHeader } from '@/components/layout/page-header';
 import { PageNavigation } from '@/components/layout/page-navigation';
 import { PagePagination } from '@/components/layout/page-pagination';
+import { TableDateTime } from '@/components/layout/table-date-time';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
@@ -258,11 +259,16 @@ export function IntentHistory({
                 {
                   id: 'content',
                   header: '内容',
+                  className:
+                    'w-full whitespace-normal [overflow-wrap:anywhere]',
                   cell: (item) => (
                     <div className="min-w-0 whitespace-normal">
-                      <ItemDescription className="line-clamp-none line-clamp-2 break-words">
+                      <ItemTitle
+                        className="line-clamp-2 [overflow-wrap:anywhere]"
+                        title={item.title || '媒体解析'}
+                      >
                         {item.title || '媒体解析'}
-                      </ItemDescription>
+                      </ItemTitle>
                       <ItemDescription className="line-clamp-none mt-1">
                         {historyRecordLabel(item)}
                         {isAnalysisRecord(item)
@@ -275,37 +281,32 @@ export function IntentHistory({
                           源文件不可用 · 已有结果仍可查看
                         </ItemDescription>
                       ) : null}
-                      <time className="sm:hidden" dateTime={item.created_at}>
-                        {new Date(item.created_at).toLocaleString('zh-CN', {
-                          hour12: false,
-                        })}
-                      </time>
-                      <Badge
-                        className="mt-1.5 sm:hidden"
-                        variant={historyRecordVariant(item)}
-                      >
-                        {historyRecordStatus(item)}
-                      </Badge>
+                      <div className="mt-1 flex flex-col gap-1 lg:hidden">
+                        <time dateTime={item.created_at}>
+                          {new Date(item.created_at).toLocaleString('zh-CN', {
+                            hour12: false,
+                          })}
+                        </time>
+                        <Badge variant={historyRecordVariant(item)}>
+                          {historyRecordStatus(item)}
+                        </Badge>
+                      </div>
                     </div>
                   ),
                 },
                 {
                   id: 'created',
                   header: '提交时间',
-                  className: 'hidden w-44 sm:table-cell',
+                  className: 'hidden whitespace-nowrap lg:table-cell',
                   cell: (item) => (
-                    <time dateTime={item.created_at}>
-                      {new Date(item.created_at).toLocaleString('zh-CN', {
-                        hour12: false,
-                      })}
-                    </time>
+                    <TableDateTime value={item.created_at} seconds />
                   ),
                 },
                 {
                   id: 'status',
                   header: '状态',
                   // Shown inside the content cell on narrow screens.
-                  className: 'hidden w-32 sm:table-cell',
+                  className: 'hidden whitespace-nowrap lg:table-cell',
                   cell: (item) => (
                     <Badge variant={historyRecordVariant(item)}>
                       {historyRecordStatus(item)}
@@ -315,7 +316,7 @@ export function IntentHistory({
                 {
                   id: 'actions',
                   header: '操作',
-                  className: 'w-28 text-right',
+                  className: 'text-right whitespace-nowrap',
                   hideable: false,
                   cell: (item) =>
                     item.record_type !== 'parse' ? (

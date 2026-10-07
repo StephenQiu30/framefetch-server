@@ -103,7 +103,8 @@ export function UserList({
               id: '用户名',
               header: '用户名',
               hideable: false,
-              className: 'whitespace-normal',
+              className:
+                'w-full whitespace-normal [overflow-wrap:anywhere] lg:w-1/4',
               cell: (item) => (
                 <div className="flex min-w-0 flex-col gap-2">
                   <span className="break-all">{item.username}</span>
@@ -120,7 +121,8 @@ export function UserList({
             {
               id: '邮箱',
               header: '邮箱',
-              className: 'hidden lg:table-cell',
+              className:
+                'hidden whitespace-normal [overflow-wrap:anywhere] lg:table-cell lg:w-1/3',
               cell: (item) => <span className="break-all">{item.email}</span>,
             },
             {
@@ -132,14 +134,14 @@ export function UserList({
             {
               id: '注册日期',
               header: '注册日期',
-              className: 'hidden tabular-nums lg:table-cell',
+              className: 'hidden whitespace-nowrap tabular-nums lg:table-cell',
               cell: (item) => <> {formatUserDate(item.created_at)} </>,
             },
             {
               id: '操作',
               header: '操作',
               hideable: false,
-              className: 'text-right',
+              className: 'text-right whitespace-nowrap',
               cell: (item) => <> {action(item)} </>,
             },
           ]}

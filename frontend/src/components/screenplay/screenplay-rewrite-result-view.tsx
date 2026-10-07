@@ -64,21 +64,25 @@ export default function ScreenplayRewriteResultView({
               </TableCaption>
               <TableHeader>
                 <TableRow>
-                  <TableHead className="whitespace-normal">原文</TableHead>
-                  <TableHead className="whitespace-normal">统一写法</TableHead>
-                  <TableHead className="whitespace-normal">类别</TableHead>
+                  <TableHead className="w-2/5 whitespace-nowrap">
+                    原文
+                  </TableHead>
+                  <TableHead className="w-2/5 whitespace-nowrap">
+                    统一写法
+                  </TableHead>
+                  <TableHead className="whitespace-nowrap">类别</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {result.glossary.map((term) => (
                   <TableRow key={`${term.category}:${term.source}`}>
-                    <TableCell className="whitespace-normal">
+                    <TableCell className="w-2/5 whitespace-normal [overflow-wrap:anywhere]">
                       {term.source}
                     </TableCell>
-                    <TableCell className="whitespace-normal">
+                    <TableCell className="w-2/5 whitespace-normal [overflow-wrap:anywhere]">
                       {term.target}
                     </TableCell>
-                    <TableCell className="whitespace-normal">
+                    <TableCell className="whitespace-nowrap">
                       {categoryLabels[term.category] ?? term.category}
                     </TableCell>
                   </TableRow>

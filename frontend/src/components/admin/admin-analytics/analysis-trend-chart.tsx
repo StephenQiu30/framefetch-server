@@ -121,7 +121,13 @@ export function AnalysisTrendChart({ daily }: { daily: DailyPoint[] }) {
               <TableRow>
                 {['日期', '全部', '成功', '失败', '取消', '进行中'].map(
                   (label) => (
-                    <TableHead key={label} scope="col">
+                    <TableHead
+                      key={label}
+                      scope="col"
+                      className={
+                        label === '日期' ? undefined : 'text-right tabular-nums'
+                      }
+                    >
                       {label}
                     </TableHead>
                   ),
@@ -132,11 +138,21 @@ export function AnalysisTrendChart({ daily }: { daily: DailyPoint[] }) {
               {points.map((point) => (
                 <TableRow key={point.date}>
                   <TableHead scope="row">{point.date}</TableHead>
-                  <TableCell>{point.total}</TableCell>
-                  <TableCell>{point.succeeded}</TableCell>
-                  <TableCell>{point.failed}</TableCell>
-                  <TableCell>{point.cancelled}</TableCell>
-                  <TableCell>{point.active}</TableCell>
+                  <TableCell className="text-right tabular-nums">
+                    {point.total}
+                  </TableCell>
+                  <TableCell className="text-right tabular-nums">
+                    {point.succeeded}
+                  </TableCell>
+                  <TableCell className="text-right tabular-nums">
+                    {point.failed}
+                  </TableCell>
+                  <TableCell className="text-right tabular-nums">
+                    {point.cancelled}
+                  </TableCell>
+                  <TableCell className="text-right tabular-nums">
+                    {point.active}
+                  </TableCell>
                 </TableRow>
               ))}
             </TableBody>

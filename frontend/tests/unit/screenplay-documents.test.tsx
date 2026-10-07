@@ -87,7 +87,7 @@ describe('screenplay documents', () => {
     const compactFormat = cell.getByText('Fountain · 中英混合');
     const compactMetadata = compactFormat.parentElement;
 
-    expect(compactMetadata).toHaveClass('sm:hidden');
+    expect(compactMetadata).toHaveClass('lg:hidden');
     expect(cell.getByText('2 个场景 · 1,280 个字符')).toBeInTheDocument();
     expect(cell.getByText(/^更新于/u)).toHaveAttribute(
       'datetime',

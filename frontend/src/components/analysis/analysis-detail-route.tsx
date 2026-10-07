@@ -29,6 +29,7 @@ import {
   DEFAULT_PAGE_SIZE,
   PagePagination,
 } from '@/components/layout/page-pagination';
+import { TableDateTime } from '@/components/layout/table-date-time';
 import { ScreenplayResultView } from '@/components/screenplay/screenplay-result-view';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -368,6 +369,7 @@ export function AnalysisRuns({
             {
               id: 'run',
               header: '执行',
+              className: 'w-full whitespace-normal [overflow-wrap:anywhere]',
               hideable: false,
               cell: (run) => (
                 <div className="flex flex-col gap-2">
@@ -376,7 +378,7 @@ export function AnalysisRuns({
                       ? `第 ${run.run_no} 份报告 · 历史人工稿`
                       : `第 ${run.run_no} 次`}
                   </ItemTitle>
-                  <div className="flex flex-col gap-2 sm:hidden">
+                  <div className="flex flex-col gap-2 lg:hidden">
                     <Badge variant="secondary">
                       {statusLabels[run.status]}
                     </Badge>
@@ -398,7 +400,7 @@ export function AnalysisRuns({
             {
               id: 'status',
               header: '状态',
-              className: 'hidden sm:table-cell',
+              className: 'hidden whitespace-nowrap lg:table-cell',
               cell: (run) => (
                 <Badge variant="secondary">{statusLabels[run.status]}</Badge>
               ),
@@ -406,14 +408,8 @@ export function AnalysisRuns({
             {
               id: 'created',
               header: '创建时间',
-              className: 'hidden sm:table-cell',
-              cell: (run) => (
-                <time dateTime={run.created_at}>
-                  {new Date(run.created_at).toLocaleString('zh-CN', {
-                    hour12: false,
-                  })}
-                </time>
-              ),
+              className: 'hidden whitespace-nowrap lg:table-cell',
+              cell: (run) => <TableDateTime value={run.created_at} seconds />,
             },
           ]}
         />

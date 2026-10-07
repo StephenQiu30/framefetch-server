@@ -6,6 +6,7 @@ import {
 } from '@/components/layout/bulk-delete-selection';
 import { type DataColumn, DataTable } from '@/components/layout/data-table';
 import { PageEmptyNotice } from '@/components/layout/page-empty-notice';
+import { TableDateTime } from '@/components/layout/table-date-time';
 import { ScreenplayDocumentDeleteDialog } from '@/components/screenplay/screenplay-document-delete-dialog';
 import {
   documentFormatLabels,
@@ -69,20 +70,22 @@ function DocumentRowColumns(
     {
       id: '文档',
       header: '文档',
-      className: 'text-left whitespace-normal',
+      className: 'w-full text-left whitespace-normal [overflow-wrap:anywhere]',
       cell: (document) => {
         const detailHref = `/documents/detail?documentId=${encodeURIComponent(document.id)}`;
         return (
           <div className="flex min-w-0 flex-col gap-1">
             <Item asChild>
               <Link href={detailHref}>
-                <ItemTitle className="line-clamp-2">{document.title}</ItemTitle>
+                <ItemTitle className="line-clamp-2" title={document.title}>
+                  {document.title}
+                </ItemTitle>
               </Link>
             </Item>
-            <ItemDescription className="line-clamp-2 break-all">
+            <ItemDescription className="line-clamp-2 [overflow-wrap:anywhere]">
               {document.original_filename}
             </ItemDescription>
-            <div className="flex flex-col gap-1 sm:hidden">
+            <div className="flex flex-col gap-1 lg:hidden">
               <span>
                 {documentFormatLabels[document.source_format]} ·{' '}
                 {languageLabel(document.detected_language)}
@@ -97,7 +100,7 @@ function DocumentRowColumns(
               </time>
             </div>
             <Badge
-              className="mt-0.5 sm:hidden"
+              className="mt-0.5 lg:hidden"
               variant={documentStatusVariant(document.status)}
             >
               {documentStatusLabels[document.status]}
@@ -109,14 +112,12 @@ function DocumentRowColumns(
     {
       id: '格式与更新时间',
       header: '格式与更新时间',
-      className: 'hidden whitespace-normal sm:table-cell',
+      className: 'hidden whitespace-nowrap lg:table-cell',
       cell: (document) => {
         return (
           <div className="flex flex-col gap-1">
             <span>{documentFormatLabels[document.source_format]}</span>
-            <time dateTime={document.updated_at}>
-              {formatDocumentDate(document.updated_at)}
-            </time>
+            <TableDateTime value={document.updated_at} />
           </div>
         );
       },
@@ -124,7 +125,7 @@ function DocumentRowColumns(
     {
       id: '内容统计',
       header: '内容统计',
-      className: 'hidden whitespace-normal sm:table-cell',
+      className: 'hidden whitespace-nowrap lg:table-cell',
       cell: (document) => {
         return (
           <div className="flex flex-col gap-1">
@@ -141,7 +142,7 @@ function DocumentRowColumns(
       id: '状态',
       header: '状态',
       // Shown inside the document cell on narrow screens.
-      className: 'hidden whitespace-normal sm:table-cell',
+      className: 'hidden whitespace-nowrap lg:table-cell',
       cell: (document) => {
         return (
           <Badge variant={documentStatusVariant(document.status)}>
@@ -153,7 +154,8 @@ function DocumentRowColumns(
     {
       id: '操作',
       header: '操作',
-      className: 'text-right',
+      className: 'text-right whitespace-nowrap',
+      hideable: false,
       cell: (document) => {
         const pending = pendingDeleteId === document.id;
         return (

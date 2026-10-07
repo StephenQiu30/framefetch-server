@@ -13,6 +13,7 @@ import {
   DEFAULT_PAGE_SIZE,
   PagePagination,
 } from '@/components/layout/page-pagination';
+import { TableDateTime } from '@/components/layout/table-date-time';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
@@ -260,26 +261,30 @@ export function OperationLogsView() {
                 {
                   id: '时间',
                   header: '时间',
-                  className: 'hidden whitespace-normal sm:table-cell',
-                  cell: (item) => <> {time(item.created_at)} </>,
+                  className: 'hidden whitespace-nowrap lg:table-cell',
+                  cell: (item) => (
+                    <TableDateTime value={item.created_at} seconds />
+                  ),
                 },
                 {
                   id: '操作人',
                   header: '操作人',
-                  className: 'hidden whitespace-normal sm:table-cell',
+                  className:
+                    'hidden whitespace-normal [overflow-wrap:anywhere] lg:table-cell lg:w-1/5',
                   cell: (item) => <> {item.actor_name ?? '未识别账户'} </>,
                 },
                 {
                   id: '操作',
                   header: '操作',
                   hideable: false,
-                  className: 'whitespace-normal',
+                  className:
+                    'w-full whitespace-normal [overflow-wrap:anywhere] lg:w-1/3',
                   cell: (item) => (
                     <>
                       <ItemTitle className="line-clamp-none">
                         {item.description}
                       </ItemTitle>
-                      <div className="mt-2 flex flex-col gap-2 sm:hidden">
+                      <div className="mt-2 flex flex-col gap-2 lg:hidden">
                         <ItemDescription>
                           {time(item.created_at)} ·{' '}
                           {item.actor_name ?? '未识别账户'}
@@ -310,10 +315,14 @@ export function OperationLogsView() {
                 {
                   id: '对象',
                   header: '对象',
-                  className: 'hidden whitespace-normal sm:table-cell',
+                  className:
+                    'hidden whitespace-normal [overflow-wrap:anywhere] lg:table-cell',
                   cell: (item) => (
                     <>
                       <span
+                        className={
+                          item.resource_key ? undefined : 'whitespace-nowrap'
+                        }
                         title={
                           item.resource_id ?? item.resource_key ?? undefined
                         }
@@ -328,7 +337,7 @@ export function OperationLogsView() {
                 {
                   id: '结果',
                   header: '结果',
-                  className: 'hidden whitespace-normal sm:table-cell',
+                  className: 'hidden whitespace-nowrap lg:table-cell',
                   cell: (item) => (
                     <>
                       <Badge
@@ -348,7 +357,7 @@ export function OperationLogsView() {
                 {
                   id: '详情',
                   header: '详情',
-                  className: 'text-right whitespace-normal',
+                  className: 'text-right whitespace-nowrap',
                   cell: (item) => (
                     <>
                       <Button

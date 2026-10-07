@@ -18,6 +18,7 @@ import {
 import type { DownloadAction } from '@/components/downloads/use-download-actions';
 import { DataTable } from '@/components/layout/data-table';
 import { PageEmptyNotice } from '@/components/layout/page-empty-notice';
+import { TableDateTime } from '@/components/layout/table-date-time';
 import MediaCover from '@/components/media/media-cover';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -84,20 +85,20 @@ export default function DownloadHistoryList({
             {
               id: 'content',
               header: '视频',
-              className: 'whitespace-normal',
+              className: 'w-full whitespace-normal [overflow-wrap:anywhere]',
               hideable: false,
               cell: (item) => <HistoryContent item={item} />,
             },
             {
               id: 'platform',
               header: '平台',
-              className: 'hidden lg:table-cell',
+              className: 'hidden whitespace-nowrap lg:table-cell',
               cell: (item) => displaySourceLabel(item),
             },
             {
               id: 'quality',
               header: '画质',
-              className: 'hidden lg:table-cell',
+              className: 'hidden whitespace-nowrap lg:table-cell',
               cell: (item) => item.format_name,
             },
             {
@@ -105,7 +106,7 @@ export default function DownloadHistoryList({
               header: '状态',
               // Narrow screens show the status inside the content cell so
               // the row actions stay reachable without horizontal scrolling.
-              className: 'hidden lg:table-cell',
+              className: 'hidden whitespace-nowrap lg:table-cell',
               cell: (item) => (
                 <Badge variant={statusVariant(item.status)}>
                   {downloadStatusLabels[item.status]}
@@ -118,17 +119,13 @@ export default function DownloadHistoryList({
             {
               id: 'time',
               header: '时间',
-              className: 'hidden lg:table-cell',
-              cell: (item) => (
-                <time dateTime={item.created_at}>
-                  {formatDate(item.created_at)}
-                </time>
-              ),
+              className: 'hidden whitespace-nowrap lg:table-cell',
+              cell: (item) => <TableDateTime value={item.created_at} />,
             },
             {
               id: 'actions',
               header: '操作',
-              className: 'text-right',
+              className: 'text-right whitespace-nowrap',
               hideable: false,
               cell: (item) => (
                 <HistoryActions
@@ -179,10 +176,13 @@ function HistoryContent({ item }: { item: API.DownloadHistoryItemResponse }) {
           />
         </ItemMedia>
         <ItemContent className="min-w-0">
-          <ItemTitle className="line-clamp-2 [overflow-wrap:anywhere]">
+          <ItemTitle
+            className="line-clamp-2 [overflow-wrap:anywhere]"
+            title={item.title}
+          >
             {item.title}
           </ItemTitle>
-          <ItemDescription className="hidden line-clamp-none lg:block">
+          <ItemDescription className="hidden lg:line-clamp-none lg:block">
             来源：{sourceLabel}
             {item.status === DownloadStatusCode.Succeeded
               ? ` · ${fileAvailabilityLabel(item)}`

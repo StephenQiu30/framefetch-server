@@ -145,7 +145,7 @@ export function DataTable<T extends RowData>({
                   <TableHead
                     key={header.id}
                     className={cn(
-                      'whitespace-normal',
+                      'whitespace-nowrap',
                       columns.find((column) => column.id === header.column.id)
                         ?.className,
                     )}
@@ -218,7 +218,7 @@ export function DataTable<T extends RowData>({
                   <TableCell
                     key={cell.id}
                     className={cn(
-                      'whitespace-normal [overflow-wrap:anywhere]',
+                      'whitespace-normal',
                       columns.find((column) => column.id === cell.column.id)
                         ?.className,
                     )}

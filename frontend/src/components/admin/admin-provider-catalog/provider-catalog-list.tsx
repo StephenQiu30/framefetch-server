@@ -70,7 +70,8 @@ export function ProviderCatalogList({
             id: '平台',
             header: '平台',
             hideable: false,
-            className: 'whitespace-normal',
+            className:
+              'w-full whitespace-normal [overflow-wrap:anywhere] lg:w-1/3',
             cell: (item) => (
               <div className="flex min-w-0 flex-col gap-2">
                 <span>{item.display_name}</span>
@@ -86,7 +87,8 @@ export function ProviderCatalogList({
           {
             id: '目录键',
             header: '目录键',
-            className: 'hidden lg:table-cell',
+            className:
+              'hidden whitespace-normal [overflow-wrap:anywhere] lg:table-cell lg:w-1/4',
             cell: (item) => <> {item.key} </>,
           },
           {
@@ -98,14 +100,15 @@ export function ProviderCatalogList({
           {
             id: '排序',
             header: '排序',
-            className: 'hidden text-right tabular-nums lg:table-cell',
+            className:
+              'hidden text-right whitespace-nowrap tabular-nums lg:table-cell',
             cell: (item) => <> {item.sort_order} </>,
           },
           {
             id: '操作',
             header: '操作',
             hideable: false,
-            className: 'text-right whitespace-normal',
+            className: 'text-right whitespace-nowrap',
             cell: (item) => <> {actions(item)} </>,
           },
         ]}
