@@ -122,7 +122,7 @@ export function DataTable<T extends RowData>({
             {table.getHeaderGroups().map((group) => (
               <TableRow key={group.id}>
                 {selection ? (
-                  <TableHead className="w-10">
+                  <TableHead className="w-min">
                     <Checkbox
                       aria-label="选择本页可操作记录"
                       checked={
@@ -155,7 +155,7 @@ export function DataTable<T extends RowData>({
                     )}
                   </TableHead>
                 ))}
-                <TableHead className="hidden w-10 text-right sm:table-cell">
+                <TableHead className="hidden w-min text-right sm:table-cell">
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
                       <Button
@@ -203,7 +203,7 @@ export function DataTable<T extends RowData>({
                 data-state={row.getIsSelected() ? 'selected' : undefined}
               >
                 {selection ? (
-                  <TableCell>
+                  <TableCell className="w-min">
                     <Checkbox
                       aria-label={`选择 ${getRowLabel?.(row.original) ?? row.id}`}
                       checked={row.getIsSelected()}
@@ -226,7 +226,7 @@ export function DataTable<T extends RowData>({
                     <table.FlexRender cell={cell} />
                   </TableCell>
                 ))}
-                <TableCell aria-hidden className="hidden sm:table-cell" />
+                <TableCell aria-hidden className="hidden w-min sm:table-cell" />
               </TableRow>
             ))}
           </TableBody>

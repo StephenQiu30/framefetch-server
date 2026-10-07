@@ -50,9 +50,14 @@ describe('screenplay documents', () => {
 
     expect(screen.getByRole('status')).toHaveTextContent('正在加载剧本文档');
     expect(await screen.findByText('午夜来客')).toBeInTheDocument();
-    expect(screen.getByText('Fountain')).toBeInTheDocument();
+    expect(screen.getByText('Fountain · 中英混合')).toBeInTheDocument();
     expect(screen.getAllByText(/2 个场景/)).toHaveLength(2);
-    expect(screen.getByText('中英混合')).toBeInTheDocument();
+    expect(
+      screen.getByRole('columnheader', { name: '内容统计' }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole('columnheader', { name: '更新时间' }),
+    ).toBeInTheDocument();
     expect(screen.getByRole('link', { name: '午夜来客' })).toHaveAttribute(
       'href',
       '/documents/detail?documentId=99999999-9999-4999-8999-999999999999',
@@ -84,10 +89,7 @@ describe('screenplay documents', () => {
     const primaryCell = title.closest('td');
     expect(primaryCell).not.toBeNull();
     const cell = within(primaryCell as HTMLTableCellElement);
-    const compactFormat = cell.getByText('Fountain · 中英混合');
-    const compactMetadata = compactFormat.parentElement;
-
-    expect(compactMetadata).toHaveClass('lg:hidden');
+    expect(cell.getByText('Fountain · 中英混合')).toBeInTheDocument();
     expect(cell.getByText('2 个场景 · 1,280 个字符')).toBeInTheDocument();
     expect(cell.getByText(/^更新于/u)).toHaveAttribute(
       'datetime',

@@ -70,7 +70,7 @@ function DocumentRowColumns(
     {
       id: '文档',
       header: '文档',
-      className: 'w-full text-left whitespace-normal [overflow-wrap:anywhere]',
+      className: 'text-left whitespace-normal [overflow-wrap:anywhere]',
       cell: (document) => {
         const detailHref = `/documents/detail?documentId=${encodeURIComponent(document.id)}`;
         return (
@@ -82,14 +82,17 @@ function DocumentRowColumns(
                 </ItemTitle>
               </Link>
             </Item>
-            <ItemDescription className="line-clamp-2 [overflow-wrap:anywhere]">
+            <ItemDescription
+              className="line-clamp-2 [overflow-wrap:anywhere]"
+              title={document.original_filename}
+            >
               {document.original_filename}
             </ItemDescription>
+            <ItemDescription className="line-clamp-none">
+              {documentFormatLabels[document.source_format]} ·{' '}
+              {languageLabel(document.detected_language)}
+            </ItemDescription>
             <div className="flex flex-col gap-1 lg:hidden">
-              <span>
-                {documentFormatLabels[document.source_format]} ·{' '}
-                {languageLabel(document.detected_language)}
-              </span>
               <span>
                 {document.scene_count ?? '-'} 个场景 ·{' '}
                 {document.character_count?.toLocaleString('zh-CN') ?? '-'}{' '}
@@ -110,33 +113,25 @@ function DocumentRowColumns(
       },
     },
     {
-      id: '格式与更新时间',
-      header: '格式与更新时间',
-      className: 'hidden whitespace-nowrap lg:table-cell',
-      cell: (document) => {
-        return (
-          <div className="flex flex-col gap-1">
-            <span>{documentFormatLabels[document.source_format]}</span>
-            <TableDateTime value={document.updated_at} />
-          </div>
-        );
-      },
-    },
-    {
       id: '内容统计',
       header: '内容统计',
       className: 'hidden whitespace-nowrap lg:table-cell',
       cell: (document) => {
         return (
           <div className="flex flex-col gap-1">
+            <span>{document.scene_count ?? '-'} 个场景</span>
             <span>
-              {document.scene_count ?? '-'} 个场景 ·{' '}
               {document.character_count?.toLocaleString('zh-CN') ?? '-'} 个字符
             </span>
-            <span>{languageLabel(document.detected_language)}</span>
           </div>
         );
       },
+    },
+    {
+      id: '更新时间',
+      header: '更新时间',
+      className: 'hidden whitespace-nowrap lg:table-cell',
+      cell: (document) => <TableDateTime value={document.updated_at} />,
     },
     {
       id: '状态',
