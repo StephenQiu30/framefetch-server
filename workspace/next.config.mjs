@@ -7,6 +7,11 @@ const withNextra = nextra({
 });
 
 export default withNextra({
+  output: 'standalone',
+  allowedDevOrigins: ['127.0.0.1'],
+  outputFileTracingRoot: import.meta.dirname,
+  // 内容由 Compose 挂载；镜像只交付程序，避免携带一份过期文档。
+  outputFileTracingExcludes: { '/*': ['./content/**/*'] },
   // GitHub 习惯用 README.md 作为目录首页，站点目录地址指向它。
   async redirects() {
     return [{ source: '/:section(prd|design|plan)', destination: '/:section/README', permanent: false }];

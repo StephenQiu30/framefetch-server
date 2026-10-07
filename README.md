@@ -67,7 +67,11 @@ test -f .env || cp .env.example .env
 docker compose up -d --build --wait --remove-orphans
 ```
 
-启动后访问 [Web 工作区](http://localhost:8101)、[Swagger UI](http://localhost:8111/docs) 或 [OpenAPI](http://localhost:8111/openapi.json)。全新空库须先按下文创建首管理员，再登录使用。
+开发时使用 `docker compose up --build --watch`，或在已启动的本地容器上运行 `docker compose watch --no-up` 并保持终端运行。前端和文档站点代码自动热重载，API／worker 源码自动同步并重启，Runner 保留只读沙箱并自动重建；依赖变化自动构建。需要 Docker Compose 2.32.0 或更新版本，详见 [开发与发布规则](workspace/content/design/12-可靠性与运行.md#发布)。生产部署继续使用下方的生产 Compose。
+
+文档站点的正文、侧栏与搜索实时读取 `workspace/content/`。在 Obsidian 或编辑器中保存后，已打开且可见的阅读页会在约 2 秒内自动刷新；新增、删除文档与修改导航也无需重建容器。生产站点的程序、依赖与环境配置变化仍须构建并重新创建服务，详见 [文档工作区](PROJECT.md#31-文档工作区)。
+
+启动后访问 [Web 工作区](http://localhost:8101)、[文档站点](http://localhost:8130)、[Swagger UI](http://localhost:8111/docs) 或 [OpenAPI](http://localhost:8111/openapi.json)。全新空库须先按下文创建首管理员，再登录使用。
 
 所有容器化后台循环（Outbox 投递、解析与下载、导入、报告发布）运行在一个 `worker` 容器中，使用 `RABBITMQ_WORKER_USER` / `RABBITMQ_WORKER_PASS`。该账号须对 `RABBITMQ_VHOST` 中的当前业务队列有受限的 configure/write/read 权限；队列职责见[可靠性与运行](workspace/content/design/12-可靠性与运行.md)。平台身份安装见下文。
 
@@ -179,6 +183,7 @@ docker compose --env-file .env.prod -f docker-compose-prod.yml up -d --build --w
 curl --fail http://127.0.0.1:8111/health/live
 curl --fail http://127.0.0.1:8111/health/ready
 curl --fail --head http://127.0.0.1:8101/
+curl --fail --head http://127.0.0.1:8130/
 ```
 
 只需要下载与剧本文档导入时，可在 `.env` 中设置 `ANALYSIS_ENABLED=false`。完整的启动、停止、已有基础环境复用和故障恢复方式见[可靠性与运行](workspace/content/design/12-可靠性与运行.md)。更新代码时先执行 `git pull --ff-only`，再按上面的命令构建启动 Compose；`docker compose restart` 不会应用新代码、镜像或环境配置。
@@ -349,7 +354,7 @@ pnpm build
 ```text
 backend/                 FastAPI、领域逻辑、Worker、Runner 与当前态 SQL
 frontend/                Next.js App Router、业务组件、Hooks 与 OpenAPI 客户端
-workspace/               文档工作区（Nextra 站点，content/ 为需求、设计与计划）
+workspace/               文档工作区（Nextra 站点，Compose 服务 workspace，content/ 为需求、设计与计划）
 extension/               Chrome 平台身份扩展
 backend/Dockerfile       API、Worker、Runner 镜像
 frontend/Dockerfile      Next.js 独立镜像

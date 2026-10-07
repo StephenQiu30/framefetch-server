@@ -2,6 +2,7 @@ import type { NextConfig } from 'next';
 
 const nextConfig: NextConfig = {
   agentRules: false,
+  allowedDevOrigins: ['127.0.0.1'],
   poweredByHeader: false,
   // Cookie-only metadata is cheap; emit it in head for HTML-only search clients.
   htmlLimitedBots: /.*/,

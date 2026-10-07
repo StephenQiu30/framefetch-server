@@ -25,3 +25,5 @@ docs
 tests
 tests
 *.log
+
+**/.pnpm-store/

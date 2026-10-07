@@ -3,13 +3,13 @@
   "private": true,
   "type": "module",
   "packageManager": "pnpm@12.4.2",
-  "description": "帧取文档工作区：content/ 是产品需求、系统设计与执行计划，Nextra 构建为静态站点",
+  "description": "帧取文档工作区：content/ 是产品需求、系统设计与执行计划，Nextra 运行时读取内容",
   "scripts": {
     "check": "node scripts/check.mjs",
-    "dev": "next dev --webpack --hostname 127.0.0.1 --port 8130",
+    "dev": "next dev --webpack --hostname 127.0.0.1 --port 8131",
     "build": "next build --webpack",
-    "postbuild": "pagefind --site .next/server/app --output-path public/_pagefind",
-    "start": "next start --hostname 127.0.0.1 --port 8130"
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "next": "16.3.8",
@@ -17,10 +17,18 @@
     "nextra-theme-docs": "4.6.1",
     "react": "19.3.0",
     "react-dom": "19.3.0",
-    "unist-util-visit": "5.1.0"
+    "unist-util-visit": "5.1.0",
+    "@theguild/remark-mermaid": "0.3.0",
+    "htmlparser2": "^12.0.0",
+    "marked": "^18.0.14",
+    "server-only": "0.0.1"
   },
   "devDependencies": {
-    "pagefind": "1.5.2"
+    "@types/node": "^26.1.1",
+    "@types/react": "^19.2.17",
+    "@types/react-dom": "^19.2.3",
+    "typescript": "^5.9.3",
+    "vitest": "^4.1.10"
   },
   "engines": {
     "node": ">=24.15.0 <25"

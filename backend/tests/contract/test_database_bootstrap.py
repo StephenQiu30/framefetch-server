@@ -503,6 +503,27 @@ def test_projects_build_and_run_separate_images() -> None:
     assert "python:" not in (ROOT.parent / "frontend/Dockerfile").read_text()
 
 
+def test_compose_workspace_reads_live_document_content() -> None:
+    for path, tag in ((COMPOSE_PATH, "local"), (PROD_COMPOSE_PATH, "prod")):
+        document = yaml.safe_load(path.read_text())
+        workspace = document["services"]["workspace"]
+        assert workspace["build"]["context"] == "./workspace"
+        assert workspace["image"] == f"framefetch-workspace:{tag}"
+        assert {
+            "type": "bind",
+            "source": "./workspace/content",
+            "target": "/app/workspace/content",
+            "read_only": True,
+            "bind": {"create_host_path": False},
+        } in workspace["volumes"]
+        if tag == "local":
+            assert workspace["build"]["target"] == "development"
+            assert workspace["develop"]["watch"]
+        else:
+            assert workspace["read_only"] is True
+            assert "develop" not in workspace
+
+
 def test_compose_application_roles_share_the_selected_release_image() -> None:
     for path, tag in ((COMPOSE_PATH, "local"), (PROD_COMPOSE_PATH, "prod")):
         services = yaml.safe_load(path.read_text())["services"]

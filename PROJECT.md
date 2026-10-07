@@ -24,6 +24,7 @@
 | --- | --- | --- |
 | `api` | Compose，8111 | HTTP 提交、查询、取消；不执行长任务 |
 | `frontend` | Compose，8101 | Next.js standalone，运行时代理与上传流式代理 |
+| `workspace` | Compose，8130 | 文档站点（Nextra standalone），只读挂载 `workspace/content/` |
 | `worker` | Compose | 监督 Outbox、下载、导入、报告发布与 Temporal 解析 Worker |
 | `session-runner` | Compose | 隔离的媒体执行进程，不持有数据库、队列、对象存储或 AI 凭据 |
 | `egress-proxy` | Compose | 媒体流量的唯一出口 |
@@ -55,10 +56,11 @@ framefetch-server/
 ### 3.1 文档工作区
 
 - `workspace/content/` 是产品需求、系统设计与执行计划的唯一位置，也是 Obsidian 库根目录；`.obsidian/app.json` 固定使用相对路径的标准 Markdown 链接，保证 GitHub、Obsidian 与站点解析一致。
-- 站点使用 Nextra（`workspace/`，pnpm 独立管理，监听 8130），目录首页沿用 `README.md`，目录地址重定向到它。指向 `content/` 之外的仓库文件的链接在构建时改写为 GitHub 地址。
-- 站点构建器只读取 `content/`，不维护第二份文档；`_meta.js` 只决定导航顺序与标题。
+- 站点使用 Nextra（`workspace/`，pnpm 独立管理），以 Compose 服务 `workspace` 部署在 8130，本地编辑预览用 `pnpm dev`（8131）。
+- 页面、侧栏与全文搜索在请求时读取只读挂载的 `content/`：正文用 Nextra 编译，导航读取目录与纯数据对象 `_meta.js`，搜索直接查询当前 Markdown。修改、原子替换、新增或删除文档后无需重建或重启容器；可见的阅读页每 2 秒检查内容修订并自动刷新，搜索同时更新。目录首页沿用 `README.md`，目录地址重定向到它；指向 `content/` 之外的仓库文件的链接改写为 GitHub 地址。
+- 站点只读取 `content/`，不维护第二份文档；`_meta.js` 只决定导航顺序与标题。
 - [workspace/AGENTS.md](workspace/AGENTS.md) 规定文档归档、命名、内容职责、索引与证据要求；编写或更新 workspace 文档时遵循该规范。
-- 在 `workspace/` 执行 `pnpm check` 检查文档链接与锚点，执行 `pnpm build` 验证站点构建；本地与 CI 使用同一组命令。
+- 在 `workspace/` 执行 `pnpm check` 检查文档链接与锚点，执行 `pnpm typecheck`、`pnpm test` 与 `pnpm build` 验证运行时内容、导航、搜索与站点构建；本地与 CI 使用同一组命令。
 
 ## 4. 后端
 

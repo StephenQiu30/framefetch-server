@@ -267,6 +267,49 @@ services:
     working_dir: /app/frontend/.next/standalone
     command: ["node", "server.js"]
 
+  # Workspace site: read documents directly from workspace/content.
+  workspace:
+    build:
+      context: ./workspace
+      dockerfile: Dockerfile
+    image: framefetch-workspace:prod
+    container_name: framefetch-workspace
+    restart: unless-stopped
+    init: true
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=128m
+    environment:
+      HOSTNAME: 0.0.0.0
+      NODE_ENV: production
+      PORT: 8130
+    volumes:
+      - type: bind
+        source: ./workspace/content
+        target: /app/workspace/content
+        read_only: true
+        bind:
+          create_host_path: false
+    networks:
+      app_net:
+        ipv4_address: "${WORKSPACE_IPV4_ADDRESS:-10.251.0.11}"
+    ports:
+      - "${APP_HOST_BIND:-127.0.0.1}:${WORKSPACE_HOST_PORT:-8130}:8130"
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://127.0.0.1:8130/', {signal: AbortSignal.timeout(3000)}).then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 10s
+
   # Every containerized background loop: Outbox dispatch, inspection and
   # downloads, imports and report publication.
   worker:

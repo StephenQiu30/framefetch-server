@@ -45,6 +45,8 @@ node --test extension/*.test.cjs
 ```bash
 pnpm install --frozen-lockfile
 pnpm check
+pnpm typecheck
+pnpm test
 pnpm build
 ```
 
