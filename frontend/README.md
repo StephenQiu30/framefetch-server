@@ -1,21 +1,43 @@
-# Frontend
+# <img src="public/logo.svg" width="32" alt="帧取" /> Framefetch Web
 
-帧取 Web 前端，属于 framefetch-server。使用 Next.js App Router、React、TypeScript strict、Tailwind CSS、shadcn/ui、Radix 与 Phosphor。工程遵循 create-next-app 的 src 目录与 @/* 别名；唯一视觉设计标准是根 [design.md](../design.md)。
+**在浏览器中导入素材、管理下载与剧本文档、核对分析报告。** 本目录提供 framefetch-server 的 Next.js Web 工作区，Electron 复用其业务页面。
 
-## 开发与验证
+[本地开发](#本地开发) · [响应式列表](#界面与响应式列表) · [接口生成](#自动生成接口) · [正文组件](#通用正文组件) · [项目首页](../README.md)
 
-Node.js 24，pnpm 版本以 package.json 的 packageManager 为准。只维护 pnpm-lock.yaml。
+使用 Next.js App Router、React、TypeScript strict、Tailwind CSS、shadcn/ui、Radix 与 Phosphor。组件来源和主题以 `components.json` 为准，唯一视觉规范是根 [design.md](../design.md)，协作要求见 [AGENTS.md](AGENTS.md)。
+
+## 本地开发
+
+需要 Node.js `>=24.15 <25`，pnpm 版本以 [package.json](package.json) 的 `packageManager` 为准。先按[项目首页](../README.md#快速开始)启动后端，再在本目录执行：
 
 ```bash
 pnpm install --frozen-lockfile
 pnpm dev
+```
+
+打开 [Web 工作区](http://127.0.0.1:8101)。前端按运行时 `BACKEND_ORIGIN` 将 `/api/*`、`/health/*` 转发到 FastAPI（默认 `127.0.0.1:8111`）；上传使用流式代理。生产入口还需将 `/api/ws/tasks` 的 WebSocket Upgrade 转发到 FastAPI，部署方式见[项目首页](../README.md#快速开始)。
+
+提交前运行：
+
+```bash
 pnpm format:check
 pnpm lint
 pnpm test
 pnpm build
 ```
 
-生产输出为 Next.js standalone。前端监听 8101，FastAPI 监听 8111；src/proxy.ts 按运行时 BACKEND_ORIGIN 将 /api/*、/health/* 转发到后端，上传使用流式代理。生产入口须将 /api/ws/tasks 的 WebSocket Upgrade 转发到 FastAPI。基础设施复用当前宿主机服务，部署命令见根 README。
+生产构建输出 Next.js standalone；只维护 `pnpm-lock.yaml`。修改接口时还须执行下文的生成与一致性检查。
+
+## 界面与响应式列表
+
+下载记录、剧本文档与管理列表复用 [DataTable](src/components/layout/data-table.tsx)，按 [shadcn Data Table](https://ui.shadcn.com/docs/components/radix/data-table) 组合官方 Table、Checkbox、DropdownMenu 与 TanStack Table v9。
+
+- 列定义统一表头和单元格的对齐，支持列显隐与本页选择；筛选、排序和分页继续由服务端处理。
+- 长标题与文件名按可用空间换行或截断；列宽由内容决定。窄屏把辅助信息并入记录摘要，保留主要内容、选择框与操作。
+- 剧本文档把格式与语言放在文档摘要中，场景数和字符数分行，更新时间独立成列；使用项目的响应式断点，不预设像素列宽或表格最小宽度。
+- 批量删除沿用权限检查、确认和部分失败处理；当前账户及受保护 AI 线路不可选择。
+
+实现入口见 [下载记录](src/components/downloads/download-history-list.tsx)和[剧本文档列表](src/components/screenplay/screenplay-document-list.tsx)。界面改动需在真实浏览器检查桌面与 390px、明暗主题、可访问名称、键盘焦点恢复和横向溢出；静态检查不能替代这些验收。
 
 ## 目录
 
@@ -61,8 +83,6 @@ pnpm dlx shadcn@latest add input --diff input.tsx
 
 保留组件 API、焦点、错误与浮层行为；页面和基础控件的视觉样式以根 [design.md](../design.md) 为准，不通过全局 CSS 使组件变形。`components.json` 的配置仅说明当前实现，不是另一份设计标准。cn 使用官方组件依赖的 cn 包。Progress 向 Radix 传递 value，确保辅助技术可读进度；该修正由测试保护。
 
-管理列表和下载记录使用 `components/layout/data-table.tsx`，按 [shadcn Data Table](https://ui.shadcn.com/docs/components/radix/data-table) 组合官方 Table、Checkbox、DropdownMenu 与 TanStack Table v9。列定义统一表头/单元格对齐，支持列显隐与本页行选择；现有页面继续管理服务端筛选、排序和分页，不对单页数据另做客户端排序。批量删除复用原有权限、确认和部分失败处理，当前账户及受保护 AI 线路不可选择。
-
 Biome 对官方 ui 源码中有明确用途的角色、事件、数组 key 与图表 CSS 注入使用目录级规则豁免；业务代码继续执行完整规则。pnpm-workspace.yaml 明确拒绝不需要的 es5-ext 安装脚本。
 
 ## 通用正文组件
@@ -107,8 +127,8 @@ Vitest 覆盖认证恢复、生成请求、上传、下载、分析和页面交�
 
 管理员在 `/admin/analytics` 切换下载与 AI 分析统计，共用 7、30、90 天周期。AI 数据通过生成的 `getAnalysisAnalytics` 请求读取，按 UTC 创建日统计数据库保留的分析执行记录，包含所属任务已软删除的执行；手动重试与重新执行分别计数。完成耗时只纳入有完整且有效起止时间的终态记录，无样本时显示空值。图表后的每日明细及分布数据可核对精确数值；这些执行记录不等同于供应商的模型请求次数、Token 或费用。
 
-### 全站快捷操作
+## 全站快捷操作
 
-快捷操作位于全站页脚，不占用顶部导航。所有共享布局页面（包含登录、注册、使用指南和管理员页面）都可点击入口或按 `⌘K` / `Ctrl+K` 打开；按 Escape 或关闭按钮退出并恢复原焦点。输入页面名称可筛选并跳转公开页面或当前账户可访问的工作区页面，管理员额外可跳转管理页面。登录后仍支持链接解析、本地视频和剧本文档上传；匿名访问时提供登录、注册和公开页面入口，不自动发起业务请求。
+共享布局页面支持 `⌘K` / `Ctrl+K` 打开快捷操作。桌面业务页的「搜索或粘贴链接」入口位于顶部导航，小屏保持快捷键可用；登录与注册页不显示顶部按钮。按 Escape 或关闭按钮退出并恢复原焦点。输入页面名称可筛选并跳转公开页面或当前账户可访问的工作区页面，管理员额外可跳转管理页面。登录后支持链接解析、本地视频和剧本文档上传；匿名访问时提供登录、注册和公开页面入口，不自动发起业务请求。
 
 个人资料页支持上传和移除头像；上传成功后账户页、桌面账户菜单和移动导航会显示更新后的头像。图片格式、大小限制与服务端校验保持一致，登录用户的头像通过同源鉴权地址读取。

@@ -1,8 +1,4 @@
-<p align="center">
-  <img src="assets/readme/hero.svg" width="100%" alt="帧取 · Framefetch Server / Web — 自托管的素材获取与分析工作站" />
-</p>
-
-# <img src="frontend/public/logo.png" width="36" alt="帧取正式 Logo" /> 帧取 · Framefetch Server / Web
+# <img src="frontend/public/logo.svg" width="36" alt="帧取正式 Logo" /> 帧取 · Framefetch Server / Web
 
 **自托管的素材获取与分析工作站。** 导入有权使用的视频与文档，调用内置 Skill，核对依据并导出 Markdown / DOCX 报告。
 
@@ -10,11 +6,32 @@
 [![MIT License](https://img.shields.io/badge/license-MIT-111111.svg)](LICENSE)
 [![Preview release](https://img.shields.io/github/v/release/StephenQiu30/framefetch-server?include_prereleases&color=111111)](https://github.com/StephenQiu30/framefetch-server/releases)
 
-[快速开始](#快速开始) · [从素材到报告](#从素材到报告) · [内置 Skill](#内置-skill) · [使用范围](#使用范围与部署要求) · [设计文档](workspace/content/design/README.md) · [English](README.en.md)
+[界面预览](#界面预览) · [快速开始](#快速开始) · [首次使用](#首次使用) · [从素材到报告](#从素材到报告) · [内置 Skill](#内置-skill) · [使用范围](#使用范围与部署要求) · [设计文档](workspace/content/design/README.md) · [English](README.en.md)
 
-![Framefetch Web／桌面同源报告：演示分镜、时间依据与 Markdown／DOCX 导出](assets/readme/current-web-ai-report.png)
+## 界面预览
 
-> 已发布版本的 Web／桌面同源页面演示。当前内置 Skill 范围与真实验收见执行计划。
+**下载记录：查看素材、处理状态与下一步操作。**
+
+![帧取下载记录演示：素材列表、任务状态与后续操作](assets/readme/current-web-history.png)
+
+<details>
+<summary>查看素材入口、文档阅读与报告演示</summary>
+
+**素材入口。** 从链接、本地视频或已有文档开始。
+
+![帧取素材入口演示：链接、本地视频与剧本文档](assets/readme/current-web-workspace.png)
+
+**文档阅读。** 阅读规范化文本与场景，再选择相容的分析方法。
+
+![帧取文档阅读演示：午夜来客剧本、场景与分析入口](assets/readme/current-web-screenplay.png)
+
+**分析报告。** 核对结论、来源时间与引用，导出 Markdown / DOCX。
+
+![帧取报告演示：城市漫步的分镜、时间依据与报告导出](assets/readme/current-web-ai-report.png)
+
+</details>
+
+截图来自 2026-10-03 的已发布 Electron Renderer 演示构建，展示 Web／桌面共享页面；素材、任务与报告均为演示数据，不含真实账户或私人素材。当前主分支的界面可能有所调整；截图不代表平台下载、模型分析或客户端安装已经验收，实际边界见[执行计划](workspace/content/plan/README.md)。
 
 ## 帧取是什么
 
@@ -62,6 +79,14 @@ uv run --project backend python -m app.workers.bootstrap_admin \
 ```
 
 命令只在用户表为空时创建管理员；已有任何用户时拒绝，不开放 HTTP 初始化接口。若要让其他用户自行注册，先在 `.env` 配置真实 SMTP 并启用 `SMTP_ENABLED=true`。健康检查只证明服务可运行，不证明每个平台有真实媒体证据。
+
+### 首次使用
+
+1. 登录后，在首页选择「剧本文档」，上传自己的 DOCX、PDF、TXT、Markdown 或 Fountain 文件。
+2. 在「剧本文档」列表核对导入状态；打开文档详情阅读正文与场景。下载记录、文档和管理列表会按屏幕宽度调整，窄屏将辅助信息并入记录摘要。
+3. 需要分析时，再按下文启用宿主 AI Worker；在素材详情选择 Skill、输出语言与提示词，完成后核对报告依据并导出 MD／DOCX。
+
+仅查看和管理导入素材不需要调用模型；平台链接下载的身份与网络条件见[使用范围](#使用范围与部署要求)。
 
 <details>
 <summary>Temporal、固定出口与住宅节点配置</summary>
@@ -205,27 +230,23 @@ Web 工作区提供解析详情、下载记录、个人处理记录、视频播�
 
 ## 内置 Skill
 
-本轮优化保留原页面、导航与分析表单，重点改进调用方式、Skill 方法和产出内容。原 Skill 选择、中文／英文、可编辑默认提示词、恢复默认及报告操作保持。
+在视频或文档详情选择适用的分析方法，设置中文／英文输出，编辑默认提示词或恢复默认。报告保留来源、依据、覆盖范围与限制，导出直接读取已保存结果。
 
-影视方法优先改进视频审阅、拆解及剧本／原著分析。文章、公众号和小红书整理组织已有正文，保护事实、引用、代码和链接，不增加写稿、剪辑、图卡或发布流程。报告说明结论、依据、覆盖与限制，沿原操作导出 MD／DOCX。
+视频审阅、分镜拆解与剧本文本分析用于核对现有素材；文章、公众号和小红书整理处理已有正文，并保留事实、引用、代码和链接。模型结论需要与原始来源对照核查。
 
-原页面与正式调用已恢复，六项内置能力的真实样本及 MD／DOCX 通过；iOS 模拟器 App 的真实登录、原表单、报告、系统保存／分享取消，以及 macOS arm64 桌面包的系统保存均已验收，保存文件与报告字节一致。其他平台和样本质量的边界见[执行计划](workspace/content/plan/PLAN-内置Skill能力整合.md)，有效范围见[PRD](workspace/content/prd/PRD-内置Skill能力整合.md)。
+可用方法以服务端返回的目录为准。产品范围见[需求索引](workspace/content/prd/README.md)，真实样本、文件交付和客户端验证边界见[执行计划](workspace/content/plan/README.md)。
 
 ## 同一工作站，多种使用方式
 
-| 项目                                                                 | 角色与特点                                                                                                                                 |
-| -------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
-| **[framefetch-server](https://github.com/StephenQiu30/framefetch-server)**     | FastAPI + Next.js：浏览器工作区、统一接口、媒体处理、AI、存储、报告与管理                                                                  |
-| **[framefetch-electron](https://github.com/StephenQiu30/framefetch-electron)** | Electron 桌面客户端：随包 React 页面复用 Web 业务源码，连接自托管 Server；提供原生窗口、菜单、按服务地址隔离的持久会话和系统文件保存对话框 |
-| **[framefetch-app](https://github.com/StephenQiu30/framefetch-app)**           | Flutter iOS／Android 客户端：原生文件选择、受控任务轮询、视频播放、报告阅读、保存与分享，连接同一 Server                                   |
+- **[Server / Web](https://github.com/StephenQiu30/framefetch-server)**：浏览器工作区、统一 FastAPI 接口、后台处理、存储、报告与管理。
+- **[Electron 桌面端](https://github.com/StephenQiu30/framefetch-electron)**：复用 Web 业务页面，提供原生窗口、菜单、按服务地址隔离的会话和系统文件保存。
+- **[Flutter App](https://github.com/StephenQiu30/framefetch-app)**：iOS／Android 原生文件选择、播放、报告阅读、保存与分享。
 
-桌面端和 App 是同一工作站的客户端，媒体提取、处理和 AI 执行由服务端及宿主 AI Worker 承担。原件、规范化文本和报告保存在部署者配置的服务端存储中，切换客户端无需建立另一套媒体任务或业务库。
-
-Electron 从安装包读取页面和品牌资源，API 与 WebSocket 连接配置的 Server；桌面端无需本机 Next.js 进程或独立数据库。App 使用原生 Flutter 界面和服务端生成契约，手机上不运行媒体提取器或离线模型。
+各端连接同一 Server，原件、规范化文本和报告保存在部署者配置的服务端存储中。媒体处理由服务端执行，AI 分析由宿主 Worker 执行；桌面和手机不需要另建业务库，也不在客户端运行媒体提取器或离线模型。
 
 ## 使用范围与部署要求
 
-当前为公开预览阶段。本轮内置 Skill 已按保留原页面、优化调用／方法／产出完成当前平台验收，实际结果与边界见执行计划；平台注册和解析成功不代表完整文件下载通过。CI 覆盖确定性的工程检查，真实模型、平台冷启动、App 真机和桌面实际业务按对应范围独立验证。截图不替代实际调用和文件验收。
+帧取处于公开预览阶段。CI 验证确定性的工程检查；平台完整文件、真实模型、App 真机和桌面业务流程需要各自的验收证据。平台注册、解析成功和界面截图不能替代这些验证。
 
 - 处理你有权获取和分析的 HTTP(S) 非 DRM 素材。平台接入包括 YouTube、哔哩哔哩、抖音、TikTok、小红书、快手、微博等；具体链接受内容范围、账号、网络和平台变化影响。视频号支持下载微信官方非加密分享文件，需要 Chrome 中已有有效元宝登录，无需打开元宝页面；公众号文章提供来源发现。准确平台状态与完整文件证据见 [验证状态](workspace/content/design/14-解析引擎.md#13-验证状态)。
 - 提供自托管源码与构建方式。服务器、基础服务、存储、网络和模型由部署者准备，外部模型可能计费；启用外部 AI 会向选定服务发送分析所需的文本或画面。
@@ -245,22 +266,6 @@ Electron 从安装包读取页面和品牌资源，API 与 WebSocket 连接配�
 这些版本均为 Beta 预览。桌面安装包未签名，macOS 未公证；干净安装、升级与真实 Server 完整业务需要独立验证。Git tag 标识发行快照：当前预览内嵌 Server/API/Worker 包版本仍为 `0.2.0`，App 为 `0.1.0+1`，桌面包为 `0.2.0`。部署相关组件时使用匹配源码与服务端契约，不能仅凭 tag 数字判断兼容性。
 
 README 描述当前主分支；固定版本的安装、升级步骤和验证范围以对应 Release 与标签下 README 为准。
-
-## 界面预览
-
-**任务历史。** 查看素材、任务状态和后续操作，从历史回到详情继续处理。
-
-![Framefetch Web／桌面同源页面：演示任务历史与处理状态](assets/readme/current-web-history.png)
-
-**素材入口。** 从链接、本地视频或已有文档开始，继续查看处理结果。
-
-![Framefetch Web／桌面同源工作区：链接、本地视频与剧本文档入口](assets/readme/current-web-workspace.png)
-
-**文档工作区。** 阅读已有正文，在文档详情调用相容的分析或整理 Skill。
-
-![Framefetch Web／桌面同源页面：午夜来客演示剧本、场景与分析入口](assets/readme/current-web-screenplay.png)
-
-以上为 Web 与桌面同源页面，图片由 2026-10-03 当前生产构建的 Electron Renderer 捕获，使用正式 Logo、共享业务组件与主题，未重绘页面。任务记录、城市漫步分析和午夜来客剧本文字均为演示数据，用于说明功能与报告结构，不含真实账户或私人素材。各端界面与构建说明分别见 [App README](https://github.com/StephenQiu30/framefetch-app#readme) 和 [桌面端 README](https://github.com/StephenQiu30/framefetch-electron#readme)。
 
 <details>
 <summary>适用场景与技术架构</summary>
@@ -369,7 +374,7 @@ docker-compose-prod.yml  生产业务差异
 
 提交变更时，请保持实现、OpenAPI 契约、测试、运行手册和验收证据一致，并只提交小而完整、可独立验证的改动。
 
-如果帧取对你的创作、研究或自托管实践有帮助，欢迎点亮 **Star**，并关注 [Releases](https://github.com/StephenQiu30/framefetch-server/releases) 获取版本更新；这也是项目持续维护的最大动力。
+如果帧取对你的创作、研究或自托管实践有帮助，可以关注 [Releases](https://github.com/StephenQiu30/framefetch-server/releases) 获取版本更新，或在 [Issues](https://github.com/StephenQiu30/framefetch-server/issues) 提交具体反馈。
 
 ## 引用
 

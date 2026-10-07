@@ -1,8 +1,4 @@
-<p align="center">
-  <img src="assets/readme/hero.en.svg" width="100%" alt="Framefetch Server / Web — A self-hosted workstation for material acquisition and analysis" />
-</p>
-
-# <img src="frontend/public/logo.png" width="36" alt="Official Framefetch logo" /> Framefetch Server / Web
+# <img src="frontend/public/logo.svg" width="36" alt="Official Framefetch logo" /> Framefetch Server / Web
 
 **A self-hosted workstation for material acquisition and analysis.** Import authorized video and documents, invoke built-in Skills, inspect the evidence, and export Markdown / DOCX reports.
 
@@ -10,11 +6,32 @@
 [![MIT License](https://img.shields.io/badge/license-MIT-111111.svg)](LICENSE)
 [![Preview release](https://img.shields.io/github/v/release/StephenQiu30/framefetch-server?include_prereleases&color=111111)](https://github.com/StephenQiu30/framefetch-server/releases)
 
-[Quick start](#quick-start) · [Workflow](#from-material-to-report) · [Skills](#built-in-skills) · [Scope](#scope-and-deployment-requirements) · [Documentation](workspace/content/design/README.md) · [简体中文](README.md)
+[Screenshots](#screenshots) · [Quick start](#quick-start) · [First use](#first-use) · [Workflow](#from-material-to-report) · [Skills](#built-in-skills) · [Scope](#scope-and-deployment-requirements) · [Documentation](workspace/content/design/README.md) · [简体中文](README.md)
 
-![Shared Framefetch Web/desktop report: demo shots, time evidence and Markdown/DOCX exports](assets/readme/current-web-ai-report.png)
+## Screenshots
 
-> Shared Web/desktop page demonstration from a released version. See the execution plan for the current Skill scope and real acceptance evidence.
+**Download history: review material, processing states and next actions.**
+
+![Framefetch download-history demo showing material, job states and next actions](assets/readme/current-web-history.png)
+
+<details>
+<summary>View intake, document reading and report demos</summary>
+
+**Material intake.** Start with a link, local video or an existing document.
+
+![Framefetch intake demo with link, local-video and screenplay inputs](assets/readme/current-web-workspace.png)
+
+**Document reading.** Read normalized text and scenes, then choose a compatible analysis method.
+
+![Framefetch document-reader demo with Midnight Visitor text, scenes and analysis entry](assets/readme/current-web-screenplay.png)
+
+**Analysis reports.** Check findings, source times and quotations, then export Markdown / DOCX.
+
+![Framefetch report demo with City Walk shots, time evidence and report exports](assets/readme/current-web-ai-report.png)
+
+</details>
+
+These screenshots come from the released Electron Renderer demo build captured on 2026-10-03 and show shared Web/desktop pages. Material, jobs and reports are demo data with no real accounts or private sources. The current main-branch interface may differ. Screenshots do not establish platform, model or client-installation acceptance; see the [execution plans](workspace/content/plan/README.md) for validation boundaries.
 
 ## What is Framefetch?
 
@@ -62,6 +79,14 @@ For an empty user table, create the first administrator on the deployment host. 
 uv run --project backend python -m app.workers.bootstrap_admin \
   --env-file .env --username your-admin --email you@example.com
 ```
+
+### First use
+
+1. Sign in, choose **Screenplay** on the home page, and upload your own DOCX, PDF, TXT, Markdown or Fountain file.
+2. Check the import state in **Documents**, then open its details to read the text and scenes. Download, document and administration lists adapt to screen width; narrow screens move supporting fields into the record summary.
+3. When you need analysis, enable the host AI Worker below. Choose a Skill, output language and prompt from material details, then inspect the report evidence and export MD/DOCX.
+
+Reading and managing imported material does not invoke a model. Identity and network requirements for platform downloads are covered under [Scope](#scope-and-deployment-requirements).
 
 <details>
 <summary>Platform identity setup and upgrades</summary>
@@ -140,27 +165,23 @@ Administrators manage users, files, provider catalog entries and AI services, an
 
 ## Built-in Skills
 
-This work preserves original pages, navigation and analysis forms. Skill selection, Chinese/English output, editable default prompts, reset and report actions remain. Improvements target invocation, Skill methods and output quality.
+Choose an applicable method from video or document details, select Chinese/English output, edit the default prompt or reset it. Reports retain sources, evidence, coverage and limitations; exports read the saved result.
 
-Film work prioritizes video review, breakdown and screenplay analysis. Article, WeChat and Xiaohongshu organization works on existing text while protecting facts, quotations, code and links. Reports connect findings to evidence, coverage and limitations and use the original MD/DOCX actions.
+Video review, shot breakdown and screenplay analysis help inspect existing material. Article, WeChat and Xiaohongshu organization works on existing text while preserving facts, quotations, code and links. Review model findings against the original source.
 
-Original pages and invocation, six real model fixtures and MD/DOCX exports passed this round of acceptance. The iOS simulator App passed sign-in, original forms/readers, system file saving and share-sheet cancellation; the packaged macOS arm64 client passed native saving. Saved bytes match the reports. Platform and sample-quality boundaries are recorded in the [execution plan](workspace/content/plan/PLAN-内置Skill能力整合.md); product scope is defined in the [PRD](workspace/content/prd/PRD-内置Skill能力整合.md).
+Available methods come from the server catalog. See the [requirements index](workspace/content/prd/README.md) for product scope and [execution plans](workspace/content/plan/README.md) for real samples, file delivery and client-validation boundaries.
 
 ## One workstation, multiple clients
 
-| Project                                                              | Role and features                                                                                                                                                                |
-| -------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **[framefetch-server](https://github.com/StephenQiu30/framefetch-server)**     | FastAPI + Next.js: browser workspace, unified API, media processing, AI, storage, reports and administration                                                                     |
-| **[framefetch-electron](https://github.com/StephenQiu30/framefetch-electron)** | Electron client: bundled React pages reuse Web business source and connect to a self-hosted Server; native windows/menus, persistent per-server sessions and system save dialogs |
-| **[framefetch-app](https://github.com/StephenQiu30/framefetch-app)**           | Flutter iOS/Android client: native file selection, controlled job polling, playback, report reading, saving and sharing through the same Server                                  |
+- **[Server / Web](https://github.com/StephenQiu30/framefetch-server)**: browser workspace, unified FastAPI API, background processing, storage, reports and administration.
+- **[Electron Desktop](https://github.com/StephenQiu30/framefetch-electron)**: shared Web business pages with native windows, menus, per-server sessions and system file saving.
+- **[Flutter App](https://github.com/StephenQiu30/framefetch-app)**: native iOS/Android file selection, playback, report reading, saving and sharing.
 
-Desktop and mobile are clients of the same workstation. The server and host AI Worker perform extraction, media processing and AI execution. Originals, normalized text and reports reside in the configured server storage; switching clients does not create another media pipeline or business database.
-
-Electron reads pages and brand assets from its bundle and connects API/WebSocket requests to the configured Server. It needs no local Next.js process or separate database. The App uses native Flutter views and generated server contracts; it does not run an extractor or offline model on the phone.
+All clients connect to one Server. Originals, normalized text and reports reside in its configured storage. The server processes media and the host Worker runs AI analysis; desktop and mobile need no separate business database, client-side extractor or offline model.
 
 ## Scope and deployment requirements
 
-Framefetch is in public preview. This round of built-in Skill improvements retains original pages and has passed acceptance on the tested platforms. Results and boundaries are tracked in the [execution plan](workspace/content/plan/PLAN-内置Skill能力整合.md). CI covers deterministic engineering checks; actual model execution, native file delivery, physical devices and platform cold starts require their own evidence. Screenshots illustrate interfaces and do not establish that validation.
+Framefetch is in public preview. CI checks deterministic engineering behavior; complete platform files, real models, physical devices and desktop workflows need their own acceptance evidence. Registry entries, successful metadata inspection and screenshots do not establish that validation.
 
 - Process authorized HTTP(S), non-DRM material. Registered integrations include YouTube, Bilibili, Douyin, TikTok, Xiaohongshu, Kuaishou and Weibo; actual links depend on content scope, identity, network and platform changes. WeChat Channels supports downloading official clear share files and requires a valid Yuanbao login in Chrome; no Yuanbao page needs to be open; official-account articles provide source discovery. See [parse engine verification status](workspace/content/design/14-解析引擎.md#13-验证状态) for exact platform status and complete-file evidence.
 - Source and build workflows are self-hosted. The operator provides servers, infrastructure, storage, network and models. External models may incur charges and receive the text or frames needed for analysis.
@@ -180,22 +201,6 @@ The three public previews connect to the same Server:
 All are Beta previews. Desktop installers are unsigned and the macOS build is not notarized; clean installation, upgrades and complete real-Server workflows require separate validation. Git tags identify release snapshots: embedded Server/API/Worker package versions remain `0.2.0`, App is `0.1.0+1`, and desktop packages are `0.2.0`. Use matching source and Server contracts when deploying; tag numbers alone do not establish compatibility.
 
 This README describes the current main branch. For a fixed version, use its Release and tagged README for installation, upgrades and validation scope.
-
-## Screenshots
-
-**Job history.** View material, processing states and next actions, then return to details to continue.
-
-![Shared Framefetch Web/desktop pages: demo job history and processing states](assets/readme/current-web-history.png)
-
-**Material intake.** Start with a link, local video or existing document, then continue to processing results.
-
-![Shared Framefetch Web/desktop workspace: links, local video and screenplay inputs](assets/readme/current-web-workspace.png)
-
-**Document reader.** Read existing text and invoke a supported built-in analysis or formatting Skill.
-
-![Shared Framefetch Web/desktop pages: Midnight Visitor demo screenplay, scenes and analysis entry](assets/readme/current-web-screenplay.png)
-
-These shared Web/desktop pages were captured from the current production Electron Renderer on 2026-10-03, using the official logo, shared business components and theme without redrawing the interface. Job records, City Walk analysis and Midnight Visitor screenplay text are demo data illustrating features and report structure, with no real accounts or private material. For client interfaces and builds, see the [App README](https://github.com/StephenQiu30/framefetch-app#readme) and [desktop README](https://github.com/StephenQiu30/framefetch-electron#readme).
 
 <details>
 <summary>Use cases and technical architecture</summary>
@@ -284,7 +289,7 @@ Contributions to provider adapters, reliability, web and mobile UX, AI reports, 
 
 Keep implementation, OpenAPI contracts, tests, operations documentation and acceptance evidence aligned. Prefer small, independently verifiable changes.
 
-If Framefetch helps your creative work, research or self-hosting setup, please give it a **Star** and watch [Releases](https://github.com/StephenQiu30/framefetch-server/releases) for updates — it is the best way to keep the project maintained.
+If Framefetch helps your creative work, research or self-hosting setup, watch [Releases](https://github.com/StephenQiu30/framefetch-server/releases) for updates or share specific feedback in [Issues](https://github.com/StephenQiu30/framefetch-server/issues).
 
 ## Citation
 
