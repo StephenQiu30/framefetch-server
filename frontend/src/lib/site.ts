@@ -35,7 +35,7 @@ export const siteConfig = {
     'Framefetch is a self-hosted open-source workflow for authorized video parsing, local media import, screenplay processing, and AI video analysis with Markdown and DOCX reports.',
   repositoryUrl: 'https://github.com/StephenQiu30/framefetch-server',
   documentationUrl:
-    'https://github.com/StephenQiu30/framefetch-server/tree/main/workspace/content',
+    'https://github.com/StephenQiu30/framefetch-server/tree/main/docs',
   mobileRepositoryUrl: 'https://github.com/StephenQiu30/framefetch-app',
   licenseUrl:
     'https://github.com/StephenQiu30/framefetch-server/blob/main/LICENSE',

@@ -104,8 +104,8 @@ jobs:
           pnpm test
           pnpm build
 
-  workspace:
-    name: Workspace
+  docs:
+    name: Docs
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
@@ -116,17 +116,8 @@ jobs:
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
         with:
           node-version: "24.15.0"
-      - name: Use repository pnpm version
-        run: npm install --global pnpm@12.4.2
       - name: Test identity extension
         run: |
           node --test extension/*.test.cjs
-      - name: Check and build workspace site
-        working-directory: workspace
-        run: |
-          pnpm install --frozen-lockfile
-          pnpm check
-          pnpm sync:check
-          pnpm typecheck
-          pnpm test
-          pnpm build
+      - name: Check documentation links
+        run: node backend/scripts/check_docs.mjs

@@ -8,4 +8,4 @@ contact_links:
     about: 请先阅读安全策略，不要在公开 Issue 中披露漏洞、凭据或用户内容。
   - name: 自托管部署指南
     url: https://github.com/StephenQiu30/framefetch-server#快速开始
-    about: 提问前请先对照 README 快速开始与 workspace/content/design/README.md 系统设计。
+    about: 提问前请先对照 README 快速开始与 docs/design/README.md 系统设计。

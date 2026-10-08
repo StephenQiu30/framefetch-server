@@ -84,6 +84,3 @@ class ErrorCode(StrEnum):
     USER_NOT_FOUND = "user_not_found"
     USERNAME_ALREADY_REGISTERED = "username_already_registered"
     VERIFICATION_RATE_LIMITED = "verification_rate_limited"
-    WORKSPACE_DOCUMENT_CONFLICT = "workspace_document_conflict"
-    WORKSPACE_DOCUMENT_NOT_FOUND = "workspace_document_not_found"
-    WORKSPACE_UNAVAILABLE = "workspace_unavailable"

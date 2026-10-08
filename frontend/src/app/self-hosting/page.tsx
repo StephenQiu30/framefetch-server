@@ -228,7 +228,7 @@ export default function SelfHostingPage() {
           <NavigationMenuItem>
             <NavigationMenuLink asChild>
               <Link
-                href={`${siteConfig.repositoryUrl}/blob/main/workspace/content/design/README.md`}
+                href={`${siteConfig.repositoryUrl}/blob/main/docs/design/README.md`}
               >
                 系统设计
               </Link>

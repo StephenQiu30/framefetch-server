@@ -274,7 +274,6 @@ class Settings(BaseSettings):
     analysis_report_max_bytes: int = Field(
         default=16 * 1024**2, ge=1024, le=64 * 1024**2
     )
-    workspace_content_dir: Path | None = None
     media_import_enabled: bool = True
     document_import_enabled: bool = True
     media_import_max_bytes: int = Field(default=2 * 1024**3, ge=1024, le=20 * 1024**3)

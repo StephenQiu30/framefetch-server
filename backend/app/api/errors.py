@@ -31,10 +31,6 @@ from app.services.imports.errors import (
 from app.services.provider_catalog import ProviderCatalogError, ProviderCatalogErrorCode
 from app.services.quotas import QuotaExceeded
 from app.services.storage_files.errors import StorageFileError, StorageFileErrorCode
-from app.services.workspace_documents.errors import (
-    WorkspaceDocumentError,
-    WorkspaceDocumentErrorCode,
-)
 
 logger = logging.getLogger(__name__)
 
@@ -435,40 +431,6 @@ def auth_application_error(error: AuthError) -> AppError:
     return AppError(status=status, code=error.code.value, title=title, detail=detail)
 
 
-_WORKSPACE_DOCUMENT_ERRORS: dict[WorkspaceDocumentErrorCode, tuple[int, str, str]] = {
-    WorkspaceDocumentErrorCode.INVALID_PATH: (
-        400,
-        "Invalid document path",
-        "The document path must be a relative Markdown path inside the workspace.",
-    ),
-    WorkspaceDocumentErrorCode.NOT_FOUND: (
-        404,
-        "Document not found",
-        "The requested workspace document does not exist.",
-    ),
-    WorkspaceDocumentErrorCode.CONFLICT: (
-        409,
-        "Document changed",
-        "The document was modified after it was loaded. Reload it before saving.",
-    ),
-    WorkspaceDocumentErrorCode.TOO_LARGE: (
-        413,
-        "Document too large",
-        "The document exceeds the workspace size limit.",
-    ),
-    WorkspaceDocumentErrorCode.UNAVAILABLE: (
-        503,
-        "Workspace unavailable",
-        "The workspace content directory is not configured on this deployment.",
-    ),
-}
-
-
-def workspace_document_error(error: WorkspaceDocumentError) -> AppError:
-    status, title, detail = _WORKSPACE_DOCUMENT_ERRORS[error.code]
-    return AppError(status=status, code=error.code.value, title=title, detail=detail)
-
-
 def storage_file_error(error: StorageFileError) -> AppError:
     status, title, detail = _STORAGE_FILE_ERRORS[error.code]
     return AppError(status=status, code=error.code.value, title=title, detail=detail)
@@ -641,8 +603,6 @@ async def business_error_handler(request: Request, error: Exception) -> JSONResp
         mapped = _catalog_error(error)
     elif isinstance(error, StorageFileError):
         mapped = storage_file_error(error)
-    elif isinstance(error, WorkspaceDocumentError):
-        mapped = workspace_document_error(error)
     else:
         return await unexpected_error_handler(request, error)
     return error_response(request, mapped)
@@ -698,7 +658,6 @@ def register_exception_handlers(app: FastAPI) -> None:
         AiProviderError,
         ProviderCatalogError,
         StorageFileError,
-        WorkspaceDocumentError,
         SessionRotationConflict,
         ModelCatalogUnavailable,
     ):

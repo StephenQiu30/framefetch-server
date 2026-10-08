@@ -9,7 +9,7 @@
 | `backend/` | FastAPI、Worker、Runner、当前态 SQL 与 Python 测试 |
 | `frontend/` | Next.js Web 与生成的 OpenAPI 客户端 |
 | `extension/` | Chrome 身份扩展 |
-| `workspace/` | 文档工作区：`content/` 为产品需求、系统设计与执行计划，Nextra 构建站点 |
+| `docs/` | Obsidian 文档库：产品需求、系统设计与执行计划 |
 
 ## 本地检查
 
@@ -40,24 +40,19 @@ pnpm build
 node --test extension/*.test.cjs
 ```
 
-文档站点，从 `workspace/` 执行（编辑预览 `pnpm dev`，地址 http://127.0.0.1:8131；部署走 Compose 服务 `workspace`，地址 http://127.0.0.1:8130）：
+文档，从仓库根目录执行：
 
 ```bash
-pnpm install --frozen-lockfile
-pnpm check
-pnpm sync:check
-pnpm typecheck
-pnpm test
-pnpm build
+node backend/scripts/check_docs.mjs
 ```
 
-本机检查复用已运行的基础服务，不为验证另起数据库或覆盖 `.env`。涉及运行时、依赖或容器时（含 `workspace` 文档服务），额外验证 `docker compose config` 与 `docker compose -f docker-compose-prod.yml config` 可解析，并按需构建镜像。
+本机检查复用已运行的基础服务，不为验证另起数据库或覆盖 `.env`。涉及运行时、依赖或容器时，额外验证 `docker compose config` 与 `docker compose -f docker-compose-prod.yml config` 可解析，并按需构建镜像。
 
 ## CI
 
-文档编写与沉淀遵循 [workspace/AGENTS.md](workspace/AGENTS.md)。
+文档编写与沉淀遵循 [docs/AGENTS.md](docs/AGENTS.md)。
 
-GitHub Actions 的 `Backend tests`、`Frontend tests` 与 `Workspace` 是每次推送和 PR 的必跑检查，任一失败即 CI 失败。前端 Job 从后端源码导出 OpenAPI 并检查生成差异；`Workspace` Job 运行身份扩展测试、文档链接检查并构建文档站点。完整 Compose 启停、真实平台下载与发布演练按变更范围在本地验收，不在 CI 执行。
+GitHub Actions 的 `Backend tests`、`Frontend tests` 与 `Docs` 是每次推送和 PR 的必跑检查，任一失败即 CI 失败。前端 Job 从后端源码导出 OpenAPI 并检查生成差异；`Docs` Job 运行身份扩展测试、文档链接与锚点检查。完整 Compose 启停、真实平台下载与发布演练按变更范围在本地验收，不在 CI 执行。
 
 ## 提交规范
 
@@ -81,7 +76,7 @@ GitHub Actions 的 `Backend tests`、`Frontend tests` 与 `Workspace` 是每次�
 | `style` | 不影响逻辑的格式调整 |
 | `revert` | 回退已有提交 |
 
-- 作用域使用稳定的模块名，如 `api`、`backend`、`frontend`、`worker`、`runner`、`identity`、`extension`、`workspace`、`deps`；无法准确归属时省略，写作 `<type>: <中文描述>`，不留空括号。
+- 作用域使用稳定的模块名，如 `api`、`backend`、`frontend`、`worker`、`runner`、`identity`、`extension`、`docs`、`deps`；无法准确归属时省略，写作 `<type>: <中文描述>`，不留空括号。
 - 描述是简洁的中文动作短语，不加句号，不堆叠实现细节。
 - 破坏性变更在类型或作用域后加 `!`，并在正文写 `BREAKING CHANGE: <中文说明>`。
 - 正文与标题空一行，说明动机、实现与影响；关联任务写在页脚，如 `Refs: #123`。

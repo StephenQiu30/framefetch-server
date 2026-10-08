@@ -25,7 +25,7 @@ Framefetch only processes content the user is authorized to use: public, free, n
 - [framefetch-server](${siteConfig.repositoryUrl}): FastAPI API, Next.js web app, workers, isolated media runner, Docker Compose
 - [framefetch-app](${siteConfig.mobileRepositoryUrl}): Flutter iOS / Android client for a self-hosted framefetch-server
 - [English README](${siteConfig.repositoryUrl}/blob/main/README.en.md)
-- [System design](${siteConfig.repositoryUrl}/blob/main/workspace/content/design/README.md)
+- [System design](${siteConfig.repositoryUrl}/blob/main/docs/design/README.md)
 
 ## FAQ
 

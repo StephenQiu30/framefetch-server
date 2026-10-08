@@ -1,4 +1,4 @@
-name: framefetch-server
+name: framefetch
 
 x-backend-build: &backend-build
   context: ./backend
@@ -19,7 +19,7 @@ x-backend-watch: &backend-watch
 
 x-media-runner: &media-runner
   build: *backend-build
-  image: framefetch-server:local
+  image: framefetch:local
   restart: unless-stopped
   stop_grace_period: 90s
   shm_size: 256m
@@ -87,7 +87,7 @@ services:
   # Applies backend/sql/schema.sql (idempotent) before any service starts.
   migrate:
     build: *backend-build
-    image: framefetch-server:local
+    image: framefetch:local
     container_name: framefetch-migrate
     restart: "no"
     read_only: true
@@ -104,7 +104,7 @@ services:
   api:
     develop: *backend-watch
     build: *backend-build
-    image: framefetch-server:local
+    image: framefetch:local
     container_name: framefetch-api
     depends_on:
       migrate:
@@ -201,7 +201,7 @@ services:
       APP_HOST: 0.0.0.0
       APP_PORT: 8111
       TRUSTED_PROXY_CIDRS: '${TRUSTED_PROXY_CIDRS:-[]}'
-      TRUSTED_WEB_PROXY_IPS: '["${FRONTEND_IPV4_ADDRESS:-10.251.0.10}","${WORKSPACE_IPV4_ADDRESS:-10.251.0.11}"]'
+      TRUSTED_WEB_PROXY_IPS: '["${FRONTEND_IPV4_ADDRESS:-10.251.0.10}"]'
       DATABASE_URL: "postgresql+asyncpg://${POSTGRES_USER:-video}:${POSTGRES_PASSWORD:-video}@${POSTGRES_HOST:-host.docker.internal}:${POSTGRES_PORT:-5432}/${POSTGRES_DB:-video}"
       RABBITMQ_URL: "amqp://${RABBITMQ_API_USER:-video-api}:${RABBITMQ_API_PASS:-video-api-secret}@${RABBITMQ_HOST:-host.docker.internal}:${RABBITMQ_PORT:-5672}/${RABBITMQ_VHOST:-video}"
       REDIS_URL: "redis://${REDIS_HOST:-host.docker.internal}:${REDIS_PORT:-6379}/0"
@@ -211,15 +211,8 @@ services:
       MINIO_INTERNAL_SECURE: "${MINIO_INTERNAL_SECURE:-false}"
       RUNNER_EGRESS_PROXY: http://egress-proxy:3128
       ARTICLE_DISCOVERY_PROXY_URL: http://egress-proxy:3128
-      WORKSPACE_CONTENT_DIR: /srv/workspace/content
     extra_hosts:
       - "host.docker.internal:host-gateway"
-    volumes:
-      - type: bind
-        source: ./workspace/content
-        target: /srv/workspace/content
-        bind:
-          create_host_path: false
     networks:
       - app_net
       - runner_egress_net
@@ -311,107 +304,12 @@ services:
         - action: rebuild
           path: ./frontend/Dockerfile
 
-  # Workspace site: documents in workspace/content, read and saved through the API.
-  workspace:
-    build:
-      context: ./workspace
-      dockerfile: Dockerfile
-      target: development
-    image: framefetch-workspace:local
-    container_name: framefetch-workspace
-    restart: unless-stopped
-    init: true
-    cap_drop: [ALL]
-    security_opt: ["no-new-privileges:true"]
-    tmpfs:
-      - /tmp:rw,noexec,nosuid,size=128m
-    environment:
-      BACKEND_ORIGIN: http://api:8111
-      HOSTNAME: 0.0.0.0
-      NODE_ENV: development
-      PORT: 8130
-      WEB_URL: "${SITE_URL:-http://127.0.0.1:8101}"
-    volumes:
-      - type: bind
-        source: ./workspace/content
-        target: /app/workspace/content
-        read_only: true
-        bind:
-          create_host_path: false
-    networks:
-      app_net:
-        ipv4_address: "${WORKSPACE_IPV4_ADDRESS:-10.251.0.11}"
-    ports:
-      - "127.0.0.1:${WORKSPACE_HOST_PORT:-8130}:8130"
-    healthcheck:
-      test:
-        [
-          "CMD",
-          "node",
-          "-e",
-          "fetch('http://127.0.0.1:8130/', {signal: AbortSignal.timeout(3000)}).then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))",
-        ]
-      interval: 10s
-      timeout: 5s
-      retries: 12
-      start_period: 10s
-    depends_on:
-      api:
-        condition: service_healthy
-
-    develop:
-      watch:
-        - action: sync
-          path: ./workspace/app
-          target: /app/workspace/app
-          initial_sync: true
-        - action: sync
-          path: ./workspace/src
-          target: /app/workspace/src
-          initial_sync: true
-        - action: sync
-          path: ./workspace/lib
-          target: /app/workspace/lib
-          initial_sync: true
-        - action: sync
-          path: ./workspace/public
-          target: /app/workspace/public
-          initial_sync: true
-        - action: sync
-          path: ./workspace/mdx-components.tsx
-          target: /app/workspace/mdx-components.tsx
-          initial_sync: true
-        - action: sync+restart
-          path: ./workspace/next.config.mjs
-          target: /app/workspace/next.config.mjs
-          initial_sync: true
-        - action: sync+restart
-          path: ./workspace/postcss.config.mjs
-          target: /app/workspace/postcss.config.mjs
-          initial_sync: true
-        - action: sync+restart
-          path: ./workspace/tsconfig.json
-          target: /app/workspace/tsconfig.json
-          initial_sync: true
-        - action: sync+restart
-          path: ./workspace/proxy.ts
-          target: /app/workspace/proxy.ts
-          initial_sync: true
-        - action: rebuild
-          path: ./workspace/package.json
-        - action: rebuild
-          path: ./workspace/pnpm-lock.yaml
-        - action: rebuild
-          path: ./workspace/pnpm-workspace.yaml
-        - action: rebuild
-          path: ./workspace/Dockerfile
-
   # Every containerized background loop: Outbox dispatch, inspection and
   # downloads, imports and report publication.
   worker:
     develop: *backend-watch
     build: *backend-build
-    image: framefetch-server:local
+    image: framefetch:local
     container_name: framefetch-worker
     restart: unless-stopped
     stop_grace_period: 90s

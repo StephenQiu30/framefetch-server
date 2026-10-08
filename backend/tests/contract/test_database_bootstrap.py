@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import re
 from pathlib import Path
 from urllib.parse import urlsplit
@@ -126,10 +127,8 @@ def test_frontend_compose_receives_only_required_runtime_configuration() -> None
             == "${FRONTEND_IPV4_ADDRESS:-10.251.0.10}"
         )
         assert "${TRUSTED_PROXY_CIDRS" in api["environment"]["TRUSTED_PROXY_CIDRS"]
-        workspace = document["services"]["workspace"]
         assert api["environment"]["TRUSTED_WEB_PROXY_IPS"] == (
-            f'["{frontend["networks"]["app_net"]["ipv4_address"]}",'
-            f'"{workspace["networks"]["app_net"]["ipv4_address"]}"]'
+            f'["{frontend["networks"]["app_net"]["ipv4_address"]}"]'
         )
 
 
@@ -504,51 +503,25 @@ def test_projects_build_and_run_separate_images() -> None:
     assert "python:" not in (ROOT.parent / "frontend/Dockerfile").read_text()
 
 
-def test_compose_serves_the_workspace_documentation_site() -> None:
-    for path, tag in ((COMPOSE_PATH, "local"), (PROD_COMPOSE_PATH, "prod")):
-        workspace = yaml.safe_load(path.read_text())["services"]["workspace"]
-        assert workspace["build"]["context"] == "./workspace"
-        assert workspace["image"] == f"framefetch-workspace:{tag}"
-        assert workspace["container_name"] == "framefetch-workspace"
-        assert workspace["ports"][0].endswith(":${WORKSPACE_HOST_PORT:-8130}:8130")
-        assert workspace["depends_on"]["api"]["condition"] == "service_healthy"
-        assert workspace["environment"]["BACKEND_ORIGIN"] == "http://api:8111"
-        assert workspace["networks"]["app_net"]["ipv4_address"] == (
-            "${WORKSPACE_IPV4_ADDRESS:-10.251.0.11}"
+def test_documentation_is_local_and_not_mounted_by_the_api() -> None:
+    for path in (COMPOSE_PATH, PROD_COMPOSE_PATH):
+        services = yaml.safe_load(path.read_text())["services"]
+        assert "workspace" not in services
+        api = services["api"]
+        assert "WORKSPACE_CONTENT_DIR" not in api["environment"]
+        assert not any(
+            isinstance(volume, dict) and volume.get("source") == "./docs"
+            for volume in api.get("volumes", [])
         )
-        assert workspace["healthcheck"]["test"][1] == "node"
-        api = yaml.safe_load(path.read_text())["services"]["api"]
-        assert {
-            "type": "bind",
-            "source": "./workspace/content",
-            "target": "/srv/workspace/content",
-            "bind": {"create_host_path": False},
-        } in api["volumes"]
-        assert api["environment"]["WORKSPACE_CONTENT_DIR"] == "/srv/workspace/content"
+    vault = ROOT.parent / "docs"
+    assert (vault / "README.md").is_file()
+    settings = json.loads((vault / ".obsidian/app.json").read_text())
+    assert settings["useMarkdownLinks"] is True
+    assert settings["newLinkFormat"] == "relative"
+    assert settings["alwaysUpdateLinks"] is True
     environment = ENV_EXAMPLE_PATH.read_text()
-    assert "WORKSPACE_HOST_PORT=8130" in environment
-    assert "WORKSPACE_IPV4_ADDRESS=10.251.0.11" in environment
-
-
-def test_compose_workspace_reads_live_document_content() -> None:
-    for path, tag in ((COMPOSE_PATH, "local"), (PROD_COMPOSE_PATH, "prod")):
-        document = yaml.safe_load(path.read_text())
-        workspace = document["services"]["workspace"]
-        assert workspace["build"]["context"] == "./workspace"
-        assert workspace["image"] == f"framefetch-workspace:{tag}"
-        assert {
-            "type": "bind",
-            "source": "./workspace/content",
-            "target": "/app/workspace/content",
-            "read_only": True,
-            "bind": {"create_host_path": False},
-        } in workspace["volumes"]
-        if tag == "local":
-            assert workspace["build"]["target"] == "development"
-            assert workspace["develop"]["watch"]
-        else:
-            assert workspace["read_only"] is True
-            assert "develop" not in workspace
+    assert "WORKSPACE_HOST_PORT" not in environment
+    assert "WORKSPACE_IPV4_ADDRESS" not in environment
 
 
 def test_compose_application_roles_share_the_selected_release_image() -> None:
@@ -563,14 +536,13 @@ def test_compose_application_roles_share_the_selected_release_image() -> None:
                 assert config["image"] == f"video-session-browser:{tag}", name
             else:
                 assert "target" not in build, name
-                assert config["image"] == f"framefetch-server:{tag}", name
+                assert config["image"] == f"framefetch:{tag}", name
 
 
 def test_runtime_base_images_are_pinned_without_host_architecture_override() -> None:
     for path in (
         DOCKERFILE_PATH,
         ROOT.parent / "frontend/Dockerfile",
-        ROOT.parent / "workspace/Dockerfile",
     ):
         stages = re.findall(r"^FROM (\S+) AS (\S+)", path.read_text(), re.MULTILINE)
         assert stages

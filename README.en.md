@@ -6,7 +6,7 @@
 [![MIT License](https://img.shields.io/badge/license-MIT-111111.svg)](LICENSE)
 [![Preview release](https://img.shields.io/github/v/release/StephenQiu30/framefetch-server?include_prereleases&color=111111)](https://github.com/StephenQiu30/framefetch-server/releases)
 
-[Screenshots](#screenshots) · [Quick start](#quick-start) · [First use](#first-use) · [Workflow](#from-material-to-report) · [Skills](#built-in-skills) · [Scope](#scope-and-deployment-requirements) · [Documentation](workspace/content/design/README.md) · [简体中文](README.md)
+[Screenshots](#screenshots) · [Quick start](#quick-start) · [First use](#first-use) · [Workflow](#from-material-to-report) · [Skills](#built-in-skills) · [Scope](#scope-and-deployment-requirements) · [Documentation](docs/design/README.md) · [简体中文](README.md)
 
 ## Screenshots
 
@@ -31,7 +31,7 @@
 
 </details>
 
-These screenshots come from the released Electron Renderer demo build captured on 2026-10-03 and show shared Web/desktop pages. Material, jobs and reports are demo data with no real accounts or private sources. The current main-branch interface may differ. Screenshots do not establish platform, model or client-installation acceptance; see the [execution plans](workspace/content/plan/README.md) for validation boundaries.
+These screenshots come from the released Electron Renderer demo build captured on 2026-10-03 and show shared Web/desktop pages. Material, jobs and reports are demo data with no real accounts or private sources. The current main-branch interface may differ. Screenshots do not establish platform, model or client-installation acceptance; see the [execution plans](docs/plan/README.md) for validation boundaries.
 
 ## What is Framefetch?
 
@@ -46,7 +46,7 @@ For creators, content researchers and developers who want to manage their own so
 
 Use `docker-compose.yml` locally and `docker-compose-prod.yml` in production. Deploy the Server, then connect Web, Electron or mobile clients. Platform identity follows the Registry declarations through the ordinary Chrome extension.
 
-The business Compose project is named `framefetch-server`. `runner_work` and `browser_profiles` bind to the existing persistent volumes `video-server_runner_work` and `video-server_browser_profiles` by default, preserving task files and browser sessions. Set `RUNNER_WORK_VOLUME_NAME` and `BROWSER_PROFILES_VOLUME_NAME` to use other volumes. Database, queue, object storage and authentication identifiers keep their existing configuration.
+The business Compose project is named `framefetch`; backend images are `framefetch:local` / `framefetch:prod`. `runner_work` and `browser_profiles` bind to the existing persistent volumes `video-server_runner_work` and `video-server_browser_profiles` by default, preserving task files and browser sessions. Set `RUNNER_WORK_VOLUME_NAME` and `BROWSER_PROFILES_VOLUME_NAME` to use other volumes. Database, queue, object storage and authentication identifiers keep their existing configuration.
 
 ### Requirements
 
@@ -67,9 +67,9 @@ test -f .env || cp .env.example .env
 docker compose up -d --build --wait --remove-orphans
 ```
 
-Open the [Web workspace](http://localhost:8101), [documentation site](http://localhost:8130), [Swagger UI](http://localhost:8111/docs) or [OpenAPI](http://localhost:8111/openapi.json). For an empty user table, first create the administrator as described below, then sign in.
+Open the [Web workspace](http://localhost:8101), [Swagger UI](http://localhost:8111/docs) or [OpenAPI](http://localhost:8111/openapi.json). For an empty user table, first create the administrator as described below, then sign in.
 
-All containerized background loops run in the single `worker` container. Its `RABBITMQ_WORKER_USER` / `RABBITMQ_WORKER_PASS` account needs restricted permissions for current business queues in `RABBITMQ_VHOST`; see [reliability design](workspace/content/design/12-可靠性与运行.md).
+All containerized background loops run in the single `worker` container. Its `RABBITMQ_WORKER_USER` / `RABBITMQ_WORKER_PASS` account needs restricted permissions for current business queues in `RABBITMQ_VHOST`; see [reliability design](docs/design/12-可靠性与运行.md).
 
 The business worker connects to the existing Temporal service through `TEMPORAL_HOST` / `TEMPORAL_PORT`, defaulting to `host.docker.internal:7233`. Host CLI and AI workers use `TEMPORAL_ADDRESS`, defaulting to `127.0.0.1:7233`. The worker initializes `TEMPORAL_NAMESPACE` (default `framefetch`) when needed; the existing service owns its storage and backups.
 
@@ -102,7 +102,7 @@ uv run python -m app.workers.identity.cli check
 
 In Chrome 120+, enable developer mode and load that unpacked extension into the single ordinary Profile you use for platform sign-in. Do not load it from a worktree. After updates, run `install` again and reload the extension. Generated pairing configuration and manifest are ignored by Git; pairing configuration is private to the current user but cannot protect against malicious processes running as that same user.
 
-Only the Runner receives `COOKIE_SOURCE_TOKEN`; the extension pairing key is separate. Cookie requests use the exact host/port/path proxy exception, with no redirects or upstream Clash routing. Installation, permissions and operational details are in the [Chinese runtime instructions](README.md#平台身份与升级); the protocol and acceptance boundaries are in [platform identity design](workspace/content/design/15-平台身份.md).
+Only the Runner receives `COOKIE_SOURCE_TOKEN`; the extension pairing key is separate. Cookie requests use the exact host/port/path proxy exception, with no redirects or upstream Clash routing. Installation, permissions and operational details are in the [Chinese runtime instructions](README.md#平台身份与升级); the protocol and acceptance boundaries are in [platform identity design](docs/design/15-平台身份.md).
 
 Before upgrading, pause admissions, drain media operations and back up the business database. Apply the current schema.sql, then rebuild the API, worker, session-runner and frontend together. Production:
 
@@ -114,10 +114,9 @@ docker compose --env-file .env.prod -f docker-compose-prod.yml up -d --build --w
 curl --fail http://127.0.0.1:8111/health/live
 curl --fail http://127.0.0.1:8111/health/ready
 curl --fail --head http://127.0.0.1:8101/
-curl --fail --head http://127.0.0.1:8130/
 ```
 
-Set `ANALYSIS_ENABLED=false` in `.env` when you only need downloads and screenplay imports. See [reliability and operations](workspace/content/design/12-可靠性与运行.md) (Chinese) for startup, shutdown, existing infrastructure and recovery. After updating code, run `git pull --ff-only` and the same start command again: `docker compose restart` does not apply a new image or configuration.
+Set `ANALYSIS_ENABLED=false` in `.env` when you only need downloads and screenplay imports. See [reliability and operations](docs/design/12-可靠性与运行.md) (Chinese) for startup, shutdown, existing infrastructure and recovery. After updating code, run `git pull --ff-only` and the same start command again: `docker compose restart` does not apply a new image or configuration.
 
 </details>
 
@@ -170,7 +169,7 @@ Choose an applicable method from video or document details, select Chinese/Engli
 
 Video review, shot breakdown and screenplay analysis help inspect existing material. Article, WeChat and Xiaohongshu organization works on existing text while preserving facts, quotations, code and links. Review model findings against the original source.
 
-Available methods come from the server catalog. See the [requirements index](workspace/content/prd/README.md) for product scope and [execution plans](workspace/content/plan/README.md) for real samples, file delivery and client-validation boundaries.
+Available methods come from the server catalog. See the [requirements index](docs/prd/README.md) for product scope and [execution plans](docs/plan/README.md) for real samples, file delivery and client-validation boundaries.
 
 ## One workstation, multiple clients
 
@@ -184,7 +183,7 @@ All clients connect to one Server. Originals, normalized text and reports reside
 
 Framefetch is in public preview. CI checks deterministic engineering behavior; complete platform files, real models, physical devices and desktop workflows need their own acceptance evidence. Registry entries, successful metadata inspection and screenshots do not establish that validation.
 
-- Process authorized HTTP(S), non-DRM material. Registered integrations include YouTube, Bilibili, Douyin, TikTok, Xiaohongshu, Kuaishou and Weibo; actual links depend on content scope, identity, network and platform changes. WeChat Channels supports downloading official clear share files and requires a valid Yuanbao login in Chrome; no Yuanbao page needs to be open; official-account articles provide source discovery. See [parse engine verification status](workspace/content/design/14-解析引擎.md#13-验证状态) for exact platform status and complete-file evidence.
+- Process authorized HTTP(S), non-DRM material. Registered integrations include YouTube, Bilibili, Douyin, TikTok, Xiaohongshu, Kuaishou and Weibo; actual links depend on content scope, identity, network and platform changes. WeChat Channels supports downloading official clear share files and requires a valid Yuanbao login in Chrome; no Yuanbao page needs to be open; official-account articles provide source discovery. See [parse engine verification status](docs/design/14-解析引擎.md#13-验证状态) for exact platform status and complete-file evidence.
 - Source and build workflows are self-hosted. The operator provides servers, infrastructure, storage, network and models. External models may incur charges and receive the text or frames needed for analysis.
 - Current capabilities cover intake, management, built-in Skill analysis/document formatting, and reports. Method and output fixture results are recorded in the execution plan; mechanical wrapping or initial excerpts do not establish useful document organization. Model conclusions require review. Content writing, screenplay rewriting, card production, ASR/OCR, editing timelines and publishing are outside this scope.
 - Successful material and reports persist; plan capacity, backups and explicit cleanup. See the [Security Policy](SECURITY.md) and parsing design. Replace placeholder configuration and check network, storage and models before exposing a deployment.
@@ -256,7 +255,7 @@ flowchart LR
 | Electron, React, controlled native capabilities                  | Native desktop windows, controlled file operations and a shared Server connection                               |
 | Redis, Docker Compose, separate host AI Worker                   | Rate limiting, temporary runtime state, service deployment/recovery and clear media/AI responsibility           |
 
-Local Compose reuses existing PostgreSQL, RabbitMQ, Redis, MinIO and Temporal services; the AI Worker runs separately on the host. See [PROJECT.md](PROJECT.md) for structure/contracts and the [documentation index](workspace/content/design/README.md) for maintained design (Chinese).
+Local Compose reuses existing PostgreSQL, RabbitMQ, Redis, MinIO and Temporal services; the AI Worker runs separately on the host. See [PROJECT.md](PROJECT.md) for structure/contracts and the [documentation index](docs/design/README.md) for maintained design (Chinese).
 
 </details>
 
@@ -282,11 +281,11 @@ pnpm build
 
 ## Roadmap
 
-Platform support and validation limits are described in [the parsing design](workspace/content/design/14-解析引擎.md#13-验证状态); other unfinished work is listed in [BACKLOG](BACKLOG.md) (Chinese); built-in Skills are defined in the [PRD](workspace/content/prd/PRD-内置Skill能力整合.md), with work packages and acceptance checklists in the [execution plan](workspace/content/plan/PLAN-内置Skill能力整合.md). Implementation and verification evidence are recorded in that plan. Discuss priorities in [Issues](https://github.com/StephenQiu30/framefetch-server/issues) — tasks labeled `good first issue` or `help wanted` are a good place to start.
+Platform support and validation limits are described in [the parsing design](docs/design/14-解析引擎.md#13-验证状态); other unfinished work is listed in [BACKLOG](BACKLOG.md) (Chinese); built-in Skills are defined in the [PRD](docs/prd/PRD-内置Skill能力整合.md), with work packages and acceptance checklists in the [execution plan](docs/plan/PLAN-内置Skill能力整合.md). Implementation and verification evidence are recorded in that plan. Discuss priorities in [Issues](https://github.com/StephenQiu30/framefetch-server/issues) — tasks labeled `good first issue` or `help wanted` are a good place to start.
 
 ## Contributing
 
-Contributions to provider adapters, reliability, web and mobile UX, AI reports, tests and documentation are welcome. Before opening a pull request, read the [Contributing Guide](CONTRIBUTING.md), [Code of Conduct](CODE_OF_CONDUCT.md), [repository rules](AGENTS.md), [documentation index](workspace/content/design/README.md), and [Security Policy](SECURITY.md).
+Contributions to provider adapters, reliability, web and mobile UX, AI reports, tests and documentation are welcome. Before opening a pull request, read the [Contributing Guide](CONTRIBUTING.md), [Code of Conduct](CODE_OF_CONDUCT.md), [repository rules](AGENTS.md), [documentation index](docs/design/README.md), and [Security Policy](SECURITY.md).
 
 Keep implementation, OpenAPI contracts, tests, operations documentation and acceptance evidence aligned. Prefer small, independently verifiable changes.
 
@@ -300,4 +299,6 @@ To cite Framefetch in papers, reports or course material, use “Cite this repos
 
 Framefetch is available under the [MIT License](LICENSE). The software license does not grant rights to download, copy or analyze third-party media.
 
-For public-site indexing and generative-search visibility, see [Web experience and SEO](workspace/content/design/11-Web体验.md) (Chinese). Private self-hosted instances default to noindex; intentionally public sites must opt in with `SITE_INDEXABLE=true` and a stable `SITE_URL` at build and runtime.
+For public-site indexing and generative-search visibility, see [Web experience and SEO](docs/design/11-Web体验.md) (Chinese). Private self-hosted instances default to noindex; intentionally public sites must opt in with `SITE_INDEXABLE=true` and a stable `SITE_URL` at build and runtime.
+
+Product requirements, designs and execution plans live in [docs/](docs/README.md). Open that folder as an Obsidian vault or edit the Markdown files directly, then manage revisions with Git.

@@ -24,7 +24,6 @@
 | --- | --- | --- |
 | `api` | Compose，8111 | HTTP 提交、查询、取消；不执行长任务 |
 | `frontend` | Compose，8101 | Next.js standalone，运行时代理与上传流式代理 |
-| `workspace` | Compose，8130 | 文档站点（Nextra standalone），只读挂载 `workspace/content/`，经 API 保存管理员编辑 |
 | `worker` | Compose | 监督 Outbox、下载、导入、报告发布与 Temporal 解析 Worker |
 | `session-runner` | Compose | 隔离的媒体执行进程，不持有数据库、队列、对象存储或 AI 凭据 |
 | `egress-proxy` | Compose | 媒体流量的唯一出口 |
@@ -34,7 +33,7 @@
 | cookie-source | 宿主当前用户服务（macOS LaunchAgent／Windows 计划任务），`127.0.0.1:19101` | 与身份扩展通信，为 Runner 提供单次操作的身份材料 |
 
 - PostgreSQL 是业务状态的唯一事实来源。跨 PostgreSQL、Temporal、RabbitMQ 的写入使用 transactional outbox；dispatcher 按确定 Workflow ID 直接启动 Temporal，不经 RabbitMQ 中转。
-- 同一业务只由一个引擎调度。分工细节见[工作流编排](workspace/content/design/13-工作流编排.md)，解析引擎见[解析引擎](workspace/content/design/14-解析引擎.md)。
+- 同一业务只由一个引擎调度。分工细节见[工作流编排](docs/design/13-工作流编排.md)，解析引擎见[解析引擎](docs/design/14-解析引擎.md)。
 - 新增后台循环并入 `worker` 作为独立监督组件；只有需要不同凭据或信任边界时才新增容器。
 - 所有业务容器显式设置稳定的 `container_name`。
 
@@ -45,7 +44,7 @@ framefetch-server/
 ├── backend/                  FastAPI、Worker、Runner、当前态 SQL 与测试
 ├── frontend/                 Next.js Web
 ├── extension/                身份扩展源码；manifest.json 与 config.local.json 由安装命令生成，不入库
-├── workspace/                文档工作区：Nextra 站点，content/ 为 prd/、design/、plan/
+├── docs/                     Obsidian 文档库：prd/、design/、plan/
 ├── assets/                   README 配图
 ├── docker-compose.yml        本机业务容器
 ├── docker-compose-prod.yml   生产业务容器
@@ -55,15 +54,11 @@ framefetch-server/
 
 ### 3.1 文档工作区
 
-- `workspace/content/` 是产品需求、系统设计与执行计划的唯一位置，也是 Obsidian 库根目录；`.obsidian/app.json` 固定使用相对路径的标准 Markdown 链接，保证 GitHub、Obsidian 与站点解析一致。
-- 站点使用 Nextra（`workspace/`，pnpm 独立管理），以 Compose 服务 `workspace` 部署在 8130，本地编辑预览用 `pnpm dev`（8131）。除知识库外，也承载后续的产品介绍与发布文稿。
-- 站点直接使用 Nextra 4.6.1 官方 Docs Theme：`Layout` 与 `getPageMap()` 提供导航，`importPage()` 与 `generateStaticParamsFor()` 渲染 `content/`，官方 `Search` 使用 Pagefind 的构建索引。开发模式由 Nextra 原生热更新处理文档修改；生产模式在内容变化后重新构建并部署 `workspace`，正文、导航与搜索索引一同发布。目录首页沿用 `README.md`，目录地址重定向到它；指向 `content/` 之外的仓库文件的链接改写为 GitHub 地址。
-- 官方接入依据：[Docs Theme](https://nextra.site/docs/docs-theme/start)、[content 目录](https://nextra.site/docs/file-conventions/content-directory)、[Pagefind 搜索](https://nextra.site/docs/guide/search)。`pnpm build` 通过 `postbuild` 生成 `public/_pagefind/`；开发预览也需先构建以准备搜索索引，内容变化后搜索索引需重新生成。
-- 站点只读取 `content/`，不维护第二份文档；`_meta.js` 只决定导航顺序与标题。
-- 视觉遵循 [design.md](design.md)：主题样式、Logo、shadcn 组件、Editor.js 编辑器与生成接口由 `pnpm sync` 从 `frontend/` 复制，`frontend-sync.json` 记录 SHA-256，`pnpm sync:check` 拒绝本地改动与上游漂移；需要修改时先改 `frontend/` 再同步。文档阅读界面采用官方主题默认布局、排版与交互，只配置品牌、中文文本和中性主题色，不覆盖主题组件样式。
-- 网页编辑：管理员在文档页进入 `/edit`，以 Editor.js 编辑已有的 `.md` 文档，经 `PUT /api/workspace/document` 保存；API 挂载 `content/` 并按读取时的 SHA-256 拒绝过期保存，不新建、不删除文件。保存只更新 Markdown 源文件，开发阅读页由 Nextra 热更新，生产站点需重新构建并部署后发布。会话来自帧取 Web 登录，Web 与工作区使用同一主机名时共享。相对链接在编辑时转换为站点或 GitHub 地址、保存时还原；不受 Editor.js 支持的结构（如列表内嵌表格）不得写入文档，`pnpm test` 对全部文档做保存往返校验。
-- [workspace/AGENTS.md](workspace/AGENTS.md) 规定文档归档、命名、内容职责、索引与证据要求；编写或更新 workspace 文档时遵循该规范。
-- 在 `workspace/` 执行 `pnpm check`（文档链接与锚点）、`pnpm sync:check`、`pnpm typecheck`、`pnpm test`（编辑保存往返）与 `pnpm build`；本地与 CI 使用同一组命令。
+- `docs/` 是产品需求、系统设计与执行计划的唯一位置，也是 Obsidian 库根目录；入口为 [文档索引](docs/README.md)。
+- 在 Obsidian 中选择「打开文件夹作为仓库」并选择本仓库的 `docs/`。`.obsidian/app.json` 固定使用标准 Markdown 相对链接，并在文件重命名时更新链接，保证本地与 GitHub 阅读一致；个人界面状态与插件配置不入库。
+- 文档直接通过 Obsidian 或任意文本编辑器修改，使用 Git 管理；目录首页沿用 `README.md`，新增、删除或重命名文档时同步索引和引用。
+- [docs/AGENTS.md](docs/AGENTS.md) 规定文档归档、命名、内容职责、索引与证据要求。
+- 在仓库根目录执行 `node backend/scripts/check_docs.mjs`，校验文档相对链接与章节锚点；本地与 CI 使用同一命令。
 
 ## 4. 后端
 

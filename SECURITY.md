@@ -2,7 +2,7 @@
 
 ## 产品边界
 
-帧取是单人自托管工具，只处理部署者有权获取的非 DRM HTTP(S) 内容，不用于规避访问控制、版权保护或平台授权。内容范围（`public`、`personal_full`、`official_share`）与身份策略是两个独立维度，定义与平台适用范围见[解析引擎](workspace/content/design/14-解析引擎.md#1-目标与边界)。
+帧取是单人自托管工具，只处理部署者有权获取的非 DRM HTTP(S) 内容，不用于规避访问控制、版权保护或平台授权。内容范围（`public`、`personal_full`、`official_share`）与身份策略是两个独立维度，定义与平台适用范围见[解析引擎](docs/design/14-解析引擎.md#1-目标与边界)。
 
 ## 强制控制
 

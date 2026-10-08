@@ -64,7 +64,7 @@ describe('mobile navigation', () => {
       within(resources).getByRole('link', { name: '文档' }),
     ).toHaveAttribute(
       'href',
-      'https://github.com/StephenQiu30/framefetch-server/tree/main/workspace/content',
+      'https://github.com/StephenQiu30/framefetch-server/tree/main/docs',
     );
     expect(screen.getByRole('link', { name: '登录账户' })).toHaveAttribute(
       'href',

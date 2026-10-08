@@ -59,3 +59,7 @@ npm-debug.log*
 /extension/manifest.json
 # Chrome's compiled declarative request rules are generated locally.
 /extension/_metadata/
+
+# Obsidian shared link settings are tracked; personal state stays local.
+/docs/.obsidian/*
+!/docs/.obsidian/app.json

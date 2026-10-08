@@ -9,11 +9,11 @@ def test_ci_is_limited_to_deterministic_system_tests() -> None:
     workflow = yaml.safe_load(WORKFLOW_PATH.read_text(encoding="utf-8"))
     jobs = workflow["jobs"]
 
-    assert set(jobs) == {"backend-tests", "frontend-tests", "workspace"}
+    assert set(jobs) == {"backend-tests", "frontend-tests", "docs"}
     assert {job["name"] for job in jobs.values()} == {
         "Backend tests",
         "Frontend tests",
-        "Workspace",
+        "Docs",
     }
 
     commands = "\n".join(
@@ -66,14 +66,9 @@ def _assert_quality_gates(workflow: dict) -> None:
             "pnpm test",
             "pnpm build",
         ),
-        "workspace": (
+        "docs": (
             "node --test extension/*.test.cjs",
-            "pnpm install --frozen-lockfile",
-            "pnpm check",
-            "pnpm sync:check",
-            "pnpm typecheck",
-            "pnpm test",
-            "pnpm build",
+            "node backend/scripts/check_docs.mjs",
         ),
     }
     # PyYAML uses YAML 1.1, where the unquoted `on` key is a boolean.

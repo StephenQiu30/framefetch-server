@@ -1,4 +1,4 @@
-name: framefetch-server-env
+name: framefetch-env
 
 # Disposable infrastructure fixture for GitHub CI only.
 # Local development and deployment reuse existing host services.

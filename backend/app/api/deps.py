@@ -19,7 +19,6 @@ from app.core.runtime import (
     MediaImportUseCases,
     SourceDiscoveryUseCases,
 )
-from app.integrations.workspace_content import WorkspaceContentStore
 from app.services.ai_providers import AiProviderService
 from app.services.auth.errors import AuthError
 from app.services.auth.models import CurrentUser, UserRole
@@ -31,10 +30,6 @@ from app.services.history_records import HistoryRecordService
 from app.services.provider_catalog import ProviderCatalogService
 from app.services.providers import ProviderStatusView
 from app.services.storage_files.service import StorageFileService
-from app.services.workspace_documents.errors import (
-    WorkspaceDocumentError,
-    WorkspaceDocumentErrorCode,
-)
 
 IdempotencyKey = Annotated[
     str,
@@ -50,15 +45,6 @@ IdempotencyKey = Annotated[
 
 def get_runtime_settings(request: Request) -> Settings:
     return cast(Settings, request.app.state.settings)
-
-
-def get_workspace_store(
-    settings: Annotated[Settings, Depends(get_runtime_settings)],
-) -> WorkspaceContentStore:
-    root = settings.workspace_content_dir
-    if root is None or not root.is_dir():
-        raise WorkspaceDocumentError(WorkspaceDocumentErrorCode.UNAVAILABLE)
-    return WorkspaceContentStore(root)
 
 
 def get_download_storage(request: Request) -> DownloadArtifactStorage:

@@ -653,24 +653,6 @@ declare namespace API {
     data: UserResponse;
   };
 
-  type ApiResponseWorkspaceDocumentListResponse_ = {
-    /** 稳定的业务结果码。 */
-    code: ErrorCode;
-    /** Message 安全的结果说明。 */
-    message: string;
-    /** 成功时为业务数据，错误时为 null。 */
-    data: WorkspaceDocumentListResponse;
-  };
-
-  type ApiResponseWorkspaceDocumentResponse_ = {
-    /** 稳定的业务结果码。 */
-    code: ErrorCode;
-    /** Message 安全的结果说明。 */
-    message: string;
-    /** 成功时为业务数据，错误时为 null。 */
-    data: WorkspaceDocumentResponse;
-  };
-
   type AudioCodecFamily = "none" | "aac" | "opus" | "vorbis" | "other";
 
   type cancelAnalysisParams = {
@@ -1485,10 +1467,7 @@ declare namespace API {
     | "upload_session_expired"
     | "user_not_found"
     | "username_already_registered"
-    | "verification_rate_limited"
-    | "workspace_document_conflict"
-    | "workspace_document_not_found"
-    | "workspace_unavailable";
+    | "verification_rate_limited";
 
   type ErrorResponse = {
     /** 稳定的业务结果码。 */
@@ -1641,11 +1620,6 @@ declare namespace API {
 
   type getSourceDiscoveryParams = {
     discovery_id: string;
-  };
-
-  type getWorkspaceDocumentParams = {
-    /** 相对 workspace/content 的 Markdown 路径。 */
-    path: string;
   };
 
   type HeadingBlock = {
@@ -2791,18 +2765,6 @@ declare namespace API {
     quota?: UserQuotaSettings | null;
   };
 
-  type updateWorkspaceDocumentParams = {
-    /** 相对 workspace/content 的 Markdown 路径。 */
-    path: string;
-  };
-
-  type UpdateWorkspaceDocumentRequest = {
-    /** Content 新的 Markdown 原文。 */
-    content: string;
-    /** Base Sha256 编辑开始时读取到的原文 SHA-256；不一致时返回 409。 */
-    base_sha256: string;
-  };
-
   type UploadPartResponse = {
     /** Part Number */
     part_number: number;
@@ -2995,32 +2957,5 @@ declare namespace API {
     first_seen_ms: number;
     /** Evidence Shot Ids */
     evidence_shot_ids: string[];
-  };
-
-  type WorkspaceDocumentListResponse = {
-    /** Items */
-    items: WorkspaceDocumentSummaryResponse[];
-  };
-
-  type WorkspaceDocumentResponse = {
-    /** Path */
-    path: string;
-    /** Title */
-    title: string;
-    /** Content Markdown 原文。 */
-    content: string;
-    /** Sha256 原文 SHA-256，保存时作为 base_sha256 提交。 */
-    sha256: string;
-    /** Updated At */
-    updated_at: string;
-  };
-
-  type WorkspaceDocumentSummaryResponse = {
-    /** Path 相对 workspace/content 的 Markdown 路径。 */
-    path: string;
-    /** Title 文档一级标题；没有标题时为文件名。 */
-    title: string;
-    /** Section 所在目录，如 prd、design、plan；根目录为空。 */
-    section: string;
   };
 }
