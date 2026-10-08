@@ -24,7 +24,7 @@ ENV NODE_ENV=development HOSTNAME=0.0.0.0 PORT=8101
 COPY --link --chown=1000:1000 . ./
 USER node
 EXPOSE 8101
-CMD ["node", "node_modules/next/dist/bin/next", "dev", "--webpack", "--hostname", "0.0.0.0", "--port", "8101"]
+CMD ["node", "node_modules/next/dist/bin/next", "dev", "--hostname", "0.0.0.0", "--port", "8101"]
 
 FROM dependencies AS frontend-builder
 COPY --link --chown=1000:1000 . ./

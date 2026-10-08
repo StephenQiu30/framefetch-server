@@ -4,6 +4,9 @@ const nextConfig: NextConfig = {
   agentRules: false,
   allowedDevOrigins: ['127.0.0.1'],
   poweredByHeader: false,
+  experimental: {
+    optimizePackageImports: ['@phosphor-icons/react'],
+  },
   // Cookie-only metadata is cheap; emit it in head for HTML-only search clients.
   htmlLimitedBots: /.*/,
   // API routes are forwarded to FastAPI without a trailing slash. Disabling
