@@ -4,4 +4,5 @@
 
 | 计划 | 来源 | 状态 |
 | --- | --- | --- |
+| [影视 Skill 接入执行计划](PLAN-影视Skill接入.md) | [影视 Skill PRD](../prd/PRD-影视Skill接入.md) | planned；14 个工作包尚未开始，含依赖、三端验收、agent-browser 与内容对照 |
 | [内置 Skill 能力整合执行计划](PLAN-内置Skill能力整合.md) | [内置 Skill PRD](../prd/PRD-内置Skill能力整合.md) | 本轮验收完成；原页面、调用／Skill／产出、原生文件与平台边界证据 |
