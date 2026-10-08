@@ -205,6 +205,12 @@ describe('screenplay documents', () => {
     ).toHaveTextContent('<script>只作为台词文本</script>');
     expect(container.querySelector('script')).toBeNull();
     expect(container.querySelector('pre')).toBeNull();
+    const reader = screen.getByRole('article', {
+      name: '规范化剧本 Markdown 预览',
+    });
+    expect(reader.tabIndex).toBe(0);
+    reader.focus();
+    expect(reader).toHaveFocus();
     const tableOfContents = screen.getByRole('navigation', { name: '目录' });
     expect(tableOfContents).toHaveAttribute('data-slot', 'navigation-menu');
     expect(screen.getByRole('link', { name: '午夜来客' })).toHaveAttribute(

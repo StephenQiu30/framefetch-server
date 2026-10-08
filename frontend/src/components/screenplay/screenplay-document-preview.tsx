@@ -40,7 +40,8 @@ export function ScreenplayDocumentPreview({
             headingIds={headings.map((heading) => heading.id)}
             links={false}
             aria-label="规范化剧本 Markdown 预览"
-            className="mt-4 max-h-dvh overflow-y-auto overscroll-contain scrollbar-thin"
+            tabIndex={0}
+            className="mt-4 max-h-dvh overflow-y-auto overscroll-contain scrollbar-thin focus-visible:outline-2 focus-visible:outline-ring focus-visible:outline-offset-2"
             data-testid="screenplay-markdown-reader"
           />
           {document.preview_truncated ? (
