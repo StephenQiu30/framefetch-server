@@ -61,6 +61,10 @@ OPENAPI_TAGS: list[dict[str, Any]] = [
             "在原视频与文档入口调用分析 Skill，并读取、取消、重试和导出报告。"
         ),
     },
+    {
+        "name": "workspace",
+        "description": "读取工作区文档；管理员按读取时的版本保存修改。",
+    },
 ]
 
 SWAGGER_UI_PARAMETERS: dict[str, Any] = {

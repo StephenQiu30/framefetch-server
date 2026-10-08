@@ -8,6 +8,7 @@
 
 - 技术基础为 Next.js、Tailwind CSS v4、shadcn/ui `radix-nova` 样式与 Radix primitives；`style`、`base` 与图标库以 `frontend/components.json` 为准。
 - 组件通过 shadcn CLI 添加或更新，源码与样式保持官方 registry 默认实现。只有修复明确的可访问性或功能缺陷时才修改组件源码，并在提交中说明原因。
+- 文档工作区阅读界面采用 Nextra 官方 Docs Theme 的默认布局、排版与交互，通过官方 API 配置品牌、中文文本与中性色；不复制业务 Web 页面样式或覆盖主题组件。网页编辑器继续复用 Web 的 shadcn 与 Editor.js 组件。
 - 页面优先组合已有组件：Button、Badge、Card、Dialog、DropdownMenu、Field、Input、InputGroup、NavigationMenu、Select、Table、Tabs、Textarea、Tooltip 等；交互状态使用组件自带的 `variant`、`size` 与 Radix 状态属性。
 - 页面级 `className` 只负责布局：宽度、网格、排列、间距与响应式位置；不改写组件的颜色、字号、圆角、阴影、高度、内边距或边框。
 - 无边框是唯一的全局样式例外，统一在 `globals.css` 的 `[data-design="borderless"]` 下按组件 `data-slot` 实现；不修改官方组件源码，不在页面分散覆盖。

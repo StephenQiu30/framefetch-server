@@ -16,6 +16,7 @@
 
 ## 内容要求
 
+- 文档会在网页中用 Editor.js 编辑保存：只使用标题、段落、列表、表格、引用、代码块与分隔线；不在列表项内嵌表格或代码块，不写原始 HTML，否则保存往返会丢失结构（`pnpm test` 会拦截）。
 - 使用中文、一个一级标题与连续的标题层级。标题和文件名准确表达主题，沿用项目术语，不使用版本后缀或日期区分同一主题的规格。
 - PRD 写清用户任务、目标、范围、功能与非功能需求、可观察的验收条件；范围外事项只记录与当前决策直接相关的边界。
 - Design 链接对应产品需求，写清职责、数据与接口、业务规则、异常及恢复、安全与资源约束；只维护本主题的技术规格。
@@ -42,3 +43,13 @@ pnpm build
 ```
 
 `pnpm check` 校验文档相对链接与章节锚点，`pnpm build` 验证站点可以构建。检查通过只说明文档结构与构建有效；内容准确性与业务验收需要各自证据。
+
+<!-- BEGIN:nextjs-agent-rules -->
+
+# This is NOT the Next.js you know
+
+This version has breaking changes — APIs, conventions, and file structure may all differ from your training data. Read the relevant guide in `node_modules/next/dist/docs/` (resolved from this file's directory; in monorepos the `next` package may not be visible from the repo root) before writing any code. Heed deprecation notices.
+
+This block is written and re-added by `next dev` — verify at `node_modules/next/dist/server/lib/generate-agent-files.js`. Removing it from a diff only re-creates the uncommitted change; committing it with your work keeps the tree clean.
+
+<!-- END:nextjs-agent-rules -->

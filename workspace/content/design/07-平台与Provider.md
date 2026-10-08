@@ -18,14 +18,14 @@
 
 默认只处理公开、免费、非 DRM、用户有权保存的内容；身份材料不扩大内容授权。
 
-- 付费与试看在归一化之前识别并阻断（`access_decision=blocked`、`formats=[]`）：
+付费与试看在归一化之前识别并阻断（`access_decision=blocked`、`formats=[]`）：
 
-  | 原因码 | 场景 |
-  | --- | --- |
-  | `content_supporter_only` | B 站充电专属 |
-  | `content_preview_only` | 试看片段 |
-  | `content_paid_only`、`content_export_required` | 抖音付费内容 |
-  | `content_access_metadata_invalid` | 权益元数据异常 |
+| 原因码 | 场景 |
+| --- | --- |
+| `content_supporter_only` | B 站充电专属 |
+| `content_preview_only` | 试看片段 |
+| `content_paid_only`、`content_export_required` | 抖音付费内容 |
+| `content_access_metadata_invalid` | 权益元数据异常 |
 
 - “已购买”标记不是文件导出授权；字段缺失不证明免费。
 - 出现 `decodeKey`、DRM、加密或未知媒体域时立即拒绝；无法取得合法 clear 媒体时引导用户导入自有或已授权文件。

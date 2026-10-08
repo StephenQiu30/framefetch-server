@@ -185,7 +185,7 @@ services:
       APP_HOST: 0.0.0.0
       APP_PORT: 8111
       TRUSTED_PROXY_CIDRS: '${TRUSTED_PROXY_CIDRS:-[]}'
-      TRUSTED_FRONTEND_PROXY_IP: '${FRONTEND_IPV4_ADDRESS:-10.251.0.10}'
+      TRUSTED_WEB_PROXY_IPS: '["${FRONTEND_IPV4_ADDRESS:-10.251.0.10}","${WORKSPACE_IPV4_ADDRESS:-10.251.0.11}"]'
       DATABASE_URL: "postgresql+asyncpg://${POSTGRES_USER:-video}:${POSTGRES_PASSWORD:-video}@${POSTGRES_HOST:-host.docker.internal}:${POSTGRES_PORT:-5432}/${POSTGRES_DB:-video}"
       RABBITMQ_URL: "amqp://${RABBITMQ_API_USER:-video-api}:${RABBITMQ_API_PASS:-video-api-secret}@${RABBITMQ_HOST:-host.docker.internal}:${RABBITMQ_PORT:-5672}/${RABBITMQ_VHOST:-video}"
       REDIS_URL: "redis://${REDIS_HOST:-host.docker.internal}:${REDIS_PORT:-6379}/0"
@@ -197,8 +197,15 @@ services:
       MINIO_INTERNAL_SECURE: "${MINIO_INTERNAL_SECURE:-false}"
       RUNNER_EGRESS_PROXY: http://egress-proxy:3128
       ARTICLE_DISCOVERY_PROXY_URL: http://egress-proxy:3128
+      WORKSPACE_CONTENT_DIR: /srv/workspace/content
     extra_hosts:
       - "host.docker.internal:host-gateway"
+    volumes:
+      - type: bind
+        source: ./workspace/content
+        target: /srv/workspace/content
+        bind:
+          create_host_path: false
     networks:
       - app_net
       - runner_egress_net
@@ -267,7 +274,7 @@ services:
     working_dir: /app/frontend/.next/standalone
     command: ["node", "server.js"]
 
-  # Workspace site: read documents directly from workspace/content.
+  # Workspace site: documents in workspace/content, read and saved through the API.
   workspace:
     build:
       context: ./workspace
@@ -282,9 +289,11 @@ services:
     tmpfs:
       - /tmp:rw,noexec,nosuid,size=128m
     environment:
+      BACKEND_ORIGIN: http://api:8111
       HOSTNAME: 0.0.0.0
       NODE_ENV: production
       PORT: 8130
+      WEB_URL: "${SITE_URL:?SITE_URL is required}"
     volumes:
       - type: bind
         source: ./workspace/content
@@ -309,6 +318,9 @@ services:
       timeout: 5s
       retries: 12
       start_period: 10s
+    depends_on:
+      api:
+        condition: service_healthy
 
   # Every containerized background loop: Outbox dispatch, inspection and
   # downloads, imports and report publication.

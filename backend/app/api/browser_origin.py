@@ -48,7 +48,7 @@ def _trusted_peer(connection: HTTPConnection, settings: Settings) -> bool:
         address = ip_address(connection.client.host)
     except ValueError:
         return False
-    return address == settings.trusted_frontend_proxy_ip or any(
+    return address in settings.trusted_web_proxy_ips or any(
         address in ip_network(cidr) for cidr in settings.trusted_proxy_cidrs
     )
 

@@ -40,17 +40,18 @@ pnpm build
 node --test extension/*.test.cjs
 ```
 
-文档站点，从 `workspace/` 执行（本地预览 `pnpm dev`，地址 http://127.0.0.1:8130）：
+文档站点，从 `workspace/` 执行（编辑预览 `pnpm dev`，地址 http://127.0.0.1:8131；部署走 Compose 服务 `workspace`，地址 http://127.0.0.1:8130）：
 
 ```bash
 pnpm install --frozen-lockfile
 pnpm check
+pnpm sync:check
 pnpm typecheck
 pnpm test
 pnpm build
 ```
 
-本机检查复用已运行的基础服务，不为验证另起数据库或覆盖 `.env`。涉及运行时、依赖或容器时，额外验证 `docker compose config` 与 `docker compose -f docker-compose-prod.yml config` 可解析，并按需构建镜像。
+本机检查复用已运行的基础服务，不为验证另起数据库或覆盖 `.env`。涉及运行时、依赖或容器时（含 `workspace` 文档服务），额外验证 `docker compose config` 与 `docker compose -f docker-compose-prod.yml config` 可解析，并按需构建镜像。
 
 ## CI
 

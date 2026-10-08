@@ -67,7 +67,7 @@ test -f .env || cp .env.example .env
 docker compose up -d --build --wait --remove-orphans
 ```
 
-Open the [Web workspace](http://localhost:8101), [Swagger UI](http://localhost:8111/docs) or [OpenAPI](http://localhost:8111/openapi.json). For an empty user table, first create the administrator as described below, then sign in.
+Open the [Web workspace](http://localhost:8101), [documentation site](http://localhost:8130), [Swagger UI](http://localhost:8111/docs) or [OpenAPI](http://localhost:8111/openapi.json). For an empty user table, first create the administrator as described below, then sign in.
 
 All containerized background loops run in the single `worker` container. Its `RABBITMQ_WORKER_USER` / `RABBITMQ_WORKER_PASS` account needs restricted permissions for current business queues in `RABBITMQ_VHOST`; see [reliability design](workspace/content/design/12-可靠性与运行.md).
 
@@ -114,6 +114,7 @@ docker compose --env-file .env.prod -f docker-compose-prod.yml up -d --build --w
 curl --fail http://127.0.0.1:8111/health/live
 curl --fail http://127.0.0.1:8111/health/ready
 curl --fail --head http://127.0.0.1:8101/
+curl --fail --head http://127.0.0.1:8130/
 ```
 
 Set `ANALYSIS_ENABLED=false` in `.env` when you only need downloads and screenplay imports. See [reliability and operations](workspace/content/design/12-可靠性与运行.md) (Chinese) for startup, shutdown, existing infrastructure and recovery. After updating code, run `git pull --ff-only` and the same start command again: `docker compose restart` does not apply a new image or configuration.
