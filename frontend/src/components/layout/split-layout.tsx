@@ -21,7 +21,6 @@ export function SplitLayout({
   return (
     <div
       data-slot="split-layout"
-      data-motion-group
       className={cn(
         'grid min-w-0 items-stretch gap-10 *:min-w-0 lg:gap-14',
         columnVariants[columns],

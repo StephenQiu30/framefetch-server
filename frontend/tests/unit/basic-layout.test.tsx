@@ -56,6 +56,32 @@ describe('BasicLayout', () => {
     runtime.user = undefined;
   });
 
+  it('keeps initial and asynchronously updated content visible without an entrance transition', async () => {
+    const content = (title: string) => (
+      <BasicLayout>
+        <header data-slot="page-header">
+          <h1>{title}</h1>
+        </header>
+        <div data-slot="tabs-content">
+          <p>下载记录</p>
+        </div>
+      </BasicLayout>
+    );
+    const view = render(content('首页'));
+    const main = screen.getByRole('main');
+    main.focus();
+    expect(screen.getByRole('heading', { name: '首页' })).toBeVisible();
+
+    runtime.pathname = '/history';
+    view.rerender(content('下载历史'));
+    expect(screen.getByRole('heading', { name: '下载历史' })).toBeVisible();
+    await waitFor(() => expect(main).toHaveFocus());
+    for (const element of main.querySelectorAll<HTMLElement>('[data-slot]')) {
+      expect(element.style.transform).toBe('');
+      expect(element.style.opacity).toBe('');
+    }
+  });
+
   it.each([
     '/',
     '/history',

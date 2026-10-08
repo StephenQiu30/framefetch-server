@@ -68,7 +68,7 @@ export function RecentDownloads() {
       {items.length ? (
         <ul className="grid gap-6 sm:grid-cols-2 xl:grid-cols-4">
           {items.map((item) => (
-            <li key={item.id} className="min-w-0" data-recent-download-item>
+            <li key={item.id} className="min-w-0">
               <RecentDownloadItem item={item} />
             </li>
           ))}
