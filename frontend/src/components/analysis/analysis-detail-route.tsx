@@ -6,6 +6,7 @@ import { useSearchParams } from 'next/navigation';
 import { useState } from 'react';
 import { getAnalysisHistoryRecord, listAnalysisRuns } from '@/api/analyses';
 import AnalysisDeleteDialog from '@/components/analysis/analysis-delete-dialog';
+import AnalysisNativeReport from '@/components/analysis/analysis-native-report';
 import {
   stageLabels,
   statusLabels,
@@ -299,6 +300,12 @@ function AnalysisDetailContent({
             <ScreenplayResultView
               result={job.result}
               reportMarkdown={job.report_markdown}
+            />
+          ) : null}
+          {job.report?.status === 'available' ? (
+            <AnalysisNativeReport
+              analysisId={job.id}
+              artifacts={job.report.artifacts}
             />
           ) : null}
           <AnalysisRuns

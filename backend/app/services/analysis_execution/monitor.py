@@ -229,6 +229,8 @@ def _stable(value: object) -> object:
             for field in dataclasses.fields(value)
             if not isinstance(getattr(value, field.name), Path)
         }
+    if isinstance(value, Path):
+        return value.name
     if isinstance(value, (tuple, list)):
         return [_stable(item) for item in value]
     if isinstance(value, dict):

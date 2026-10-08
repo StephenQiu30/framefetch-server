@@ -64,6 +64,20 @@ export async function getAnalysisHistoryRecord(
   );
 }
 
+/** 导出原生 Skill 报告 GET /api/analyses/${param0}/report.${param1} */
+export async function exportAnalysisNativeReport(
+  // 叠加生成的Param类型 (非body参数swagger默认没有生成对象)
+  params: API.exportAnalysisNativeReportParams,
+  options?: RequestOptions
+) {
+  const { analysis_id: param0, report_format: param1, ...queryParams } = params;
+  return request<Blob>(`/api/analyses/${param0}/report.${param1}`, {
+    method: "GET",
+    params: { ...queryParams },
+    ...(options || {}),
+  });
+}
+
 /** 导出视频分析报告 将已完成的结构化分析结果导出为 DOCX 报告。 GET /api/analyses/${param0}/report.docx */
 export async function exportAnalysisReport(
   // 叠加生成的Param类型 (非body参数swagger默认没有生成对象)

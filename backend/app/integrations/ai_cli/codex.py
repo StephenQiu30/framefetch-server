@@ -52,7 +52,8 @@ class CodexAppServerVideoAnalyzer:
             request,
             ffmpeg=str(self._config.ffmpeg),
             ffprobe=str(self._config.ffprobe),
-            video_observer=True,
+            video_observer=not bool(request.image_paths),
+            provided_frames=bool(request.image_paths),
         )
         files = prepare_job_files(request, schema, prompt)
         return await run_with_workspace_policy(
@@ -61,6 +62,7 @@ class CodexAppServerVideoAnalyzer:
                 prompt=prompt,
                 schema=schema,
                 duration_ms=request.duration_ms,
+                image_paths=request.image_paths,
             ),
             root=files.root,
             config=self._config,

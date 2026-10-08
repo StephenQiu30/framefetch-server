@@ -191,6 +191,7 @@ class FakeCodexAppServer:
         prompt: str,
         schema: object,
         duration_ms: int | None,
+        image_paths: tuple[Path, ...] = (),
     ) -> object:
         self.root = root
         self.prompt = prompt

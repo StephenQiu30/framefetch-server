@@ -193,10 +193,24 @@ async def test_article_publication_exports_clean_copy_and_keeps_review_data(
     completed = await analysis_db.repository.get_job(command.id)
     assert completed.status == "succeeded"
     assert await analysis_db.repository.get_result(command.id) == article
-    assert len(content_by_key) == 2
+    assert len(content_by_key) == 3
     for key, content in content_by_key.items():
         if key.endswith(".md"):
             text = content.decode("utf-8")
+        elif key.endswith(".html"):
+            from html.parser import HTMLParser
+
+            class TextParser(HTMLParser):
+                def __init__(self):
+                    super().__init__()
+                    self.chunks = []
+
+                def handle_data(self, data):
+                    self.chunks.append(data)
+
+            parser = TextParser()
+            parser.feed(content.decode("utf-8"))
+            text = " ".join(parser.chunks).strip()
         else:
             document = Document(BytesIO(content))
             assert document.core_properties.subject == "Article"
@@ -206,3 +220,104 @@ async def test_article_publication_exports_clean_copy_and_keeps_review_data(
         assert "还需要更完整的测试" in text
         for metadata in ("编辑摘要", "编辑附录", "00:07.000", "未使用可靠音频"):
             assert metadata not in text
+
+
+async def test_native_bundle_is_inserted_after_its_report_and_exposed_in_metadata(
+    analysis_db,
+):
+    from app.models import AnalysisJobRow
+    from app.services.analysis.models import AnalysisReportArtifactSnapshot
+    from app.services.analysis.rules.result_models import AnalysisMedia
+    from app.services.analysis.rules.structured_report import (
+        StructuredReportResult,
+        StructuredReportSection,
+    )
+
+    command, job = await validating_job(
+        analysis_db, result_contract=AnalysisResultContract.STRUCTURED_REPORT
+    )
+    async with analysis_db.sessions() as session, session.begin():
+        row = await session.get(AnalysisJobRow, command.id)
+        row.skill_id = "video-shots"
+    native = AnalysisReportArtifactSnapshot(
+        "zip",
+        f"analyses/{job.id}/runs/{job.run_id}/native/{'a' * 64}.zip",
+        "application/zip",
+        100,
+        "a" * 64,
+    )
+    result = StructuredReportResult(
+        "zh-CN",
+        "拉片",
+        "已实测",
+        (
+            StructuredReportSection(
+                "shot-001", "第一镜", "黑色背景上的白色备份说明文字。", (), ()
+            ),
+        ),
+        (),
+        AnalysisMedia(2000, "mp4", 100),
+    )
+    await analysis_db.repository.publish_result(
+        AnalysisPublish(
+            job_id=command.id,
+            run_id=command.run_id,
+            result=result,
+            lease_owner="worker-a",
+            expected_version=job.version,
+            provider="codex",
+            model="controlled",
+            cli_version="controlled",
+            now=NOW + timedelta(seconds=3),
+            native_markdown="# 原生拉片\n",
+            native_artifacts=(native,),
+            native_bucket="video-artifacts",
+        )
+    )
+    report = await analysis_db.repository.get_latest_report(command.id)
+    assert report.markdown == "# 原生拉片\n"
+    assert report.artifacts == (native,)
+    snapshot = await analysis_db.repository.get_job(command.id)
+    reports = SqlAlchemyAnalysisReportRepository(analysis_db.sessions)
+    publication = await reports.claim(
+        report_id=report.id,
+        job_id=command.id,
+        run_id=command.run_id,
+        expected_version=snapshot.version,
+        worker_id="publisher",
+        now=NOW + timedelta(seconds=4),
+        lease_for=timedelta(minutes=1),
+    )
+    assert publication.native_artifact_bytes == native.size_bytes
+
+    class ClaimedRepository:
+        async def claim(self, **kwargs):
+            return publication
+
+        async def fail(self, *args, **kwargs):
+            await reports.fail(*args, **kwargs)
+
+    class Storage:
+        async def stat(self, key):
+            raise AssertionError("combined native budget must fail before upload")
+
+    class Renderer:
+        def render(self, markdown, *, result_kind):
+            return b"docx"
+
+    publisher = ReportPublisher(
+        ClaimedRepository(),
+        Storage(),
+        Renderer(),
+        bucket="video-artifacts",
+        worker_id="publisher",
+        clock=lambda: NOW + timedelta(seconds=4),
+        max_bytes=native.size_bytes,
+    )
+    requested = ReportRequested(
+        command.id, command.run_id, report.id, report.renderer_version, snapshot.version
+    )
+    assert await publisher.execute(requested) is True
+    failed = await analysis_db.repository.get_job(command.id)
+    assert failed.status == "failed"
+    assert failed.error_code == "analysis_resource_limit"

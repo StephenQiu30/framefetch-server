@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import json
 import os
 import stat
@@ -51,6 +52,24 @@ def prepare_job_files(
         expected_artifact = root / "input" / "video.bin"
         if not artifact.is_relative_to(root) or artifact != expected_artifact:
             raise OSError
+        if request.image_paths:
+            if (
+                len(request.image_paths) != len(request.image_digests)
+                or len(request.image_paths) > 12
+            ):
+                raise OSError
+            for image, digest in zip(
+                request.image_paths, request.image_digests, strict=True
+            ):
+                if image.is_symlink() or not image.resolve(strict=True).is_relative_to(
+                    root / "work"
+                ):
+                    raise OSError
+                if (
+                    image.stat().st_size > 20 * 1024**2
+                    or hashlib.sha256(image.read_bytes()).hexdigest() != digest
+                ):
+                    raise OSError
         for relative in (
             "policy",
             "work/frames",
@@ -74,6 +93,9 @@ def prepare_job_files(
         _write_text(root / "policy" / "prompt.txt", prompt)
         settings = root / "policy" / "claude-settings.json"
         _write_json(settings, _claude_policy(root))
+        from app.integrations.ai_cli.skill_resources import prepare_resource_policy
+
+        prepare_resource_policy(root, request.skill_instructions)
         return JobFiles(root, schema_path, root / "output" / "result.json", settings)
     except OSError as exc:
         raise AnalysisCliError("analysis_media_invalid") from exc

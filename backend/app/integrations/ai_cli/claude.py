@@ -47,6 +47,9 @@ class ClaudeCliVideoAnalyzer:
         return await self._screenplay.generate_content(request)
 
     async def analyze(self, request: VideoAnalysisRequest) -> object:
+        from app.integrations.ai_cli.skill_resources import reject_unsupported_resources
+
+        reject_unsupported_resources(request.skill_instructions)
         schema = (
             json.loads(request.schema_json)
             if request.schema_json

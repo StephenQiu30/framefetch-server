@@ -6,6 +6,7 @@ from enum import StrEnum
 from pathlib import Path
 from uuid import UUID
 
+from app.services.analysis.models import AnalysisReportArtifactSnapshot
 from app.services.analysis.rules.enums import AnalysisResultContract
 from app.services.analysis.rules.result_types import AnalysisResult
 
@@ -142,6 +143,9 @@ class VideoAnalysisRequest:
     stage_prompt: str | None = field(default=None, repr=False)
     schema_json: str | None = field(default=None, repr=False)
     observation_ms: tuple[int, ...] = ()
+    image_paths: tuple[Path, ...] = ()
+    image_digests: tuple[str, ...] = ()
+    measured_context: str | None = field(default=None, repr=False)
 
     def __post_init__(self) -> None:
         if self.duration_ms <= 0 or self.size_bytes <= 0:
@@ -227,6 +231,9 @@ class AnalysisExecutionOutput:
     provider: str
     model: str
     cli_version: str
+    native_markdown: str | None = field(default=None, repr=False)
+    native_artifacts: tuple[AnalysisReportArtifactSnapshot, ...] = ()
+    native_bucket: str | None = None
 
     def __post_init__(self) -> None:
         if any(

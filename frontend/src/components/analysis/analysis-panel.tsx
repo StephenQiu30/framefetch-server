@@ -4,6 +4,7 @@ import { ArrowClockwise, DownloadSimple, Robot } from '@phosphor-icons/react';
 import { useState } from 'react';
 import AnalysisConfigurator from '@/components/analysis/analysis-configurator';
 import AnalysisDeleteDialog from '@/components/analysis/analysis-delete-dialog';
+import AnalysisNativeReport from '@/components/analysis/analysis-native-report';
 import {
   AnalysisReportStatusCode,
   AnalysisStatusCode,
@@ -207,6 +208,12 @@ export default function AnalysisPanel({
             }}
           />
         ) : null}
+        {state.job.report?.status === 'available' ? (
+          <AnalysisNativeReport
+            analysisId={state.job.id}
+            artifacts={state.job.report.artifacts}
+          />
+        ) : null}
         {completedResult.kind === 'skill_report' ? (
           <div className="mt-10">
             <AnalysisReportPreview markdown={state.job.report_markdown ?? ''} />
@@ -408,6 +415,12 @@ function AnalysisJobState({
       <p className="mt-8 text-sm text-muted-foreground">
         结果会按所选任务检查结构、材料引用与事实范围。
       </p>
+      {job.report?.status === 'available' ? (
+        <AnalysisNativeReport
+          analysisId={job.id}
+          artifacts={job.report.artifacts}
+        />
+      ) : null}
       {isVideoAnalysisResult(job.result, job.input_kind) ? (
         <div className="mt-10">
           <div className="flex flex-wrap items-center gap-3">

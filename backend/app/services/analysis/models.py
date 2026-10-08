@@ -179,6 +179,9 @@ class AnalysisPublish:
     model: str
     cli_version: str
     now: datetime
+    native_markdown: str | None = None
+    native_artifacts: tuple[AnalysisReportArtifactSnapshot, ...] = ()
+    native_bucket: str | None = None
 
 
 @dataclass(frozen=True, slots=True)

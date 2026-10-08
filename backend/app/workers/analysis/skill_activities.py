@@ -142,6 +142,9 @@ class SkillActivities:
                         model=output.model,
                         cli_version=output.cli_version,
                         now=utc_now(),
+                        native_markdown=output.native_markdown,
+                        native_artifacts=output.native_artifacts,
+                        native_bucket=output.native_bucket,
                     )
                 )
                 return saved.status
@@ -155,7 +158,9 @@ class SkillActivities:
             )
         except Exception as error:
             code = getattr(error, "code", None)
-            if code:
+            from app.services.analysis.rules.enums import AnalysisErrorCode
+
+            if code in {item.value for item in AnalysisErrorCode}:
                 return await self._close(command, str(code))
             raise ApplicationError("Skill infrastructure unavailable") from None
         finally:

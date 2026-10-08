@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+from typing import Literal
 from uuid import UUID
 
 from app.services.analysis.errors import (
@@ -53,16 +54,23 @@ class ExportAnalysisMarkdown:
         self._repository = repository
         self._object_reader = object_reader
 
-    async def __call__(self, job_id: UUID, owner_hash: str) -> AnalysisReportFile:
+    async def __call__(
+        self,
+        job_id: UUID,
+        owner_hash: str,
+        *,
+        report_format: Literal["markdown", "html", "zip"] = "markdown",
+    ) -> AnalysisReportFile:
         await self._get_analysis(job_id, owner_hash)
-        stored = await self._repository.get_current_report_file(job_id, "markdown")
+        stored = await self._repository.get_current_report_file(job_id, report_format)
         if stored is None:
             raise AnalysisApplicationError(
                 AnalysisApplicationErrorCode.REPORT_NOT_READY
             )
         return AnalysisReportFile(
             content=await _read_verified(self._object_reader, stored),
-            filename=f"analysis-report-{job_id}.md",
+            filename=f"analysis-report-{job_id}."
+            + {"markdown": "md", "html": "html", "zip": "zip"}[report_format],
             media_type=stored.media_type,
         )
 

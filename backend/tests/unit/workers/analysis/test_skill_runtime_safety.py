@@ -163,3 +163,31 @@ async def test_cancel_while_waiting_slot_has_no_claim_or_reserved_call(monkeypat
     activities.persistence.begin_step.assert_not_awaited()
     assert activities._model_slot._value == 0
     activities._model_slot.release()
+
+
+async def test_database_exception_code_is_not_persisted_as_business_error(monkeypatch):
+    monkeypatch.setattr(skill_activities.activity, "heartbeat", lambda: None)
+    job = replace(
+        running_job(),
+        status="queued",
+        input_kind="video",
+        result_contract="structured-report",
+    )
+    repository = AsyncMock()
+    repository.get_job.return_value = job
+    repository.claim_run.return_value = replace(job, status="running")
+
+    class DatabaseFailure(Exception):
+        code = "gkpj"
+
+    executor = AsyncMock()
+    executor.execute.side_effect = DatabaseFailure()
+    activities = SkillActivities(
+        repository,
+        AsyncMock(),
+        {("video", "structured-report"): executor},
+        Settings(app_env="test", _env_file=None),
+    )
+    with pytest.raises(ApplicationError, match="Skill infrastructure unavailable"):
+        await activities.run(SkillCommand(str(job.id), str(job.run_id), job.run_no))
+    repository.fail_run.assert_not_awaited()

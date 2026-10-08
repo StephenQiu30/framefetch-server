@@ -1113,7 +1113,7 @@ CREATE TABLE IF NOT EXISTS analysis_report_artifacts (
     deleted_at TIMESTAMPTZ,
     CONSTRAINT uq_analysis_report_artifacts_format UNIQUE (report_id, format),
     CONSTRAINT uq_analysis_report_artifacts_object UNIQUE (bucket, object_key),
-    CONSTRAINT ck_analysis_report_artifacts_format CHECK (format IN ('markdown', 'docx', 'html')),
+    CONSTRAINT ck_analysis_report_artifacts_format CHECK (format IN ('markdown', 'docx', 'html', 'zip')),
     CONSTRAINT ck_analysis_report_artifacts_status CHECK (
         status IN ('available', 'delete_pending', 'deleted', 'failed')
     ),
@@ -1154,7 +1154,7 @@ ALTER TABLE analysis_report_versions
     );
 ALTER TABLE analysis_report_artifacts DROP COLUMN IF EXISTS expires_at;
 ALTER TABLE analysis_report_artifacts DROP CONSTRAINT IF EXISTS ck_analysis_report_artifacts_format;
-ALTER TABLE analysis_report_artifacts ADD CONSTRAINT ck_analysis_report_artifacts_format CHECK (format IN ('markdown','docx','html'));
+ALTER TABLE analysis_report_artifacts ADD CONSTRAINT ck_analysis_report_artifacts_format CHECK (format IN ('markdown','docx','html','zip'));
 
 -- Legacy releases could mark a job succeeded before the durable Markdown and
 -- DOCX report existed. Fail those inconsistent projections closed so clients

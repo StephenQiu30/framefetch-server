@@ -84,6 +84,22 @@ describe('AnalysisPanel', () => {
     ).toBe(false);
   });
 
+  it('shows saved native files in the completed-result branch', async () => {
+    vi.mocked(httpClient.request).mockReset();
+    const completed = analysisJob('succeeded');
+    completed.report?.artifacts.push({
+      format: 'zip',
+      media_type: 'application/zip',
+      size_bytes: 4,
+      sha256: 'd'.repeat(64),
+    });
+    mockHttpResponses(completed);
+    render(<AnalysisPanel downloadId={job().id} />);
+    expect(
+      await screen.findByRole('link', { name: '下载原生拉片包' }),
+    ).toBeInTheDocument();
+  });
+
   it('keeps retry errors visible beside the completed result', async () => {
     vi.mocked(httpClient.request).mockReset();
     mockHttpResponses(analysisJob('succeeded'));

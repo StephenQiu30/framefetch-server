@@ -233,6 +233,8 @@ def test_active_methods_preserve_original_form_contract_and_load_bounded_real_mo
     assert [item.id for item in catalog.list(AnalysisInputKind.VIDEO)] == [
         "video-review",
         "video-breakdown",
+        "video-shots",
+        "video-to-article",
     ]
     assert [item.id for item in catalog.list(AnalysisInputKind.SCREENPLAY)] == [
         "screenplay-analysis",
@@ -250,7 +252,11 @@ def test_active_methods_preserve_original_form_contract_and_load_bounded_real_mo
             )
             # The complete screenplay methods use the loader's bounded
             # upstream snapshot; fragment-based skills retain their old cap.
-            maximum = 192_000 if view.id == "screenplay-analysis" else 30_000
+            maximum = (
+                192_000
+                if "framefetch_upstream_packages" in skill.instructions
+                else 30_000
+            )
             assert len(skill.instructions) <= maximum
             assert "Pinned source:" in skill.instructions
             assert view.default_prompt

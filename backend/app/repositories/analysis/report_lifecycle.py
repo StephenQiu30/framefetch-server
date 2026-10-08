@@ -133,10 +133,10 @@ class AnalysisReportLifecycleRepository(AnalysisRepositoryBase):
                     )
                     await delete(f"{prefix}/report.md")
                     await delete(f"{prefix}/report.docx")
-                    if (
-                        report.result_json.get("kind")
-                        == AnalysisResultKind.CONTENT_DOCUMENT.value
-                    ):
+                    if report.result_json.get("kind") in {
+                        AnalysisResultKind.CONTENT_DOCUMENT.value,
+                        AnalysisResultKind.VIDEO_ARTICLE.value,
+                    }:
                         # Clean up a previously uploaded retired format as well.
                         await delete(f"{prefix}/report.html")
                 except Exception:
@@ -156,6 +156,7 @@ class AnalysisReportLifecycleRepository(AnalysisRepositoryBase):
                         AnalysisResultRow.id,
                         AnalysisResultRow.job_id,
                         AnalysisRunRow.run_no,
+                        AnalysisResultRow.result_json,
                     )
                     .join(AnalysisRunRow, AnalysisRunRow.id == AnalysisResultRow.run_id)
                     .where(
@@ -173,8 +174,12 @@ class AnalysisReportLifecycleRepository(AnalysisRepositoryBase):
             ).all()
         return frozenset(recorded) | frozenset(
             f"analyses/{job_id}/runs/{run_no}/reports/{report_id}/report.{suffix}"
-            for report_id, job_id, run_no in rows
-            for suffix in ("md", "docx")
+            for report_id, job_id, run_no, result in rows
+            for suffix in (
+                ("md", "docx", "html")
+                if result.get("kind") == AnalysisResultKind.VIDEO_ARTICLE.value
+                else ("md", "docx")
+            )
         )
 
     @staticmethod

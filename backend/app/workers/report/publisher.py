@@ -7,11 +7,13 @@ from datetime import datetime, timedelta
 from typing import Protocol
 
 from app.integrations.analysis_report_docx import PythonDocxAnalysisReportRenderer
+from app.integrations.baoyu_report import render_wechat_html
 from app.integrations.object_storage import MinioObjectStorage
 from app.repositories.analysis.report_repository import (
     ReportObject,
     SqlAlchemyAnalysisReportRepository,
 )
+from app.services.analysis.rules.enums import AnalysisResultKind
 from app.workers.report.message import ReportRequested
 
 MARKDOWN_TYPE = "text/markdown; charset=utf-8"
@@ -66,7 +68,10 @@ class ReportPublisher:
             docx = self._renderer.render(
                 publication.markdown, result_kind=publication.result_kind
             )
-            if len(markdown) + len(docx) > self._max_bytes:
+            if (
+                len(markdown) + len(docx) + publication.native_artifact_bytes
+                > self._max_bytes
+            ):
                 raise ReportSizeExceeded("report exceeds publication byte budget")
             prefix = (
                 f"analyses/{publication.job_id}/runs/{publication.run_no}/"
@@ -78,6 +83,24 @@ class ReportPublisher:
                 ),
                 await self._ensure("docx", f"{prefix}/report.docx", docx, DOCX_TYPE),
             )
+            if publication.result_kind == AnalysisResultKind.VIDEO_ARTICLE:
+                html = await render_wechat_html(publication.markdown)
+                if (
+                    len(markdown)
+                    + len(docx)
+                    + len(html)
+                    + publication.native_artifact_bytes
+                    > self._max_bytes
+                ):
+                    raise ReportSizeExceeded("HTML exceeds publication byte budget")
+                objects += (
+                    await self._ensure(
+                        "html",
+                        f"{prefix}/report.html",
+                        html,
+                        "text/html; charset=utf-8",
+                    ),
+                )
             await self._repository.complete(
                 publication, self._worker_id, objects, self._clock()
             )

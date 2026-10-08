@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 from contextlib import suppress
+from dataclasses import replace
 from functools import partial
 
+from app.integrations.object_storage import MinioObjectStorage
 from app.services.analysis.models import AnalysisJobSnapshot
 from app.services.analysis.rules.enums import AnalysisResultContract, AnalysisStage
 from app.services.analysis.rules.result_models import AnalysisMedia
@@ -14,6 +16,11 @@ from app.services.analysis_execution.models import (
     VideoAnalysisRequest,
 )
 from app.services.analysis_execution.monitor import AnalysisLeaseMonitor
+from app.services.analysis_execution.native_video import (
+    extract_pairs,
+    measure_video,
+    save_native_bundle,
+)
 from app.services.analysis_execution.ports import (
     AnalysisExecutionRepository,
     AnalyzerResolver,
@@ -24,6 +31,7 @@ from app.services.analysis_execution.ports import (
 )
 from app.services.analysis_execution.video_editorial import execute_video_editorial
 from app.services.analysis_execution.video_observations import log_video_observations
+from app.services.analysis_execution.video_shots import annotate_shots
 
 
 class VideoAnalysisExecutor:
@@ -34,11 +42,13 @@ class VideoAnalysisExecutor:
         loader: ArtifactLoader,
         resolver: AnalyzerResolver,
         clock: Clock,
+        storage: MinioObjectStorage | None = None,
     ) -> None:
         self._repository = repository
         self._loader = loader
         self._resolver = resolver
         self._clock = clock
+        self._storage = storage
 
     async def execute(
         self, job: AnalysisJobSnapshot, monitor: AnalysisLeaseMonitor
@@ -73,6 +83,52 @@ class VideoAnalysisExecutor:
                 container=source.container,
                 size_bytes=source.size_bytes,
             )
+            if job.skill_id in {"video-shots", "video-to-article"}:
+                from app.integrations.ai_cli.skill_resources import (
+                    prepare_resource_policy,
+                )
+
+                (local.workspace / "policy").mkdir(mode=0o700, exist_ok=True)
+                prepare_resource_policy(local.workspace, job.skill_instructions)
+                measured = await monitor.run(
+                    lambda: measure_video(
+                        local.workspace,
+                        local.artifact,
+                        job.output_language,
+                        max_shots=100 if job.skill_id == "video-shots" else 500,
+                    ),
+                    stage=AnalysisStage.PREPARING,
+                    progress=18,
+                )
+                request = replace(request, measured_context=measured.context)
+                if job.skill_id == "video-shots":
+                    await monitor.run(
+                        lambda: extract_pairs(measured, local.artifact),
+                        stage=AnalysisStage.PREPARING,
+                        progress=20,
+                    )
+                    native_result, markdown, bundle = await annotate_shots(
+                        job, request, selection, monitor, media, measured
+                    )
+                    if self._storage is None:
+                        raise ValueError("native report storage is unavailable")
+                    storage = self._storage
+                    artifact = await monitor.run(
+                        lambda: save_native_bundle(
+                            storage, str(job.id), str(job.run_id), bundle
+                        ),
+                        stage=AnalysisStage.VALIDATING,
+                        progress=90,
+                    )
+                    return AnalysisExecutionOutput(
+                        native_result,
+                        selection.provider,
+                        selection.model,
+                        selection.cli_version,
+                        markdown,
+                        (artifact,),
+                        self._storage.bucket,
+                    )
             if has_stage(job.skill_instructions, "plan"):
                 editorial = await execute_video_editorial(
                     job, request, selection, monitor, media

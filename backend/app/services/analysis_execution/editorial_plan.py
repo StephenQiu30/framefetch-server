@@ -28,6 +28,14 @@ def has_stage(snapshot: str, stage: str) -> bool:
 
 
 def stage_method(snapshot: str, stage: str) -> str:
+    # The adapter stages follow the complete, immutable upstream prelude.
+    # Parse only the adapter: upstream headings are not stage delimiters.
+    from app.services.analysis.skills.upstream_catalog import RESOURCE_END
+
+    prefix = ""
+    if RESOURCE_END in snapshot:
+        end = snapshot.index(RESOURCE_END) + len(RESOURCE_END)
+        prefix, snapshot = snapshot[:end], snapshot[end:]
     markers = list(
         re.finditer(
             r"^# (Source module: [a-z0-9-]+|Purpose|Plan|Draft|Review|"
@@ -64,4 +72,4 @@ def stage_method(snapshot: str, stage: str) -> str:
             )
         ):
             selected.append(snapshot[marker.start() : end].strip())
-    return "\n\n".join(selected)
+    return "\n\n".join(([prefix] if prefix else []) + selected)

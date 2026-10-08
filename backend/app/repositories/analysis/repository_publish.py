@@ -9,7 +9,7 @@ from uuid import uuid4
 from sqlalchemy import select
 
 from app.core.db import as_utc
-from app.models import AnalysisJobRow, AnalysisResultRow
+from app.models import AnalysisJobRow, AnalysisReportArtifactRow, AnalysisResultRow
 from app.repositories.analysis.repository_base import AnalysisRepositoryBase
 from app.repositories.analysis.repository_mapping import analysis_job_snapshot
 from app.repositories.analysis.repository_serialization import analysis_result_document
@@ -77,7 +77,13 @@ class AnalysisPublishRepository(AnalysisRepositoryBase):
                 if row.input_kind == "screenplay":
                     command.result.validate_document_source(row.input_sha256)
             report_id = uuid4()
-            markdown = render_analysis_report_markdown(command.result)
+            markdown = command.native_markdown or render_analysis_report_markdown(
+                command.result
+            )
+            if command.native_markdown is not None and row.skill_id != "video-shots":
+                raise PersistenceConflict("native Markdown does not match Skill")
+            if len(markdown.encode()) > 1024**2:
+                raise PersistenceConflict("native Markdown exceeds byte limit")
             binding = run.execution_binding
             if row.result_contract == "screenplay-analysis" and isinstance(
                 binding, dict
@@ -121,6 +127,36 @@ class AnalysisPublishRepository(AnalysisRepositoryBase):
                     created_at=command.now,
                 )
             )
+            # There is no ORM relationship between these mappers. Flush the
+            # parent inside this transaction before inserting native children.
+            if command.native_artifacts:
+                await session.flush()
+            for artifact in command.native_artifacts:
+                if (
+                    row.skill_id != "video-shots"
+                    or artifact.format != "zip"
+                    or not command.native_bucket
+                    or not artifact.object_key.startswith(
+                        f"analyses/{row.id}/runs/{run.id}/native/"
+                    )
+                    or not 0 < artifact.size_bytes <= 16 * 1024**2
+                ):
+                    raise PersistenceConflict("native artifact is outside this run")
+                session.add(
+                    AnalysisReportArtifactRow(
+                        id=uuid4(),
+                        report_id=report_id,
+                        format=artifact.format,
+                        bucket=command.native_bucket,
+                        object_key=artifact.object_key,
+                        content_type=artifact.media_type,
+                        size_bytes=artifact.size_bytes,
+                        sha256=artifact.sha256,
+                        status="available",
+                        created_at=command.now,
+                        available_at=command.now,
+                    )
+                )
             row.status = "running"
             row.stage = AnalysisStage.PUBLISHING.value
             row.stage_rank = 4

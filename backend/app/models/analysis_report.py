@@ -99,7 +99,7 @@ class AnalysisReportArtifactRow(Base):
             "bucket", "object_key", name="uq_analysis_report_artifacts_object"
         ),
         CheckConstraint(
-            "format IN ('markdown','docx','html')",
+            "format IN ('markdown','docx','html','zip')",
             name="ck_analysis_report_artifacts_format",
         ),
         CheckConstraint(

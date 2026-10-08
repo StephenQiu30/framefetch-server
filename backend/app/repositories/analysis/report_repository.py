@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta
 from uuid import UUID, uuid4
 
-from sqlalchemy import exists, or_, select
+from sqlalchemy import exists, func, or_, select
 
 from app.core.db import as_utc
 from app.models import (
@@ -38,6 +38,7 @@ class ReportPublication:
     markdown_sha256: str
     renderer_version: str
     result_kind: AnalysisResultKind
+    native_artifact_bytes: int = 0
 
 
 @dataclass(frozen=True, slots=True)
@@ -115,6 +116,20 @@ class SqlAlchemyAnalysisReportRepository(AnalysisReportLifecycleRepository):
                 markdown_sha256=report.content_sha256,
                 renderer_version=report.renderer_version,
                 result_kind=AnalysisResultKind(report.result_json["kind"]),
+                native_artifact_bytes=int(
+                    await session.scalar(
+                        select(
+                            func.coalesce(
+                                func.sum(AnalysisReportArtifactRow.size_bytes), 0
+                            )
+                        ).where(
+                            AnalysisReportArtifactRow.report_id == report.id,
+                            AnalysisReportArtifactRow.format == "zip",
+                            AnalysisReportArtifactRow.deleted_at.is_(None),
+                        )
+                    )
+                    or 0
+                ),
             )
 
     async def complete(
@@ -124,7 +139,13 @@ class SqlAlchemyAnalysisReportRepository(AnalysisReportLifecycleRepository):
         objects: tuple[ReportObject, ...],
         now: datetime,
     ) -> None:
-        if {item.format for item in objects} != {"markdown", "docx"}:
+        formats = {item.format for item in objects}
+        expected = (
+            {"markdown", "docx", "html"}
+            if publication.result_kind == AnalysisResultKind.VIDEO_ARTICLE
+            else {"markdown", "docx"}
+        )
+        if formats != expected:
             raise ValueError("both report formats are required")
         async with self._sessions() as session, session.begin():
             report, job = await lock_report_and_job(session, publication.id)

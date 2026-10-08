@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Annotated
+from typing import Annotated, Literal
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Query, Request, Response, status
@@ -213,6 +213,45 @@ async def export_analysis_report(
         headers={
             "Content-Disposition": f'attachment; filename="{report.filename}"',
             "X-Content-Type-Options": "nosniff",
+        },
+    )
+
+
+@router.get(
+    "/analyses/{analysis_id}/report.{report_format}",
+    operation_id="exportAnalysisNativeReport",
+    response_class=Response,
+    summary="导出原生 Skill 报告",
+    responses={
+        200: {
+            "content": {
+                "application/octet-stream": {
+                    "schema": {"type": "string", "format": "binary"}
+                }
+            }
+        }
+    },
+)
+async def export_analysis_native_report(
+    analysis_id: UUID,
+    report_format: Literal["html", "zip"],
+    user: User,
+    use_cases: UseCases,
+) -> Response:
+    report = await use_cases.export_analysis_markdown(
+        analysis_id, user.owner_hash, report_format=report_format
+    )
+    return Response(
+        content=report.content,
+        media_type=report.media_type,
+        headers={
+            "Content-Disposition": f'attachment; filename="{report.filename}"',
+            "X-Content-Type-Options": "nosniff",
+            "Content-Security-Policy": (
+                "sandbox; default-src 'none'; img-src data:; "
+                "style-src 'unsafe-inline'; script-src 'none'"
+            ),
+            "Cache-Control": "no-store",
         },
     )
 

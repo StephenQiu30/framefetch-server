@@ -1522,6 +1522,11 @@ declare namespace API {
     analysis_id: string;
   };
 
+  type exportAnalysisNativeReportParams = {
+    analysis_id: string;
+    report_format: "html" | "zip";
+  };
+
   type exportAnalysisReportParams = {
     analysis_id: string;
   };

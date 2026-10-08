@@ -117,7 +117,18 @@ def build_runtime(settings: Settings) -> AnalysisWorkerRuntime:
     )
     executors: dict[tuple[str, str], ClaimedSkillExecutor] = {
         ("video", "structured-report"): VideoAnalysisExecutor(
-            repository=persistence, loader=loader, resolver=resolver, clock=utc_now
+            repository=persistence,
+            loader=loader,
+            resolver=resolver,
+            clock=utc_now,
+            storage=storage,
+        ),
+        ("video", "video-article"): VideoAnalysisExecutor(
+            repository=persistence,
+            loader=loader,
+            resolver=resolver,
+            clock=utc_now,
+            storage=storage,
         ),
         ("screenplay", "screenplay-analysis"): ScreenplayAnalysisExecutor(
             repository=persistence,
