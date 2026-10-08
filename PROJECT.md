@@ -46,7 +46,8 @@ framefetch-server/
 ├── extension/                身份扩展源码；manifest.json 与 config.local.json 由安装命令生成，不入库
 ├── docs/                     Obsidian 文档库：prd/、design/、plan/
 ├── assets/                   README 配图
-├── docker-compose.yml        本机业务容器
+├── docker-compose-common.yml 公共业务服务配置
+├── docker-compose.yml        本机业务容器与开发监听
 ├── docker-compose-prod.yml   生产业务容器
 ├── docker-compose-env.yml    一次性基础设施夹具，不属于本机启动入口
 └── .env.example              配置模板

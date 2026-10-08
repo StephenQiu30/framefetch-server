@@ -1,6 +1,6 @@
 from pathlib import Path
 
-import yaml
+from tests.compose import load_compose as load_compose_file
 
 BACKEND_ROOT = Path(__file__).resolve().parents[4]
 CONFIG = BACKEND_ROOT / "egress" / "squid.conf"
@@ -14,7 +14,7 @@ EXPECTED_TMPFS = ["/tmp:rw,noexec,nosuid,size=16m,mode=1777"]
 
 
 def load_compose(filename: str) -> dict:
-    return yaml.safe_load((REPOSITORY_ROOT / filename).read_text(encoding="utf-8"))
+    return load_compose_file(REPOSITORY_ROOT / filename)
 
 
 def test_bilibili_tls_media_port_is_scoped_to_its_cdn() -> None:
@@ -81,7 +81,7 @@ def test_compose_mounts_single_destination_policy() -> None:
     variable = "EGRESS_DESTINATION_POLICY_FILE"
     mount = "./backend/egress:/etc/squid/policy:ro"
     for filename in ("docker-compose.yml", "docker-compose-prod.yml"):
-        text = (REPOSITORY_ROOT / filename).read_text(encoding="utf-8")
+        text = str(load_compose(filename))
         assert variable not in text
         assert mount in text
 

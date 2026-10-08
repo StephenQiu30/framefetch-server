@@ -7,6 +7,7 @@ from urllib.parse import urlsplit
 
 import yaml
 from app.integrations.readiness import EXPECTED_DATABASE_TABLES
+from tests.compose import load_compose
 
 ROOT = Path(__file__).resolve().parents[2]
 ENV_COMPOSE_PATH = ROOT.parent / "docker-compose-env.yml"
@@ -91,7 +92,7 @@ def test_core_api_boot_does_not_wait_for_session_readiness() -> None:
         assert removed not in environment
 
     for path in (COMPOSE_PATH, PROD_COMPOSE_PATH):
-        services = yaml.safe_load(path.read_text(encoding="utf-8"))["services"]
+        services = load_compose(path)["services"]
         # `docker compose up` starts everything; there are no opt-in profiles.
         assert not any(config.get("profiles") for config in services.values())
         for service in ("api", "frontend", "worker"):
@@ -115,7 +116,7 @@ def test_frontend_compose_receives_only_required_runtime_configuration() -> None
         "SITE_INDEXABLE",
     }
     for path in (COMPOSE_PATH, PROD_COMPOSE_PATH):
-        document = yaml.safe_load(path.read_text(encoding="utf-8"))
+        document = load_compose(path)
         frontend = document["services"]["frontend"]
         api = document["services"]["api"]
 
@@ -133,7 +134,7 @@ def test_frontend_compose_receives_only_required_runtime_configuration() -> None
 
 
 def test_production_analysis_is_opt_in() -> None:
-    compose = yaml.safe_load(PROD_COMPOSE_PATH.read_text(encoding="utf-8"))
+    compose = load_compose(PROD_COMPOSE_PATH)
     environment = compose["services"]["api"]["environment"]
     for name in ("ANALYSIS_ENABLED", "SCREENPLAY_ANALYSIS_ENABLED"):
         assert environment[name] == "${" + name + ":-false}"
@@ -228,7 +229,12 @@ def test_download_queue_contract_declares_a_dlq_binding() -> None:
 
 
 def test_ai_provider_selection_is_not_configured_by_environment() -> None:
-    for path in (ENV_EXAMPLE_PATH, COMPOSE_PATH, PROD_COMPOSE_PATH):
+    for path in (
+        ENV_EXAMPLE_PATH,
+        COMPOSE_PATH,
+        PROD_COMPOSE_PATH,
+        ROOT.parent / "docker-compose-common.yml",
+    ):
         document = path.read_text(encoding="utf-8")
         for name in (
             "ANALYSIS_CLI_PROVIDER",
@@ -239,7 +245,7 @@ def test_ai_provider_selection_is_not_configured_by_environment() -> None:
 
 
 def test_compose_does_not_bundle_host_managed_infrastructure() -> None:
-    compose = COMPOSE_PATH.read_text(encoding="utf-8")
+    compose = yaml.safe_dump(load_compose(COMPOSE_PATH), sort_keys=False)
     for service in (
         "postgres",
         "database-init",
@@ -291,7 +297,7 @@ def test_environment_minio_applies_exact_browser_cors_origins() -> None:
 
 
 def test_database_consumers_use_the_configured_postgres_service() -> None:
-    compose = COMPOSE_PATH.read_text(encoding="utf-8")
+    compose = yaml.safe_dump(load_compose(COMPOSE_PATH), sort_keys=False)
     expected_endpoint = (
         "@${POSTGRES_HOST:-host.docker.internal}:${POSTGRES_PORT:-5432}/"
     )
@@ -299,11 +305,11 @@ def test_database_consumers_use_the_configured_postgres_service() -> None:
     for service in ("api", "worker"):
         service_config = _service_block(compose, service)
         assert expected_endpoint in service_config
-        assert '"host.docker.internal:host-gateway"' in service_config
+        assert "host.docker.internal:host-gateway" in service_config
 
 
 def test_production_compose_uses_the_production_env_and_host_database() -> None:
-    production = PROD_COMPOSE_PATH.read_text(encoding="utf-8")
+    production = yaml.safe_dump(load_compose(PROD_COMPOSE_PATH), sort_keys=False)
     api = _service_block(production, "api")
 
     assert "env_file" not in api
@@ -312,8 +318,8 @@ def test_production_compose_uses_the_production_env_and_host_database() -> None:
 
 
 def test_compose_uses_typed_application_retention_defaults() -> None:
-    compose = COMPOSE_PATH.read_text(encoding="utf-8")
-    production = PROD_COMPOSE_PATH.read_text(encoding="utf-8")
+    compose = yaml.safe_dump(load_compose(COMPOSE_PATH), sort_keys=False)
+    production = yaml.safe_dump(load_compose(PROD_COMPOSE_PATH), sort_keys=False)
 
     for variable in (
         "ARTIFACT_TTL_SECONDS",
@@ -326,7 +332,7 @@ def test_compose_uses_typed_application_retention_defaults() -> None:
 
 
 def test_api_receives_feature_flags_and_uses_typed_import_defaults() -> None:
-    api = _service_block(COMPOSE_PATH.read_text(encoding="utf-8"), "api")
+    api = load_compose(COMPOSE_PATH)["services"]["api"]
 
     assert "env_file" not in api
     for variable in (
@@ -341,13 +347,12 @@ def test_api_receives_feature_flags_and_uses_typed_import_defaults() -> None:
         "IMPORT_UPLOAD_MAX_CONCURRENCY",
         "IMPORT_RIGHTS_STATEMENT_VERSION",
     ):
-        assert variable in api
+        assert variable in api["environment"]
 
 
 def test_background_loops_share_one_private_worker_container() -> None:
     for path in (COMPOSE_PATH, PROD_COMPOSE_PATH):
-        compose = path.read_text(encoding="utf-8")
-        services = yaml.safe_load(compose)["services"]
+        services = load_compose(path)["services"]
         # Outbox, download, import and report run in one process.
         for retired in (
             "outbox",
@@ -359,28 +364,28 @@ def test_background_loops_share_one_private_worker_container() -> None:
             "provider-lease-redis",
         ):
             assert retired not in services
-        worker = _service_block(compose, "worker")
-        assert "SERVICE_ROLE: worker" in worker
-        assert "RABBITMQ_WORKER_USER" in worker and "RABBITMQ_WORKER_PASS" in worker
+        worker = services["worker"]
+        assert worker["environment"]["SERVICE_ROLE"] == "worker"
+        assert "RABBITMQ_WORKER_USER" in worker["environment"]["RABBITMQ_URL"]
+        assert "RABBITMQ_WORKER_PASS" in worker["environment"]["RABBITMQ_URL"]
         assert "env_file" not in worker
-        assert "runner_egress_net" in worker
-        assert "ports:" not in worker
+        assert "runner_egress_net" in worker["networks"]
+        assert "ports" not in worker
         assert services["worker"]["networks"] == ["app_net", "runner_egress_net"]
-        assert 'command: ["python", "-m", "app.workers.main"]' in worker
+        assert worker["command"] == ["python", "-m", "app.workers.main"]
 
 
 def test_compose_assigns_each_application_container_its_process_entrypoint() -> None:
-    compose = COMPOSE_PATH.read_text(encoding="utf-8")
     commands = {"api": "app.main", "worker": "app.workers.main"}
 
     for service, module in commands.items():
-        service_config = _service_block(compose, service)
-        assert f'command: ["python", "-m", "{module}"]' in service_config
+        service_config = load_compose(COMPOSE_PATH)["services"][service]
+        assert service_config["command"] == ["python", "-m", module]
 
 
 def test_compose_isolates_media_dependencies_and_preserves_api_readiness() -> None:
     for path in (COMPOSE_PATH, PROD_COMPOSE_PATH):
-        compose = yaml.safe_load(path.read_text(encoding="utf-8"))
+        compose = load_compose(path)
         services = compose["services"]
 
         for service in ("api", "worker"):
@@ -442,7 +447,7 @@ def test_runtime_dependency_install_is_cached_and_retried() -> None:
 
 
 def test_compose_pins_shared_runner_workspace_to_the_mounted_container_path() -> None:
-    compose = yaml.safe_load(COMPOSE_PATH.read_text(encoding="utf-8"))
+    compose = load_compose(COMPOSE_PATH)
 
     for service in ("worker", "session-runner"):
         service_config = compose["services"][service]
@@ -456,7 +461,7 @@ def test_compose_pins_shared_runner_workspace_to_the_mounted_container_path() ->
 
 def test_anonymous_runner_retains_private_network_and_workspace() -> None:
     for path in (COMPOSE_PATH, PROD_COMPOSE_PATH):
-        compose = yaml.safe_load(path.read_text(encoding="utf-8"))
+        compose = load_compose(path)
         services = compose["services"]
         runner = services["session-runner"]
         assert "session-broker" not in services
@@ -491,7 +496,7 @@ def test_production_compose_is_the_only_production_topology_file() -> None:
 
 def test_projects_build_and_run_separate_images() -> None:
     for path in (COMPOSE_PATH, PROD_COMPOSE_PATH):
-        services = yaml.safe_load(path.read_text())["services"]
+        services = load_compose(path)["services"]
         backend = services["api"]
         frontend = services["frontend"]
         assert backend["build"]["context"] == "./backend"
@@ -505,7 +510,7 @@ def test_projects_build_and_run_separate_images() -> None:
 
 def test_documentation_is_local_and_not_mounted_by_the_api() -> None:
     for path in (COMPOSE_PATH, PROD_COMPOSE_PATH):
-        services = yaml.safe_load(path.read_text())["services"]
+        services = load_compose(path)["services"]
         assert "workspace" not in services
         api = services["api"]
         assert "WORKSPACE_CONTENT_DIR" not in api["environment"]
@@ -526,7 +531,7 @@ def test_documentation_is_local_and_not_mounted_by_the_api() -> None:
 
 def test_compose_application_roles_share_the_selected_release_image() -> None:
     for path, tag in ((COMPOSE_PATH, "local"), (PROD_COMPOSE_PATH, "prod")):
-        services = yaml.safe_load(path.read_text())["services"]
+        services = load_compose(path)["services"]
         for name, config in services.items():
             build = config.get("build", {})
             if build.get("context") != "./backend":
@@ -558,7 +563,7 @@ def test_runtime_base_images_are_pinned_without_host_architecture_override() -> 
 
 def test_anonymous_and_guest_execution_services_are_removed():
     for path in (COMPOSE_PATH, PROD_COMPOSE_PATH):
-        services = yaml.safe_load(path.read_text())["services"]
+        services = load_compose(path)["services"]
         assert (
             not {
                 "media-runner",

@@ -44,7 +44,7 @@
 
 ## 快速开始
 
-本机使用 `docker-compose.yml`，生产使用 `docker-compose-prod.yml`。先部署 Server，再让浏览器、Electron 或 App 连接。平台身份按 Registry 声明从普通 Chrome 扩展取得，接入方法见下文。
+本机使用 `docker-compose.yml`，生产使用 `docker-compose-prod.yml`，两者从 `docker-compose-common.yml` 继承公共服务配置，只覆盖运行模式差异。先部署 Server，再让浏览器、Electron 或 App 连接。平台身份按 Registry 声明从普通 Chrome 扩展取得，接入方法见下文。
 
 业务 Compose 项目名为 `framefetch`，后端镜像为 `framefetch:local`／`framefetch:prod`。`runner_work` 与 `browser_profiles` 默认绑定现有持久卷 `video-server_runner_work`、`video-server_browser_profiles`，保留任务文件与浏览器会话；其他卷名可通过 `RUNNER_WORK_VOLUME_NAME`、`BROWSER_PROFILES_VOLUME_NAME` 指定。数据库、队列、对象存储与鉴权标识保持其现有配置。
 
@@ -360,7 +360,8 @@ extension/               Chrome 平台身份扩展
 backend/Dockerfile       API、Worker、Runner 镜像
 frontend/Dockerfile      Next.js 独立镜像
 docker-compose-env.yml   GitHub CI 隔离测试夹具，不用于本机启动
-docker-compose.yml       Web、API、Worker、Runner 与出口代理
+docker-compose-common.yml 公共业务服务配置
+docker-compose.yml       本机开发与监听差异
 docker-compose-prod.yml  生产业务差异
 ```
 

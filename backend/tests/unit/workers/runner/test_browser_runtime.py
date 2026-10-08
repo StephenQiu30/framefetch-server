@@ -324,11 +324,9 @@ async def test_anonymous_acquisition_rejects_bare_cookie_file(
 
 @pytest.mark.parametrize("filename", ["docker-compose.yml", "docker-compose-prod.yml"])
 def test_native_anonymous_volume_and_private_task_tmpfs_ownership(filename):
-    import yaml
+    from tests.compose import load_compose
 
-    compose = yaml.safe_load(
-        (Path(__file__).resolve().parents[5] / filename).read_text()
-    )
+    compose = load_compose(Path(__file__).resolve().parents[5] / filename)
     runner = compose["services"]["session-runner"]
     assert "browser_profiles:/var/lib/framefetch-browser" in runner["volumes"]
     mounts = {line.split(":", 1)[0]: line.split(":", 1)[1] for line in runner["tmpfs"]}

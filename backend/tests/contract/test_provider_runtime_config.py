@@ -5,7 +5,7 @@ import os
 import subprocess
 from pathlib import Path
 
-import yaml
+from tests.compose import load_compose
 from yt_dlp_plugins.extractor.getpot_bgutil_http import BgUtilHTTPPTP
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -21,8 +21,8 @@ def test_private_provider_sources_are_excluded_from_docker_build_context() -> No
 
 def test_pyproject_and_compose_pin_provider_runtime() -> None:
     pyproject = (ROOT / "pyproject.toml").read_text()
-    compose = (ROOT.parent / "docker-compose.yml").read_text()
-    production_compose = (ROOT.parent / "docker-compose-prod.yml").read_text()
+    compose = str(load_compose(ROOT.parent / "docker-compose.yml"))
+    production_compose = str(load_compose(ROOT.parent / "docker-compose-prod.yml"))
     supervisor = (
         ROOT / "app" / "workers" / "runner" / "youtube-pot-supervisor.mjs"
     ).read_text()
@@ -49,7 +49,7 @@ def test_pyproject_and_compose_pin_provider_runtime() -> None:
 
 def test_youtube_sidecar_and_runners_can_only_egress_through_a_gateway() -> None:
     for filename in ("docker-compose.yml", "docker-compose-prod.yml"):
-        document = yaml.safe_load((ROOT.parent / filename).read_text())
+        document = load_compose(ROOT.parent / filename)
         services = document["services"]
         networks = document["networks"]
         sidecar = services["youtube-pot-provider"]
@@ -163,7 +163,7 @@ def _supervisor_config_check(
 def test_compose_inspection_timeout_matches_the_120_second_design_limit() -> None:
     root = Path(__file__).resolve().parents[3]
     for filename in ("docker-compose.yml", "docker-compose-prod.yml"):
-        services = yaml.safe_load((root / filename).read_text())["services"]
+        services = load_compose(root / filename)["services"]
         for role in ("api", "worker"):
             assert services[role]["environment"]["INSPECT_TIMEOUT_SECONDS"] == (
                 "${INSPECT_TIMEOUT_SECONDS:-120}"

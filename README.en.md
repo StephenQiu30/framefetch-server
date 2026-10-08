@@ -44,7 +44,7 @@ For creators, content researchers and developers who want to manage their own so
 
 ## Quick start
 
-Use `docker-compose.yml` locally and `docker-compose-prod.yml` in production. Deploy the Server, then connect Web, Electron or mobile clients. Platform identity follows the Registry declarations through the ordinary Chrome extension.
+Use `docker-compose.yml` locally and `docker-compose-prod.yml` in production. Both inherit shared services from `docker-compose-common.yml` and override only mode-specific settings. Deploy the Server, then connect Web, Electron or mobile clients. Platform identity follows the Registry declarations through the ordinary Chrome extension.
 
 The business Compose project is named `framefetch`; backend images are `framefetch:local` / `framefetch:prod`. `runner_work` and `browser_profiles` bind to the existing persistent volumes `video-server_runner_work` and `video-server_browser_profiles` by default, preserving task files and browser sessions. Set `RUNNER_WORK_VOLUME_NAME` and `BROWSER_PROFILES_VOLUME_NAME` to use other volumes. Database, queue, object storage and authentication identifiers keep their existing configuration.
 
