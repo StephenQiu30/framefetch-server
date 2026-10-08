@@ -27,6 +27,67 @@ async def apply_schema(engine, sql):
         await raw.driver_connection.execute(sql)
 
 
+async def test_schema_restores_generation_for_existing_intents():
+    sql = (Path(__file__).resolve().parents[2] / "sql/schema.sql").read_text(
+        encoding="utf-8"
+    )
+    async with isolated_postgres_engine() as engine:
+        await apply_schema(engine, sql)
+        _, _, _, intent, _ = await ready(engine)
+        async with engine.begin() as connection:
+            before = (
+                await connection.execute(
+                    text(
+                        "SELECT id, status, version, inspection_id "
+                        "FROM download_intents"
+                    )
+                )
+            ).one()
+            await connection.execute(
+                text("ALTER TABLE download_intents DROP COLUMN generation")
+            )
+
+        await apply_schema(engine, sql)
+        await apply_schema(engine, sql)
+
+        async with engine.begin() as connection:
+            after = (
+                await connection.execute(
+                    text(
+                        "SELECT id, status, version, inspection_id "
+                        "FROM download_intents"
+                    )
+                )
+            ).one()
+            assert after == before
+            assert (
+                await connection.scalar(
+                    text("SELECT generation FROM download_intents WHERE id = :id"),
+                    {"id": intent.id},
+                )
+                == 0
+            )
+            await connection.execute(
+                text("UPDATE download_intents SET generation = 2 WHERE id = :id"),
+                {"id": intent.id},
+            )
+
+        await apply_schema(engine, sql)
+        async with engine.connect() as connection:
+            assert (
+                await connection.scalar(
+                    text("SELECT generation FROM download_intents WHERE id = :id"),
+                    {"id": intent.id},
+                )
+                == 2
+            )
+            with pytest.raises(IntegrityError, match="generation"):
+                await connection.execute(
+                    text("UPDATE download_intents SET generation = -1 WHERE id = :id"),
+                    {"id": intent.id},
+                )
+
+
 async def saved_chain(engine):
     sessions, intents, downloads, intent, create = await ready(engine)
     job = (await downloads.create_job(create, now=NOW)).job
@@ -124,7 +185,9 @@ async def test_all_four_persistence_guards_reject_incomplete_or_sensitive_contex
 
 
 async def test_schema_projects_old_error_meaning_and_preserves_business_rows():
-    sql = (Path(__file__).resolve().parents[2] / "sql/schema.sql").read_text()
+    sql = (Path(__file__).resolve().parents[2] / "sql/schema.sql").read_text(
+        encoding="utf-8"
+    )
     mapping = {
         "inspection_timeout": "transient",
         "provider_access_policy_not_allowed": "invalid_input",
@@ -219,7 +282,9 @@ async def test_schema_projects_old_error_meaning_and_preserves_business_rows():
 
 
 async def test_schema_invalidates_old_context_and_preserves_business_records():
-    sql = (Path(__file__).resolve().parents[2] / "sql/schema.sql").read_text()
+    sql = (Path(__file__).resolve().parents[2] / "sql/schema.sql").read_text(
+        encoding="utf-8"
+    )
     async with isolated_postgres_engine() as engine:
         await apply_schema(engine, sql)
         sessions, intent, job, artifact, document = await saved_chain(engine)

@@ -1289,6 +1289,12 @@ CREATE TABLE IF NOT EXISTS download_intents (
     CONSTRAINT ck_download_intents_handoff CHECK (status <> 'handed_off' OR job_id IS NOT NULL)
 );
 
+ALTER TABLE download_intents
+    ADD COLUMN IF NOT EXISTS generation INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE download_intents DROP CONSTRAINT IF EXISTS ck_download_intents_generation;
+ALTER TABLE download_intents ADD CONSTRAINT ck_download_intents_generation
+    CHECK (generation >= 0);
+
 DROP TABLE IF EXISTS resolution_attempts;
 ALTER TABLE download_intents DROP CONSTRAINT IF EXISTS ck_download_intents_action;
 ALTER TABLE download_intents DROP CONSTRAINT IF EXISTS ck_download_intents_policy;
