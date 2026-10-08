@@ -1052,10 +1052,14 @@ def test_warm_cookie_source_cannot_certify_identity_coldstart(monkeypatch, tmp_p
 
 
 def test_worktree_reuses_single_existing_compose_project(monkeypatch, tmp_path):
+    def inspect_current_containers(argv, **kwargs):
+        assert argv[-3:] == ["framefetch-api", "framefetch-worker", "session-runner"]
+        return "framefetch-server\nframefetch-server\nframefetch-server\n"
+
     monkeypatch.setattr(
         matrix,
         "run_command",
-        lambda *a, **kw: "framefetch-server\nframefetch-server\nframefetch-server\n",
+        inspect_current_containers,
     )
     assert matrix.compose_project(tmp_path) == "framefetch-server"
     monkeypatch.setattr(
