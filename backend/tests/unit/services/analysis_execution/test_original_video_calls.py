@@ -20,20 +20,31 @@ from tests.unit.workers.analysis.fakes import NOW, FakeRepository, running_job
 
 @pytest.mark.parametrize(
     "outcome",
-    ["passed", "revision", "coverage_revision", "unknown", "invalid_location"],
+    [
+        "passed",
+        "revision",
+        "coverage_revision",
+        "unknown",
+        "invalid_location",
+        "unselected_revision",
+        "renamed_section",
+    ],
+)
+@pytest.mark.parametrize(
+    "contract",
+    [AnalysisResultContract.STRUCTURED_REPORT, AnalysisResultContract.VIDEO_ARTICLE],
 )
 async def test_original_video_plan_is_three_calls_or_one_bounded_revision(
-    tmp_path, outcome
+    tmp_path, outcome, contract
 ):
-    skill = BuiltinAnalysisSkillCatalog().resolve(
-        "video-review", AnalysisInputKind.VIDEO
-    )
+    skill_id = "video-review"
+    skill = BuiltinAnalysisSkillCatalog().resolve(skill_id, AnalysisInputKind.VIDEO)
     job = replace(
         running_job(),
-        skill_id="video-review",
+        skill_id=skill_id,
         skill_instructions=skill.instructions,
         skill_instructions_sha256=skill.instructions_sha256,
-        result_contract="structured-report",
+        result_contract=contract.value,
     )
     repository = FakeRepository(job)
     repository.bind_execution = AsyncMock()
@@ -70,6 +81,13 @@ async def test_original_video_plan_is_three_calls_or_one_bounded_revision(
         ],
         "limitations": ["未核验声音"],
     }
+    if contract is AnalysisResultContract.VIDEO_ARTICLE:
+        draft["lead"] = draft.pop("summary")
+        draft["closing"] = ""
+        draft["key_points"] = []
+        section = draft["sections"][0]
+        section["title"] = section.pop("heading")
+        section.pop("items")
     passed = {"needs_material": False, "findings": []}
     revision = {
         "needs_material": False,
@@ -83,17 +101,31 @@ async def test_original_video_plan_is_three_calls_or_one_bounded_revision(
             }
         ],
     }
-    needs_revision = outcome in {"revision", "coverage_revision"}
+    needs_revision = outcome in {
+        "revision",
+        "coverage_revision",
+        "unselected_revision",
+        "renamed_section",
+    }
     if outcome == "coverage_revision":
         revision["findings"][0]["block_id"] = "limitations"
     values = [plan, draft, revision if needs_revision else passed]
     if needs_revision:
         values += [
-            {**draft, "limitations": ["未逐帧检查，未核验声音"]}
+            {"limitations": ["未逐帧检查，未核验声音"]}
             if outcome == "coverage_revision"
-            else draft,
+            else {
+                "section-000": {
+                    **draft["sections"][0],
+                    "body": "只保留已核查的候选切点。",
+                }
+            },
             passed,
         ]
+    if outcome == "unselected_revision":
+        values[3]["title"] = "未获授权的新标题"
+    if outcome == "renamed_section":
+        values[3]["section-000"]["id"] = "new-id"
     if outcome == "unknown":
         values[1] = TimeoutError("unknown execution")
     if outcome == "invalid_location":
@@ -111,9 +143,9 @@ async def test_original_video_plan_is_three_calls_or_one_bounded_revision(
         100,
         "mp4",
         "zh-CN",
-        "video-review",
+        skill_id,
         skill.instructions,
-        AnalysisResultContract.STRUCTURED_REPORT,
+        contract,
     )
     if outcome == "unknown":
         with pytest.raises(AnalysisOutcomeUnknown):
@@ -126,7 +158,7 @@ async def test_original_video_plan_is_three_calls_or_one_bounded_revision(
             )
         assert analyzer.analyze.await_count == 2
         assert repository.steps["draft"][0] == "started"
-    elif outcome == "invalid_location":
+    elif outcome in {"invalid_location", "unselected_revision", "renamed_section"}:
         with pytest.raises(AnalysisValidationError):
             await execute_video_editorial(
                 job,
@@ -135,7 +167,9 @@ async def test_original_video_plan_is_three_calls_or_one_bounded_revision(
                 monitor,
                 AnalysisMedia(duration_ms=2000, container="mp4", size_bytes=100),
             )
-        assert analyzer.analyze.await_count == 3
+        assert analyzer.analyze.await_count == (
+            3 if outcome == "invalid_location" else 4
+        )
         assert repository.steps["review"][0] == "succeeded"
     else:
         result = await execute_video_editorial(
@@ -147,6 +181,14 @@ async def test_original_video_plan_is_three_calls_or_one_bounded_revision(
         )
         assert analyzer.analyze.await_count == (5 if needs_revision else 3)
         assert result.review_status == "passed"
+        assert result.title == draft["title"]
+        if contract is AnalysisResultContract.STRUCTURED_REPORT:
+            assert result.summary == draft["summary"]
+        else:
+            assert result.lead == draft["lead"] and result.key_points == ()
+        assert result.sections[0].id == "cut"
+        if outcome == "revision":
+            assert result.sections[0].body == "只保留已核查的候选切点。"
         assert [call.args[0].stage for call in analyzer.analyze.await_args_list] == (
             ["plan", "draft", "review", "revise-01", "verify-01"]
             if needs_revision
@@ -155,11 +197,31 @@ async def test_original_video_plan_is_three_calls_or_one_bounded_revision(
     assert repository.bind_execution.call_args.args[1]["max_model_calls"] == 5
     for call in analyzer.analyze.await_args_list:
         value = call.args[0]
+        if value.stage == "revise-01":
+            schema = json.loads(value.schema_json)
+            target = "limitations" if outcome == "coverage_revision" else "section-000"
+            assert set(schema["properties"]) == {target}
+            assert schema["required"] == [target]
+            if target == "section-000":
+                assert schema["properties"][target]["properties"]["id"]["enum"] == [
+                    "cut"
+                ]
         if value.stage in {"review", "verify-01"}:
             schema = json.loads(value.schema_json)
             assert schema["$defs"]["ContentFinding"]["properties"]["block_id"][
                 "enum"
-            ] == ["limitations", "section-000", "summary", "title"]
+            ] == (
+                ["limitations", "section-000", "summary", "title"]
+                if contract is AnalysisResultContract.STRUCTURED_REPORT
+                else [
+                    "closing",
+                    "key-points",
+                    "lead",
+                    "limitations",
+                    "section-000",
+                    "title",
+                ]
+            )
             assert "不能使用该映射的值" in value.stage_prompt
     bound_schema = repository.bind_execution.call_args.args[1]["schemas"]["review"]
     assert (

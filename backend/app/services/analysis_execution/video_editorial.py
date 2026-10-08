@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import hashlib
 import json
+from copy import deepcopy
 from dataclasses import asdict, replace
 from datetime import timedelta
 from typing import cast
@@ -166,18 +167,39 @@ async def execute_video_editorial(
                 "点；可留为空。依据画面保留必要来源归属，核查说明不写进正文。"
             ),
         }
+        output_schema = schemas["draft"]
         if original is not None and review is not None:
+            output_schema = _revision_schema(original, review, schemas["draft"])
             context.update(
                 draft=_payload(original, schemas["draft"]),
                 findings=review.model_dump(mode="json"),
                 operation=(
-                    "只修正重大或阻断 findings 指定位置，"
-                    "保留未涉及部分的文字、顺序及证据；不增加无来源事实。"
+                    "只返回 schema 指定的重大或阻断 findings 位置的修订值，"
+                    "不返回整篇报告。"
+                    "section-000 等键对应 draft.sections 的原始位置；保留段落 id，"
+                    "不增加、删除或重排段落，不增加无来源事实。其他部分由系统保留原值。"
                 ),
             )
-        value = make_request(key, methods["draft"], context, schemas["draft"], plan)
+        value = make_request(key, methods["draft"], context, output_schema, plan)
 
         def parse(payload: object) -> EditorialResult:
+            if original is not None:
+                if not isinstance(payload, dict) or set(payload) != set(
+                    cast(dict[str, object], output_schema["properties"])
+                ):
+                    raise AnalysisValidationError(
+                        AnalysisValidationCode.INVALID_SCHEMA,
+                        "revision must contain only the selected locations",
+                    )
+                merged = json.loads(json.dumps(_payload(original, schemas["draft"])))
+                sections = merged["sections"]
+                for location, replacement in payload.items():
+                    if location.startswith("section-"):
+                        sections[int(location.removeprefix("section-"))] = replacement
+                    else:
+                        merged[location] = replacement
+                merged["sections"] = sections
+                payload = merged
             result = parse_analysis_result(
                 payload,
                 media,
@@ -280,10 +302,54 @@ async def execute_video_editorial(
 
 
 def _payload(result: EditorialResult, schema: dict[str, object]) -> dict[str, object]:
-    return {
+    payload = {
         key: value
         for key, value in asdict(result).items()
         if key in cast(dict[str, object], schema["properties"])
+    }
+    fields = cast(dict[str, dict[str, object]], schema["properties"])
+    section_schema = cast(dict[str, object], fields["sections"]["items"])
+    section_fields = cast(dict[str, object], section_schema["properties"])
+    payload["sections"] = [
+        {key: value for key, value in section.items() if key in section_fields}
+        for section in cast(tuple[dict[str, object], ...], payload["sections"])
+    ]
+    return payload
+
+
+def _revision_schema(
+    original: EditorialResult,
+    review: ContentReview,
+    schema: dict[str, object],
+) -> dict[str, object]:
+    changed = {
+        finding.block_id
+        for finding in review.findings
+        if finding.severity in {"major", "blocking"}
+    }
+    fields = cast(dict[str, dict[str, object]], schema["properties"])
+    selected = {
+        key: deepcopy(value)
+        for key, value in fields.items()
+        if key != "sections" and key.replace("_", "-") in changed
+    }
+    for index, section in enumerate(
+        cast(
+            tuple[VideoArticleSection | StructuredReportSection, ...], original.sections
+        )
+    ):
+        location = f"section-{index:03d}"
+        if location not in changed:
+            continue
+        item = deepcopy(cast(dict[str, object], fields["sections"]["items"]))
+        properties = cast(dict[str, dict[str, object]], item["properties"])
+        properties["id"]["enum"] = [section.id]
+        selected[location] = item
+    return {
+        "type": "object",
+        "additionalProperties": False,
+        "required": list(selected),
+        "properties": selected,
     }
 
 
