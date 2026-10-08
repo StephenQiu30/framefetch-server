@@ -5,3 +5,4 @@ public/_pagefind/
 next-env.d.ts
 content/.obsidian/*
 !content/.obsidian/app.json
+.workspace-write.lock

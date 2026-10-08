@@ -69,7 +69,7 @@ docker compose up -d --build --wait --remove-orphans
 
 开发时使用 `docker compose up --build --watch`，或在已启动的本地容器上运行 `docker compose watch --no-up` 并保持终端运行。前端和文档站点代码自动热重载，API／worker 源码自动同步并重启，Runner 保留只读沙箱并自动重建；依赖变化自动构建。需要 Docker Compose 2.32.0 或更新版本，详见 [开发与发布规则](workspace/content/design/12-可靠性与运行.md#发布)。生产部署继续使用下方的生产 Compose。
 
-文档站点的正文、侧栏与搜索实时读取 `workspace/content/`。在 Obsidian 或编辑器中保存后，已打开且可见的阅读页会在约 2 秒内自动刷新；新增、删除文档与修改导航也无需重建容器。生产站点的程序、依赖与环境配置变化仍须构建并重新创建服务，详见 [文档工作区](PROJECT.md#31-文档工作区)。
+文档站点直接使用 Nextra 官方 Docs Theme。开发预览使用 Nextra 原生热更新；全文搜索使用 Pagefind 构建索引，首次预览前执行 `pnpm --dir workspace build`。生产内容或导航变化后，执行 `docker compose --env-file .env.prod -f docker-compose-prod.yml up -d --build --no-deps workspace` 发布正文与搜索索引。网页保存只更新源文件，生产发布仍需重建，详见 [文档工作区](PROJECT.md#31-文档工作区)。
 
 启动后访问 [Web 工作区](http://localhost:8101)、[文档站点](http://localhost:8130)、[Swagger UI](http://localhost:8111/docs) 或 [OpenAPI](http://localhost:8111/openapi.json)。全新空库须先按下文创建首管理员，再登录使用。
 

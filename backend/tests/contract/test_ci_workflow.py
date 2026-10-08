@@ -70,6 +70,9 @@ def _assert_quality_gates(workflow: dict) -> None:
             "node --test extension/*.test.cjs",
             "pnpm install --frozen-lockfile",
             "pnpm check",
+            "pnpm sync:check",
+            "pnpm typecheck",
+            "pnpm test",
             "pnpm build",
         ),
     }

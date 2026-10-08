@@ -1,0 +1,96 @@
+/* Theme overrides stay inside the shared Editor.js component. */
+.block-editor {
+  --color-background: var(--popover);
+  --color-text-primary: var(--popover-foreground);
+  --color-border: var(--border);
+  --color-background-item-hover: var(--accent);
+  --color-background-item-focus: var(--accent);
+  --color-text-icon: var(--foreground);
+  --color-text-secondary: var(--muted-foreground);
+}
+.block-editor .ce-block__content,
+.block-editor .ce-toolbar__content {
+  max-width: 100%;
+}
+.block-editor .ce-paragraph {
+  overflow-wrap: anywhere;
+}
+.block-editor .ce-toolbar__plus,
+.block-editor .ce-toolbar__settings-btn {
+  color: var(--foreground);
+}
+.block-editor .ce-toolbar__plus:hover,
+.block-editor .ce-toolbar__settings-btn:hover,
+.block-editor .ce-block--selected .ce-block__content {
+  background: var(--accent);
+}
+.block-editor .ce-inline-toolbar,
+.block-editor .ce-popover,
+.block-editor .ce-popover__container {
+  color: var(--popover-foreground);
+  background: var(--popover);
+  border-color: var(--border);
+}
+.block-editor .ce-inline-tool,
+.block-editor .ce-conversion-tool {
+  color: var(--popover-foreground);
+}
+.block-editor .ce-inline-tool:hover,
+.block-editor .ce-conversion-tool:hover {
+  background: var(--accent);
+}
+.block-editor .ce-code__textarea,
+.block-editor .tc-wrap,
+.block-editor .tc-cell,
+.block-editor .cdx-search-field {
+  color: var(--foreground);
+  background: var(--muted);
+  border-color: var(--border);
+}
+.block-editor .ce-code__textarea {
+  max-width: 100%;
+  font-family: var(--font-mono);
+}
+.block-editor [contenteditable="true"]:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+.block-editor h1.ce-header {
+  font-size: var(--text-2xl);
+}
+.block-editor h2.ce-header {
+  font-size: var(--text-xl);
+}
+.block-editor h3.ce-header {
+  font-size: var(--text-lg);
+}
+.block-editor .ce-header {
+  font-weight: 500;
+}
+.block-editor .cdx-input {
+  background: var(--background);
+  border-color: var(--border);
+  box-shadow: none;
+}
+.block-editor .cdx-quote__text {
+  min-height: 0;
+}
+.block-editor .tc-wrap,
+.block-editor .tc-popover {
+  --color-background: var(--popover);
+  --color-border: var(--border);
+  --color-text-secondary: var(--muted-foreground);
+  --color-background-hover: var(--accent);
+}
+
+.block-editor a {
+  text-decoration: underline;
+  text-underline-offset: 0.25em;
+}
+.block-editor .ce-code__textarea:disabled {
+  opacity: 1;
+  -webkit-text-fill-color: var(--foreground);
+}
+.block-editor--readonly .tc-wrap {
+  overflow-x: auto;
+}

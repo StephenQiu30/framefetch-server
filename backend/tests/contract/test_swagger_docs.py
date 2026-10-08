@@ -30,6 +30,7 @@ def test_swagger_ui_and_openapi_contract_are_available(tmp_path: Path) -> None:
         "providers",
         "downloads",
         "analyses",
+        "workspace",
     }
     assert all(not path.startswith("/api/v1") for path in schema["paths"])
 
@@ -78,6 +79,9 @@ def test_swagger_ui_and_openapi_contract_are_available(tmp_path: Path) -> None:
         "listUsers",
         "deleteUser",
         "updateUserAccess",
+        "listWorkspaceDocuments",
+        "getWorkspaceDocument",
+        "updateWorkspaceDocument",
         "getDownloadAnalytics",
         "getAnalysisAnalytics",
         "listStoredFiles",

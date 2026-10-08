@@ -126,6 +126,7 @@ jobs:
         run: |
           pnpm install --frozen-lockfile
           pnpm check
+          pnpm sync:check
           pnpm typecheck
           pnpm test
           pnpm build

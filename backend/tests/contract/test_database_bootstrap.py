@@ -126,9 +126,10 @@ def test_frontend_compose_receives_only_required_runtime_configuration() -> None
             == "${FRONTEND_IPV4_ADDRESS:-10.251.0.10}"
         )
         assert "${TRUSTED_PROXY_CIDRS" in api["environment"]["TRUSTED_PROXY_CIDRS"]
-        assert (
-            api["environment"]["TRUSTED_FRONTEND_PROXY_IP"]
-            == frontend["networks"]["app_net"]["ipv4_address"]
+        workspace = document["services"]["workspace"]
+        assert api["environment"]["TRUSTED_WEB_PROXY_IPS"] == (
+            f'["{frontend["networks"]["app_net"]["ipv4_address"]}",'
+            f'"{workspace["networks"]["app_net"]["ipv4_address"]}"]'
         )
 
 
@@ -503,6 +504,32 @@ def test_projects_build_and_run_separate_images() -> None:
     assert "python:" not in (ROOT.parent / "frontend/Dockerfile").read_text()
 
 
+def test_compose_serves_the_workspace_documentation_site() -> None:
+    for path, tag in ((COMPOSE_PATH, "local"), (PROD_COMPOSE_PATH, "prod")):
+        workspace = yaml.safe_load(path.read_text())["services"]["workspace"]
+        assert workspace["build"]["context"] == "./workspace"
+        assert workspace["image"] == f"framefetch-workspace:{tag}"
+        assert workspace["container_name"] == "framefetch-workspace"
+        assert workspace["ports"][0].endswith(":${WORKSPACE_HOST_PORT:-8130}:8130")
+        assert workspace["depends_on"]["api"]["condition"] == "service_healthy"
+        assert workspace["environment"]["BACKEND_ORIGIN"] == "http://api:8111"
+        assert workspace["networks"]["app_net"]["ipv4_address"] == (
+            "${WORKSPACE_IPV4_ADDRESS:-10.251.0.11}"
+        )
+        assert workspace["healthcheck"]["test"][1] == "node"
+        api = yaml.safe_load(path.read_text())["services"]["api"]
+        assert {
+            "type": "bind",
+            "source": "./workspace/content",
+            "target": "/srv/workspace/content",
+            "bind": {"create_host_path": False},
+        } in api["volumes"]
+        assert api["environment"]["WORKSPACE_CONTENT_DIR"] == "/srv/workspace/content"
+    environment = ENV_EXAMPLE_PATH.read_text()
+    assert "WORKSPACE_HOST_PORT=8130" in environment
+    assert "WORKSPACE_IPV4_ADDRESS=10.251.0.11" in environment
+
+
 def test_compose_workspace_reads_live_document_content() -> None:
     for path, tag in ((COMPOSE_PATH, "local"), (PROD_COMPOSE_PATH, "prod")):
         document = yaml.safe_load(path.read_text())
@@ -540,7 +567,11 @@ def test_compose_application_roles_share_the_selected_release_image() -> None:
 
 
 def test_runtime_base_images_are_pinned_without_host_architecture_override() -> None:
-    for path in (DOCKERFILE_PATH, ROOT.parent / "frontend/Dockerfile"):
+    for path in (
+        DOCKERFILE_PATH,
+        ROOT.parent / "frontend/Dockerfile",
+        ROOT.parent / "workspace/Dockerfile",
+    ):
         stages = re.findall(r"^FROM (\S+) AS (\S+)", path.read_text(), re.MULTILINE)
         assert stages
         earlier: set[str] = set()
