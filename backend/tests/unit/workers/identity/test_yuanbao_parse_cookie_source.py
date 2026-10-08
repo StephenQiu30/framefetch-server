@@ -455,6 +455,13 @@ def test_fixed_http_failure_preserves_authenticated_connection(cause):
         + "x" * m.YUANBAO_PARSE_MAX_MESSAGE_BYTES
         + '"}',
     ],
+    ids=[
+        "duplicate-type",
+        "non-finite-json",
+        "duplicate-id",
+        "cookie-limit",
+        "parse-limit",
+    ],
 )
 async def test_bridge_json_has_one_meaning_and_kind_specific_size_limit(wire):
     socket = AsyncMock()

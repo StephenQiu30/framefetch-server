@@ -31,7 +31,7 @@
 | `youtube-pot-provider` | Compose | YouTube PO Token |
 | `migrate` | Compose | 幂等执行 `schema.sql` |
 | AI Worker | 宿主 LaunchAgent | 使用宿主已登录的 Codex/Claude CLI 执行 Skill 分析 |
-| cookie-source | 宿主 LaunchAgent，`127.0.0.1:19101` | 与身份扩展通信，为 Runner 提供单次操作的身份材料 |
+| cookie-source | 宿主当前用户服务（macOS LaunchAgent／Windows 计划任务），`127.0.0.1:19101` | 与身份扩展通信，为 Runner 提供单次操作的身份材料 |
 
 - PostgreSQL 是业务状态的唯一事实来源。跨 PostgreSQL、Temporal、RabbitMQ 的写入使用 transactional outbox；dispatcher 按确定 Workflow ID 直接启动 Temporal，不经 RabbitMQ 中转。
 - 同一业务只由一个引擎调度。分工细节见[工作流编排](workspace/content/design/13-工作流编排.md)，解析引擎见[解析引擎](workspace/content/design/14-解析引擎.md)。

@@ -19,6 +19,8 @@ TOKEN = "synthetic-test-only-runner-token-32-bytes"
 
 @pytest.fixture
 def installation(tmp_path, monkeypatch):
+    if os.name == "nt":
+        pytest.skip("LaunchAgent lifecycle and POSIX mode tests run on POSIX")
     environment, target, home = (
         tmp_path / "identity.env",
         tmp_path / "agent.plist",
@@ -194,7 +196,9 @@ def test_install_never_edits_project_env(tmp_path):
 
 def test_manifest_registry_permissions_and_stable_id():
     template = json.loads(
-        (extension.EXTENSION_SOURCE / "manifest.template.json").read_text()
+        (extension.EXTENSION_SOURCE / "manifest.template.json").read_text(
+            encoding="utf-8"
+        )
     )
     manifest = extension.manifest(19101)
     assert "host_permissions" not in template

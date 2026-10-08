@@ -1,4 +1,4 @@
-"""Install the unpacked MV3 extension and ordinary per-user LaunchAgent."""
+"""Install the unpacked MV3 extension and current-user identity service."""
 
 from __future__ import annotations
 
@@ -19,9 +19,13 @@ from app.core.config import CookieSourceSettings
 from app.workers.identity.extension import (
     extension_home,
     install_extension,
+)
+from app.workers.identity.permissions import (
     private_directory,
     private_write,
+    require_private_file,
 )
+from app.workers.identity.windows_service import manage_service
 from dotenv import dotenv_values
 from pydantic import SecretStr
 
@@ -33,6 +37,11 @@ def agent_path() -> Path:
 
 
 def default_env_file() -> Path:
+    if sys.platform == "win32":
+        return (
+            Path(os.environ.get("LOCALAPPDATA", Path.home() / "AppData/Local"))
+            / "Framefetch/identity/identity.env"
+        )
     return Path.home() / "Library/Application Support/Framefetch/identity.env"
 
 
@@ -57,14 +66,7 @@ def agent_spec(env_file: Path) -> dict[str, object]:
 
 
 def configured(env_file: Path) -> CookieSourceSettings:
-    metadata = env_file.lstat()
-    if (
-        env_file.is_symlink()
-        or not env_file.is_file()
-        or metadata.st_uid != os.getuid()
-        or metadata.st_mode & 0o077
-    ):
-        raise ValueError("cookie_source_env_requires_owner_only_permissions")
+    require_private_file(env_file)
     return CookieSourceSettings(_env_file=env_file)
 
 
@@ -73,18 +75,12 @@ def prepare_config(env_file: Path) -> CookieSourceSettings:
     if env_file.name in {".env", ".env.prod"}:
         raise ValueError("cookie_source_requires_separate_env_file")
     if env_file.exists() or env_file.is_symlink():
-        metadata = env_file.lstat()
-        if (
-            env_file.is_symlink()
-            or metadata.st_uid != os.getuid()
-            or metadata.st_mode & 0o077
-        ):
-            raise ValueError("cookie_source_env_requires_owner_only_permissions")
+        require_private_file(env_file)
         values = dotenv_values(env_file)
         if values.get("COOKIE_SOURCE_PAIRING_KEY"):
             return configured(env_file)
         # Upgrade a separately supplied token-only identity config; preserve it.
-        content = env_file.read_text().rstrip() + "\n"
+        content = env_file.read_text(encoding="utf-8").rstrip() + "\n"
     else:
         private_directory(env_file.parent)
         token = os.environ.get("COOKIE_SOURCE_TOKEN") or secrets.token_urlsafe(48)
@@ -109,6 +105,9 @@ def install(env_file: Path) -> Path:
     ):
         raise ValueError("pairing_key_must_differ_from_runner_token")
     extension = install_extension(settings)
+    if sys.platform == "win32":
+        manage_service(extension.parent / "backend", env_file)
+        return extension
     destination = agent_path()
     target = f"gui/{os.getuid()}/{LABEL}"
     if destination.exists():
@@ -146,6 +145,9 @@ def install(env_file: Path) -> Path:
 
 
 def uninstall() -> None:
+    if sys.platform == "win32":
+        manage_service(extension_home().parent / "backend")
+        return
     target = f"gui/{os.getuid()}/{LABEL}"
     result = subprocess.run(
         ["/bin/launchctl", "bootout", "--wait", target],
@@ -183,8 +185,8 @@ def main() -> int:
     parser.add_argument("command", choices=("run", "install", "uninstall", "check"))
     parser.add_argument("--env-file", type=Path)
     args = parser.parse_args()
-    if sys.platform != "darwin":
-        print("cookie-source requires macOS", file=sys.stderr)
+    if sys.platform not in {"darwin", "win32"}:
+        print("cookie-source requires macOS or Windows", file=sys.stderr)
         return 2
     try:
         if args.command == "uninstall":
