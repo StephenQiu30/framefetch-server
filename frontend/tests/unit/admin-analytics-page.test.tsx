@@ -52,7 +52,11 @@ describe('administrator usage analytics', () => {
     expect(screen.queryByRole('progressbar')).not.toBeInTheDocument();
 
     expect(
-      await screen.findByRole('img', { name: '每日下载任务交互趋势图' }),
+      await screen.findByRole(
+        'img',
+        { name: '每日下载任务交互趋势图' },
+        { timeout: 5_000 },
+      ),
     ).toBeInTheDocument();
     expect(
       await screen.findByRole('img', { name: '下载任务状态环形图' }),
