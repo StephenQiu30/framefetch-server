@@ -16,6 +16,7 @@ from app.repositories.analysis.repository import SqlAlchemyAnalysisRepository
 from app.repositories.analysis.repository_serialization import analysis_result_document
 from app.services.analysis.models import AnalysisJobSnapshot, AnalysisPublish
 from app.services.analysis.rules.enums import AnalysisStage
+from app.services.analysis_execution.errors import classify_analysis_failure
 from app.services.analysis_execution.models import AnalysisExecutionOutput
 from app.services.analysis_execution.monitor import AnalysisLeaseMonitor
 from app.services.analysis_execution.ports import AnalysisExecutionRepository
@@ -151,17 +152,15 @@ class SkillActivities:
         except asyncio.CancelledError:
             await asyncio.shield(self._close(command, "worker_lost"))
             raise
-        except (ValueError, TimeoutError):
+        except ValueError:
             return await self._close(
                 command,
                 "invalid_model_output" if state.job is not None else "worker_lost",
             )
         except Exception as error:
-            code = getattr(error, "code", None)
-            from app.services.analysis.rules.enums import AnalysisErrorCode
-
-            if code in {item.value for item in AnalysisErrorCode}:
-                return await self._close(command, str(code))
+            code = classify_analysis_failure(error)
+            if code is not None:
+                return await self._close(command, code.value)
             raise ApplicationError("Skill infrastructure unavailable") from None
         finally:
             if acquired:

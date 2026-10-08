@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from app.services.analysis.rules.enums import AnalysisErrorCode, AnalysisStage
+from app.services.analysis.rules.enums import AnalysisErrorCode
 
 
 class AnalysisOwnershipLost(RuntimeError):
@@ -24,8 +24,16 @@ class AnalysisSourceUnavailable(RuntimeError):
 
 
 class AnalysisExecutionError(RuntimeError):
-    def __init__(self, code: str) -> None:
+    def __init__(
+        self,
+        code: str,
+        *,
+        no_model_execution: bool = False,
+        outcome_known: bool = False,
+    ) -> None:
         self.code = code
+        self.no_model_execution = no_model_execution
+        self.outcome_known = outcome_known
         super().__init__(code)
 
 
@@ -40,38 +48,18 @@ class AnalysisOutcomeUnknown(AnalysisExecutionError):
         super().__init__("analysis_outcome_unknown")
 
 
-_ERROR_CODES = {
-    "analysis_cli_unavailable": AnalysisErrorCode.CLI_UNAVAILABLE,
-    "analysis_cli_unsupported": AnalysisErrorCode.CLI_UNSUPPORTED,
-    "analysis_cli_not_authenticated": AnalysisErrorCode.CLI_NOT_AUTHENTICATED,
-    "analysis_sandbox_unavailable": AnalysisErrorCode.SANDBOX_UNAVAILABLE,
-    "analysis_media_invalid": AnalysisErrorCode.MEDIA_INVALID,
-    "analysis_provider_rate_limited": AnalysisErrorCode.PROVIDER_RATE_LIMITED,
-    "analysis_provider_usage_limited": AnalysisErrorCode.PROVIDER_USAGE_LIMITED,
-    "analysis_cli_timeout": AnalysisErrorCode.CLI_TIMEOUT,
-    "analysis_cli_failed": AnalysisErrorCode.CLI_FAILED,
-    "invalid_model_output": AnalysisErrorCode.INVALID_MODEL_OUTPUT,
-    "analysis_resource_limit": AnalysisErrorCode.RESOURCE_LIMIT,
+_ERROR_CODES = {item.value: item for item in AnalysisErrorCode} | {
     "artifact_integrity_failed": AnalysisErrorCode.INPUT_ARTIFACT_UNAVAILABLE,
-    "input_artifact_unavailable": AnalysisErrorCode.INPUT_ARTIFACT_UNAVAILABLE,
     "invalid_media_artifact": AnalysisErrorCode.MEDIA_INVALID,
-    "analysis_outcome_unknown": AnalysisErrorCode.OUTCOME_UNKNOWN,
-    "analysis_needs_material": AnalysisErrorCode.NEEDS_MATERIAL,
-    "analysis_configuration_changed": AnalysisErrorCode.CONFIGURATION_CHANGED,
+    "media_dependency_unavailable": AnalysisErrorCode.WORKER_LOST,
+    "artifact_storage_unavailable": AnalysisErrorCode.WORKER_LOST,
+    "invalid_analysis_workspace": AnalysisErrorCode.WORKER_LOST,
 }
 
 
-def classify_analysis_failure(
-    error: BaseException, stage: AnalysisStage
-) -> AnalysisErrorCode:
-    del stage
+def classify_analysis_failure(error: BaseException) -> AnalysisErrorCode | None:
+    """Normalize public failures; unrecognized infrastructure errors stay separate."""
+    if isinstance(error, TimeoutError):
+        return AnalysisErrorCode.CLI_TIMEOUT
     code = getattr(error, "code", None)
-    if isinstance(code, str) and code in _ERROR_CODES:
-        return _ERROR_CODES[code]
-    if code in {
-        "media_dependency_unavailable",
-        "artifact_storage_unavailable",
-        "invalid_analysis_workspace",
-    }:
-        return AnalysisErrorCode.WORKER_LOST
-    return AnalysisErrorCode.CLI_FAILED
+    return _ERROR_CODES.get(code) if isinstance(code, str) else None

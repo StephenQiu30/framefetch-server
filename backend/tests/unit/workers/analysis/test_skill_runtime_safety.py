@@ -10,7 +10,11 @@ from unittest.mock import AsyncMock
 import pytest
 from app.core.config import Settings
 from app.services.analysis_execution.content_models import ContentModelRequest
-from app.services.analysis_execution.errors import AnalysisOutcomeUnknown
+from app.services.analysis_execution.errors import (
+    AnalysisArtifactError,
+    AnalysisExecutionError,
+    AnalysisOutcomeUnknown,
+)
 from app.services.analysis_execution.models import AnalysisStepBegin, AnalysisStepStatus
 from app.services.analysis_execution.monitor import AnalysisLeaseMonitor
 from app.workers.analysis import skill_activities
@@ -191,3 +195,82 @@ async def test_database_exception_code_is_not_persisted_as_business_error(monkey
     with pytest.raises(ApplicationError, match="Skill infrastructure unavailable"):
         await activities.run(SkillCommand(str(job.id), str(job.run_id), job.run_no))
     repository.fail_run.assert_not_awaited()
+
+
+@pytest.mark.parametrize(
+    ("error", "expected_code"),
+    [
+        (
+            AnalysisArtifactError("artifact_integrity_failed"),
+            "input_artifact_unavailable",
+        ),
+        (AnalysisArtifactError("invalid_media_artifact"), "analysis_media_invalid"),
+        (AnalysisExecutionError("analysis_resource_limit"), "analysis_resource_limit"),
+        (AnalysisOutcomeUnknown(), "analysis_outcome_unknown"),
+        (TimeoutError(), "analysis_cli_timeout"),
+        (ValueError("invalid output"), "invalid_model_output"),
+    ],
+)
+async def test_execution_failure_preserves_its_business_category(
+    monkeypatch, error, expected_code
+):
+    monkeypatch.setattr(skill_activities.activity, "heartbeat", lambda: None)
+    job = replace(
+        running_job(),
+        status="queued",
+        input_kind="video",
+        result_contract="structured-report",
+    )
+    repository = AsyncMock()
+    repository.get_job.return_value = job
+    repository.claim_run.return_value = replace(job, status="running")
+    repository.fail_run.return_value = replace(job, status="failed")
+    executor = AsyncMock()
+    executor.execute.side_effect = error
+    activities = SkillActivities(
+        repository,
+        AsyncMock(),
+        {("video", "structured-report"): executor},
+        Settings(app_env="test", _env_file=None),
+    )
+
+    assert (
+        await activities.run(SkillCommand(str(job.id), str(job.run_id), job.run_no))
+        == "failed"
+    )
+    assert repository.fail_run.call_args.kwargs["error_code"] == expected_code
+    executor.execute.assert_awaited_once()
+    assert activities._model_slot._value == 1
+
+
+async def test_expired_queue_deadline_is_timeout_without_claiming_a_model_slot(
+    monkeypatch,
+):
+    monkeypatch.setattr(skill_activities.activity, "heartbeat", lambda: None)
+    job = replace(
+        running_job(),
+        status="queued",
+        input_kind="video",
+        result_contract="structured-report",
+    )
+    repository = AsyncMock()
+    repository.get_job.return_value = job
+    repository.fail_run.return_value = replace(job, status="failed")
+    executor = AsyncMock()
+    activities = SkillActivities(
+        repository,
+        AsyncMock(),
+        {("video", "structured-report"): executor},
+        Settings(app_env="test", _env_file=None),
+    )
+
+    assert (
+        await activities.run(
+            SkillCommand(str(job.id), str(job.run_id), job.run_no, timeout_seconds=0)
+        )
+        == "failed"
+    )
+    assert repository.fail_run.call_args.kwargs["error_code"] == "analysis_cli_timeout"
+    repository.claim_run.assert_not_awaited()
+    executor.execute.assert_not_awaited()
+    assert activities._model_slot._value == 1
