@@ -60,12 +60,14 @@ export function CompletionRateChart({ daily }: { daily: DailyPoint[] }) {
         <AreaChart accessibilityLayer data={points}>
           <CartesianGrid stroke="var(--border)" vertical={false} />
           <XAxis
+            tick={{ fill: 'var(--muted-foreground)' }}
             axisLine={false}
             dataKey="date"
             tickFormatter={formatShortDate}
             tickLine={false}
           />
           <YAxis
+            tick={{ fill: 'var(--muted-foreground)' }}
             axisLine={false}
             domain={[0, 100]}
             tickFormatter={(value) => `${value}%`}
@@ -105,23 +107,25 @@ export function CompletionRateChart({ daily }: { daily: DailyPoint[] }) {
       <ItemDescription className="line-clamp-none mt-5 tabular-nums">
         最近一天 {formatPercent(latest)}
       </ItemDescription>
-      <Table className="table-borderless sr-only">
-        <TableCaption>每日下载成功率精确数据</TableCaption>
-        <TableHeader>
-          <TableRow>
-            <TableHead scope="col">日期</TableHead>
-            <TableHead scope="col">成功率</TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {points.map((point) => (
-            <TableRow key={point.date}>
-              <TableHead scope="row">{point.date}</TableHead>
-              <TableCell>{formatPercent(point.rate)}</TableCell>
+      <div className="sr-only [&>[data-slot=table-container]]:overflow-visible">
+        <Table className="table-borderless">
+          <TableCaption>每日下载成功率精确数据</TableCaption>
+          <TableHeader>
+            <TableRow>
+              <TableHead scope="col">日期</TableHead>
+              <TableHead scope="col">成功率</TableHead>
             </TableRow>
-          ))}
-        </TableBody>
-      </Table>
+          </TableHeader>
+          <TableBody>
+            {points.map((point) => (
+              <TableRow key={point.date}>
+                <TableHead scope="row">{point.date}</TableHead>
+                <TableCell>{formatPercent(point.rate)}</TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </div>
     </div>
   );
 }

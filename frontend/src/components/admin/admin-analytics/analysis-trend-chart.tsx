@@ -61,12 +61,14 @@ export function AnalysisTrendChart({ daily }: { daily: DailyPoint[] }) {
         <AreaChart accessibilityLayer data={points}>
           <CartesianGrid vertical={false} />
           <XAxis
+            tick={{ fill: 'var(--muted-foreground)' }}
             axisLine={false}
             dataKey="date"
             tickFormatter={formatShortDate}
             tickLine={false}
           />
           <YAxis
+            tick={{ fill: 'var(--muted-foreground)' }}
             allowDecimals={false}
             axisLine={false}
             tickLine={false}

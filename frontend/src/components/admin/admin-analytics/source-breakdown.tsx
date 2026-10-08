@@ -70,6 +70,7 @@ export function SourceBreakdown({
             <BarChart accessibilityLayer data={visible}>
               <CartesianGrid stroke="var(--border)" vertical={false} />
               <XAxis
+                tick={{ fill: 'var(--muted-foreground)' }}
                 axisLine={false}
                 dataKey="name"
                 tickLine={false}
@@ -79,6 +80,7 @@ export function SourceBreakdown({
                 }}
               />
               <YAxis
+                tick={{ fill: 'var(--muted-foreground)' }}
                 axisLine={false}
                 allowDecimals={false}
                 tickLine={false}

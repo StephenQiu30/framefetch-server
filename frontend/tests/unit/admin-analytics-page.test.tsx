@@ -16,6 +16,11 @@ const runtime = vi.hoisted(() => ({
 
 describe('administrator usage analytics', () => {
   beforeEach(() => {
+    // happy-dom has no layout; give responsive charts real dimensions so
+    // assertions cover the rendered SVG rather than only their wrappers.
+    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue(
+      new DOMRect(0, 0, 640, 360),
+    );
     runtime.getAdminDownloadAnalytics.mockReset();
     runtime.getAnalysisAnalytics.mockReset();
   });
@@ -67,15 +72,21 @@ describe('administrator usage analytics', () => {
     expect(
       await screen.findByRole('img', { name: '视频来源任务贡献条形图' }),
     ).toBeInTheDocument();
+    await waitFor(expectThemeAwareAxisLabels);
     const exactData = screen.getByRole('table', {
       name: '每日下载趋势精确数据',
     });
     expect(
       within(exactData).getByRole('row', { name: /2026-08-09 20 16 2 1/ }),
     ).toBeInTheDocument();
-    expect(
-      screen.getByRole('table', { name: '每日下载成功率精确数据' }),
-    ).toBeInTheDocument();
+    const exactRateData = screen.getByRole('table', {
+      name: '每日下载成功率精确数据',
+    });
+    // Clip the entire official Table container, otherwise the absolutely
+    // positioned table leaves an inaccessible zero-height scroll region.
+    for (const table of [exactData, exactRateData]) {
+      expect(table.closest('.sr-only')).toContainElement(table.parentElement);
+    }
     expect(screen.getByText('最近一天 71.4%')).toBeInTheDocument();
 
     expect(screen.getByText('抖音：62.5%')).toBeInTheDocument();
@@ -219,6 +230,7 @@ describe('administrator usage analytics', () => {
     expect(
       await screen.findByRole('img', { name: 'AI 分析输入类型环形图' }),
     ).toBeInTheDocument();
+    await waitFor(expectThemeAwareAxisLabels);
     expect(screen.getByLabelText('AI 分析输入类型精确数据')).toHaveTextContent(
       '视频1260%剧本840%',
     );
@@ -410,6 +422,15 @@ describe('administrator usage analytics', () => {
     expect(screen.getByText('暂无完成耗时')).toBeInTheDocument();
   });
 });
+
+function expectThemeAwareAxisLabels() {
+  const labels = document.querySelectorAll(
+    '[data-slot="chart"] .recharts-cartesian-axis-tick-value',
+  );
+  expect(labels.length).toBeGreaterThan(0);
+  for (const label of labels)
+    expect(label).toHaveAttribute('fill', 'var(--muted-foreground)');
+}
 
 function selectAnalyticsTab(name: '下载' | 'AI 分析') {
   fireEvent.mouseDown(screen.getByRole('tab', { name }), {

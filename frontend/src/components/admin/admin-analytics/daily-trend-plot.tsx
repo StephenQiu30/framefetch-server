@@ -58,6 +58,7 @@ export function DailyTrendPlot({ points }: { points: DailyPoint[] }) {
         </defs>
         <CartesianGrid vertical={false} />
         <XAxis
+          tick={{ fill: 'var(--muted-foreground)' }}
           axisLine={false}
           dataKey="date"
           tickFormatter={formatShortDate}
