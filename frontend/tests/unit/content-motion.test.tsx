@@ -7,15 +7,17 @@ import ContentMotion from '@/components/layout/content-motion';
 function Cards({
   contentKey = 'one',
   late = false,
+  busy = false,
 }: {
   contentKey?: string;
   late?: boolean;
+  busy?: boolean;
 }) {
   const [scope, setScope] = useState<HTMLElement | null>(null);
   return (
     <>
       <div data-recent-download-item>其他区块</div>
-      <section ref={setScope}>
+      <section ref={setScope} aria-busy={busy || undefined}>
         <div data-recent-download-item>下载记录</div>
         {late ? <header data-slot="page-header">异步标题</header> : null}
         {scope ? <ContentMotion scope={scope} contentKey={contentKey} /> : null}
@@ -39,6 +41,17 @@ function setMotionPreference(allowed: boolean) {
 
 describe('shared content motion', () => {
   afterEach(() => vi.unstubAllGlobals());
+
+  it('leaves loading markup untouched and reveals it after loading ends', async () => {
+    setMotionPreference(true);
+    const from = vi.spyOn(gsap, 'from');
+    const view = render(<Cards busy />);
+    const card = screen.getByText('下载记录');
+    expect(from).not.toHaveBeenCalled();
+    expect(card).not.toHaveAttribute('style');
+    view.rerender(<Cards busy={false} />);
+    await waitFor(() => expect(gsap.getTweensOf(card)).toHaveLength(1));
+  });
 
   it('reveals offscreen content on intersection and ignores callbacks after unmount', () => {
     setMotionPreference(true);

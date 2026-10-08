@@ -1,6 +1,6 @@
 # Analysis Skill third-party notices
 
-Most built-in analysis skills are original, project-specific rewrites. The source modules listed under “Vendored source modules” are exact upstream Markdown files; only the sections named in `modules/manifest.json` are compiled into a skill snapshot. No upstream scripts, MCP definitions, plugins, network calls, file writes, or sub-agent workflows execute in the analysis worker.
+Most built-in analysis skills are original, project-specific rewrites. The source modules listed under “Vendored source modules” are exact upstream Markdown files; only the sections named in `modules/manifest.json` are compiled into a skill snapshot. No upstream scripts, plugins, network calls, file writes, or sub-agent workflows execute through these section modules. The complete upstream packages below use a separate read-only resource adapter.
 
 ## Agent Skills specification
 
@@ -137,3 +137,13 @@ Updating any reviewed commit requires a fresh license and prompt-injection revie
 - Local use: `video-to-article`, `content-writing` and `short-video-packaging` compile only `Straightforward Style`: descriptive titles state topic and scope; declarative titles state a supported conclusion. Hook formulas, the five-character hook rule, negation preference, title length targets, publishing workflows, scripts, account preferences and all other sections are excluded. The file is unmodified; `modules/manifest.json` selects the only compiled section. No upstream plugin, script or publishing connector was installed or executed.
 
 The local writing methods independently adopt baoyu-format-markdown's preservation of author voice and headings only at actual topic changes. Drafting and independent editorial review are implemented by this project; upstream formatting is not represented as an authoring engine.
+
+## Complete pinned upstream packages
+
+`upstream/manifest.json` records each repository, immutable commit, license and every original file hash. Upstream files retain their original paths and bytes; all licenses are retained. The screenplay binding loads complete screenwriting entry methods and short-drama-review, with full references available through the project-owned read-only MCP tool. Allowed-tool declarations do not grant execution rights. The remaining packages are stored for validated integration; their presence does not enable scripts, publication or image generation.
+
+- reelbench: Apache-2.0, `1b51af897b6a57556b85dfe96e0427e231b4b613`; complete video-shots directory.
+- ECC: MIT, `ef648e01899ba3e8dc6371642deaaf64b4477775`; complete article-writing directory; brand-voice is not included.
+- baoyu: MIT, `1567581c26ec29f4216c6e6835415bf30343b0e3`; selected formatting, HTML, translation and illustration directories, complete shared packages and original dependency manifests/locks. Runtime dependencies must be installed and checked separately.
+- screenwriting: MIT, `51115f18d160aa8b2ac5813e4432b6f0b425358f`; complete sibling skills directory to preserve local reference closure.
+- drama: MIT, `c2426e03c0e7722bebcc6a488b6658dc38c65ac3`; complete short-drama-review directory.

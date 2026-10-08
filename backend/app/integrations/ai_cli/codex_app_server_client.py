@@ -15,7 +15,10 @@ from app.integrations.ai_cli.codex_app_server_protocol import (
     response,
     terminate,
 )
-from app.integrations.ai_cli.codex_mcp import video_observer_arguments
+from app.integrations.ai_cli.codex_mcp import (
+    skill_resource_arguments,
+    video_observer_arguments,
+)
 from app.integrations.ai_cli.codex_policy import codex_permission_arguments
 from app.integrations.ai_cli.config import CliAdapterConfig
 from app.integrations.ai_cli.environment import child_environment
@@ -112,6 +115,7 @@ class CodexAppServerClient:
                     self._config, root=root, duration_ms=duration_ms
                 )
             )
+        argv.extend(skill_resource_arguments(root))
         argv.extend(("app-server", "--listen", "stdio://"))
         return tuple(argv)
 

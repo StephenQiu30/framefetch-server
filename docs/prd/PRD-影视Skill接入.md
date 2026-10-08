@@ -3,7 +3,7 @@ doc_id: PRD-SKILL-INTEGRATION
 document_type: prd
 status: planned
 owner: Stephen Qiu
-implementation_state: not_started
+implementation_state: in_progress
 research: PRD-AI分析Skill选型.md
 plan: ../plan/PLAN-影视Skill接入.md
 ---
@@ -14,7 +14,7 @@ plan: ../plan/PLAN-影视Skill接入.md
 
 帧取需要把成熟的开源 Skill 接入实际分析流程，让用户从自己的视频获得可回看的逐镜拉片、可用于公众号排版和导出的成稿，从自己的剧本获得有原文依据的结构、人物、场景和对白诊断。上游方法及资源按固定版本原样保存，项目负责素材、执行、阶段衔接、成果保存和三端展示。
 
-本文是本能力的唯一产品需求。选型依据见[调研报告](PRD-AI分析Skill选型.md)，工作包与执行证据见[接入计划](../plan/PLAN-影视Skill接入.md)；本次只整理文档，接入尚未实现。文中的目标、产物和验收条件均是待实施要求，不表示现有产品已经支持。
+本文是本能力的唯一产品需求。选型依据见[调研报告](PRD-AI分析Skill选型.md)，工作包与执行证据见[接入计划](../plan/PLAN-影视Skill接入.md)；接入正在按计划实施，完整能力尚未验收。文中的目标、产物和验收条件均是待实施要求，不表示现有产品已经支持。
 
 ## 2. 参与人
 

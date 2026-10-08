@@ -25,8 +25,10 @@ import { Tabs, TabsContent, TabsList } from '@/components/ui/tabs';
 
 function SceneReviewList({
   scenes,
+  unitLabel,
 }: {
   scenes: API.ScreenplaySceneResponse[];
+  unitLabel: string;
 }) {
   const [page, setPage] = useState(0);
   const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
@@ -38,7 +40,8 @@ function SceneReviewList({
   return (
     <div className="flex flex-col gap-6">
       <ItemDescription className="line-clamp-none">
-        共 {scenes.length} 场。按原剧本顺序查看；展开场景可阅读具体判断。
+        共 {scenes.length} 个{unitLabel}
+        。按原文顺序查看；展开条目可阅读具体判断。
       </ItemDescription>
       <Accordion type="multiple">
         <ol className="flex flex-col gap-3" start={first + 1}>
@@ -46,7 +49,8 @@ function SceneReviewList({
             <li key={scene.id}>
               <AccordionItem value={scene.id}>
                 <AccordionTrigger>
-                  场景 {first + index + 1} · {scene.purpose || '未说明场景作用'}
+                  {unitLabel} {first + index + 1} ·{' '}
+                  {scene.purpose || '未说明作用'}
                 </AccordionTrigger>
                 <AccordionContent>
                   <ItemGroup className="grid gap-4 sm:grid-cols-3">
@@ -69,7 +73,7 @@ function SceneReviewList({
       </Accordion>
       {scenes.length > 0 && (
         <PagePagination
-          ariaLabel="场景分页"
+          ariaLabel={`${unitLabel}分页`}
           page={visiblePage + 1}
           pages={pageCount}
           onPageChange={(value) => setPage(value - 1)}
@@ -91,6 +95,11 @@ export default function ScreenplayAnalysisResultView({
   reportMarkdown?: string | null;
   result: API.ScreenplayAnalysisResultResponse;
 }) {
+  const unitLabel = result.scenes.some((scene) =>
+    scene.source_scene_id.startsWith('unit-'),
+  )
+    ? '文本单元'
+    : '场景';
   return (
     <div className="mt-10 flex flex-col gap-10">
       <section
@@ -119,7 +128,7 @@ export default function ScreenplayAnalysisResultView({
 
       <section className="flex flex-col gap-4" aria-label="故事概览">
         <div className="grid gap-4 sm:grid-cols-3">
-          <Metric label="场景" value={String(result.scenes.length)} />
+          <Metric label={unitLabel} value={String(result.scenes.length)} />
           <Metric label="人物" value={String(result.characters.length)} />
           <Metric label="语言" value={languageLabel(result.language)} />
         </div>
@@ -137,7 +146,7 @@ export default function ScreenplayAnalysisResultView({
           <ResultTab value="structure">结构</ResultTab>
           <ResultTab value="characters">人物</ResultTab>
           <ResultTab value="dialogue">对白</ResultTab>
-          <ResultTab value="scenes">场景</ResultTab>
+          <ResultTab value="scenes">{unitLabel}</ResultTab>
           {reportMarkdown && <ResultTab value="report">完整报告</ResultTab>}
         </TabsList>
         <TabsContent value="structure" className="flex flex-col gap-6">
@@ -185,7 +194,7 @@ export default function ScreenplayAnalysisResultView({
           />
         </TabsContent>
         <TabsContent value="scenes">
-          <SceneReviewList scenes={result.scenes} />
+          <SceneReviewList scenes={result.scenes} unitLabel={unitLabel} />
         </TabsContent>
         {reportMarkdown && (
           <TabsContent value="report">

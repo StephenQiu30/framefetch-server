@@ -44,6 +44,8 @@ Media Runner 从 `app/workers/runner/plugins/yt_dlp_plugins/` 加载可信站点
 
 本轮保留原页面与表单，恢复 `GET /api/analysis-skills` 及视频／文档原分析创建语义。目录保留默认提示词等原字段，请求支持中／英文与4000字自定义提示词；实际正式契约由OpenAPI生成。优化内置方法加载、完整来源、依据及输出内容，使用适合任务的原结果契约和报告布局，不建立双源工作台。实现及真实验收状态见执行计划。
 
+剧本综合分析通过完整固定 screenwriting／drama 方法与引用资源执行。上游原样包及逐文件哈希位于 `app/services/analysis/skills/upstream/`；宿主 Codex 只获得本次冻结包的只读 Markdown 工具，不获得通用 shell／网络权限。API／Claude 路径在完整引用能力不支持时于模型调用前拒绝。其他已保存上游包尚不代表拉片、公众号排版、翻译或配图功能已启用；实际验收与剩余条件见[影视 Skill 计划](../docs/plan/PLAN-影视Skill接入.md)。
+
 API 在 PostgreSQL 事务内保存 AnalysisJob／Run、固定来源与 Outbox，宿主 Worker 在 Temporal `ff-skill` 执行；模型调用复用 Step 日志，未知回执不自动重发，方法实际执行类型与资源约束由内置定义控制。没有作品、母稿、人工版本确认、预算表单、文章写作或图卡制作。活动 creation 接口与执行注册清退，原数据库数据保留；既有 analysis 历史 reader 仍校验 owner。正式实现状态和重新验收见[执行计划](../docs/plan/PLAN-内置Skill能力整合.md)。
 
 内置 `local-codex` 不可删除或改造为第三方结构；模型和线路仅由数据库 Web Profile 决定，`.env` 只保留宿主机 CLI 二进制路径。

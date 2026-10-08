@@ -27,6 +27,7 @@ from app.integrations.ai_cli.screenplay_workspace import (
     prepare_screenplay_call_files,
     prepare_screenplay_job_files,
 )
+from app.integrations.ai_cli.skill_resources import reject_unsupported_resources
 from app.integrations.ai_cli.workspace import run_with_workspace_policy
 from app.services.analysis_execution.content_models import ContentModelRequest
 from app.services.analysis_execution.models import (
@@ -76,6 +77,7 @@ class ClaudeCliScreenplayAnalyzer:
         )
 
     async def analyze(self, request: ScreenplayAnalysisRequest) -> object:
+        reject_unsupported_resources(request.skill_instructions)
         schema = screenplay_analysis_output_schema(
             request.output_language, request.source_scene_ids
         )
@@ -84,6 +86,7 @@ class ClaudeCliScreenplayAnalyzer:
         return await self._invoke(files.root, files.claude_settings, schema, prompt)
 
     async def synthesize(self, request: ScreenplayAnalysisSynthesisRequest) -> object:
+        reject_unsupported_resources(request.skill_instructions)
         schema = screenplay_analysis_summary_output_schema(request.output_language)
         prompt = screenplay_analysis_synthesis_prompt(request)
         files = prepare_screenplay_call_files(

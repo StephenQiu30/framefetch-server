@@ -61,3 +61,35 @@ def video_observer_arguments(
         for key, value in values.items()
         for item in ("-c", f"{key}={json.dumps(value)}")
     )
+
+
+def skill_resource_arguments(root: Path) -> tuple[str, ...]:
+    from app.integrations.ai_cli.skill_resources import RESOURCE_POLICY
+
+    policy = root / RESOURCE_POLICY
+    if not policy.exists():
+        return ()
+    if policy.is_symlink() or policy.parent.is_symlink():
+        raise ValueError("invalid upstream resource policy")
+    values = {
+        "mcp_servers.skill_resources.command": str(Path(sys.executable).resolve()),
+        "mcp_servers.skill_resources.args": [
+            "-m",
+            "app.integrations.ai_cli.skill_resources_server",
+            "--workspace",
+            str(root),
+        ],
+        "mcp_servers.skill_resources.cwd": str(
+            Path(__file__).resolve(strict=True).parents[3]
+        ),
+        "mcp_servers.skill_resources.required": True,
+        "mcp_servers.skill_resources.enabled_tools": ["read_skill_resource"],
+        "mcp_servers.skill_resources.default_tools_approval_mode": "auto",
+        "mcp_servers.skill_resources.startup_timeout_sec": 10,
+        "mcp_servers.skill_resources.tool_timeout_sec": 10,
+    }
+    return tuple(
+        item
+        for key, value in values.items()
+        for item in ("-c", f"{key}={json.dumps(value)}")
+    )

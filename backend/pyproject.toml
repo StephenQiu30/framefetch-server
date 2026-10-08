@@ -69,6 +69,7 @@ pythonpath = ["."]
 testpaths = ["tests"]
 
 [tool.ruff]
+extend-exclude = ["app/services/analysis/skills/upstream"]
 line-length = 88
 target-version = "py312"
 src = ["app", "tests"]
@@ -80,7 +81,7 @@ select = ["E", "F", "I", "UP", "B"]
 python_version = "3.12"
 strict = true
 plugins = ["pydantic.mypy"]
-exclude = ["^tests/"]
+exclude = ["^tests/", "^app/services/analysis/skills/upstream/"]
 
 [tool.pydantic-mypy]
 init_forbid_extra = true

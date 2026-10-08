@@ -28,6 +28,7 @@ from app.integrations.ai_cli.screenplay_schema import (
     screenplay_analysis_output_schema,
     screenplay_analysis_summary_output_schema,
 )
+from app.integrations.ai_cli.skill_resources import reject_unsupported_resources
 from app.integrations.ai_cli.workspace import (
     prepare_job_files,
     run_with_workspace_policy,
@@ -122,6 +123,7 @@ class ApiAnalyzer:
         )
 
     async def analyze_screenplay(self, request: ScreenplayAnalysisRequest) -> object:
+        reject_unsupported_resources(request.skill_instructions)
         return await self._invoke(
             screenplay_analysis_prompt(request),
             screenplay_analysis_output_schema(
@@ -132,6 +134,7 @@ class ApiAnalyzer:
     async def synthesize_screenplay_analysis(
         self, request: ScreenplayAnalysisSynthesisRequest
     ) -> object:
+        reject_unsupported_resources(request.skill_instructions)
         return await self._invoke(
             screenplay_analysis_synthesis_prompt(request),
             screenplay_analysis_summary_output_schema(request.output_language),

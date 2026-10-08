@@ -8,7 +8,7 @@ metadata:
   framefetch-server-order: "60"
   framefetch-server-input-kinds: screenplay
   framefetch-server-output-contract: screenplay-analysis
-  framefetch-server-modules: drama-story-script, drama-anti-template, sw-character-conflict, sw-dialogue, humanizer-zh, zh-copywriting-guidelines
+  framefetch-server-upstream: screenwriting:plugins/screenwriting/skills/sw-story-structure/SKILL.md, screenwriting:plugins/screenwriting/skills/sw-character-conflict/SKILL.md, screenwriting:plugins/screenwriting/skills/sw-scene-craft/SKILL.md, screenwriting:plugins/screenwriting/skills/sw-dialogue/SKILL.md, screenwriting:plugins/screenwriting/skills/sw-premise-theme/SKILL.md, drama:skills/short-drama-review/SKILL.md
   framefetch-server-references: references/output-contract.md, shared/report-writing.md, shared/screenplay-coverage-writing.md
 ---
 
@@ -18,7 +18,7 @@ metadata:
 
 ## 上游方法的用法
 
-上文的固定版本章节是诊断工具箱，不是作品必须满足的公式：drama-story-script 帮助追踪故事承诺、人物行动与跨单元信息；drama-anti-template 用重复机制与误报反例区分真正损失和有意表达；sw-character-conflict 的主人公与诊断章节帮助核对行动、阻力与选择；sw-dialogue 的角色专属与诊断章节帮助核对语言和人物策略。humanizer-zh 与中文排版模块只用于检查报告表达。先核对本作品的体裁、叙述方式与目标，再选择适用问题。
+上文为完整固定版本的 screenwriting 五项方法与 short-drama-review。按用户关注点和文本实际问题选择方法，通过项目只读参考工具读取完整关联 reference、review-method、rubric-story-script 和必要反证资料；不只根据入口概述下结论。先核对本作品的体裁、叙述方式与目标，再选择适用问题。
 
 不按固定页码、幕数、七步或二十二步补齐故事，不要求每场翻转、危机必是两难、主角必须成长、反派必须更坏或每次冲突规模递增。静态人物、群像、多线、非线性、氛围段落、仪式重复、喜剧口癖及开放结尾可以成立；说明其实际功能，不仅凭违反常规判错。文学叙述、内心独白和剧场诗性对白不自动套用电影“纯视觉”标准。上游写作练习、创作流程、拍摄、镜头和资产生成都不在本任务执行。
 

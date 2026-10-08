@@ -27,7 +27,12 @@ export default function ContentMotion({
         const animate = mediaContext.add('reveal', (elements: Element[]) => {
           if (!active) return;
           const fresh = elements.filter((element) => {
-            if (seen.has(element) || !scope.contains(element)) return false;
+            if (
+              seen.has(element) ||
+              !scope.contains(element) ||
+              element.closest('[aria-busy="true"]')
+            )
+              return false;
             seen.add(element);
             return !element.contains(document.activeElement);
           });
@@ -67,7 +72,7 @@ export default function ContentMotion({
               !seen.has(element) &&
               !observed.has(element) &&
               !element.closest(
-                '[hidden], [aria-hidden="true"], [data-slot="route-loading"]',
+                '[hidden], [aria-hidden="true"], [aria-busy="true"], [data-slot="route-loading"]',
               ) &&
               !(parentTarget && root.contains(parentTarget))
             );
@@ -104,7 +109,7 @@ export default function ContentMotion({
           childList: true,
           subtree: true,
           attributes: true,
-          attributeFilter: ['aria-hidden', 'data-state', 'hidden'],
+          attributeFilter: ['aria-busy', 'aria-hidden', 'data-state', 'hidden'],
         });
         scan(scope);
         return () => {

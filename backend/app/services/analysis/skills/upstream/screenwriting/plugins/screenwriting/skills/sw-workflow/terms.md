@@ -1,0 +1,237 @@
+# 术语锚定表（Terminology Anchor Table）
+
+本表是这套 skill 的**跨语言基础设施**：skill 正文只有中文一份，输出语言由提问者决定，而术语不能每次重新即兴翻译。
+
+**为什么是"锚定"而不是"翻译"**：这一行的术语绝大多数**原本就是英文的**——log line、act out、beat sheet、showrunner、staff writer 都是英文原词，中文书里的"计程绳""出幕""节拍表""剧目管理人""试用编剧"才是译文，而且不同译者给的不一样。所以把中文说法映射回英文原词，不是翻译，是**还原**。这一列同时服务所有语言：写日语、法语、韩语剧本的人在专业语境里同样使用 act out、logline、pitch，锚回原词比替他们发明一个新词更有用。
+
+## 使用规则（agent 执行）
+
+1. **输出语言 = 提问语言。** 用户用什么语言问，就用什么语言回答，不受 skill 正文是中文影响。
+2. **术语回锚。** 输出非中文时，凡本表收录的概念一律使用**第一列的英文原词**；不要把"进展纠葛"自行译成 progressive entanglement，它的原词是 progressive complications。
+3. **中文输出时**用第二列。若上下文可能引起歧义（尤其"脚本""大纲""梗概"这几个被多重占用的词），在括号里补英文原词。
+4. **第五、六节的词没有英文对应**，任何语言下都**保留原词并附一句释义**，不要硬造对应物：写 `戏眼 (xìyǎn — the one-line core attraction of an episode)`、`ト書き (tosho — the action line of a Japanese script)`。
+5. **本表没有的概念**，按同样的原则处理：先判断它的原词是哪个语言，锚到原词，然后加一句释义。不要静默发明译名。
+
+---
+
+## 一、结构（general dramaturgy: structure）
+
+| 英文原词 | 本库中文用法 | 其他常见中译 | 出处 |
+|---|---|---|---|
+| story triangle | 故事三角 | — | 麦基 |
+| archplot / miniplot / antiplot | 大情节／小情节／反情节 | 经典情节／最小主义／反结构 | 麦基 |
+| paradigm | 范式 | 三幕范式 | 菲尔德 |
+| plot point I / II | 情节点Ⅰ／Ⅱ | 转折点 | 菲尔德 |
+| inciting incident | 激励事件 | 引发事件／触发事件 | 麦基 |
+| progressive complications | 进展纠葛 | 进展性复杂化 | 麦基 |
+| crisis / climax / resolution | 危机／高潮／结局 | — | 麦基 |
+| midpoint | 中点 | 中间点 | 斯奈德／菲尔德 |
+| act | 幕 | — | 通用 |
+| sequence | 序列 | 段落 | 麦基 |
+| scene | 场景／场 | — | 通用 |
+| beat | 节拍 | 拍子 | 麦基＝动作／反应的最小单位 |
+| beat sheet | 节拍表 | 节奏表 | 斯奈德 BS2；剧集用法见第二节 |
+| the board | 演示板（40 张卡片） | 故事板 | ⚠️ 不是分镜 storyboard |
+| opening image / final image | 开场画面／终场画面 | — | 斯奈德 |
+| theme stated | 主题呈现 | 主题陈述 | 斯奈德 |
+| catalyst | 催化剂 | — | 斯奈德 |
+| debate | 争执 | 犹豫段 | 斯奈德 |
+| promise of the premise | 前提的承诺 | 游戏段 | 斯奈德，亦作 fun and games |
+| all is lost | 一无所有 | 失去一切 | 斯奈德 |
+| dark night of the soul | 灵魂黑夜 | — | 斯奈德 |
+| turning point | 转折点 | — | 通用 |
+| subplot | 次情节 | 副线／支线 | 麦基；剧集语境用 B story，见第二节 |
+
+## 二、前提与人物（premise & character）
+
+| 英文原词 | 本库中文用法 | 其他常见中译 | 出处 |
+|---|---|---|---|
+| premise | 前提 | 假设／设定 | 埃格里；国产对应物＝核心事实／戏核 |
+| controlling idea | 主控思想 | 控制性主题 | 麦基＝价值＋原因 |
+| logline | 一句话故事／logline | 梗概／高概念／**计程绳** | 三种中译并存，见第三节 |
+| high concept | 高概念 | — | — |
+| spine / through-line | 脊柱／贯串动作 | 主线 | — |
+| three-dimensional character | 三维人物 | 立体人物 | 埃格里＝生理／社会／心理 |
+| characterization vs true character | 人物塑造 vs 人物真相 | 性格描写 vs 真实性格 | 麦基 |
+| orchestration | 人物编排 | 配器／人物配置 | 埃格里 |
+| unity of opposites | 对立统一 | 对立面的统一 | 埃格里 |
+| pivotal character | 中心人物 | 枢纽人物 | 埃格里；**不等于 protagonist** |
+| protagonist / antagonist | 主人公／对手 | 主角／反派 | ⚠️ antagonist 不必是反派 |
+| arc | 弧光／人物弧 | 弧线 | — |
+| want vs need | 渴望 vs 需要 | 想要 vs 需要 | — |
+| misbelief | 错误信念 | 错误认知 | 克龙 |
+| rising / static / jumping conflict | 上升／静止／跳跃冲突 | — | 埃格里 |
+
+## 三、剧集与行业（series & industry）
+
+本节是锚定对照；**带出处年份的详注、以及每条的"国产对应物"**在 [`sw-chinese-series-practice/reference.md` 第八节](../sw-chinese-series-practice/reference.md)，那里是这张表的注释版，有分歧时以那里为准。
+
+| 英文原词 | 本库中文用法 | 官方中译（书/年） |
+|---|---|---|
+| log line | 一句话故事／logline | **计程绳**（道 2009）／梗概（布 2003） |
+| showrunner | 总制片人兼总编剧／showrunner | **剧目管理人**（道）／秀场掌门人（布） |
+| franchise | 引擎／题材框架 | **叙事模式（类型）**（道）⚠️不是商业"系列品牌" |
+| procedural | 单元剧／案件剧 | **疑案剧**（道） |
+| serial | 强连续剧 | **连本剧**（道） |
+| anthology | 选集剧 | **集锦剧**（道） |
+| format（剧集提案） | 提案／企划书 | **计划书**（道）⚠️与"版式格式"同词不同义 |
+| bible | 剧集圣经／设定集 | **圣经、指南**（道）／**连续剧文献**（布） |
+| treatment | 处理本／处理台本 | **脚本**（道、布）⚠️中译"脚本"易与拍摄本混 |
+| outline / step outline | 分场大纲／步骤大纲 | **梗概、剧本大纲／步长梗概**（道） |
+| beat sheet | 节拍表 | **节拍表**（道） |
+| breaking a story | 破故事／攒故事 | **解析故事**（道） |
+| teaser / cold open | 片头前戏／冷开场 | **引子／冷开场**（道） |
+| act out | 出幕 | **幕**（道）；国产＝段／片断＋扣子 |
+| cliffhanger | 钩子／悬念 | **悬念结局**（道）；国产＝集尾大关子 |
+| plot point | 情节点 | **剧情点**（道）／戏剧情节点（布） |
+| pilot | 试播集 | **试播剧集**（道）；国产无 pilot 建制 |
+| spec script | spec／样本稿／推销剧本 | **样本剧本**（道）／投稿剧本（布） |
+| springboard | 故事跳板 | **跳板**（道） |
+| staff writer | 编剧组成员／初级编剧 | **试用编剧**（道，亦称"宝贝编剧"） |
+| step deal | 分段合同 | **阶段交易**（道） |
+| locked | 定稿 | **锁定**（道） |
+| A / B / C story | A／B／C 线 | A-B-C 故事（道）；国产＝主线／副线／支线 |
+| runner | runner（贯穿小线） | — |
+| bottle episode | 瓶子集 | — |
+| residuals | 重播分成 | **复播追加酬金**（道） |
+| syndication | 联卖 | **辛迪加（节目联卖）**（道） |
+| notes | 意见／修改意见 | — |
+| pitch | 提案／推销 | — |
+
+## 四、格式与版面（format）
+
+| 英文原词 | 本库中文用法 | 备注 |
+|---|---|---|
+| slug line / scene heading | 场景头 | 中文场号制写作 `场次 地点 内/外 日/夜`；日式写作"柱" |
+| action line | 动作描写 | 日式称 ト書き |
+| parenthetical | 括注 | ⚠️ 英文 spec 忌滥用，中文与日式稿放宽 |
+| subtext | 潜台词 | — |
+| exposition | 解说 | 铺陈／交代 |
+| on-the-nose | 直白／贴脸 | — |
+| dual dialogue | 双栏对白 | — |
+| montage | 蒙太奇段落 | ⚠️ 此处指格式元素，非剪辑理论 |
+| V.O. / O.S. / CONT'D / MORE | 画外音／画外／接前／续 | 英文稿保留原缩写，不译 |
+| shooting script | 拍摄剧本 | 与 spec script 相对 |
+| coverage | 剧本评估报告 | — |
+| Fountain | Fountain | 纯文本剧本标记格式，不译 |
+
+## 五、日本术语（保留原词＋释义）
+
+| 原词 | 读法 | 释义 |
+|---|---|---|
+| 柱 | はしら hashira | 场景行，写作 `○地点（时间）` |
+| ト書き | とがき tosho | 动作描写段落，段首空三个全角字 |
+| セリフ | serifu | 台词，写作 `人物名「台词」`，人名后直接接全角引号 |
+| 準備稿 / 改訂稿 / 決定稿 | — | 稿次三级，写在封面；決定稿＝定稿 |
+| 企画書 | きかくしょ | 策划书，与剧本是两种文档 |
+
+## 六、国产特有词（无英文对应，保留原词＋释义）
+
+任何语言下都保留拼音或原词并附释义，不要硬造英文对应物。
+
+| 原词 | 释义 |
+|---|---|
+| 戏眼 | 每集一句话可指认的核心看点 |
+| 扣子 / 关子 | 段落末尾的悬念装置；李渔作"收煞" |
+| 一度 / 二度 / 三度创作 | 剧本／导演与表演／剪辑与后期 |
+| 分集梗概 | per-episode synopsis ⚠️**不是** outline |
+| 分集剧本 / 分镜头本 | 单集剧本／导演分镜本 |
+| 分场景表 | 定稿后场记做的九字段制片文件 |
+| 场号制 | 中文影视剧本的编号体例 |
+| 卖点 | sell point，项目对外宣称的可售卖要素 |
+| 剧本医生 / 剧本分析师 | script doctor / reader 的中文行业称 |
+| 立项 / 备案公示 / 发行许可证 | 中国大陆剧集的三道行政环节 |
+| 起承转合 | 中国传统叙事四段式，亦作"凤头猪肚豹尾" |
+| 戏核 | 抽掉它戏就不成立的那个核心设定 |
+
+## 七、戏曲术语（保留原词＋释义）
+
+戏曲的两套声腔体系与它们的单位，没有英文对应物；任何语言下保留原词加释义。
+
+| 原词 | 释义 |
+|---|---|
+| 板腔体 | banqiang system：以七字或十字上下句为基础、靠板式变化组织唱段的体系（京剧、豫剧、越剧、秦腔、评剧、沪剧） |
+| 曲牌体 | qupai system：把词填进固定字数、句式、平仄的曲牌，曲牌联套的体系（元杂剧、明清传奇、昆曲） |
+| 板式 | 板腔体唱段的节奏型（导板／慢板／原板／快板／散板等），决定一段要几字句、配什么情绪 |
+| 韵辙 | 唱词押韵的韵部分类；京剧用十三辙，豫剧用中州韵 |
+| 曲牌 | 曲牌体里有固定格律的曲调单位，词填进去 |
+| 宫调 | 曲牌所属的调式系统；杂剧一折一宫调 |
+| 填词 | 曲牌体写唱词的方式：按曲牌格律填 |
+| 折 / 出 / 场 | 杂剧的单位是折（四折一楔子）；传奇是出；板腔体是场 |
+| 一人主唱 | 元杂剧的规则：一折只有正末或正旦一人唱到底 |
+| 行当 | 生旦净丑等角色类型，先于人物心理决定写法 |
+| 程式 | 固定的表演与文本套路：自报家门、定场诗、下场诗、背供等 |
+| 宾白 | 戏曲里的说白，与唱相对 |
+| 科介 | 剧本里的动作提示 |
+| 唱念做打 | 戏曲表演四功，编剧要分配四者在一场里的比重 |
+| 重场戏 | 全剧价值转折最大的场次，唱段应集中于此 |
+| 上句 / 下句（上韵 / 下韵） | 板腔体唱词的最小对偶单位；下句必押韵，上句可押可不押。**豫剧文献称"上韵／下韵"，同义** |
+| 垛句 | 上下句之外插入的三字或四字短句串，只在上板段、只在下句位置，用于加速与加重 |
+| 衬字 | 曲牌或板式规定字数之外加的字；曲牌体衬字有定则，板腔体较自由 |
+| 扫头 | 京剧唱段末尾的补句，是唱段可写奇数句的唯一合法出口 |
+| 务头 | 曲牌体里一段中最要紧、最动听的那一句或几字，先定务头再填其余；板腔体对应"重点句" |
+| 前腔 / 换头 / 幺篇 | 同一曲牌再用一遍的三种记法：**前腔与换头是南曲**（换头指首句格式改动），**幺篇是北曲**；"见前腔必是南曲" |
+| 隔尾 | 南吕套里的分段曲，不是尾声 |
+| 楔子 | 元杂剧四折之外的短段，多在开头，自成一韵 |
+| 题目正名 | 元杂剧末尾总括全剧的两句或四句，剧名从中取 |
+| 副末开场 | 传奇第一出由副末上场交代作意与本事的程式；《桃花扇》把它扩成贯穿线 |
+| 集唐下场诗 | 传奇每出末集唐人诗句为下场诗的程式，既收本出又暗示下出 |
+| 合头 / 合 | 南曲一支曲牌末尾众人同唱的部分 |
+| 帮腔 | 高腔（川剧等）由台后众声接唱或评点的装置，写进本子作独立"角色"；板腔体无对应物 |
+| 幕内唱 / 内唱 | 人物未上场先在幕内唱的一句或一段，多为导板 |
+| 换科 | 元杂剧标"当众偷换"（调包）动作的专用科介 |
+| 製曲 / 譜曲 / 度曲 | 曲牌体的三分工：编剧填词／作曲者定腔／演员唱。编剧只负责製曲 |
+| 曲谱 / 宫谱 | **曲谱**收曲文与格律（如《九宫大成》《纳书楹》），**宫谱**只列曲牌所属宫调；查格律用前者 |
+| 排场 | 一出戏的上下动作与冷热配置（王季烈），与"剧情"（悲欢离合）并列的另一层结构 |
+
+## 八、特鲁比有机结构术语（Truby anatomy）
+
+| 英文原词 | 本库中文用法 | 其他常见中译 | 出处 |
+|---|---|---|---|
+| designing principle | 设计原则 | 故事设计原则 | 特鲁比＝故事发展过程＋独创手法；与前提（第二节）分立，三层各管一件事 |
+| organic structure / story body | 有机结构／故事本体 | 故事主体 | 特鲁比 |
+| seven key steps | 七大关键步骤 | — | 特鲁比：弱点／需求、欲望、对手、计划、对决、真实自我的揭露、新的平衡点 |
+| weakness / need | 弱点／需求 | — | 特鲁比；need 分心理与道德两层 |
+| ghost | 幽灵 | 鬼魂 | 特鲁比＝萦绕主角的过去事件、主角"内在的对手"；⚠️ 不是超自然义 |
+| ally / fake-ally opponent | 盟友／假盟友对手 | — | 特鲁比 |
+| revelation and decision | 揭露与抉择 | 揭露与决定 | 特鲁比＝揭露必须带抉择，并改变欲望与动机 |
+| audience revelation | 对观众的揭露 | — | 特鲁比＝观众知道而主角不知道 |
+| drive | 驱动力 | — | 特鲁比＝主角追求目标的系列行动，常含不道德行动 |
+| fake defeat | 看似落败 | — | 特鲁比 |
+| gate, gauntlet, visit to death | 闸门、严酷考验、体验死亡 | — | 特鲁比 |
+| battle | 对决 | 战斗 | 特鲁比＝最后冲突；⚠️ 与麦基 climax（高潮）相邻但不同拍 |
+| moral argument | 道德议题 | 道德论点 | 特鲁比＝主题的行动化链条 |
+| theme revelation | 主题的揭露 | — | 特鲁比＝观众关于普遍待人处世的体悟，越过角色落到观众 |
+| moral decision | 道德层面的抉择 | 道德抉择 | 特鲁比＝高潮后用两种行动选一证明自我揭露 |
+| new equilibrium | 新的平衡点 | 新平衡 | 特鲁比 |
+| four-corner opposition | 四角对立 | — | 特鲁比＝主角＋三对手各占一角 |
+| scene weave | 场景编排 | 场景清单／分场大纲 | 特鲁比＝单一行动＋结构步骤标签＋叙事线编号 |
+
+## 九、类型术语（Truby genres）
+
+| 英文原词 | 本库中文用法 | 其他常见中译 | 出处 |
+|---|---|---|---|
+| genre beats | 类型节拍 | 类型节奏点 | 特鲁比《The Anatomy of Genres》：每个类型十五到二十个专属情节事件，缺一拍核心观众会察觉 |
+| Mind-Action story view | 心智行动世界观 | — | 特鲁比＝类型底下的人生哲学，主题只能由主类型的世界观承担 |
+| transcend the genre | 超越类型 | 突破类型 | 特鲁比＝扭转节拍、把人生哲学写进主题、探索生活的故事形式；⚠️ 不是删节拍 |
+| story form of life | 生活的故事形式 | — | 特鲁比＝宗教、成功、文明、商业政治、心智等各自的节拍组 |
+| ladder of enlightenment | 启蒙阶梯 | — | 特鲁比＝按主角首要缺陷排序的十二类型；用于定位类型，不是高低贵贱 |
+| genre families | 类型家族 | — | Myth 族（Myth, Action, Western）、Crime 族（Detective, Crime, Thriller, Gangster）、Speculative 族（Horror, SF, Fantasy） |
+| trope | 套路元素 | 桥段、梗 | 特鲁比＝单个人物、装置、台词，"sprinkles on top"，不等于类型 |
+| plot shape: linear / meander / branching / branching-in / spiral / frames / Chinese boxes / rise and fall / vortex street / round | 情节形状：线性／蜿蜒／分枝／向内分枝／螺旋／框架叙事／套盒／兴衰／涡街／环形 | — | 特鲁比；与麦基故事三角（第一节）并列，前者按类型定，后者按设计定 |
+| vortex point | 漩涡点 | 汇聚点 | 特鲁比＝一切收束的时空点；越近越快 |
+| shame culture / guilt culture / consumer culture / fear culture | 耻感文化／罪感文化／消费文化／恐惧文化 | 羞耻文化／内疚文化 | 特鲁比＝社会四阶段（Wilderness / Village / City / Oppressive City）的文化 |
+| nemesis | 宿敌 | 死敌 | 特鲁比＝第二强且最能攻击主角缺陷的对手（Action、Western、Sports） |
+| double | 双身 | 分身 | 特鲁比＝Horror 的 monster 是主角的 double |
+| comic gap / comic drop | 喜剧落差／喜剧跌落 | — | 特鲁比＝high（pretense）与 low（weakness）；跌落为 animal、child、machine |
+| leapfrog | 跳蛙 | — | 特鲁比＝story scene 与 gag 交替 |
+| scam / disguise | 骗局／伪装 | 计谋 | 特鲁比＝Comedy 与 Love 的计划形式 |
+| showdown | 决斗 | 对决 | 特鲁比＝Western 的仪式化对决；⚠️ 与 battle（对决）不同拍 |
+| Eastern | 东部片 | — | 特鲁比＝负向 Rags to Riches，美国衰落期的故事 |
+| talisman | 护符 | 信物、法宝 | 特鲁比＝Myth 的激励事件，力量未知且是主角身份的物质表达 |
+| passageway | 通道 | 门户 | 特鲁比＝Fantasy 世界之间的子世界 |
+| super magical moment | 超级魔法时刻 | — | 特鲁比＝Fantasy 必有 |
+| double clue / red herring / least likely killer | 双义线索／假线索／最不可能的凶手 | 误导线索 | 特鲁比，Detective |
+| gaze / meet-cute / joust / first dance / double reversal | 凝视／可爱相遇／交锋／第一支舞／双重反转 | 一见钟情 | 特鲁比，Love；first dance 与 scam 是 Romantic Comedy 最重要的两拍 |
+| Traveling Angel | 游走天使 | 流浪天使 | 特鲁比＝跨 Comedy、Fantasy、Western、Detective 的子型；七步拆分给天使与被帮助者 |
+

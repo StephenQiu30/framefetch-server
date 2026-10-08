@@ -14,6 +14,7 @@ from app.services.analysis.skills.frontmatter import (
 )
 from app.services.analysis.skills.models import AnalysisSkill
 from app.services.analysis.skills.modules import compile_source_module
+from app.services.analysis.skills.upstream_catalog import compile_upstream_methods
 
 _SKILL_ID = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
 _REFERENCE_NAME = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]*\.md$")
@@ -25,7 +26,11 @@ _REQUIRED_PRODUCT_FIELDS = {
     "framefetch-server-input-kinds",
     "framefetch-server-output-contract",
 }
-_OPTIONAL_PRODUCT_FIELDS = {"framefetch-server-references", "framefetch-server-modules"}
+_OPTIONAL_PRODUCT_FIELDS = {
+    "framefetch-server-references",
+    "framefetch-server-modules",
+    "framefetch-server-upstream",
+}
 
 
 def load_skill(path: Path) -> AnalysisSkill:
@@ -55,6 +60,10 @@ def load_skill(path: Path) -> AnalysisSkill:
     instructions = _compile_instructions(
         body, product.get("framefetch-server-references"), raw_modules, path
     )
+    if upstream := product.get("framefetch-server-upstream"):
+        instructions = bounded(
+            compile_upstream_methods(upstream) + "\n\n" + instructions, path, 192_000
+        )
     return AnalysisSkill(
         id=skill_id,
         display_name=bounded(product["framefetch-server-display-name"], path, 128),

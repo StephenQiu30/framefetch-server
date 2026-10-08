@@ -1,3 +1,6 @@
 *.sh text eol=lf
 .githooks/* text eol=lf
 frontend/** text=auto eol=lf
+
+# Pinned third-party Skill packages must retain their original bytes.
+backend/app/services/analysis/skills/upstream/** -text -whitespace

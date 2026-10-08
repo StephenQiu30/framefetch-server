@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import Any
 
 from app.integrations.ai_cli.errors import AnalysisCliError
+from app.integrations.ai_cli.skill_resources import prepare_resource_policy
 from app.integrations.ai_cli.workspace import JobFiles
 from app.services.analysis_execution.models import ScreenplayAnalysisRequest
 
@@ -19,6 +20,7 @@ def prepare_screenplay_job_files(
         screenplay=request.screenplay,
         schema=schema,
         prompt=prompt,
+        skill_instructions=request.skill_instructions,
         manifest={
             "call": "screenplay-analysis",
             "source_language": request.source_language,
@@ -34,6 +36,7 @@ def prepare_screenplay_call_files(
     schema: dict[str, Any],
     prompt: str,
     manifest: dict[str, object],
+    skill_instructions: str = "",
 ) -> JobFiles:
     try:
         root = workspace.resolve(strict=True)
@@ -53,6 +56,7 @@ def prepare_screenplay_call_files(
             directory = root / relative
             directory.mkdir(parents=True, exist_ok=True, mode=0o700)
             directory.chmod(0o700)
+        prepare_resource_policy(root, skill_instructions)
         _write_json(
             root / "input" / "manifest.json",
             {"input": "input/screenplay.md", **manifest},

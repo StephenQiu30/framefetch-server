@@ -109,6 +109,31 @@ describe('ScreenplayAnalysisPanel', () => {
     );
   });
 
+  it('labels fallback source units without claiming scene coverage', async () => {
+    const job = screenplayAnalysisJob('analysis');
+    if (job.result?.kind !== 'screenplay_analysis') throw new Error('fixture');
+    mockHttpResponses({
+      ...job,
+      result: {
+        ...job.result,
+        scenes: job.result.scenes.map((scene) => ({
+          ...scene,
+          source_scene_id: 'unit-1',
+        })),
+      },
+    });
+    render(<ScreenplayAnalysisPanel documentId={documentId} />);
+
+    const tab = await screen.findByRole('tab', { name: '文本单元' });
+    expect(screen.queryByRole('tab', { name: '场景' })).not.toBeInTheDocument();
+    fireEvent.mouseDown(tab, { button: 0, ctrlKey: false });
+    fireEvent.click(tab);
+    expect(await screen.findByText(/共 1 个文本单元/)).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: /文本单元 1/ }),
+    ).toBeInTheDocument();
+  });
+
   it('renders the screenplay evidence reading path', async () => {
     mockHttpResponses(screenplayAnalysisJob('analysis'));
     render(<ScreenplayAnalysisPanel documentId={documentId} />);

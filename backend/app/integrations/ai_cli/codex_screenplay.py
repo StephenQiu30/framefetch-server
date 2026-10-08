@@ -82,6 +82,7 @@ class CodexAppServerScreenplayAnalyzer:
             screenplay=request.screenplay,
             schema=schema,
             prompt=prompt,
+            skill_instructions=request.skill_instructions,
             manifest={
                 "call": "screenplay-analysis-synthesis",
                 "source_language": request.source_language,
@@ -100,6 +101,7 @@ class CodexAppServerScreenplayAnalyzer:
             screenplay=request.screenplay,
             schema=schema,
             prompt=prompt,
+            skill_instructions=request.skill_instructions,
             manifest={
                 "call": "screenplay-glossary",
                 "source_language": request.source_language,
@@ -121,6 +123,7 @@ class CodexAppServerScreenplayAnalyzer:
             screenplay=request.screenplay,
             schema=schema,
             prompt=prompt,
+            skill_instructions=request.skill_instructions,
             manifest={
                 "call": "screenplay-rewrite-chunk",
                 "source_scene_id": request.source_scene_id,

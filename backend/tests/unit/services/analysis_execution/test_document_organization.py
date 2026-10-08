@@ -248,7 +248,10 @@ def test_active_methods_preserve_original_form_contract_and_load_bounded_real_mo
                 skill.instructions_sha256
                 == hashlib.sha256(skill.instructions.encode()).hexdigest()
             )
-            assert len(skill.instructions) <= 30000
+            # The complete screenplay methods use the loader's bounded
+            # upstream snapshot; fragment-based skills retain their old cap.
+            maximum = 192_000 if view.id == "screenplay-analysis" else 30_000
+            assert len(skill.instructions) <= maximum
             assert "Pinned source:" in skill.instructions
             assert view.default_prompt
     assert catalog.resolve("screenplay-rewrite", AnalysisInputKind.SCREENPLAY) is None
