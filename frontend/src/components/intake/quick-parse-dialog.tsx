@@ -197,7 +197,7 @@ export function QuickParseDialog() {
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       if (
-        event.key.toLowerCase() !== 'k' ||
+        (event.key !== 'k' && event.key !== 'K') ||
         (!event.metaKey && !event.ctrlKey) ||
         event.altKey ||
         event.shiftKey ||

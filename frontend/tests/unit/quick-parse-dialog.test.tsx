@@ -47,6 +47,28 @@ describe('quick parse', () => {
     window.history.replaceState({}, '', '/history');
   });
 
+  it('ignores keydown events without a key and still accepts uppercase K', () => {
+    render(<Harness />);
+    // Extensions can dispatch a generic Event instead of a KeyboardEvent.
+    expect(() => fireEvent(document, new Event('keydown'))).not.toThrow();
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    fireEvent.keyDown(document, { key: 'K', metaKey: true });
+    expect(
+      screen.getByRole('dialog', { name: '快捷操作' }),
+    ).toBeInTheDocument();
+  });
+
+  it.each([
+    { altKey: true },
+    { shiftKey: true },
+    { repeat: true },
+    { isComposing: true },
+  ])('ignores modified, repeated and composing shortcuts: %o', (flags) => {
+    render(<Harness />);
+    fireEvent.keyDown(document, { key: 'k', ctrlKey: true, ...flags });
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+  });
+
   it('restores the keyboard origin when dismissed', async () => {
     render(<Harness />);
     const origin = screen.getByRole('button', { name: '挂载首页' });
