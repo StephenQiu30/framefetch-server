@@ -325,7 +325,6 @@ class Settings(BaseSettings):
     job_lease_seconds: int = Field(default=60, ge=15, le=600)
     heartbeat_interval_seconds: int = Field(default=15, ge=5, le=120)
     max_download_attempts: int = Field(default=3, ge=1, le=10)
-    max_analysis_attempts: int = Field(default=3, ge=1, le=10)
     download_queued_recovery_seconds: int = Field(default=60, ge=15, le=3600)
     download_workspace_gc_seconds: int = Field(default=86_400, ge=300, le=2_592_000)
     analysis_max_runs_per_job: int = Field(default=10, ge=1, le=100)
@@ -359,23 +358,6 @@ class Settings(BaseSettings):
     )
     analysis_screenplay_single_call_characters: int = Field(
         default=120_000, ge=1_000, le=500_000
-    )
-    analysis_screenplay_rewrite_glossary_chunk_characters: int = Field(
-        default=20_000, ge=1_000, le=50_000
-    )
-    analysis_screenplay_rewrite_chunk_characters: int = Field(
-        default=8_000, ge=1_000, le=50_000
-    )
-    analysis_max_screenplay_rewrite_chunks: int = Field(default=128, ge=1, le=512)
-    analysis_screenplay_rewrite_context_characters: int = Field(
-        default=1_000, ge=100, le=4_000
-    )
-    analysis_max_screenplay_rewrite_output_characters: int = Field(
-        default=400_000, ge=8_000, le=2_000_000
-    )
-    analysis_screenplay_rewrite_chunk_call_attempts: int = Field(default=2, ge=1, le=5)
-    analysis_screenplay_rewrite_chunk_retry_delay_seconds: float = Field(
-        default=1.0, ge=0.1, le=30
     )
     analysis_max_frames: int = Field(default=256, ge=1, le=1024)
     analysis_max_image_bytes: int = Field(default=20 * 1024**2, ge=1024)

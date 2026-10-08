@@ -64,7 +64,7 @@ def video_observer_arguments(
 
 
 def skill_resource_arguments(root: Path) -> tuple[str, ...]:
-    from app.integrations.ai_cli.skill_resources import RESOURCE_POLICY
+    from app.services.analysis.skills.upstream_catalog import RESOURCE_POLICY
 
     policy = root / RESOURCE_POLICY
     if not policy.exists():

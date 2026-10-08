@@ -2,13 +2,13 @@ from dataclasses import replace
 from pathlib import Path
 
 import pytest
-from app.integrations.ai_cli.skill_resources import prepare_resource_policy
 from app.integrations.ai_cli.workspace import prepare_job_files
 from app.services.analysis.rules.enums import AnalysisInputKind
 from app.services.analysis.skills.registry import BUILTIN_ANALYSIS_SKILLS
 from app.services.analysis.skills.upstream_catalog import (
     UpstreamCatalog,
     frozen_packages,
+    prepare_resource_policy,
 )
 from app.services.analysis_execution.editorial_plan import stage_method
 from app.services.analysis_execution.models import VideoAnalysisRequest

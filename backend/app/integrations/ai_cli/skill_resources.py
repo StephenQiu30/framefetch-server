@@ -7,11 +7,11 @@ from typing import Any
 from app.integrations.ai_cli.errors import AnalysisCliError
 from app.services.analysis.skills.upstream_catalog import (
     MAX_RESOURCE_BYTES,
+    RESOURCE_POLICY,
     UpstreamCatalog,
     frozen_packages,
 )
 
-RESOURCE_POLICY = "policy/upstream-resources.json"
 MAX_READS = 32
 MAX_TOTAL_BYTES = 1024 * 1024
 TOOL = {
@@ -31,32 +31,6 @@ TOOL = {
     },
     "annotations": {"readOnlyHint": True, "openWorldHint": False},
 }
-
-
-def prepare_resource_policy(workspace: Path, instructions: str) -> None:
-    try:
-        packages = frozen_packages(instructions)
-    except ValueError as exc:
-        raise AnalysisCliError(
-            "artifact_integrity_failed", no_model_execution=True
-        ) from exc
-    path = workspace / RESOURCE_POLICY
-    if path.is_symlink() or path.parent.is_symlink():
-        raise AnalysisCliError("artifact_integrity_failed", no_model_execution=True)
-    if not packages:
-        path.unlink(missing_ok=True)
-        return
-    try:
-        catalog = UpstreamCatalog()
-        for package_id, fingerprint in packages.items():
-            if catalog.verify(package_id).fingerprint != fingerprint:
-                raise ValueError("upstream snapshot mismatch")
-        path.write_text(json.dumps(packages, sort_keys=True), encoding="utf-8")
-        path.chmod(0o600)
-    except (OSError, ValueError) as exc:
-        raise AnalysisCliError(
-            "artifact_integrity_failed", no_model_execution=True
-        ) from exc
 
 
 class SkillResources:

@@ -18,10 +18,6 @@ from app.services.analysis_execution.models import (
     ScreenplayAnalysisSynthesisRequest,
     VideoAnalysisRequest,
 )
-from app.services.analysis_execution.screenplay_rewrite_models import (
-    ScreenplayGlossaryRequest,
-    ScreenplayRewriteChunkRequest,
-)
 
 
 class AnalysisExecutionRepository(Protocol):
@@ -170,16 +166,6 @@ class ScreenplayAnalyzer(Protocol):
     ) -> object: ...
 
 
-class ScreenplayRewriteAnalyzer(Protocol):
-    async def build_screenplay_glossary(
-        self, request: ScreenplayGlossaryRequest
-    ) -> object: ...
-
-    async def rewrite_screenplay_chunk(
-        self, request: ScreenplayRewriteChunkRequest
-    ) -> object: ...
-
-
 @dataclass(frozen=True, slots=True)
 class AnalyzerSelection:
     analyzer: VideoAnalyzer
@@ -205,19 +191,24 @@ class ScreenplayAnalyzerResolver(Protocol):
     async def resolve_screenplay(self) -> ScreenplayAnalyzerSelection: ...
 
 
-@dataclass(frozen=True, slots=True)
-class ScreenplayRewriteAnalyzerSelection:
-    analyzer: ScreenplayRewriteAnalyzer
-    provider: str
-    model: str
-    cli_version: str
-
-
-class ScreenplayRewriteAnalyzerResolver(Protocol):
-    async def resolve_screenplay_rewrite(
-        self,
-    ) -> ScreenplayRewriteAnalyzerSelection: ...
-
-
 type Clock = Callable[[], datetime]
 type AsyncOperation[ResultT] = Callable[[], Coroutine[Any, Any, ResultT]]
+
+
+class NativeReportObject(Protocol):
+    @property
+    def size_bytes(self) -> int: ...
+
+    @property
+    def sha256(self) -> str | None: ...
+
+
+class NativeReportStorage(Protocol):
+    @property
+    def bucket(self) -> str: ...
+
+    async def stat(self, object_key: str) -> NativeReportObject | None: ...
+
+    async def upload_bytes(
+        self, object_key: str, content: bytes, content_type: str, sha256: str
+    ) -> int: ...

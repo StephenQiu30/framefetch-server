@@ -93,7 +93,9 @@ def prepare_job_files(
         _write_text(root / "policy" / "prompt.txt", prompt)
         settings = root / "policy" / "claude-settings.json"
         _write_json(settings, _claude_policy(root))
-        from app.integrations.ai_cli.skill_resources import prepare_resource_policy
+        from app.services.analysis.skills.upstream_catalog import (
+            prepare_resource_policy,
+        )
 
         prepare_resource_policy(root, request.skill_instructions)
         return JobFiles(root, schema_path, root / "output" / "result.json", settings)

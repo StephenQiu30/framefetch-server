@@ -50,13 +50,6 @@ def test_local_import_defaults_and_bounds() -> None:
     assert settings.analysis_enabled is False
     assert settings.screenplay_analysis_enabled is False
     assert settings.analysis_max_screenplay_bytes == 2 * 1024**2
-    assert settings.analysis_screenplay_rewrite_chunk_characters == 8_000
-    assert settings.analysis_screenplay_rewrite_glossary_chunk_characters == 20_000
-    assert settings.analysis_max_screenplay_rewrite_chunks == 128
-    assert settings.analysis_screenplay_rewrite_context_characters == 1_000
-    assert settings.analysis_max_screenplay_rewrite_output_characters == 400_000
-    assert settings.analysis_screenplay_rewrite_chunk_call_attempts == 2
-    assert settings.analysis_screenplay_rewrite_chunk_retry_delay_seconds == 1.0
     assert settings.media_import_max_bytes == 2 * 1024**3
     assert settings.document_import_max_bytes == 50 * 1024**2
     assert settings.import_upload_session_ttl_seconds == 900

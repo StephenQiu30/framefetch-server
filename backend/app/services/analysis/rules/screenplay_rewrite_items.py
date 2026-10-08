@@ -98,22 +98,3 @@ class ScreenplayRewriteChunk:
                 AnalysisValidationCode.INVALID_TEXT,
                 "rewritten text is invalid",
             )
-
-
-@dataclass(frozen=True, slots=True)
-class ScreenplayRewriteChunkOutput:
-    target_language: str
-    chunk: ScreenplayRewriteChunk
-    change_summary: tuple[str, ...]
-
-    def __post_init__(self) -> None:
-        object.__setattr__(
-            self,
-            "change_summary",
-            _strings(self.change_summary, "screenplay rewrite change summary"),
-        )
-        if self.target_language not in {"zh-CN", "en-US"} or not self.change_summary:
-            raise AnalysisValidationError(
-                AnalysisValidationCode.INVALID_SCHEMA,
-                "screenplay rewrite chunk output is invalid",
-            )

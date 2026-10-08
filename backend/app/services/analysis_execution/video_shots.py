@@ -98,9 +98,11 @@ async def annotate_shots(
     measured: MeasuredVideo,
 ) -> tuple[StructuredReportResult, str, bytes]:
     if not getattr(selection.analyzer, "supports_skill_images", False):
-        from app.integrations.ai_cli.errors import AnalysisCliError
+        from app.services.analysis_execution.errors import AnalysisExecutionError
 
-        raise AnalysisCliError("analysis_cli_unsupported", no_model_execution=True)
+        raise AnalysisExecutionError(
+            "analysis_cli_unsupported", no_model_execution=True
+        )
     shots = measured.document["shots"]
     schema = content_schema(ShotAnnotations)
     await monitor.bind_execution(

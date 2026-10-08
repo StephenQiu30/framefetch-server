@@ -7,6 +7,7 @@ from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
 
 from app.services.analysis.skills.modules import LICENSE_ALLOWLIST
+from app.services.analysis_execution.errors import AnalysisArtifactError
 
 UPSTREAM_ROOT = Path(__file__).resolve().parent / "upstream"
 RESOURCE_MARKER = "\n<framefetch_upstream_packages>\n"
@@ -15,6 +16,7 @@ _ID = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
 _SHA = re.compile(r"^[0-9a-f]{64}$")
 _COMMIT = re.compile(r"^[0-9a-f]{40}$")
 MAX_RESOURCE_BYTES = 256 * 1024
+RESOURCE_POLICY = "policy/upstream-resources.json"
 
 
 @dataclass(frozen=True, slots=True)
@@ -201,3 +203,31 @@ def frozen_packages(instructions: str) -> dict[str, str]:
     ):
         raise ValueError("invalid upstream snapshot")
     return value
+
+
+def prepare_resource_policy(workspace: Path, instructions: str) -> None:
+    try:
+        packages = frozen_packages(instructions)
+    except ValueError as exc:
+        raise AnalysisArtifactError(
+            "artifact_integrity_failed", no_model_execution=True
+        ) from exc
+    path = workspace / RESOURCE_POLICY
+    if path.is_symlink() or path.parent.is_symlink():
+        raise AnalysisArtifactError(
+            "artifact_integrity_failed", no_model_execution=True
+        )
+    if not packages:
+        path.unlink(missing_ok=True)
+        return
+    try:
+        catalog = UpstreamCatalog()
+        for package_id, fingerprint in packages.items():
+            if catalog.verify(package_id).fingerprint != fingerprint:
+                raise ValueError("upstream snapshot mismatch")
+        path.write_text(json.dumps(packages, sort_keys=True), encoding="utf-8")
+        path.chmod(0o600)
+    except (OSError, ValueError) as exc:
+        raise AnalysisArtifactError(
+            "artifact_integrity_failed", no_model_execution=True
+        ) from exc

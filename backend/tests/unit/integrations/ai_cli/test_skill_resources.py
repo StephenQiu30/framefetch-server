@@ -8,12 +8,15 @@ from app.integrations.ai_cli.codex_mcp import skill_resource_arguments
 from app.integrations.ai_cli.errors import AnalysisCliError
 from app.integrations.ai_cli.skill_resources import (
     MAX_READS,
-    RESOURCE_POLICY,
     SkillResources,
-    prepare_resource_policy,
 )
 from app.services.analysis.rules.enums import AnalysisInputKind
 from app.services.analysis.skills.registry import BUILTIN_ANALYSIS_SKILLS
+from app.services.analysis.skills.upstream_catalog import (
+    RESOURCE_POLICY,
+    prepare_resource_policy,
+)
+from app.services.analysis_execution.errors import AnalysisArtifactError
 from tests.unit.services.analysis.skills.test_upstream_catalog import fixture_catalog
 
 
@@ -98,7 +101,7 @@ def test_unknown_package_version_is_rejected_before_model_call(tmp_path):
         + "0" * 64
         + '"}\n</framefetch_upstream_packages>'
     )
-    with pytest.raises(AnalysisCliError) as error:
+    with pytest.raises(AnalysisArtifactError) as error:
         prepare_resource_policy(tmp_path, snapshot)
     assert error.value.no_model_execution
     assert not (tmp_path / RESOURCE_POLICY).exists()

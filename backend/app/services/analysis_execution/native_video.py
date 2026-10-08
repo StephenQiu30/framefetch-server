@@ -14,10 +14,10 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from app.integrations.ai_cli.errors import AnalysisCliError
-from app.integrations.object_storage import MinioObjectStorage
 from app.services.analysis.models import AnalysisReportArtifactSnapshot
 from app.services.analysis.skills.upstream_catalog import UPSTREAM_ROOT, UpstreamCatalog
+from app.services.analysis_execution.errors import AnalysisArtifactError
+from app.services.analysis_execution.ports import NativeReportStorage
 
 MAX_SHOTS = 100
 MAX_NATIVE_BYTES = 16 * 1024**2
@@ -27,7 +27,9 @@ SCRIPT = UPSTREAM_ROOT / "reelbench/skills/video-shots/scripts/video-shots.mjs"
 async def run_native(directory: Path, *arguments: str) -> bytes:
     node = shutil.which("node")
     if node is None:
-        raise AnalysisCliError("media_dependency_unavailable", no_model_execution=True)
+        raise AnalysisArtifactError(
+            "media_dependency_unavailable", no_model_execution=True
+        )
     process = await asyncio.create_subprocess_exec(
         node,
         str(SCRIPT),
@@ -41,7 +43,7 @@ async def run_native(directory: Path, *arguments: str) -> bytes:
         async with asyncio.timeout(600):
             output, _ = await process.communicate()
         if process.returncode != 0 or len(output) > MAX_NATIVE_BYTES:
-            raise AnalysisCliError("invalid_model_output", outcome_known=True)
+            raise AnalysisArtifactError("invalid_model_output", outcome_known=True)
         return output
     finally:
         if process.returncode is None:
@@ -65,7 +67,7 @@ async def measure_video(
     UpstreamCatalog().verify("reelbench")
     root = workspace.resolve(strict=True)
     if artifact.resolve(strict=True) != root / "input/video.bin":
-        raise AnalysisCliError("analysis_media_invalid", no_model_execution=True)
+        raise AnalysisArtifactError("analysis_media_invalid", no_model_execution=True)
     directory = root / "work/reelbench"
     directory.mkdir(parents=True, mode=0o700)
     output = await run_native(
@@ -84,7 +86,7 @@ async def measure_video(
         not isinstance(document, dict)
         or not 1 <= len(document.get("shots", [])) <= max_shots
     ):
-        raise AnalysisCliError("analysis_resource_limit", no_model_execution=True)
+        raise AnalysisArtifactError("analysis_resource_limit", no_model_execution=True)
     (directory / "shots.json").write_bytes(output)
     return MeasuredVideo(directory, document)
 
@@ -100,7 +102,7 @@ async def extract_pairs(measured: MeasuredVideo, artifact: Path) -> None:
         for pick in ("a", "b")
     }
     if {path.name for path in (directory / "frames").glob("*.jpg")} != expected:
-        raise AnalysisCliError("analysis_media_invalid", no_model_execution=True)
+        raise AnalysisArtifactError("analysis_media_invalid", no_model_execution=True)
     for pick in ("a", "b"):
         await run_native(
             directory,
@@ -120,7 +122,7 @@ async def extract_pairs(measured: MeasuredVideo, artifact: Path) -> None:
     if len(tuple((directory / "sheets").glob("*.jpg"))) != 2 * (
         (len(expected) // 2 + 23) // 24
     ):
-        raise AnalysisCliError("analysis_media_invalid", no_model_execution=True)
+        raise AnalysisArtifactError("analysis_media_invalid", no_model_execution=True)
 
 
 async def native_reports(measured: MeasuredVideo) -> tuple[str, bytes, bytes]:
@@ -154,12 +156,12 @@ async def native_reports(measured: MeasuredVideo) -> tuple[str, bytes, bytes]:
             "Original video excluded; use the report local file picker.\n",
         )
     if len(buffer.getvalue()) > MAX_NATIVE_BYTES:
-        raise AnalysisCliError("analysis_resource_limit", outcome_known=True)
+        raise AnalysisArtifactError("analysis_resource_limit", outcome_known=True)
     return markdown.decode("utf-8"), html, buffer.getvalue()
 
 
 async def save_native_bundle(
-    storage: MinioObjectStorage, job_id: str, run_id: str, content: bytes
+    storage: NativeReportStorage, job_id: str, run_id: str, content: bytes
 ) -> AnalysisReportArtifactSnapshot:
     digest = hashlib.sha256(content).hexdigest()
     key = f"analyses/{job_id}/runs/{run_id}/native/{digest}.zip"
@@ -171,7 +173,7 @@ async def save_native_bundle(
         len(content),
         digest,
     ):
-        raise AnalysisCliError("artifact_integrity_failed", outcome_known=True)
+        raise AnalysisArtifactError("artifact_integrity_failed", outcome_known=True)
     return AnalysisReportArtifactSnapshot(
         "zip", key, "application/zip", len(content), digest
     )

@@ -19,10 +19,6 @@ from app.services.analysis_execution.models import (
     ScreenplayAnalysisSynthesisRequest,
     VideoAnalysisRequest,
 )
-from app.services.analysis_execution.screenplay_rewrite_models import (
-    ScreenplayGlossaryRequest,
-    ScreenplayRewriteChunkRequest,
-)
 from app.workers.runner.process import ProcessSupervisor, ProcessTimeoutError
 
 
@@ -99,16 +95,6 @@ class ClaudeCliVideoAnalyzer:
         self, request: ScreenplayAnalysisSynthesisRequest
     ) -> object:
         return await self._screenplay.synthesize(request)
-
-    async def build_screenplay_glossary(
-        self, request: ScreenplayGlossaryRequest
-    ) -> object:
-        return await self._screenplay.build_glossary(request)
-
-    async def rewrite_screenplay_chunk(
-        self, request: ScreenplayRewriteChunkRequest
-    ) -> object:
-        return await self._screenplay.rewrite_chunk(request)
 
     def _argv(
         self,

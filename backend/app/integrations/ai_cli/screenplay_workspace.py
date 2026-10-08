@@ -5,8 +5,8 @@ from pathlib import Path
 from typing import Any
 
 from app.integrations.ai_cli.errors import AnalysisCliError
-from app.integrations.ai_cli.skill_resources import prepare_resource_policy
 from app.integrations.ai_cli.workspace import JobFiles
+from app.services.analysis.skills.upstream_catalog import prepare_resource_policy
 from app.services.analysis_execution.models import ScreenplayAnalysisRequest
 
 

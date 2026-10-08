@@ -16,14 +16,6 @@ from app.integrations.ai_cli.screenplay_prompt import (
     screenplay_analysis_prompt,
     screenplay_analysis_synthesis_prompt,
 )
-from app.integrations.ai_cli.screenplay_rewrite_prompt import (
-    screenplay_glossary_prompt,
-    screenplay_rewrite_chunk_prompt,
-)
-from app.integrations.ai_cli.screenplay_rewrite_schema import (
-    screenplay_glossary_output_schema,
-    screenplay_rewrite_chunk_output_schema,
-)
 from app.integrations.ai_cli.screenplay_schema import (
     screenplay_analysis_output_schema,
     screenplay_analysis_summary_output_schema,
@@ -39,10 +31,6 @@ from app.services.analysis_execution.models import (
     ScreenplayAnalysisRequest,
     ScreenplayAnalysisSynthesisRequest,
     VideoAnalysisRequest,
-)
-from app.services.analysis_execution.screenplay_rewrite_models import (
-    ScreenplayGlossaryRequest,
-    ScreenplayRewriteChunkRequest,
 )
 
 
@@ -141,29 +129,6 @@ class ApiAnalyzer:
         return await self._invoke(
             screenplay_analysis_synthesis_prompt(request),
             screenplay_analysis_summary_output_schema(request.output_language),
-        )
-
-    async def build_screenplay_glossary(
-        self, request: ScreenplayGlossaryRequest
-    ) -> object:
-        return await self._invoke(
-            screenplay_glossary_prompt(request),
-            screenplay_glossary_output_schema(
-                request.source_language, request.target_language
-            ),
-        )
-
-    async def rewrite_screenplay_chunk(
-        self, request: ScreenplayRewriteChunkRequest
-    ) -> object:
-        return await self._invoke(
-            screenplay_rewrite_chunk_prompt(request),
-            screenplay_rewrite_chunk_output_schema(
-                source_scene_id=request.source_scene_id,
-                part_no=request.part_no,
-                source_sha256=request.source_sha256,
-                target_language=request.target_language,
-            ),
         )
 
     async def _invoke(

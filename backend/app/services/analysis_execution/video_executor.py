@@ -4,7 +4,6 @@ from contextlib import suppress
 from dataclasses import replace
 from functools import partial
 
-from app.integrations.object_storage import MinioObjectStorage
 from app.services.analysis.models import AnalysisJobSnapshot
 from app.services.analysis.rules.enums import AnalysisResultContract, AnalysisStage
 from app.services.analysis.rules.result_models import AnalysisMedia
@@ -27,6 +26,7 @@ from app.services.analysis_execution.ports import (
     AnalyzerSelection,
     ArtifactLoader,
     Clock,
+    NativeReportStorage,
     VideoAnalyzer,
 )
 from app.services.analysis_execution.video_editorial import execute_video_editorial
@@ -42,7 +42,7 @@ class VideoAnalysisExecutor:
         loader: ArtifactLoader,
         resolver: AnalyzerResolver,
         clock: Clock,
-        storage: MinioObjectStorage | None = None,
+        storage: NativeReportStorage | None = None,
     ) -> None:
         self._repository = repository
         self._loader = loader
@@ -84,7 +84,7 @@ class VideoAnalysisExecutor:
                 size_bytes=source.size_bytes,
             )
             if job.skill_id in {"video-shots", "video-to-article"}:
-                from app.integrations.ai_cli.skill_resources import (
+                from app.services.analysis.skills.upstream_catalog import (
                     prepare_resource_policy,
                 )
 

@@ -11,14 +11,6 @@ from app.integrations.ai_cli.screenplay_prompt import (
     screenplay_analysis_prompt,
     screenplay_analysis_synthesis_prompt,
 )
-from app.integrations.ai_cli.screenplay_rewrite_prompt import (
-    screenplay_glossary_prompt,
-    screenplay_rewrite_chunk_prompt,
-)
-from app.integrations.ai_cli.screenplay_rewrite_schema import (
-    screenplay_glossary_output_schema,
-    screenplay_rewrite_chunk_output_schema,
-)
 from app.integrations.ai_cli.screenplay_schema import (
     screenplay_analysis_output_schema,
     screenplay_analysis_summary_output_schema,
@@ -33,10 +25,6 @@ from app.services.analysis_execution.content_models import ContentModelRequest
 from app.services.analysis_execution.models import (
     ScreenplayAnalysisRequest,
     ScreenplayAnalysisSynthesisRequest,
-)
-from app.services.analysis_execution.screenplay_rewrite_models import (
-    ScreenplayGlossaryRequest,
-    ScreenplayRewriteChunkRequest,
 )
 from app.workers.runner.process import ProcessSupervisor, ProcessTimeoutError
 
@@ -98,47 +86,6 @@ class ClaudeCliScreenplayAnalyzer:
                 "call": "screenplay-analysis-synthesis",
                 "source_language": request.source_language,
                 "source_scene_ids": list(request.source_scene_ids),
-            },
-        )
-        return await self._invoke(files.root, files.claude_settings, schema, prompt)
-
-    async def build_glossary(self, request: ScreenplayGlossaryRequest) -> object:
-        schema = screenplay_glossary_output_schema(
-            request.source_language, request.target_language
-        )
-        prompt = screenplay_glossary_prompt(request)
-        files = prepare_screenplay_call_files(
-            workspace=request.workspace,
-            screenplay=request.screenplay,
-            schema=schema,
-            prompt=prompt,
-            manifest={
-                "call": "screenplay-glossary",
-                "source_language": request.source_language,
-                "target_language": request.target_language,
-            },
-        )
-        return await self._invoke(files.root, files.claude_settings, schema, prompt)
-
-    async def rewrite_chunk(self, request: ScreenplayRewriteChunkRequest) -> object:
-        schema = screenplay_rewrite_chunk_output_schema(
-            source_scene_id=request.source_scene_id,
-            part_no=request.part_no,
-            source_sha256=request.source_sha256,
-            target_language=request.target_language,
-        )
-        prompt = screenplay_rewrite_chunk_prompt(request)
-        files = prepare_screenplay_call_files(
-            workspace=request.workspace,
-            screenplay=request.screenplay,
-            schema=schema,
-            prompt=prompt,
-            manifest={
-                "call": "screenplay-rewrite-chunk",
-                "source_scene_id": request.source_scene_id,
-                "part_no": request.part_no,
-                "source_sha256": request.source_sha256,
-                "target_language": request.target_language,
             },
         )
         return await self._invoke(files.root, files.claude_settings, schema, prompt)

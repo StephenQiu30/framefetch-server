@@ -10,9 +10,7 @@ from app.integrations.ai_api.config import ApiAdapterConfig
 from app.integrations.ai_api.frames import FrameEvidence
 from tests.unit.integrations.ai_cli.helpers import (
     request,
-    screenplay_glossary_request,
     screenplay_request,
-    screenplay_rewrite_chunk_request,
     screenplay_synthesis_request,
 )
 
@@ -109,11 +107,5 @@ async def test_screenplay_operations_share_structured_langchain_client(
     assert await analyzer.synthesize_screenplay_analysis(
         screenplay_synthesis_request(tmp_path)
     )
-    assert await analyzer.build_screenplay_glossary(
-        screenplay_glossary_request(tmp_path)
-    )
-    assert await analyzer.rewrite_screenplay_chunk(
-        screenplay_rewrite_chunk_request(tmp_path)
-    )
-    assert len(model.schemas) == 4
+    assert len(model.schemas) == 2
     assert all("JSON Schema" in call[0].content[0]["text"] for call in model.inputs)  # type: ignore[index,union-attr]
