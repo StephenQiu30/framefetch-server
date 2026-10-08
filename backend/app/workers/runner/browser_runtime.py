@@ -73,6 +73,7 @@ def browser_revision(egress: EgressBinding) -> str:
                 "user_agent": BROWSER_USER_AGENT,
                 "args": _LAUNCH_ARGS,
                 "service_workers": "block",
+                "xdg_storage": "private_profile",
                 "egress": egress.revision,
             },
             sort_keys=True,
@@ -411,6 +412,13 @@ class BrowserRuntime:
                 accept_downloads=True,
                 timeout=self._settings.runner_browser_launch_timeout_seconds * 1000,
                 viewport={"width": 1280, "height": 800},
+                # Chromium also writes Crashpad/config outside user-data-dir.
+                # Keep all such state under the owned profile on read-only hosts.
+                env={
+                    **os.environ,
+                    "XDG_CONFIG_HOME": str(directory / ".config"),
+                    "XDG_CACHE_HOME": str(directory / ".cache"),
+                },
             )
             if context.browser is None or context.browser.version != CHROMIUM_VERSION:
                 raise _failure("runtime_unavailable", status=409)

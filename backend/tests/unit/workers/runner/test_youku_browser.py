@@ -370,7 +370,8 @@ async def test_youku_layer_probes_clear_segment_and_owns_handoff(tmp_path, monke
         }
     )
     result = await browser.BrowserLayer().resolve(source, source.run_context)
-    assert not previous.parent.exists()
+    # The ladder still owns its original jar until the successful handoff closes.
+    assert previous.is_file()
     assert result.streams and result.duration_seconds == 30
     assert result.download_info["formats"][0]["vcodec"] == "h264"
     assert (
@@ -379,6 +380,7 @@ async def test_youku_layer_probes_clear_segment_and_owns_handoff(tmp_path, monke
     )
     assert result.run_context.identity.digest == "synthetic-digest"
     await result.run_context.browser.close()
+    assert not previous.parent.exists()
     operation.close.assert_awaited_once()
     operation.abort.assert_not_awaited()
     assert not result.run_context.cookie_file.parent.exists()

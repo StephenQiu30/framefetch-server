@@ -22,6 +22,7 @@ from app.workers.runner.engine.browser.intercept import (
     MAX_RESPONSE_BYTES,
     PageResponses,
 )
+from app.workers.runner.engine.ladder import run_ladder
 from app.workers.runner.engine.layers.browser import BrowserLayer
 from app.workers.runner.errors import RunnerFailure
 from app.workers.runner.provider_registry import provider_request
@@ -293,6 +294,68 @@ async def test_required_identity_comes_only_from_fetch_identity(tmp_path, monkey
     )
     assert acquire.call_args.kwargs["ctx"].identity is material
     source.workspace.cleanup()
+
+
+@pytest.mark.parametrize("platform", ["douyin", "youku"])
+async def test_browser_launch_retry_keeps_ladder_identity_until_terminal_cleanup(
+    tmp_path, monkeypatch, platform
+):
+    service = MediaRunnerService(settings(tmp_path))
+    source = source_for(service, tmp_path)
+    url = (
+        "https://www.douyin.com/video/123"
+        if platform == "douyin"
+        else "https://v.youku.com/v_show/id_XOTUxMzg4NDMy.html"
+    )
+    request = provider_request(url)
+    from app.services.provider_types import Layer
+
+    request = replace(
+        request,
+        profile=replace(
+            request.profile, ladder=(Layer.L3,), identity=ProviderIdentity.REQUIRED
+        ),
+    )
+    source = replace(
+        source, request=request, execution_context=service._context(request)
+    )
+    root = tmp_path / "identity"
+    root.mkdir(mode=0o700)
+    monkeypatch.setattr(identity, "COOKIE_TMPFS_ROOT", root)
+    jars = []
+
+    async def fetch(*_):
+        directory = root / str(len(jars))
+        directory.mkdir(mode=0o700)
+        jar = directory / "cookies.txt"
+        jar.write_text("synthetic account material")
+        jars.append(jar)
+        return identity.IdentityMaterial(jar, "mock-digest")
+
+    def validate(path):
+        assert path.is_file(), "retry lost its operation-owned identity"
+
+    async def acquire(_, *, ctx):
+        validate(ctx.cookie_file)
+        validate(jars[0])
+        raise RunnerFailure(
+            "runtime_unavailable" if acquire_mock.await_count == 1 else "login_required"
+        )
+
+    fetch_mock = AsyncMock(side_effect=fetch)
+    acquire_mock = AsyncMock(side_effect=acquire)
+    monkeypatch.setattr(identity, "fetch_identity", fetch_mock)
+    monkeypatch.setattr(identity, "validate_cookie_file", validate)
+    source.pipeline.browser = SimpleNamespace(acquire=acquire_mock)
+    try:
+        with pytest.raises(RunnerFailure) as caught:
+            await run_ladder(source, request.profile, source.run_context.deadline)
+        assert caught.value.failure.failure_class is FailureClass.LOGIN_REQUIRED
+        assert acquire_mock.await_count == 2
+        assert fetch_mock.await_count == (1 if platform == "douyin" else 3)
+        assert all(not jar.parent.exists() for jar in jars)
+    finally:
+        source.workspace.cleanup()
 
 
 async def test_missing_browser_runtime_has_distinct_cause_before_identity_io(

@@ -138,6 +138,8 @@ async def test_anonymous_reuses_platform_context_and_never_injects_cookie(
     )
     assert options["proxy"] == {"server": ctx.egress.proxy_url}
     assert options["service_workers"] == "block"
+    assert options["env"]["XDG_CONFIG_HOME"] == str(Path(directory) / ".config")
+    assert options["env"]["XDG_CACHE_HOME"] == str(Path(directory) / ".cache")
     assert "--autoplay-policy=user-gesture-required" in options["args"]
     await first.close()
     assert not first.context.closed and not first.context.pages
@@ -236,6 +238,10 @@ async def test_login_context_task_isolation_and_terminal_destruction(
     else:
         await task
     assert operation.context.closed
+    directory, options = chromium.calls[0]
+    assert Path(options["env"]["XDG_CONFIG_HOME"]).is_relative_to(directory)
+    assert Path(options["env"]["XDG_CACHE_HOME"]).is_relative_to(directory)
+    assert Path(directory).is_relative_to(configured(tmp_path).runner_browser_temp_root)
     assert not Path(chromium.calls[0][0]).exists()
     assert chromium.contexts[0].injected[0]["name"] == "sessionid"
     anonymous = await runtime.acquire(profile(), ctx=run_context(configured(tmp_path)))

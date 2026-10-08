@@ -55,11 +55,11 @@ class _Handoff:
         self,
         operation: BrowserOperation,
         directory: Path,
-        original_cookie: Path | None = None,
+        identity_cookies: tuple[Path, ...] = (),
     ) -> None:
         self.operation = operation
         self.directory = directory
-        self.original_cookie = original_cookie
+        self.identity_cookies = identity_cookies
         self.closed = False
 
     @property
@@ -80,8 +80,8 @@ class _Handoff:
             await _finish(self.operation.close())
         finally:
             await asyncio.to_thread(shutil.rmtree, self.directory)
-            if self.original_cookie is not None:
-                await _remove_identity(self.original_cookie)
+            for cookie in self.identity_cookies:
+                await _remove_identity(cookie)
 
 
 async def _remove_identity(cookie: Path) -> None:
@@ -164,6 +164,7 @@ class BrowserLayer:
 
     async def resolve(self, source: ResolutionSource, ctx: RunContext) -> ResolvedMedia:
         profile = source.request.profile
+        inherited_identity = ctx.identity
         if profile.key == "youtube":
             return await youtube.resolve(source, ctx)
         if profile.key == "wechat_channels":
@@ -196,14 +197,9 @@ class BrowserLayer:
             # yt-dlp persists new visitor cookies into its jar on process exit.
             # Those cookies are not necessarily in the declared account domains.
             # Youku L3 leases fresh approved material instead of widening them.
-            previous = ctx.identity
-            try:
-                fetched = await identity.fetch_identity(
-                    profile.key, source.workspace.path.name, ctx.deadline
-                )
-            finally:
-                if isinstance(previous, identity.IdentityMaterial):
-                    await _remove_identity(previous.cookie_file)
+            fetched = await identity.fetch_identity(
+                profile.key, source.workspace.path.name, ctx.deadline
+            )
             if not isinstance(fetched, identity.IdentityMaterial):
                 fetched.cleanup()
                 raise failure(FailureClass.INVALID_INPUT, "unexpected_identity", "none")
@@ -211,7 +207,10 @@ class BrowserLayer:
         try:
             operation = await runtime.acquire(profile, ctx=ctx)
         except BaseException:
-            if isinstance(ctx.identity, identity.IdentityMaterial):
+            # The ladder owns inherited material across its bounded retry.
+            if ctx.identity is not inherited_identity and isinstance(
+                ctx.identity, identity.IdentityMaterial
+            ):
                 await _remove_identity(ctx.identity.cookie_file)
             raise
         collector = PageResponses(
@@ -279,9 +278,13 @@ class BrowserLayer:
             handoff = _Handoff(
                 operation,
                 directory,
-                ctx.identity.cookie_file
-                if isinstance(ctx.identity, identity.IdentityMaterial)
-                else None,
+                tuple(
+                    dict.fromkeys(
+                        material.cookie_file
+                        for material in (inherited_identity, ctx.identity)
+                        if isinstance(material, identity.IdentityMaterial)
+                    )
+                ),
             )
             updated = replace(
                 ctx,
@@ -333,7 +336,9 @@ class BrowserLayer:
             await _finish(operation.abort())
             if directory is not None:
                 await asyncio.to_thread(shutil.rmtree, directory)
-            if isinstance(ctx.identity, identity.IdentityMaterial):
+            if ctx.identity is not inherited_identity and isinstance(
+                ctx.identity, identity.IdentityMaterial
+            ):
                 await _remove_identity(ctx.identity.cookie_file)
             if isinstance(error, Error):
                 raise failure(
