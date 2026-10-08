@@ -58,6 +58,8 @@ build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
 packages = ["app"]
+# Preserve ignored, pinned upstream runtime assets in distributions.
+artifacts = ["app/services/analysis/skills/upstream/**"]
 
 [tool.hatch.metadata]
 allow-direct-references = true

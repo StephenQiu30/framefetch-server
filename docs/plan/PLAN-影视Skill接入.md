@@ -331,3 +331,5 @@ next_action: 按依赖顺序执行
 - App 本地化生成、format、analyze、全量 395 项测试及冻结契约再生成检查通过；没有据此声称原生设备、真实登录或文件保存已验收。
 - Electron 同步／上游一致性、lint、typecheck、42 项单测、构建、9 项 e2e 通过；e2e 为受控服务夹具，不是该真实剧本的原生文件验收。
 - 浏览器下载的 Markdown 为 7,517 字节，SHA-256 `6e9806489cadf84ea3c9ef45267518279105de3239a184d9359247e8eebeb5ee`；DOCX 为 42,588 字节，SHA-256 `f826ca6b936ba2b52233fa7d03c1b6d3b13ca895bf6348452c8b4cac18af878c`。DOCX ZIP 完整、正文关键段存在；未以文件存在代替完整一致性测试。
+
+- 分发完整性通过：Git 暂存区、最终 Docker 镜像与 wheel 分别验证 478 个上游原文件及 manifest，逐文件 SHA-256 一致。原 `dist` 忽略规则会遗漏 85 个包内资源；Docker 仅对固定 baoyu 包内 `dist` 增加例外，wheel 按 [Hatch artifacts 规则](https://hatch.pypa.io/latest/config/build/#artifacts)保存被 VCS 忽略的上游资源。已构建并更新本机 API；此检查不代表 Bun、排版或图片运行依赖已安装。

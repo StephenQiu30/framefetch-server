@@ -25,3 +25,7 @@ docs
 tests
 tests
 *.log
+
+# These dist files are pinned upstream Skill resources, not local build output.
+!app/services/analysis/skills/upstream/baoyu/packages/*/dist
+!app/services/analysis/skills/upstream/baoyu/packages/*/dist/**
