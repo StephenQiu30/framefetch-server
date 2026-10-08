@@ -1,3 +1,4 @@
+import dynamic from 'next/dynamic';
 import { FeedbackNotice } from '@/components/layout/feedback-notice';
 import { PageEmptyNotice } from '@/components/layout/page-empty-notice';
 import { PageErrorNotice } from '@/components/layout/page-error-notice';
@@ -5,9 +6,23 @@ import { SplitLayout } from '@/components/layout/split-layout';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 
-import { AnalysisBreakdownCharts } from './analysis-breakdown-charts';
 import { AnalysisKpis } from './analysis-kpis';
-import { AnalysisTrendChart } from './analysis-trend-chart';
+import { ChartLoading, DeferredChart } from './deferred-chart';
+
+const AnalysisTrendChart = dynamic(
+  () =>
+    import('./analysis-trend-chart').then(
+      (module) => module.AnalysisTrendChart,
+    ),
+  { loading: ChartLoading },
+);
+const AnalysisBreakdownCharts = dynamic(
+  () =>
+    import('./analysis-breakdown-charts').then(
+      (module) => module.AnalysisBreakdownCharts,
+    ),
+  { loading: ChartLoading },
+);
 
 export function AnalysisAnalyticsContent({
   data,
@@ -46,12 +61,16 @@ export function AnalysisAnalyticsContent({
       ) : null}
       {data && data.summary.total > 0 ? (
         <>
-          <AnalysisTrendChart daily={data.daily} />
+          <DeferredChart>
+            <AnalysisTrendChart daily={data.daily} />
+          </DeferredChart>
           <AnalysisKpis summary={data.summary} />
-          <AnalysisBreakdownCharts
-            inputs={data.inputs}
-            summary={data.summary}
-          />
+          <DeferredChart>
+            <AnalysisBreakdownCharts
+              inputs={data.inputs}
+              summary={data.summary}
+            />
+          </DeferredChart>
         </>
       ) : null}
     </>

@@ -200,6 +200,7 @@ export function DataTable<T extends RowData>({
             {table.getRowModel().rows.map((row) => (
               <TableRow
                 key={row.id}
+                data-motion-item
                 data-state={row.getIsSelected() ? 'selected' : undefined}
               >
                 {selection ? (

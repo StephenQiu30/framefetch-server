@@ -167,6 +167,7 @@ function HistoryContent({ item }: { item: API.DownloadHistoryItemResponse }) {
             alt={`${item.title} 媒体封面`}
             className="w-full"
             compact
+            lazy
             fallback={{
               detail: item.format_name,
               eyebrow: sourceLabel,

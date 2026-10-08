@@ -2,10 +2,10 @@
 
 import { DotsThreeIcon, Robot, TrashIcon } from '@phosphor-icons/react';
 import type { MediaPlayerInstance } from '@vidstack/react';
+import dynamic from 'next/dynamic';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useRef, useState } from 'react';
-import AnalysisPanel from '@/components/analysis/analysis-panel';
 import { DownloadDeleteDialog } from '@/components/downloads/download-delete-dialog';
 import DownloadState, {
   DownloadCancelAction,
@@ -17,8 +17,8 @@ import {
   isTerminalDownloadStatus,
   statusVariant,
 } from '@/components/downloads/download-state-model';
-import DownloadVideoPreview from '@/components/downloads/download-video-preview';
 import { useDownloadJob } from '@/components/downloads/use-download-job';
+import { DeferredContent } from '@/components/layout/deferred-content';
 import { FeedbackNotice } from '@/components/layout/feedback-notice';
 import { markNavigationPush } from '@/components/layout/navigation-state';
 import { PageEmptyNotice } from '@/components/layout/page-empty-notice';
@@ -44,6 +44,34 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { formatDuration } from '@/lib/format';
 import { audioCodecLabel } from '@/lib/media-format';
 import { TaskSocketStatusCode } from '@/lib/task-socket';
+
+const DownloadVideoPreview = dynamic(
+  () => import('@/components/downloads/download-video-preview'),
+  {
+    ssr: false,
+    loading: () => (
+      <AspectRatio ratio={16 / 9}>
+        <Skeleton
+          aria-label="正在准备视频预览"
+          role="status"
+          className="size-full"
+        />
+      </AspectRatio>
+    ),
+  },
+);
+const AnalysisPanel = dynamic(
+  () => import('@/components/analysis/analysis-panel'),
+  {
+    loading: () => (
+      <Skeleton
+        aria-label="正在准备分析面板"
+        role="status"
+        className="aspect-video w-full"
+      />
+    ),
+  },
+);
 
 export default function DownloadJobView({
   jobId,
@@ -446,20 +474,30 @@ export default function DownloadJobView({
                 id="download-analysis"
                 aria-label="AI 分析"
               >
-                <AnalysisPanel
-                  downloadId={state.job.id}
-                  analysisId={analysisId}
-                  onSelectTime={
-                    state.job.file_available && previewReady
-                      ? selectTime
-                      : undefined
+                <DeferredContent
+                  eager={Boolean(analysisId)}
+                  placeholder={
+                    <Skeleton
+                      aria-label="分析面板占位"
+                      className="aspect-video w-full"
+                    />
                   }
-                  playbackUnavailableReason={
-                    state.job.file_available
-                      ? undefined
-                      : '原视频文件已清理，分析结果仍可阅读；重新获取视频后才能回看时间证据。'
-                  }
-                />
+                >
+                  <AnalysisPanel
+                    downloadId={state.job.id}
+                    analysisId={analysisId}
+                    onSelectTime={
+                      state.job.file_available && previewReady
+                        ? selectTime
+                        : undefined
+                    }
+                    playbackUnavailableReason={
+                      state.job.file_available
+                        ? undefined
+                        : '原视频文件已清理，分析结果仍可阅读；重新获取视频后才能回看时间证据。'
+                    }
+                  />
+                </DeferredContent>
               </section>
             ) : null
           ) : isTerminalDownloadStatus(state.job.status) ? null : (

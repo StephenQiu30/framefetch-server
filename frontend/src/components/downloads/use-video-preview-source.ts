@@ -12,9 +12,11 @@ export function useVideoPreviewSource(downloadId: string) {
   useEffect(() => {
     void requestVersion;
     let disposed = false;
+    const controller = new AbortController();
     setLoading(true);
     setError(null);
     setFilename(null);
+    setSource(null);
 
     void issueDownloadUrl(
       {
@@ -23,6 +25,7 @@ export function useVideoPreviewSource(downloadId: string) {
       },
       {
         headers: { 'X-Framefetch-Download-Client': 'local-web' },
+        signal: controller.signal,
       },
     )
       .then((result) => {
@@ -40,6 +43,7 @@ export function useVideoPreviewSource(downloadId: string) {
 
     return () => {
       disposed = true;
+      controller.abort();
     };
   }, [downloadId, requestVersion]);
 

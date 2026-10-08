@@ -1,7 +1,13 @@
+import dynamic from 'next/dynamic';
 import { PageEmptyNotice } from '@/components/layout/page-empty-notice';
 import { ItemDescription, ItemTitle } from '@/components/ui/item';
 import { DailyTrendDataTable } from './daily-trend-data-table';
-import { DailyTrendPlot } from './daily-trend-plot';
+import { ChartLoading, DeferredChart } from './deferred-chart';
+
+const DailyTrendPlot = dynamic(
+  () => import('./daily-trend-plot').then((module) => module.DailyTrendPlot),
+  { loading: ChartLoading },
+);
 
 type DailyPoint = API.DownloadAnalyticsResponse['daily'][number];
 
@@ -25,7 +31,9 @@ export function DailyTrendChart({ daily }: { daily: DailyPoint[] }) {
           两层面积分别表示全部任务与成功任务，可悬浮或使用键盘读取单日数据，失败与取消的精确数值见图表后的数据表。
         </p>
         {points.length > 0 ? (
-          <DailyTrendPlot points={points} />
+          <DeferredChart>
+            <DailyTrendPlot points={points} />
+          </DeferredChart>
         ) : (
           <PageEmptyNotice
             compact

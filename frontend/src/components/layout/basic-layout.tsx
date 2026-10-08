@@ -1,15 +1,22 @@
 'use client';
 
+import dynamic from 'next/dynamic';
 import { usePathname } from 'next/navigation';
-import type { ReactNode } from 'react';
+import { type ReactNode, useState } from 'react';
 
 import { NavigationHistoryProvider } from '@/components/layout/navigation-history';
 import SiteFooter from '@/components/layout/site-footer';
 import SiteHeader from '@/components/layout/site-header';
 import { Button } from '@/components/ui/button';
 
+const ContentMotion = dynamic(
+  () => import('@/components/layout/content-motion'),
+  { ssr: false },
+);
+
 export function BasicLayout({ children }: { children: ReactNode }) {
   const pathname = usePathname() ?? '/';
+  const [main, setMain] = useState<HTMLElement | null>(null);
 
   return (
     <NavigationHistoryProvider currentPath={pathname}>
@@ -26,12 +33,14 @@ export function BasicLayout({ children }: { children: ReactNode }) {
         </Button>
         <SiteHeader />
         <main
+          ref={setMain}
           className="content-shell flex flex-1 flex-col"
           data-slot="basic-layout-main"
           id="main-content"
           tabIndex={-1}
         >
           {children}
+          {main ? <ContentMotion scope={main} contentKey={pathname} /> : null}
         </main>
         <SiteFooter />
       </div>

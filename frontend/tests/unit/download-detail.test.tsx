@@ -210,10 +210,14 @@ describe('DownloadJobView', () => {
     await waitFor(() =>
       expect(runtime.replace).toHaveBeenCalledWith('/history'),
     );
-    expect(httpRequests().at(-1)).toMatchObject({
-      method: 'DELETE',
-      url: `/api/downloads/${job().id}`,
-    });
+    expect(
+      httpRequests().filter((request) => request.method === 'DELETE'),
+    ).toEqual([
+      expect.objectContaining({
+        method: 'DELETE',
+        url: `/api/downloads/${job().id}`,
+      }),
+    ]);
   });
 
   it.each(['failed', 'cancelled'] as const)(

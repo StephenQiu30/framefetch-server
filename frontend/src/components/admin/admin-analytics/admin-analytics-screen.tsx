@@ -1,12 +1,10 @@
 import { ArrowClockwiseIcon } from '@phosphor-icons/react';
+import dynamic from 'next/dynamic';
 import type { ReactNode } from 'react';
 import { AnalyticsKpis } from '@/components/admin/admin-analytics/analytics-kpis';
 import { AnalyticsLoading } from '@/components/admin/admin-analytics/analytics-states';
-import { CompletionRateChart } from '@/components/admin/admin-analytics/completion-rate-chart';
 import { DailyTrendChart } from '@/components/admin/admin-analytics/daily-trend-chart';
-import { SourceBreakdown } from '@/components/admin/admin-analytics/source-breakdown';
 import { SourcePerformance } from '@/components/admin/admin-analytics/source-performance';
-import { StatusDistributionChart } from '@/components/admin/admin-analytics/status-distribution-chart';
 import { FeedbackNotice } from '@/components/layout/feedback-notice';
 import { PageEmptyNotice } from '@/components/layout/page-empty-notice';
 import { PageErrorNotice } from '@/components/layout/page-error-notice';
@@ -24,8 +22,27 @@ import {
 } from '@/components/ui/select';
 import { Spinner } from '@/components/ui/spinner';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-
 import { formatDateRange } from './analytics-format';
+import { ChartLoading, DeferredChart } from './deferred-chart';
+
+const CompletionRateChart = dynamic(
+  () =>
+    import('./completion-rate-chart').then(
+      (module) => module.CompletionRateChart,
+    ),
+  { loading: ChartLoading },
+);
+const SourceBreakdown = dynamic(
+  () => import('./source-breakdown').then((module) => module.SourceBreakdown),
+  { loading: ChartLoading },
+);
+const StatusDistributionChart = dynamic(
+  () =>
+    import('./status-distribution-chart').then(
+      (module) => module.StatusDistributionChart,
+    ),
+  { loading: ChartLoading },
+);
 
 const periodLabels = {
   7: '最近 7 天',
@@ -190,12 +207,18 @@ export function DownloadAnalyticsContent({
         <div className="flex flex-col gap-8">
           <AnalyticsKpis summary={data.summary} />
           <div className="flex flex-col gap-8">
-            <StatusDistributionChart summary={data.summary} />
-            <CompletionRateChart daily={data.daily} />
-            <SourceBreakdown
-              sources={data.sources}
-              total={data.summary.total}
-            />
+            <DeferredChart>
+              <StatusDistributionChart summary={data.summary} />
+            </DeferredChart>
+            <DeferredChart>
+              <CompletionRateChart daily={data.daily} />
+            </DeferredChart>
+            <DeferredChart>
+              <SourceBreakdown
+                sources={data.sources}
+                total={data.summary.total}
+              />
+            </DeferredChart>
           </div>
           <SourcePerformance sources={data.sources} />
         </div>

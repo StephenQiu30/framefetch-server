@@ -130,3 +130,34 @@ globalThis.ResizeObserver = class {
   unobserve() {}
   disconnect() {}
 };
+
+// View tests model visible content. Lazy-loading regressions override this
+// observer locally to control offscreen/visible transitions explicitly.
+globalThis.IntersectionObserver = class {
+  readonly root = null;
+  readonly rootMargin = '0px';
+  readonly thresholds = [0];
+  private readonly targets = new Set<Element>();
+  constructor(private readonly callback: IntersectionObserverCallback) {}
+  observe(target: Element) {
+    this.targets.add(target);
+    queueMicrotask(() => {
+      if (this.targets.has(target))
+        this.callback(
+          [
+            { target, isIntersecting: true, intersectionRatio: 1 },
+          ] as IntersectionObserverEntry[],
+          this,
+        );
+    });
+  }
+  unobserve(target: Element) {
+    this.targets.delete(target);
+  }
+  disconnect() {
+    this.targets.clear();
+  }
+  takeRecords() {
+    return [];
+  }
+};

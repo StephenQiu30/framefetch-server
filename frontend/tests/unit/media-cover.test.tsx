@@ -1,4 +1,10 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import MediaCover from '@/components/media/media-cover';
@@ -18,7 +24,64 @@ const THUMBNAIL =
 describe('MediaCover', () => {
   afterEach(() => {
     vi.clearAllMocks();
+    vi.unstubAllGlobals();
     vi.mocked(URL.createObjectURL).mockReset();
+  });
+
+  it('defers private requests until near the viewport and cancels on unmount', async () => {
+    let intersect!: IntersectionObserverCallback;
+    const disconnect = vi.fn();
+    const observe = vi.fn();
+    vi.stubGlobal(
+      'IntersectionObserver',
+      class {
+        constructor(callback: IntersectionObserverCallback) {
+          intersect = callback;
+        }
+        observe = observe;
+        disconnect = disconnect;
+      },
+    );
+    vi.mocked(loadPrivateThumbnail).mockReturnValue(new Promise(() => {}));
+
+    const view = render(<MediaCover alt="延迟封面" lazy src={THUMBNAIL} />);
+    expect(observe).toHaveBeenCalledOnce();
+    expect(loadPrivateThumbnail).not.toHaveBeenCalled();
+    expect(
+      screen.getByRole('img', { name: '延迟封面（封面加载中）' }),
+    ).toBeVisible();
+
+    act(() =>
+      intersect(
+        [{ isIntersecting: false }] as IntersectionObserverEntry[],
+        {} as IntersectionObserver,
+      ),
+    );
+    expect(loadPrivateThumbnail).not.toHaveBeenCalled();
+    act(() =>
+      intersect(
+        [{ isIntersecting: true }] as IntersectionObserverEntry[],
+        {} as IntersectionObserver,
+      ),
+    );
+    await waitFor(() => expect(loadPrivateThumbnail).toHaveBeenCalledOnce());
+    const signal = vi.mocked(loadPrivateThumbnail).mock.calls[0][1];
+    expect(signal?.aborted).toBe(false);
+    view.unmount();
+    expect(signal?.aborted).toBe(true);
+    expect(disconnect).toHaveBeenCalled();
+  });
+
+  it('loads lazy priority covers immediately and falls back when observation is unavailable', async () => {
+    vi.stubGlobal('IntersectionObserver', undefined);
+    vi.mocked(loadPrivateThumbnail).mockReturnValue(new Promise(() => {}));
+    const view = render(
+      <MediaCover alt="优先封面" lazy priority src={THUMBNAIL} />,
+    );
+    expect(loadPrivateThumbnail).toHaveBeenCalledOnce();
+    view.unmount();
+    render(<MediaCover alt="兼容封面" lazy src={THUMBNAIL} />);
+    await waitFor(() => expect(loadPrivateThumbnail).toHaveBeenCalledTimes(2));
   });
 
   it('loads a private thumbnail through the authenticated refresh-aware client', async () => {

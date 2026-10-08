@@ -52,16 +52,16 @@ describe('administrator usage analytics', () => {
     expect(screen.queryByRole('progressbar')).not.toBeInTheDocument();
 
     expect(
-      screen.getByRole('img', { name: '每日下载任务交互趋势图' }),
+      await screen.findByRole('img', { name: '每日下载任务交互趋势图' }),
     ).toBeInTheDocument();
     expect(
-      screen.getByRole('img', { name: '下载任务状态环形图' }),
+      await screen.findByRole('img', { name: '下载任务状态环形图' }),
     ).toBeInTheDocument();
     expect(
-      screen.getByRole('img', { name: '每日下载成功率面积图' }),
+      await screen.findByRole('img', { name: '每日下载成功率面积图' }),
     ).toBeInTheDocument();
     expect(
-      screen.getByRole('img', { name: '视频来源任务贡献条形图' }),
+      await screen.findByRole('img', { name: '视频来源任务贡献条形图' }),
     ).toBeInTheDocument();
     const exactData = screen.getByRole('table', {
       name: '每日下载趋势精确数据',
@@ -210,10 +210,10 @@ describe('administrator usage analytics', () => {
       screen.getByText(/按创建日期（UTC）统计分析执行记录/),
     ).toBeInTheDocument();
     expect(
-      screen.getByRole('img', { name: 'AI 分析执行状态环形图' }),
+      await screen.findByRole('img', { name: 'AI 分析执行状态环形图' }),
     ).toBeInTheDocument();
     expect(
-      screen.getByRole('img', { name: 'AI 分析输入类型环形图' }),
+      await screen.findByRole('img', { name: 'AI 分析输入类型环形图' }),
     ).toBeInTheDocument();
     expect(screen.getByLabelText('AI 分析输入类型精确数据')).toHaveTextContent(
       '视频1260%剧本840%',

@@ -3,9 +3,10 @@
 import { ImageIcon } from '@phosphor-icons/react';
 import { cn } from 'cn';
 import Image from 'next/image';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { AspectRatio } from '@/components/ui/aspect-ratio';
 import { Skeleton } from '@/components/ui/skeleton';
+import { useNearViewport } from '@/hooks/use-near-viewport';
 import {
   isPrivateThumbnailPath,
   loadPrivateThumbnail,
@@ -21,6 +22,7 @@ type MediaCoverProps = {
     title?: string | null;
   };
   priority?: boolean;
+  lazy?: boolean;
   pending?: boolean;
   src?: string | null;
 };
@@ -34,8 +36,11 @@ export default function MediaCover({
   fallback,
   pending = false,
   priority = false,
+  lazy = false,
   src,
 }: MediaCoverProps) {
+  const frame = useRef<HTMLDivElement>(null);
+  const shouldLoad = useNearViewport(frame, !lazy || priority);
   const privateSource = isPrivateThumbnailPath(src);
   const [loadedPrivateSource, setLoadedPrivateSource] = useState<{
     objectUrl: string;
@@ -44,7 +49,7 @@ export default function MediaCover({
   const [failedSource, setFailedSource] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!privateSource || !src) return;
+    if (!privateSource || !src || !shouldLoad) return;
     const controller = new AbortController();
     let objectUrl: string | null = null;
     setFailedSource(null);
@@ -64,7 +69,7 @@ export default function MediaCover({
       controller.abort();
       if (objectUrl) URL.revokeObjectURL(objectUrl);
     };
-  }, [privateSource, src]);
+  }, [privateSource, src, shouldLoad]);
 
   const resolvedSource = privateSource
     ? loadedPrivateSource?.source === src
@@ -73,7 +78,7 @@ export default function MediaCover({
     : src;
   const unavailable = !src || failedSource === src;
   const loading = Boolean(
-    privateSource && src && !resolvedSource && !unavailable,
+    src && !unavailable && (!shouldLoad || (privateSource && !resolvedSource)),
   );
   const generating = pending && !src;
   const fallbackTitle = fallback?.title?.trim() || alt;
@@ -81,6 +86,7 @@ export default function MediaCover({
   const fallbackDetail = fallback?.detail?.trim() || '封面未提供';
   return (
     <div
+      ref={frame}
       className={cn(
         'media-frame min-w-0 overflow-hidden rounded-none bg-muted',
         className,

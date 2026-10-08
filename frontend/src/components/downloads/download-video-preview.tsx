@@ -79,7 +79,8 @@ export default function DownloadVideoPreview({
         className="size-full overflow-hidden"
         crossOrigin="anonymous"
         key={preview.source}
-        load="eager"
+        load="visible"
+        preload="metadata"
         onCanPlay={() => onReadyChange?.(true)}
         onError={() => {
           onReadyChange?.(false);

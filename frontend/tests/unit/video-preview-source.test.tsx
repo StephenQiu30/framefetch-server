@@ -1,7 +1,8 @@
 import { act, renderHook, waitFor } from '@testing-library/react';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import { useVideoPreviewSource } from '@/components/downloads/use-video-preview-source';
+import { httpClient } from '@/lib/request';
 import { ApiError } from '@/lib/request-error';
 import {
   httpRequests,
@@ -17,6 +18,14 @@ const signedVideoUrl = {
 };
 
 describe('useVideoPreviewSource', () => {
+  it('aborts a pending preview request on unmount', () => {
+    vi.mocked(httpClient.request).mockReturnValueOnce(new Promise(() => {}));
+    const view = renderHook(() => useVideoPreviewSource(downloadId));
+    const signal = httpRequests()[0].signal;
+    expect(signal?.aborted).toBe(false);
+    view.unmount();
+    expect(signal?.aborted).toBe(true);
+  });
   it('loads a short-lived source for the completed video', async () => {
     mockHttpResponses(signedVideoUrl);
 

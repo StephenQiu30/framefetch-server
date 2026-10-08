@@ -149,6 +149,7 @@ export function IntentHistoryDialog({
         {job ? (
           <div className="flex flex-col gap-4">
             <MediaCover
+              lazy
               alt={`${job.title || item?.title || '媒体'}封面`}
               fallback={{
                 eyebrow: job.source_label,

@@ -23,13 +23,13 @@ import { Progress } from '@/components/ui/progress';
 import { Skeleton } from '@/components/ui/skeleton';
 
 const RECENT_LIMIT = 4;
-
 export function RecentDownloads() {
   const history = useDownloadHistory({ page: 1, page_size: RECENT_LIMIT });
   const items = history.data?.items ?? [];
 
   return (
     <section
+      aria-busy={history.loading && !history.data}
       aria-labelledby="recent-downloads-title"
       className="flex flex-col gap-3"
     >
@@ -68,7 +68,7 @@ export function RecentDownloads() {
       {items.length ? (
         <ul className="grid gap-6 sm:grid-cols-2 xl:grid-cols-4">
           {items.map((item) => (
-            <li key={item.id} className="min-w-0">
+            <li key={item.id} className="min-w-0" data-recent-download-item>
               <RecentDownloadItem item={item} />
             </li>
           ))}
@@ -93,6 +93,7 @@ function RecentDownloadItem({
           <MediaCover
             alt={`${item.title} 媒体封面`}
             compact
+            lazy
             fallback={{
               detail: item.format_name,
               eyebrow: sourceLabel,
@@ -139,13 +140,13 @@ function RecentLoading() {
       </span>
       <div aria-hidden className="grid gap-6 sm:grid-cols-2 xl:grid-cols-4">
         {['first', 'second', 'third', 'fourth'].map((key) => (
-          <div className="flex flex-col gap-3" key={key}>
+          <Item className="flex-col items-stretch gap-3" key={key}>
             <Skeleton className="aspect-video w-full" />
-            <div className="flex flex-1 flex-col gap-2">
+            <ItemContent className="min-w-0 w-full">
               <Skeleton className="aspect-[12/1] w-2/3" />
               <Skeleton className="aspect-[12/1] w-1/2" />
-            </div>
-          </div>
+            </ItemContent>
+          </Item>
         ))}
       </div>
     </>
