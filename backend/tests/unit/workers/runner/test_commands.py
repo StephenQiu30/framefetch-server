@@ -429,6 +429,15 @@ def test_dailymotion_download_aborts_missing_fragments_with_either_handoff(
         info_json=info_json,
     ).argv
     assert command.count("--abort-on-unavailable-fragments") == 1
+    assert (
+        command[command.index("--add-header") + 1]
+        == "X-Request-Origin:https://www.dailymotion.com"
+    )
+    inspection = builder.inspect("https://dai.ly/xsynthetic1", cookie_jar=None).argv
+    assert (
+        inspection[inspection.index("--add-header") + 1]
+        == "X-Request-Origin:https://www.dailymotion.com"
+    )
     assert "--skip-unavailable-fragments" not in command
     assert ("--load-info-json" in command) is load_info
     assert "--cookies" not in command
@@ -441,6 +450,7 @@ def test_dailymotion_download_aborts_missing_fragments_with_either_handoff(
         info_json=info_json,
     ).argv
     assert "--abort-on-unavailable-fragments" not in other
+    assert "X-Request-Origin:https://www.dailymotion.com" not in other
 
 
 def test_collection_download_enables_playlist_with_bounded_output(

@@ -689,3 +689,12 @@ def test_collection_never_drops_missing_members() -> None:
             max_duration_seconds=7200,
             max_candidate_streams=200,
         )
+
+
+def test_dailymotion_frame_rate_suffix_is_a_literal_format_identity() -> None:
+    payload = media_info()
+    payload["formats"][0]["format_id"] = "hls-720@60"
+    inspection = normalize_metadata(
+        payload, max_duration_seconds=7200, max_candidate_streams=200
+    )
+    assert inspection.streams[0].provider_id == "hls-720@60"

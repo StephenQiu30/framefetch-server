@@ -36,7 +36,11 @@ PUBLIC_PROVIDER_PROFILES: tuple[ProviderProfile, ...] = (
         normalize_url=dailymotion_url,
         capabilities=SINGLE_VIDEO,
         status=ProviderSupportStatus.UNKNOWN,
-        command_args=("--abort-on-unavailable-fragments",),
+        command_args=(
+            "--abort-on-unavailable-fragments",
+            "--add-header",
+            "X-Request-Origin:https://www.dailymotion.com",
+        ),
     ),
     standard_provider(
         ProviderKey.PINTEREST,

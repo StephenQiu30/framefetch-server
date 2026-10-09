@@ -167,9 +167,11 @@ class RunnerInspectionPipeline:
             streams = normalize_for_settings(payload, self._settings).streams
             if not any(stream.audio_codec_family is not None for stream in streams):
                 raise RunnerFailure("format_unavailable", status=409)
-        if source.profile.key in {"bilibili", "instagram", "twitch"}:
+        if source.profile.key in {"bilibili", "instagram", "twitch", "dailymotion"}:
             # Instagram can omit audio metadata on muxed videos; Twitch and
             # Bilibili can advertise rates different from the actual stream.
+            # Dailymotion's selected 60 fps track must not supply the rate of
+            # lower-quality tracks that omit FRAME-RATE in the master.
             # Resolve each bounded representation before confirming the plan.
             payload = await self._enrich_sparse_formats(
                 payload,

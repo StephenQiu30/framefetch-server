@@ -165,6 +165,7 @@ async def test_youku_required_identity_probes_clear_prefix_and_keeps_full_durati
         ("https://www.bilibili.com/video/BV13x41117TL", False),
         ("https://www.bilibili.com/video/BV13x41117TL", True),
         ("https://clips.twitch.tv/Test", False),
+        ("https://dai.ly/x93blhi", False),
     ],
 )
 async def test_advertised_rate_is_probed_before_confirming_plan(
@@ -391,5 +392,59 @@ async def test_twitch_remote_clip_edit_list_does_not_change_rate_bucket(
             plan.fps_bucket == bucket
             for plan in build_download_options(inspection.streams, max_options=10)
         )
+    finally:
+        workspace.cleanup()
+
+
+async def test_dailymotion_clear_prefix_replaces_selected_track_rate(tmp_path):
+    class Commands:
+        async def inspect(self, *_args, **_kwargs):
+            payload = split_media_info()
+            payload.update(duration=217, fps=60, _framefetch_full_stream=True)
+            payload["formats"] = [
+                {
+                    "format_id": "hls-380",
+                    "url": "https://media.example.com/full.m3u8",
+                    "_framefetch_probe_url": "https://media.example.com/first.ts",
+                    "width": 512,
+                    "height": 288,
+                    "fps": None,
+                    "vcodec": "h264",
+                    "acodec": "aac",
+                    "ext": "mp4",
+                }
+            ]
+            return payload
+
+        async def probe_remote_prefix(self, url, path, **kwargs):
+            assert url.endswith("first.ts")
+            return {
+                "format": {"duration": "6"},
+                "streams": [
+                    {
+                        "codec_type": "video",
+                        "codec_name": "h264",
+                        "width": 512,
+                        "height": 288,
+                        "avg_frame_rate": "30000/1001",
+                    },
+                    {"codec_type": "audio", "codec_name": "aac"},
+                ],
+            }
+
+    workspace = WorkspaceManager(tmp_path / "runner").create("dailymotion-prefix")
+    try:
+        inspection = await RunnerInspectionPipeline(
+            settings(tmp_path), Commands()
+        ).inspect(
+            provider_request("https://dai.ly/x93blhi"),
+            workspace,
+            context=SimpleNamespace(
+                provider_key="dailymotion", identity_used=False, resolved_layer="L1"
+            ),
+            cookie_jar=None,
+        )
+        assert inspection.duration_seconds == 217
+        assert inspection.streams[0].fps == pytest.approx(30000 / 1001)
     finally:
         workspace.cleanup()

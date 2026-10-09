@@ -30,7 +30,7 @@ __all__ = [
     "normalize_media_payload",
 ]
 
-_PROVIDER_ID = re.compile(r"[A-Za-z0-9][A-Za-z0-9._:-]{0,127}")
+_PROVIDER_ID = re.compile(r"[A-Za-z0-9][A-Za-z0-9._:@-]{0,127}")
 
 
 @dataclass(frozen=True, slots=True)
