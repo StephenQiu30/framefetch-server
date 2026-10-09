@@ -54,6 +54,19 @@ node backend/scripts/check_docs.mjs
 
 GitHub Actions 的 `Backend tests`、`Frontend tests` 与 `Docs` 是每次推送和 PR 的必跑检查，任一失败即 CI 失败。前端 Job 从后端源码导出 OpenAPI 并检查生成差异；`Docs` Job 运行身份扩展测试、文档链接与锚点检查。完整 Compose 启停、真实平台下载与发布演练按变更范围在本地验收，不在 CI 执行。
 
+缓存只复用依赖下载，不跳过锁文件安装、代码生成、测试或构建。main 的 CI 按提交 SHA 独立运行；PR 的新提交会取消同一 PR 的旧运行。
+
+每次推送后，检查本次提交对应的运行并等待终态：
+
+```bash
+commit_sha=$(git rev-parse HEAD)
+gh run list --commit "$commit_sha" --event push --workflow ci.yml --json databaseId,headSha,status,conclusion,url
+gh run watch <run_id> --exit-status --interval 30
+gh run view <run_id> --json headSha,status,conclusion,jobs
+```
+
+`<run_id>` 取自列表中的本次推送。确认 `headSha` 与 `commit_sha` 相同，且全部必跑 Job 为 `success`，才报告通过；没有运行、进行中、取消或跳过均不算通过。失败时读取 `gh run view <run_id> --log-failed`，修复后重新检查新 SHA。当前提交验证完成后再推进下一次提交；多个本地提交一次推送只会检查最终提交。
+
 ## 提交规范
 
 每个可独立说明、验证和回滚的小任务对应一个提交。提交信息使用 Conventional Commits，类型与作用域为小写英文，描述为中文：

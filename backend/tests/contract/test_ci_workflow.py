@@ -76,6 +76,8 @@ def _assert_quality_gates(workflow: dict) -> None:
     assert triggers["push"]["branches"] == ["main"]
     assert triggers["pull_request"]["branches"] == ["main"]
     assert workflow["permissions"] == {"contents": "read"}
+    for event in ("push", "pull_request"):
+        assert not {"paths", "paths-ignore"} & triggers[event].keys()
     for name, required in expected.items():
         job = workflow["jobs"][name]
         assert "if" not in job and not job.get("continue-on-error")
@@ -95,13 +97,26 @@ def test_quality_gate_contract_rejects_missing_or_nonblocking_checks() -> None:
     import pytest
 
     workflow = yaml.safe_load(WORKFLOW_PATH.read_text(encoding="utf-8"))
-    for mutation in ("missing-command", "skip-job", "ignore-failure"):
+    for mutation in (
+        "missing-command",
+        "skip-job",
+        "skip-step",
+        "ignore-failure",
+        "path-filter",
+    ):
         changed = deepcopy(workflow)
         job = changed["jobs"]["frontend-tests"]
         if mutation == "missing-command":
-            job["steps"][-1]["run"] = job["steps"][-1]["run"].replace("pnpm lint", "")
+            step = next(
+                step for step in job["steps"] if "pnpm lint" in step.get("run", "")
+            )
+            step["run"] = step["run"].replace("pnpm lint", "")
         elif mutation == "skip-job":
             job["if"] = "false"
+        elif mutation == "skip-step":
+            job["steps"][-1]["if"] = "steps.cache.outputs.cache-hit != 'true'"
+        elif mutation == "path-filter":
+            changed[True]["push"]["paths"] = ["frontend/**"]
         else:
             job["steps"][-1]["continue-on-error"] = True
         with pytest.raises(AssertionError):
@@ -115,10 +130,11 @@ def test_ci_toolchain_matches_frontend_manifest() -> None:
     package = json.loads((root / "frontend/package.json").read_text())
     workflow = yaml.safe_load(WORKFLOW_PATH.read_text())
     steps = workflow["jobs"]["frontend-tests"]["steps"]
-    assert any(
-        step.get("run") == f"npm install --global {package['packageManager']}"
-        for step in steps
+    pnpm = next(
+        step for step in steps if step.get("uses", "").startswith("pnpm/action-setup@")
     )
+    assert pnpm["with"]["version"] == package["packageManager"].split("@", 1)[1]
+    assert pnpm["with"]["package_json_file"] == "frontend/package.json"
     assert (
         "git ls-files --others --exclude-standard -- src/api"
         in package["scripts"]["openapi:check"]
@@ -140,3 +156,32 @@ def test_binary_frontend_assets_are_not_forced_to_text() -> None:
         text=True,
     )
     assert all(not line.endswith(": set") for line in result.stdout.splitlines())
+
+
+def _assert_main_runs_are_preserved(workflow: dict) -> None:
+    concurrency = workflow["concurrency"]
+    assert concurrency["group"] == (
+        "ci-${{ github.workflow }}-${{ github.event_name }}-"
+        "${{ github.event.pull_request.number || github.sha }}"
+    )
+    assert (
+        concurrency["cancel-in-progress"]
+        == "${{ github.event_name == 'pull_request' }}"
+    )
+
+
+def test_ci_preserves_each_main_commit_and_only_supersedes_pr_runs() -> None:
+    from copy import deepcopy
+
+    import pytest
+
+    workflow = yaml.safe_load(WORKFLOW_PATH.read_text(encoding="utf-8"))
+    _assert_main_runs_are_preserved(workflow)
+    for group, cancel in (
+        ("ci-${{ github.ref }}", False),
+        (workflow["concurrency"]["group"], True),
+    ):
+        changed = deepcopy(workflow)
+        changed["concurrency"] = {"group": group, "cancel-in-progress": cancel}
+        with pytest.raises(AssertionError):
+            _assert_main_runs_are_preserved(changed)

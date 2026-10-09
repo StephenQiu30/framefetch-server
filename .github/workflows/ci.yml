@@ -8,8 +8,8 @@ on:
   workflow_dispatch:
 
 concurrency:
-  group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: true
+  group: ci-${{ github.workflow }}-${{ github.event_name }}-${{ github.event.pull_request.number || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 permissions:
   contents: read
@@ -59,14 +59,20 @@ jobs:
           sudo apt-get install --yes --no-install-recommends redis-server redis-tools
           command -v redis-server
           command -v redis-cli
-      - name: Test backend
+      - name: Install backend dependencies
+        working-directory: backend
+        run: uv sync --frozen --dev
+      - name: Check backend format and lint
         working-directory: backend
         run: |
-          uv sync --frozen --dev
           uv run --frozen ruff check app tests
           uv run --frozen ruff format --check app tests
-          uv run --frozen mypy app
-          uv run --frozen pytest -q
+      - name: Check backend types
+        working-directory: backend
+        run: uv run --frozen mypy app
+      - name: Test backend
+        working-directory: backend
+        run: uv run --frozen pytest -q
 
   frontend-tests:
     name: Frontend tests
@@ -79,8 +85,13 @@ jobs:
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
         with:
           node-version: "24.15.0"
-      - name: Use repository pnpm version
-        run: npm install --global pnpm@12.4.2
+      - name: Configure pnpm and dependency cache
+        uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6
+        with:
+          version: "12.4.2"
+          package_json_file: frontend/package.json
+          cache: true
+          cache_dependency_path: frontend/pnpm-lock.yaml
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
         with:
           python-version: "3.12"
@@ -94,15 +105,23 @@ jobs:
         run: |
           uv sync --frozen --no-dev
           uv run --frozen python -c 'import json, os; from pathlib import Path; from app.core.config import Settings; from app.main import create_app; Path(os.environ["RUNNER_TEMP"], "framefetch-openapi.json").write_text(json.dumps(create_app(Settings(app_env="test")).openapi()))'
-      - name: Test frontend
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: pnpm install --frozen-lockfile
+      - name: Verify generated OpenAPI client
+        working-directory: frontend
+        run: OPENAPI_SCHEMA_URL="$RUNNER_TEMP/framefetch-openapi.json" pnpm openapi:check
+      - name: Check frontend format and lint
         working-directory: frontend
         run: |
-          pnpm install --frozen-lockfile
-          OPENAPI_SCHEMA_URL="$RUNNER_TEMP/framefetch-openapi.json" pnpm openapi:check
           pnpm format:check
           pnpm lint
-          pnpm test
-          pnpm build
+      - name: Test frontend
+        working-directory: frontend
+        run: pnpm test
+      - name: Build frontend
+        working-directory: frontend
+        run: pnpm build
 
   docs:
     name: Docs
@@ -112,7 +131,6 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           persist-credentials: false
-          fetch-depth: 0
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
         with:
           node-version: "24.15.0"
