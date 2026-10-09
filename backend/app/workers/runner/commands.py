@@ -26,6 +26,7 @@ from app.workers.runner.command_support import child_environment, json_object
 from app.workers.runner.engine import identity
 from app.workers.runner.engine.run_context import RunContext
 from app.workers.runner.errors import RunnerFailure
+from app.workers.runner.hls_probe import read_clear_hls_prefix
 from app.workers.runner.metadata import (
     collection_fallback_assets,
     normalize_media_payload,
@@ -262,6 +263,57 @@ class MediaCommands:
                 Path(directory),
                 failure_context=failure_context,
             )
+
+    async def probe_hls_prefix(
+        self,
+        url: str,
+        cwd: Path,
+        *,
+        referer: str,
+        failure_context: ProviderFailureContext,
+    ) -> dict[str, Any]:
+        try:
+            async with httpx.AsyncClient(
+                proxy=self._run_context.egress.proxy_url,
+                trust_env=False,
+                follow_redirects=False,
+                timeout=10,
+            ) as client:
+                data = await read_clear_hls_prefix(
+                    client,
+                    url,
+                    headers={
+                        "Referer": referer,
+                        "User-Agent": self._run_context.user_agent
+                        or _REMOTE_PROBE_USER_AGENT,
+                    },
+                )
+        except httpx.HTTPStatusError as exc:
+            raise self._provider_failure(
+                failure_context,
+                f"http error {exc.response.status_code}".encode(),
+                fallback_code="media_probe_failed",
+                fallback_status=502,
+                phase=FailurePhase.PROBE_MEDIA,
+                retry_after=parse_retry_after(
+                    exc.response.headers.get("Retry-After"), datetime.now(UTC)
+                ),
+            ) from exc
+        except httpx.HTTPError as exc:
+            raise RunnerFailure(
+                "network_transient",
+                status=503,
+                phase=FailurePhase.PROBE_MEDIA,
+                evidence_kind=FailureEvidenceKind.TRANSPORT,
+            ) from exc
+        with TemporaryDirectory(prefix="hls-probe-", dir=cwd) as directory:
+            sample = Path(directory) / "prefix.input"
+            sample.write_bytes(data)
+            probe = await self.probe(
+                sample, Path(directory), failure_context=failure_context
+            )
+        # The prefix proves codec/size/fps, never the full asset's size/duration.
+        return {"streams": probe.get("streams", [])}
 
     async def download_stream(
         self,

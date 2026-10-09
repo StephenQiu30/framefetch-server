@@ -451,6 +451,7 @@ PROVIDER_FAILURE_RULES: tuple[FailureRule, ...] = (
         any_stderr=(
             b"connection timed out",
             b"read timed out",
+            b"read operation timed out",
             b"connection reset",
             b"name or service not known",
             b"temporary failure in name resolution",

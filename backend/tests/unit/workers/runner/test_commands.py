@@ -1861,3 +1861,36 @@ async def test_terminal_packet_probe_is_local_and_limited_to_tail_video(tmp_path
     assert argv[argv.index("-select_streams") + 1] == "v:0"
     assert argv[argv.index("-read_intervals") + 1] == "28.123456%"
     assert "packet=pos,size,pts_time,flags" in argv
+
+
+async def test_hls_probe_prefix_never_reports_sample_as_complete_asset(
+    tmp_path, monkeypatch
+):
+    async def read(*args, **kwargs):
+        return b"init-and-video-prefix"
+
+    monkeypatch.setattr(commands_module, "read_clear_hls_prefix", read)
+    commands = MediaCommands(settings(tmp_path), RecordingSupervisor())
+    streams = [
+        {
+            "codec_type": "video",
+            "codec_name": "h264",
+            "width": 1922,
+            "height": 1080,
+            "avg_frame_rate": "30/1",
+        }
+    ]
+    probe = AsyncMock(
+        return_value={"streams": streams, "format": {"duration": "3", "size": "262144"}}
+    )
+    monkeypatch.setattr(commands, "probe", probe)
+    result = await commands.probe_hls_prefix(
+        "https://video.twimg.com/clear/1080.m3u8",
+        tmp_path,
+        referer="https://x.com/user/status/123",
+        failure_context=ProviderFailureContext(
+            "x", "https://x.com/user/status/123", True
+        ),
+    )
+    assert result == {"streams": streams}
+    assert not list(tmp_path.glob("hls-probe-*"))

@@ -1617,3 +1617,69 @@ async def test_download_rejects_changed_duration_before_transfer(tmp_path):
     assert caught.value.failure.cause_code == "source_duration_changed"
     assert all("--format" not in argv for argv, _ in supervisor.calls)
     assert list(tmp_path.iterdir()) == []
+
+
+@pytest.mark.parametrize(
+    "hls_height,clear_audio,expected",
+    [
+        (1080, True, ["hls-video", "hls-audio"]),
+        (720, True, ["http"]),
+        (1080, False, ["http"]),
+    ],
+)
+async def test_x_prefers_clear_segmented_same_plan_without_downgrade(
+    tmp_path, hls_height, clear_audio, expected
+):
+    from dataclasses import fields
+
+    from app.workers.runner.engine.resolved import Resolution, ResolvedMedia
+    from app.workers.runner.metadata import MediaInspection
+    from app.workers.runner.utilities import normalize_for_settings
+    from app.workers.runner.workspace import WorkspaceManager
+    from helpers import run_context
+
+    config = settings(tmp_path)
+    payload = split_media_info()
+    video, audio = payload["formats"]
+    payload["formats"] = [
+        {**video, "format_id": "http", "acodec": "mp4a.40.2", "language": "zh-CN"},
+        {
+            **video,
+            "format_id": "hls-video",
+            "height": hls_height,
+            "width": 1920 if hls_height == 1080 else 1280,
+            "_framefetch_clear_hls": True,
+            "protocol": "m3u8_native",
+        },
+        {
+            **audio,
+            "format_id": "hls-audio",
+            "_framefetch_clear_hls": clear_audio,
+            "protocol": "m3u8_native",
+        },
+    ]
+    supervisor = FixtureSupervisor(payload)
+    service = MediaRunnerService(config, supervisor=supervisor)
+    source = provider_request("https://x.com/user/status/123")
+    context = service._context(source)
+    inspection = normalize_for_settings(payload, config)
+    media = ResolvedMedia(
+        **{f.name: getattr(inspection, f.name) for f in fields(MediaInspection)}
+    )
+    resolution = Resolution(media, context, run_context=run_context(config, "x"))
+    request = download_request().model_copy(update={"url": source.source_url})
+    workspace = WorkspaceManager(tmp_path / "download").create(request.task_id)
+    service._active.register(request.task_id, asyncio.current_task())
+    try:
+        result = await service._download_resolved(
+            request, source, workspace, resolution
+        )
+        downloads = [argv for argv, _ in supervisor.calls if argv[0] == "yt-dlp"]
+        assert [a[a.index("--format") + 1] for a in downloads] == expected
+        assert all("--abort-on-unavailable-fragments" in a for a in downloads)
+        assert result.artifact.duration_seconds == 30
+        assert any(a[-2:] == ("null", "-") for a, _ in supervisor.calls)
+    finally:
+        service._active.discard(request.task_id, asyncio.current_task())
+        workspace.cleanup()
+        await service.close()

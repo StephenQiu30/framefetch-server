@@ -358,8 +358,13 @@ class RunnerInspectionPipeline:
                         payload.get("_framefetch_full_stream") is True
                         and raw.get("_framefetch_probe_url") == url
                     )
+                    hls_prefix = failure_context.provider_key == "x" and str(
+                        raw.get("protocol", "")
+                    ).startswith("m3u8")
                     probe_command = (
-                        self._commands.probe_remote_prefix
+                        self._commands.probe_hls_prefix
+                        if hls_prefix
+                        else self._commands.probe_remote_prefix
                         if prefix
                         else self._commands.probe_remote
                     )
@@ -369,16 +374,15 @@ class RunnerInspectionPipeline:
                         referer=referer,
                         failure_context=failure_context,
                     )
-                return (
-                    index,
-                    enrich_format_metadata(
-                        raw,
-                        probe,
-                        allow_nominal_fps=prefix,
-                        remote_probe=not prefix,
-                    ),
-                    _probe_duration(probe),
+                enriched = enrich_format_metadata(
+                    raw,
+                    probe,
+                    allow_nominal_fps=prefix,
+                    remote_probe=not prefix and not hls_prefix,
                 )
+                if hls_prefix:
+                    enriched["_framefetch_clear_hls"] = True
+                return index, enriched, _probe_duration(probe)
             except RunnerFailure as exc:
                 exc.during(FailurePhase.PROBE_MEDIA)
                 if not _is_soft_probe_failure(exc):

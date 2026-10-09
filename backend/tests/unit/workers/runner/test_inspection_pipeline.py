@@ -513,7 +513,9 @@ async def test_x_vfr_hls_cannot_outrank_verified_highest_mp4(tmp_path):
         }
 
     commands = SimpleNamespace(
-        inspect=AsyncMock(return_value=payload), probe_remote=probe_remote
+        inspect=AsyncMock(return_value=payload),
+        probe_remote=probe_remote,
+        probe_hls_prefix=probe_remote,
     )
     workspace = WorkspaceManager(tmp_path / "runner").create("x-vfr")
     try:
@@ -807,5 +809,71 @@ async def test_malformed_candidate_numbers_do_not_crash_other_valid_quality(
             plan.height
             for plan in build_download_options(result.streams, max_options=10)
         ] == [1080]
+    finally:
+        workspace.cleanup()
+
+
+async def test_x_probes_hls_even_with_known_same_quality_mp4_and_keeps_full_duration(
+    tmp_path,
+):
+    from unittest.mock import AsyncMock
+
+    payload = split_media_info()
+    payload["duration"] = 15750
+    muxed = {
+        **payload["formats"][0],
+        "format_id": "http",
+        "acodec": "aac",
+        "language": "zh-CN",
+    }
+    hls = {
+        **payload["formats"][0],
+        "format_id": "hls-video",
+        "fps": None,
+        "protocol": "m3u8_native",
+        "url": "https://video.twimg.com/clear/1080.m3u8",
+    }
+    payload["formats"] = [muxed, hls]
+    commands = SimpleNamespace(
+        inspect=AsyncMock(return_value=payload),
+        probe_hls_prefix=AsyncMock(
+            return_value={
+                "streams": [
+                    {
+                        "codec_type": "video",
+                        "codec_name": "h264",
+                        "width": 1920,
+                        "height": 1080,
+                        "avg_frame_rate": "30/1",
+                        "r_frame_rate": "30/1",
+                    }
+                ]
+            }
+        ),
+        probe_remote=AsyncMock(side_effect=AssertionError("known MP4 needs no probe")),
+        download_probe_sample=AsyncMock(
+            side_effect=AssertionError(
+                "HLS must not be fully downloaded during inspection"
+            )
+        ),
+    )
+    workspace = WorkspaceManager(tmp_path / "runner").create("long-hls")
+    try:
+        inspected = await RunnerInspectionPipeline(
+            settings(tmp_path), commands
+        ).inspect(
+            provider_request("https://x.com/user/status/123"),
+            workspace,
+            context=SimpleNamespace(
+                provider_key="x", identity_used=False, resolved_layer="L1"
+            ),
+            cookie_jar=None,
+        )
+        assert inspected.duration_seconds == 15750
+        stream = next(s for s in inspected.streams if s.provider_id == "hls-video")
+        assert stream.fps == 30
+        assert stream.size_bytes is None
+        assert inspected.download_info["formats"][1]["_framefetch_clear_hls"] is True
+        commands.probe_hls_prefix.assert_awaited_once()
     finally:
         workspace.cleanup()

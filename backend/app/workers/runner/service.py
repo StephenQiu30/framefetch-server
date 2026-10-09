@@ -529,9 +529,26 @@ class MediaRunnerService:
             # Provider format ids are only short-lived hints. Re-inspection is
             # the source of truth because YouTube can reject one rendition
             # while another stream with the same semantic plan remains valid.
-            selection = select_streams(
-                replace(plan, hints=ProviderHints()), inspection.streams
-            )
+            fresh_plan = replace(plan, hints=ProviderHints())
+            selection = select_streams(fresh_plan, inspection.streams)
+            formats = inspection.download_info.get("formats")
+            if source.profile.key == ProviderKey.X and isinstance(formats, list):
+                clear_hls = {
+                    str(raw.get("format_id"))
+                    for raw in formats
+                    if isinstance(raw, dict)
+                    and raw.get("_framefetch_clear_hls") is True
+                    and str(raw.get("protocol", "")).startswith("m3u8")
+                }
+                segmented = tuple(
+                    stream
+                    for stream in inspection.streams
+                    if stream.provider_id in clear_hls
+                )
+                try:
+                    selection = select_streams(fresh_plan, segmented)
+                except FormatSelectionError:
+                    pass
         except FormatSelectionError as exc:
             raise RunnerFailure("context_changed", status=409) from exc
 

@@ -61,6 +61,11 @@ SOCIAL_PROVIDER_PROFILES: tuple[ProviderProfile, ...] = (
         ),
         probe_authenticated_media=True,
         identity=ProviderIdentity.PREFER,
+        command_args=(
+            "--abort-on-unavailable-fragments",
+            "--concurrent-fragments",
+            "4",
+        ),
     ),
     standard_provider(
         ProviderKey.INSTAGRAM,

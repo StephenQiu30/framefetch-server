@@ -113,6 +113,7 @@ def test_dailymotion_restriction_markers(marker, expected):
     [
         b"Unable to download JSON metadata: [SSL: UNEXPECTED_EOF_WHILE_READING]",
         b"Failed to parse JSON: EOF occurred in violation of protocol (_ssl.c:1010)",
+        b"ERROR: unable to download video data: The read operation timed out",
     ],
 )
 def test_tls_disconnect_is_transient_not_an_extractor_failure(message):
