@@ -568,6 +568,9 @@ def test_ignores_sub_unit_provider_metrics_after_integer_normalization() -> None
         ({"has_drm": True}, "unsupported_source"),
         ({"duration": 7201}, "duration_limit_exceeded"),
         ({"duration": None}, "unsupported_source"),
+        pytest.param(
+            {"duration": 10**400}, "unsupported_source", id="overflow-duration"
+        ),
     ],
 )
 def test_rejects_unsupported_media_metadata(

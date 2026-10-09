@@ -762,8 +762,19 @@ async def test_probe_budget_prioritizes_quality_and_limits_concurrency(
         workspace.cleanup()
 
 
-async def test_malformed_candidate_dimensions_do_not_crash_other_valid_quality(
+@pytest.mark.parametrize(
+    "field,value",
+    [
+        pytest.param("width", [], id="non-numeric-width"),
+        pytest.param("width", 10**400, id="overflow-width"),
+        pytest.param("height", 10**400, id="overflow-height"),
+        pytest.param("fps", 10**400, id="overflow-fps"),
+    ],
+)
+async def test_malformed_candidate_numbers_do_not_crash_other_valid_quality(
     tmp_path,
+    field,
+    value,
 ):
     from unittest.mock import AsyncMock
 
@@ -776,8 +787,8 @@ async def test_malformed_candidate_dimensions_do_not_crash_other_valid_quality(
         {
             **video,
             "format_id": "malformed",
-            "width": [],
             "fps": None,
+            field: value,
             "filesize": config.runner_max_probe_sample_bytes + 1,
         },
     ]

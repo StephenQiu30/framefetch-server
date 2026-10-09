@@ -587,7 +587,7 @@ def _positive_seconds(value: object) -> float | None:
         return None
     try:
         duration = float(value)  # type: ignore[arg-type]
-    except (TypeError, ValueError):
+    except (TypeError, ValueError, OverflowError):
         return None
     return duration if math.isfinite(duration) and duration > 0 else None
 
