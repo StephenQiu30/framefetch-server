@@ -448,3 +448,66 @@ async def test_dailymotion_clear_prefix_replaces_selected_track_rate(tmp_path):
         assert inspection.streams[0].fps == pytest.approx(30000 / 1001)
     finally:
         workspace.cleanup()
+
+
+async def test_x_vfr_hls_cannot_outrank_verified_highest_mp4(tmp_path):
+    from unittest.mock import AsyncMock
+
+    from app.workers.runner.metadata import build_download_options
+
+    payload = split_media_info()
+    payload.update(extractor_key="Twitter", fps=240)
+    payload["formats"] = [
+        {
+            "format_id": name,
+            "ext": "mp4",
+            "width": 3006,
+            "height": 1604,
+            "vcodec": "h264",
+            "acodec": None,
+            "fps": None,
+            "protocol": "m3u8_native" if name.startswith("hls") else "https",
+            "url": "https://video.twimg.com/" + name,
+        }
+        for name in ["hls-4108", "http-25128"]
+    ]
+
+    async def probe_remote(url, *args, **kwargs):
+        hls = url.endswith("hls-4108")
+        return {
+            "format": {
+                "format_name": "hls" if hls else "mov,mp4",
+                "duration": "34.386667",
+            },
+            "streams": [
+                {
+                    "codec_type": "video",
+                    "codec_name": "h264",
+                    "width": 3006,
+                    "height": 1604,
+                    "avg_frame_rate": "0/0" if hls else "137400/2579",
+                    "r_frame_rate": "240/1",
+                }
+            ],
+        }
+
+    commands = SimpleNamespace(
+        inspect=AsyncMock(return_value=payload), probe_remote=probe_remote
+    )
+    workspace = WorkspaceManager(tmp_path / "runner").create("x-vfr")
+    try:
+        result = await RunnerInspectionPipeline(settings(tmp_path), commands).inspect(
+            provider_request("https://x.com/creator/status/123"),
+            workspace,
+            context=SimpleNamespace(
+                provider_key="x", identity_used=True, resolved_layer="L1"
+            ),
+            cookie_jar=tmp_path / "approved-cookie-jar",
+        )
+        plans = build_download_options(result.streams, max_options=10)
+        assert len(plans) == 1
+        assert plans[0].height == 1604
+        assert plans[0].fps_bucket == "fps_60"
+        assert plans[0].hints.video_id == "http-25128"
+    finally:
+        workspace.cleanup()

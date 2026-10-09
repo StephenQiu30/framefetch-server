@@ -698,3 +698,61 @@ def test_dailymotion_frame_rate_suffix_is_a_literal_format_identity() -> None:
         payload, max_duration_seconds=7200, max_candidate_streams=200
     )
     assert inspection.streams[0].provider_id == "hls-720@60"
+
+
+@pytest.mark.parametrize("average", ["0/0", None])
+def test_hls_timestamp_base_does_not_claim_high_fps_or_inherit_top_level_rate(average):
+    raw = {
+        "format_id": "hls-4108",
+        "protocol": "m3u8_native",
+        "ext": "mp4",
+        "fps": None,
+        "vcodec": "h264",
+        "acodec": "none",
+        "width": 3006,
+        "height": 1604,
+    }
+    enriched = enrich_format_metadata(
+        raw,
+        {
+            "format": {"format_name": "hls", "duration": "35.057999"},
+            "streams": [
+                {
+                    "codec_type": "video",
+                    "codec_name": "h264",
+                    "width": 3006,
+                    "height": 1604,
+                    "avg_frame_rate": average,
+                    "r_frame_rate": "240/1",
+                }
+            ],
+        },
+    )
+    assert enriched["fps"] is None
+    payload = media_info()
+    payload.update(fps=240, formats=[enriched])
+    with pytest.raises(RunnerFailure, match="format unavailable"):
+        normalize_metadata(payload, max_duration_seconds=7200, max_candidate_streams=32)
+
+
+@pytest.mark.parametrize(
+    "average,expected", [("137400/2579", 137400 / 2579), ("120/1", 120)]
+)
+def test_hls_measured_average_keeps_variable_and_actual_high_frame_rates(
+    average, expected
+):
+    enriched = enrich_format_metadata(
+        {},
+        {
+            "format": {"format_name": "hls"},
+            "streams": [
+                {
+                    "codec_type": "video",
+                    "codec_name": "h264",
+                    "avg_frame_rate": average,
+                    "r_frame_rate": "240/1",
+                }
+            ],
+        },
+    )
+    assert enriched["fps"] == pytest.approx(expected)

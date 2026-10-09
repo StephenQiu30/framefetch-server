@@ -360,3 +360,47 @@ async def test_cancel_rejects_mismatched_or_incomplete_ack(tmp_path, ack):
     ) as http:
         with pytest.raises(MediaRunnerClientError, match="invalid_runner_response"):
             await client(http, tmp_path).cancel("parse_fixture")
+
+
+async def test_download_validation_failure_retains_business_error_after_projection(
+    tmp_path,
+):
+    from app.services.download_execution.errors import classify_runner_failure
+    from app.services.downloads.rules.enums import DownloadErrorCode
+    from app.workers.runner.main import create_app
+    from tests.unit.workers.runner.api_helpers import FakeService
+    from tests.unit.workers.runner.helpers import settings
+
+    config = settings(tmp_path)
+
+    class FailingService(FakeService):
+        async def download(self, _request):
+            raise RunnerFailure("invalid_artifact")
+
+    async with httpx.AsyncClient(
+        base_url="http://runner",
+        transport=httpx.ASGITransport(app=create_app(config, service=FailingService())),
+    ) as http:
+        runner = MediaRunnerHttpClient(
+            base_url="http://runner",
+            secret=config.runner_hmac_secret.get_secret_value().encode(),
+            workspace_root=tmp_path,
+            inspect_timeout_seconds=5,
+            download_timeout_seconds=5,
+            client=http,
+        )
+        with pytest.raises(MediaRunnerClientError) as caught:
+            await runner.download(
+                "job_fixture",
+                "https://media.example.com/video",
+                download_request().plan.to_domain(),
+                expected_provider_media_id="controlled",
+                expected_extractor_key="Controlled",
+                execution_context=context(),
+            )
+    assert caught.value.code == "extractor_broken"
+    assert caught.value.failure.stage == "validate"
+    assert (
+        classify_runner_failure(caught.value)
+        is DownloadErrorCode.MEDIA_VALIDATION_FAILED
+    )

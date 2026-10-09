@@ -446,3 +446,26 @@ async def test_download_missing_identity_changes_context_before_layer_io(
         assert caught.value.failure.failure_class is FailureClass.CONTEXT_CHANGED
     finally:
         source.workspace.cleanup()
+
+
+@pytest.mark.parametrize("filename", ["metadata.py", "verification.py", "options.py"])
+def test_engine_revision_invalidates_plans_after_selection_policy_change(
+    tmp_path, monkeypatch, filename
+):
+    from pathlib import Path
+
+    from app.workers.runner import version
+
+    read_bytes = Path.read_bytes
+    before = engine_revision(settings(tmp_path))
+
+    def changed(path):
+        data = read_bytes(path)
+        return (
+            data + b"\n# changed policy\n"
+            if path.name == filename and path.parent == Path(version.__file__).parent
+            else data
+        )
+
+    monkeypatch.setattr(Path, "read_bytes", changed)
+    assert engine_revision(settings(tmp_path)) != before

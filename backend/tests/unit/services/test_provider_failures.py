@@ -124,3 +124,19 @@ def test_failure_attempt_evidence_rejects_secrets_and_invalid_facts(facts):
         ProviderFailure.for_code(
             "network_blocked", evidence={"kind": "unknown", **facts}
         )
+
+
+@pytest.mark.parametrize(
+    "phase,evidence",
+    [
+        (FailurePhase.FETCH_METADATA, "local_validation"),
+        (FailurePhase.VALIDATE, "upstream_response"),
+    ],
+)
+def test_extractor_failure_is_not_relabelled_as_local_file_validation(phase, evidence):
+    from app.services.provider_failures import FailureEvidenceKind
+
+    error = RunnerFailure(
+        "extractor_broken", phase=phase, evidence_kind=FailureEvidenceKind(evidence)
+    )
+    assert classify_runner_failure(error) is DownloadErrorCode.EXTRACTOR_BROKEN

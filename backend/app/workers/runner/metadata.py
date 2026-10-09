@@ -258,15 +258,24 @@ def enrich_format_metadata(
         return raw
 
     enriched = dict(raw)
+    format_info = probe.get("format")
+    format_names = (
+        str(format_info.get("format_name") or "").split(",")
+        if isinstance(format_info, dict)
+        else []
+    )
     video = _first_probe_stream(probe_streams, "video")
     audio = _first_probe_stream(probe_streams, "audio")
     if video is None:
         enriched["vcodec"] = "none"
     else:
-        fps = _frame_rate(video.get("avg_frame_rate")) or _frame_rate(
-            video.get("r_frame_rate")
-        )
+        fps = _frame_rate(video.get("avg_frame_rate"))
         nominal = _frame_rate(video.get("r_frame_rate"))
+        # HLS can expose only a timestamp base (e.g. 240 for a ~53 fps VFR
+        # stream). It is not an observed average and must not create a plan.
+        # Keep the existing codec-header rate for bounded clear file prefixes.
+        if fps is None and not {"hls", "applehttp"}.intersection(format_names):
+            fps = nominal
         # Twitch clip edit lists can make the remote container average 30.016
         # or 60.017 while the actual cadence is 30/60. Keep materially different
         # averages (including variable-rate media); final-file checks stay strict.
@@ -296,7 +305,6 @@ def enrich_format_metadata(
             }
         )
 
-    format_info = probe.get("format")
     if isinstance(format_info, dict):
         enriched["duration"] = _positive_number(
             format_info.get("duration")
@@ -674,7 +682,9 @@ def _normalize_stream(
     )
     height = _positive_int(raw.get("height") or media.get("height"))
     width = _positive_int(raw.get("width") or media.get("width"))
-    fps = _positive_number(raw.get("fps") or media.get("fps"))
+    # An explicitly unknown per-format rate must not inherit another rendition's
+    # top-level rate. Missing per-format metadata can still use upstream facts.
+    fps = _positive_number(raw["fps"] if "fps" in raw else media.get("fps"))
     language = raw.get("language") or media.get("language")
     bitrate = raw.get("tbr") or raw.get("vbr") or raw.get("abr")
     try:

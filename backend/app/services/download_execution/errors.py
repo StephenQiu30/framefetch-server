@@ -1,7 +1,13 @@
 from __future__ import annotations
 
 from app.services.downloads.rules.enums import DownloadErrorCode
-from app.services.provider_failures import failure_definition
+from app.services.provider_failures import (
+    FailureClass,
+    FailureEvidenceKind,
+    FailurePhase,
+    ProviderFailure,
+    failure_definition,
+)
 
 
 class ExecutionPersistenceUnavailable(RuntimeError):
@@ -46,6 +52,14 @@ def classify_runner_failure(error: BaseException) -> DownloadErrorCode:
         known = _RUNNER_CODES.get(code)
         if known is not None:
             return known
+        failure = getattr(error, "failure", None)
+        if (
+            isinstance(failure, ProviderFailure)
+            and failure.failure_class is FailureClass.EXTRACTOR_BROKEN
+            and failure.phase is FailurePhase.VALIDATE
+            and failure.evidence_kind is FailureEvidenceKind.LOCAL_VALIDATION
+        ):
+            return DownloadErrorCode.MEDIA_VALIDATION_FAILED
         kind, _, _ = failure_definition(code)
         return DownloadErrorCode(kind.value)
     return DownloadErrorCode.RUNTIME_UNAVAILABLE

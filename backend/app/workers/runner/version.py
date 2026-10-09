@@ -47,11 +47,11 @@ def engine_revision(settings: RunnerSettings | None = None) -> str:
     facts["chromium"] = CHROMIUM_VERSION
     digest = hashlib.sha256(json.dumps(facts, sort_keys=True).encode())
     root = Path(__file__).resolve().parent
-    # Local layer/proof code changes also invalidate previously confirmed plans.
+    # Changes to selection, validation and layer/proof code invalidate plans.
     paths = [
+        *root.glob("*.py"),
         *(root / "plugins").rglob("*.py"),
         *(root / "engine").rglob("*.py"),
-        root / "youtube_proof.py",
         root / "wpc-chromium.sh",
     ]
     for path in sorted(paths):
