@@ -1,13 +1,5 @@
 import { CheckIcon, ClockIcon } from '@phosphor-icons/react';
-import { FieldDescription } from '@/components/ui/field';
-import {
-  Item,
-  ItemContent,
-  ItemDescription,
-  ItemGroup,
-  ItemMedia,
-  ItemTitle,
-} from '@/components/ui/item';
+import { ItemDescription, ItemMedia, ItemTitle } from '@/components/ui/item';
 import { Spinner } from '@/components/ui/spinner';
 import {
   DownloadStatusCode,
@@ -30,21 +22,21 @@ export function DownloadExecutionSummary({
   return (
     <section
       aria-labelledby="download-stages-title"
-      className="flex flex-col gap-3"
+      className="@container flex flex-col gap-3"
     >
       <ItemTitle>
         <h3 id="download-stages-title">处理阶段</h3>
       </ItemTitle>
-      <ItemGroup>
+      <ol className="grid grid-cols-3 gap-x-3 gap-y-4 @sm:grid-cols-5">
         {stages.map((stage, index) => {
           const done =
             job.status === DownloadStatusCode.Succeeded ||
             (current >= 0 && index < current);
           const isCurrent = index === current;
           return (
-            <Item
+            <li
               key={stage.code}
-              role="listitem"
+              className="flex min-w-0 flex-col items-start gap-1"
               aria-current={isCurrent ? 'step' : undefined}
             >
               <ItemMedia variant="icon">
@@ -56,19 +48,14 @@ export function DownloadExecutionSummary({
                   <ClockIcon aria-hidden />
                 )}
               </ItemMedia>
-              <ItemContent>
-                <ItemTitle>{stage.label}</ItemTitle>
-                <ItemDescription>
-                  {done ? '已完成' : isCurrent ? '当前阶段' : '等待处理'}
-                </ItemDescription>
-              </ItemContent>
-            </Item>
+              <ItemTitle className="line-clamp-none">{stage.label}</ItemTitle>
+              <ItemDescription>
+                {done ? '已完成' : isCurrent ? '当前阶段' : '等待处理'}
+              </ItemDescription>
+            </li>
           );
         })}
-      </ItemGroup>
-      <FieldDescription>
-        阶段按处理顺序展示，当前阶段随任务状态更新。
-      </FieldDescription>
+      </ol>
     </section>
   );
 }

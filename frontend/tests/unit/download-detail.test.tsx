@@ -1,4 +1,4 @@
-import { fireEvent, screen, waitFor } from '@testing-library/react';
+import { fireEvent, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import DownloadJobView from '@/components/downloads/download-job-view';
 import { httpClient } from '@/lib/request';
@@ -110,13 +110,11 @@ describe('DownloadJobView', () => {
     expect(stages.querySelector('[aria-current="step"]')).toHaveTextContent(
       '下载媒体',
     );
-    expect(stages.querySelectorAll('[role="listitem"]')).toHaveLength(5);
-    expect(stages.querySelectorAll('[role="listitem"]')[0]).toHaveTextContent(
-      '已完成',
-    );
-    expect(stages.querySelectorAll('[role="listitem"]')[2]).toHaveTextContent(
-      '等待处理',
-    );
+    const steps = within(stages).getAllByRole('listitem');
+    expect(within(stages).getByRole('list').tagName).toBe('OL');
+    expect(steps).toHaveLength(5);
+    expect(steps[0]).toHaveTextContent('已完成');
+    expect(steps[2]).toHaveTextContent('等待处理');
     expect(screen.getByText('下载完成后可在这里播放')).toBeVisible();
     expect(screen.queryByText('速度')).toBeNull();
     expect(screen.queryByText('预计剩余')).toBeNull();
