@@ -10,7 +10,7 @@ from unittest.mock import AsyncMock
 import httpx
 import pytest
 from app.services.downloads.rules.enums import Container
-from app.services.provider_failures import FailurePhase
+from app.services.provider_failures import FailureEvidenceKind, FailurePhase
 from app.workers.runner import commands as commands_module
 from app.workers.runner.errors import RunnerFailure
 from app.workers.runner.process import ProcessResult, ProcessTimeoutError
@@ -99,6 +99,8 @@ async def test_verify_full_decode_is_fixed_local_and_deadline_bounded(
         "-v",
         "error",
         "-xerror",
+        "-err_detect",
+        "explode",
         "-protocol_whitelist",
         "file",
         "-i",
@@ -107,6 +109,10 @@ async def test_verify_full_decode_is_fixed_local_and_deadline_bounded(
         "0:v",
         "-map",
         "0:a?",
+        "-fps_mode",
+        "passthrough",
+        "-enc_time_base:v",
+        "-1",
         "-f",
         "null",
         "-",
@@ -159,8 +165,27 @@ async def test_verify_full_decode_nonzero_exit_rejects_without_raw_stderr(tmp_pa
     assert caught.value.code == "invalid_artifact"
     assert caught.value.failure.phase is FailurePhase.VALIDATE
     assert caught.value.failure.stage == "validate"
+    assert caught.value.failure.evidence_kind.value == "local_validation"
     assert "synthetic-corrupt-packet" not in str(caught.value)
     assert "synthetic-corrupt-packet" not in repr(caught.value.failure.evidence)
+
+
+async def test_local_decoder_output_is_never_classified_as_an_upstream_restriction(
+    tmp_path,
+):
+    commands = MediaCommands(
+        settings(tmp_path), FailingSupervisor(b"Invalid data found: HTTP error 403")
+    )
+    with pytest.raises(RunnerFailure) as caught:
+        await commands.verify_full_decode(
+            tmp_path / "artifact.mp4",
+            tmp_path,
+            failure_context=ProviderFailureContext(
+                "x", "https://x.com/user/status/123", True
+            ),
+        )
+    assert caught.value.code == "invalid_artifact"
+    assert caught.value.failure.evidence_kind.value == "local_validation"
 
 
 @pytest.mark.parametrize("stderr,truncated", [(b"decode error", False), (b"", True)])
@@ -1348,7 +1373,7 @@ async def test_remote_probe_classifies_provider_failure_context(
 
 
 @pytest.mark.asyncio
-async def test_remux_preserves_provider_failure_context(
+async def test_remux_failures_are_local_even_with_provider_context(
     tmp_path: Path,
 ) -> None:
     commands = MediaCommands(
@@ -1370,8 +1395,10 @@ async def test_remux_preserves_provider_failure_context(
             ),
         )
 
-    assert caught.value.code == "network_blocked"
-    assert caught.value.status == 502
+    assert caught.value.code == "remux_failed"
+    assert caught.value.status == 422
+    assert caught.value.failure.phase is FailurePhase.VALIDATE
+    assert caught.value.failure.evidence_kind is FailureEvidenceKind.LOCAL_VALIDATION
 
 
 @pytest.mark.asyncio
@@ -1640,14 +1667,14 @@ async def test_segment_prefix_probe_bounds_bytes_uses_proxy_and_cleans_up(
 
     class Stream(httpx.AsyncByteStream):
         async def __aiter__(self):
-            yield b"x" * (40 * 1024)
+            yield b"x" * (300 * 1024)
             pytest.fail("The probe must stop reading at its prefix limit")
 
         async def aclose(self):
             observed["closed"] = True
 
     def respond(request):
-        assert request.headers["range"] == "bytes=0-8191"
+        assert request.headers["range"] == "bytes=0-262143"
         assert request.headers["referer"] == "https://v.qq.com/x/page/fixture.html"
         return httpx.Response(200, stream=Stream())
 
@@ -1659,7 +1686,7 @@ async def test_segment_prefix_probe_bounds_bytes_uses_proxy_and_cleans_up(
 
     class Supervisor(RecordingSupervisor):
         async def run(self, argv, **kwargs):
-            assert Path(argv[-1]).read_bytes() == b"x" * (8 * 1024)
+            assert Path(argv[-1]).read_bytes() == b"x" * (256 * 1024)
             return await super().run(argv, **kwargs)
 
     monkeypatch.setattr(commands_module.httpx, "AsyncClient", client)

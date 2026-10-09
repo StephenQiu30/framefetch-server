@@ -441,11 +441,11 @@ class MediaRunnerService:
             source_url=source.source_url,
             authenticated=context.identity_used,
         )
-        requires_full_decode = (
+        official_share = (
             source.profile.key == ProviderKey.WECHAT_CHANNELS
             and source.profile.content_scope == "official_share"
         )
-        if requires_full_decode and inspection.media_kind is not MediaKind.VIDEO:
+        if official_share and inspection.media_kind is not MediaKind.VIDEO:
             raise RunnerFailure("source_changed", status=409)
         try:
             require_source_identity(
@@ -518,6 +518,13 @@ class MediaRunnerService:
         if request.plan is None or request.media_kind.value != "video":
             raise RunnerFailure("source_changed", status=409)
         plan = request.plan.to_domain()
+        if abs(inspection.duration_seconds - request.expected_duration_seconds) > max(
+            self._settings.runner_duration_tolerance_seconds,
+            request.expected_duration_seconds * 0.02,
+        ):
+            raise RunnerFailure(
+                "context_changed", status=409, cause_code="source_duration_changed"
+            )
         try:
             # Provider format ids are only short-lived hints. Re-inspection is
             # the source of truth because YouTube can reject one rendition
@@ -633,16 +640,15 @@ class MediaRunnerService:
             probe_payload,
             plan=verification_plan,
             expected_container=selection.output_container,
-            expected_duration=inspection.duration_seconds,
+            expected_duration=request.expected_duration_seconds,
             max_duration=self._settings.runner_max_duration_seconds,
             tolerance_seconds=self._settings.runner_duration_tolerance_seconds,
         )
-        if requires_full_decode:
-            await commands.verify_full_decode(
-                artifact,
-                workspace.path,
-                failure_context=failure_context,
-            )
+        await commands.verify_full_decode(
+            artifact,
+            workspace.path,
+            failure_context=failure_context,
+        )
         digest = await asyncio.to_thread(file_sha256, artifact)
         return DownloadResponse(
             task_id=request.task_id,

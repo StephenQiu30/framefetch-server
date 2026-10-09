@@ -7,6 +7,7 @@ import shutil
 import zipfile
 from pathlib import Path
 
+from app.services.provider_failures import FailurePhase
 from app.workers.runner.errors import RunnerFailure
 from app.workers.runner.gallery import download_gallery_zip
 from app.workers.runner.metadata import GalleryAsset
@@ -39,7 +40,8 @@ async def download_video_collection_zip(
         raise RunnerFailure("format_limit_exceeded", status=413)
     download = getattr(commands, "download_collection", None)
     probe = getattr(commands, "probe", None)
-    if not callable(download) or not callable(probe):
+    decode = getattr(commands, "verify_full_decode", None)
+    if not callable(download) or not callable(probe) or not callable(decode):
         raise RunnerFailure("runner_dependency_unavailable", status=503)
 
     output_dir = workspace.path / "collection-output"
@@ -80,10 +82,11 @@ async def download_video_collection_zip(
             raise RunnerFailure("source_changed", status=409)
         for index, path in enumerate(downloaded, start=1):
             verified = verify_collection_video(
-                await probe(path, workspace.path),
+                await probe(path, workspace.path, phase=FailurePhase.VALIDATE),
                 max_duration=max_duration_seconds,
                 source_extension=path.suffix,
             )
+            await decode(path, workspace.path)
             files.append((path, f"videos/{index:04d}.{verified.extension}"))
 
         with zipfile.ZipFile(

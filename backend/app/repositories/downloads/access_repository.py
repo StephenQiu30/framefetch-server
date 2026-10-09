@@ -418,6 +418,7 @@ class AccessRepository(RepositoryBase):
                 provider_hints=dict(selected_format.provider_hints),
                 extractor_key=inspection.extractor_key,
                 provider_media_id=inspection.provider_media_id,
+                duration_seconds=inspection.duration_seconds,
                 execution_context=dict(execution_context),
                 url_ciphertext=inspection.url_ciphertext,
                 url_nonce=inspection.url_nonce,

@@ -3,6 +3,7 @@ from types import SimpleNamespace
 import pytest
 from app.workers.runner.errors import RunnerFailure
 from app.workers.runner.inspection_pipeline import RunnerInspectionPipeline
+from app.workers.runner.options import build_download_options
 from app.workers.runner.provider_registry import provider_request
 from app.workers.runner.workspace import WorkspaceManager
 from helpers import download_request, settings, split_media_info
@@ -370,6 +371,26 @@ async def test_twitch_remote_clip_edit_list_does_not_change_rate_bucket(
                         "height": 1080,
                         "avg_frame_rate": average,
                         "r_frame_rate": nominal,
+                        "nb_frames": "1802" if nominal == "30/1" else "3602",
+                        "duration_ts": 153687 if nominal == "30/1" else 153641,
+                        "time_base": "1/2560",
+                    },
+                    {"codec_type": "audio", "codec_name": "aac"},
+                ],
+            }
+        ),
+        download_probe_sample=AsyncMock(),
+        probe=AsyncMock(
+            return_value={
+                "format": {"duration": "60.033008"},
+                "streams": [
+                    {
+                        "codec_type": "video",
+                        "codec_name": "h264",
+                        "width": 1920,
+                        "height": 1080,
+                        "avg_frame_rate": "60/1",
+                        "r_frame_rate": "60/1",
                     },
                     {"codec_type": "audio", "codec_name": "aac"},
                 ],
@@ -509,5 +530,271 @@ async def test_x_vfr_hls_cannot_outrank_verified_highest_mp4(tmp_path):
         assert plans[0].height == 1604
         assert plans[0].fps_bucket == "fps_60"
         assert plans[0].hints.video_id == "http-25128"
+    finally:
+        workspace.cleanup()
+
+
+async def test_probe_cannot_replace_original_duration_with_a_short_candidate(tmp_path):
+    from unittest.mock import AsyncMock
+
+    payload = split_media_info()
+    payload["formats"][0]["url"] = "https://cdn.example.org/video.mp4"
+    payload["formats"][1]["url"] = "https://cdn.example.org/audio.m4a"
+
+    async def probe(url, *_args, **_kwargs):
+        streams = [{"codec_type": "audio", "codec_name": "aac"}]
+        if url.endswith(".mp4"):
+            streams.insert(
+                0,
+                {
+                    "codec_type": "video",
+                    "codec_name": "h264",
+                    "width": 1920,
+                    "height": 1080,
+                    "avg_frame_rate": "30/1",
+                },
+            )
+        return {"format": {"duration": "5"}, "streams": streams}
+
+    commands = SimpleNamespace(
+        inspect=AsyncMock(return_value=payload), probe_remote=probe
+    )
+    workspace = WorkspaceManager(tmp_path / "runner").create("original-duration")
+    try:
+        result = await RunnerInspectionPipeline(settings(tmp_path), commands).inspect(
+            provider_request("https://www.bilibili.com/video/BV13x41117TL"),
+            workspace,
+            context=SimpleNamespace(
+                provider_key="bilibili", identity_used=False, resolved_layer="L1"
+            ),
+            cookie_jar=None,
+        )
+        assert result.duration_seconds == 30
+    finally:
+        workspace.cleanup()
+
+
+async def test_usable_lower_quality_does_not_hide_unknown_higher_quality(tmp_path):
+    from unittest.mock import AsyncMock
+
+    payload = split_media_info()
+    video = payload["formats"][0]
+    payload["formats"] = [
+        {
+            **video,
+            "format_id": "small",
+            "width": 1280,
+            "height": 720,
+            "url": "https://video.twimg.com/small.mp4",
+        },
+        {
+            **video,
+            "format_id": "large",
+            "fps": None,
+            "url": "https://video.twimg.com/large.mp4",
+        },
+    ]
+    probe = AsyncMock(
+        return_value={
+            "format": {"format_name": "mov,mp4", "duration": "30"},
+            "streams": [
+                {
+                    "codec_type": "video",
+                    "codec_name": "h264",
+                    "width": 1920,
+                    "height": 1080,
+                    "avg_frame_rate": "60000/1001",
+                }
+            ],
+        }
+    )
+    commands = SimpleNamespace(
+        inspect=AsyncMock(return_value=payload), probe_remote=probe
+    )
+    workspace = WorkspaceManager(tmp_path / "runner").create("higher-quality")
+    try:
+        result = await RunnerInspectionPipeline(settings(tmp_path), commands).inspect(
+            provider_request("https://x.com/user/status/123"),
+            workspace,
+            context=SimpleNamespace(
+                provider_key="x", identity_used=False, resolved_layer="L1"
+            ),
+            cookie_jar=None,
+        )
+        plans = build_download_options(result.streams, max_options=10)
+        assert [plan.height for plan in plans] == [1080, 720]
+        assert plans[0].fps_bucket == "fps_60"
+        assert probe.await_count == 1
+    finally:
+        workspace.cleanup()
+
+
+async def test_unusable_first_file_probe_continues_to_another_representation(tmp_path):
+    from unittest.mock import AsyncMock
+
+    payload = split_media_info()
+    video = payload["formats"][0]
+    payload["formats"] = [
+        {**video, "format_id": "first", "fps": None, "acodec": "none"},
+        {
+            **video,
+            "format_id": "second",
+            "fps": None,
+            "acodec": "none",
+            "width": 1280,
+            "height": 720,
+        },
+    ]
+    commands = SimpleNamespace(
+        inspect=AsyncMock(return_value=payload),
+        download_probe_sample=AsyncMock(),
+        probe=AsyncMock(
+            side_effect=[
+                {
+                    "format": {"duration": "5"},
+                    "streams": [{"codec_type": "audio", "codec_name": "aac"}],
+                },
+                {
+                    "format": {"duration": "30"},
+                    "streams": [
+                        {
+                            "codec_type": "video",
+                            "codec_name": "h264",
+                            "width": 1280,
+                            "height": 720,
+                            "avg_frame_rate": "30/1",
+                        }
+                    ],
+                },
+            ]
+        ),
+    )
+    workspace = WorkspaceManager(tmp_path / "runner").create("sample-fallback")
+    try:
+        result = await RunnerInspectionPipeline(settings(tmp_path), commands).inspect(
+            provider_request("https://x.com/user/status/123"),
+            workspace,
+            context=SimpleNamespace(
+                provider_key="x", identity_used=False, resolved_layer="L1"
+            ),
+            cookie_jar=None,
+        )
+        assert result.duration_seconds == 30
+        assert [
+            plan.height
+            for plan in build_download_options(result.streams, max_options=10)
+        ] == [720]
+        assert commands.download_probe_sample.await_count == 2
+        assert [
+            call.args[1] for call in commands.download_probe_sample.await_args_list
+        ] == ["first", "second"]
+        assert not list(workspace.path.glob("format-probe-*"))
+    finally:
+        workspace.cleanup()
+
+
+async def test_probe_budget_prioritizes_quality_and_limits_concurrency(
+    tmp_path,
+):
+    import asyncio
+    from unittest.mock import AsyncMock
+
+    config = settings(tmp_path)
+    payload = split_media_info()
+    video = payload["formats"][0]
+    payload["formats"] = [
+        {
+            **video,
+            "format_id": str(height),
+            "fps": None,
+            "acodec": "none",
+            "width": height * 2,
+            "height": height,
+            "url": f"https://video.twimg.com/{height}.mp4",
+            "filesize": config.runner_max_probe_sample_bytes + 1,
+        }
+        for height in range(80, 94)
+    ]
+    active = peak = 0
+    seen = []
+
+    async def probe(url, *_args, **_kwargs):
+        nonlocal active, peak
+        height = int(url.rsplit("/", 1)[-1].split(".")[0])
+        seen.append(height)
+        active += 1
+        peak = max(peak, active)
+        await asyncio.sleep(0.001)
+        active -= 1
+        return {
+            "streams": [
+                {
+                    "codec_type": "video",
+                    "codec_name": "h264",
+                    "width": height * 2,
+                    "height": height,
+                    "avg_frame_rate": "30/1",
+                }
+            ],
+            "format": {"duration": "5"},
+        }
+
+    commands = SimpleNamespace(
+        inspect=AsyncMock(return_value=payload),
+        probe_remote=probe,
+        download_probe_sample=AsyncMock(),
+    )
+    workspace = WorkspaceManager(tmp_path / "runner").create("probe-budget")
+    try:
+        result = await RunnerInspectionPipeline(config, commands).inspect(
+            provider_request("https://x.com/user/status/123"),
+            workspace,
+            context=SimpleNamespace(
+                provider_key="x", identity_used=False, resolved_layer="L1"
+            ),
+            cookie_jar=None,
+        )
+        assert len(seen) == 12 and set(seen) == set(range(82, 94))
+        assert peak == 4
+        assert result.duration_seconds == 30
+        commands.download_probe_sample.assert_not_awaited()
+    finally:
+        workspace.cleanup()
+
+
+async def test_malformed_candidate_dimensions_do_not_crash_other_valid_quality(
+    tmp_path,
+):
+    from unittest.mock import AsyncMock
+
+    config = settings(tmp_path)
+    payload = split_media_info()
+    video = payload["formats"][0]
+    payload["formats"] = [
+        video,
+        payload["formats"][1],
+        {
+            **video,
+            "format_id": "malformed",
+            "width": [],
+            "fps": None,
+            "filesize": config.runner_max_probe_sample_bytes + 1,
+        },
+    ]
+    commands = SimpleNamespace(inspect=AsyncMock(return_value=payload))
+    workspace = WorkspaceManager(tmp_path / "runner").create("malformed-quality")
+    try:
+        result = await RunnerInspectionPipeline(config, commands).inspect(
+            provider_request("https://x.com/user/status/123"),
+            workspace,
+            context=SimpleNamespace(
+                provider_key="x", identity_used=False, resolved_layer="L1"
+            ),
+            cookie_jar=None,
+        )
+        assert [
+            plan.height
+            for plan in build_download_options(result.streams, max_options=10)
+        ] == [1080]
     finally:
         workspace.cleanup()

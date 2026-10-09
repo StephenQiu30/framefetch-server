@@ -149,6 +149,7 @@ class MediaRunnerHttpClient:
         *,
         expected_provider_media_id: str,
         expected_extractor_key: str,
+        expected_duration_seconds: float,
         execution_context: ExecutionContext,
         media_kind: MediaKind = MediaKind.VIDEO,
         asset_count: int = 0,
@@ -161,6 +162,7 @@ class MediaRunnerHttpClient:
                 url=url,
                 expected_provider_media_id=expected_provider_media_id,
                 expected_extractor_key=expected_extractor_key,
+                expected_duration_seconds=expected_duration_seconds,
                 plan=None if plan is None else DownloadPlanContract.from_domain(plan),
                 execution_context=ExecutionContextContract.from_domain(
                     execution_context

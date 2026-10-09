@@ -64,6 +64,7 @@ def download_request(height: int = 1080, width: int = 1920) -> DownloadRequest:
             "url": "https://media.example.com/video",
             "expected_provider_media_id": "controlled",
             "expected_extractor_key": "Controlled",
+            "expected_duration_seconds": 30,
             "issued_at": datetime.now(UTC).isoformat(),
             "deadline": (datetime.now(UTC) + timedelta(seconds=600)).isoformat(),
             "execution_context": MediaRunnerService(

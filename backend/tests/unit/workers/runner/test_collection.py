@@ -5,6 +5,7 @@ from pathlib import Path
 from zipfile import ZipFile
 
 import pytest
+from app.services.provider_failures import FailurePhase
 from app.workers.runner.collection import download_video_collection_zip
 from app.workers.runner.errors import RunnerFailure
 from app.workers.runner.metadata import GalleryAsset
@@ -28,11 +29,17 @@ class FakeCollectionCommands:
         (output_dir / "video-0001.mp4").write_bytes(b"first")
         (output_dir / "video-0002.webm").write_bytes(b"second")
 
-    async def probe(self, _path: Path, _cwd: Path) -> dict[str, object]:
+    async def probe(
+        self, _path: Path, _cwd: Path, *, phase: FailurePhase
+    ) -> dict[str, object]:
+        assert phase is FailurePhase.VALIDATE
         return {
             "format": {"format_name": "mp4", "duration": "4"},
             "streams": [{"codec_type": "video"}],
         }
+
+    async def verify_full_decode(self, path: Path, _cwd: Path) -> None:
+        assert path.read_bytes() in {b"first", b"second"}
 
 
 class MetadataOnlyCollectionCommands:
@@ -62,8 +69,14 @@ class MetadataOnlyCollectionCommands:
         output.write_bytes(b"RIFFxxxxWEBP")
         return "image/webp"
 
-    async def probe(self, _path: Path, _cwd: Path) -> dict[str, object]:
+    async def probe(
+        self, _path: Path, _cwd: Path, *, phase: FailurePhase
+    ) -> dict[str, object]:
+        assert phase is FailurePhase.VALIDATE
         raise AssertionError("image fallback must not probe video files")
+
+    async def verify_full_decode(self, _path: Path, _cwd: Path) -> None:
+        raise AssertionError("image fallback must not decode video files")
 
 
 @pytest.mark.asyncio
@@ -143,6 +156,36 @@ async def test_metadata_only_collection_falls_back_to_image_zip(
                 "media_kind": "image_gallery",
                 "asset_count": 2,
             }
+        assert not (workspace.path / "collection-output").exists()
+    finally:
+        workspace.cleanup()
+
+
+async def test_corrupt_collection_member_prevents_zip_delivery_and_is_cleaned(tmp_path):
+    class CorruptSecondMember(FakeCollectionCommands):
+        async def verify_full_decode(self, path, cwd):
+            if path.suffix == ".webm":
+                raise RunnerFailure("invalid_artifact", status=422)
+            await super().verify_full_decode(path, cwd)
+
+    workspace = WorkspaceManager(tmp_path / "runner").create("corrupt-collection")
+    output = workspace.path / "artifact.zip"
+    try:
+        with pytest.raises(RunnerFailure, match="invalid artifact"):
+            await download_video_collection_zip(
+                "https://www.instagram.com/p/example/",
+                output,
+                workspace,
+                expected_count=2,
+                title="collection",
+                referer="https://www.instagram.com/p/example/",
+                commands=CorruptSecondMember(),
+                max_video_bytes=1024,
+                max_duration_seconds=7200,
+                max_assets=10,
+                cookie_jar=None,
+            )
+        assert not output.exists()
         assert not (workspace.path / "collection-output").exists()
     finally:
         workspace.cleanup()

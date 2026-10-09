@@ -15,6 +15,7 @@ from app.workers.runner.codecs import (
     video_codec_family,
 )
 from app.workers.runner.errors import RunnerFailure
+from app.workers.runner.frame_rate import needs_local_frame_rate_probe, probe_frame_rate
 from app.workers.runner.options import build_download_options
 from app.workers.runner.url_policy import UrlPolicyError, validate_media_url
 
@@ -232,9 +233,7 @@ def enrich_direct_metadata(
                 "acodec": audio.get("codec_name"),
                 "width": video.get("width"),
                 "height": video.get("height"),
-                "fps": _frame_rate(
-                    video.get("avg_frame_rate") or video.get("r_frame_rate")
-                ),
+                "fps": probe_frame_rate(video),
                 "dynamic_range": _probe_dynamic_range(video),
                 "language": _probe_language(audio),
                 "filesize": format_info.get("size"),
@@ -250,7 +249,8 @@ def enrich_format_metadata(
     raw: dict[str, Any],
     probe: dict[str, Any],
     *,
-    prefer_nominal_fps: bool = False,
+    allow_nominal_fps: bool = False,
+    remote_probe: bool = False,
 ) -> dict[str, Any]:
     """Fill a single sparse yt-dlp format with bounded ffprobe metadata."""
     probe_streams = probe.get("streams")
@@ -259,39 +259,19 @@ def enrich_format_metadata(
 
     enriched = dict(raw)
     format_info = probe.get("format")
-    format_names = (
-        str(format_info.get("format_name") or "").split(",")
-        if isinstance(format_info, dict)
-        else []
-    )
     video = _first_probe_stream(probe_streams, "video")
     audio = _first_probe_stream(probe_streams, "audio")
     if video is None:
         enriched["vcodec"] = "none"
     else:
-        fps = _frame_rate(video.get("avg_frame_rate"))
-        nominal = _frame_rate(video.get("r_frame_rate"))
-        # HLS can expose only a timestamp base (e.g. 240 for a ~53 fps VFR
-        # stream). It is not an observed average and must not create a plan.
-        # Keep the existing codec-header rate for bounded clear file prefixes.
-        if fps is None and not {"hls", "applehttp"}.intersection(format_names):
-            fps = nominal
-        # Twitch clip edit lists can make the remote container average 30.016
-        # or 60.017 while the actual cadence is 30/60. Keep materially different
-        # averages (including variable-rate media); final-file checks stay strict.
-        if (
-            prefer_nominal_fps
-            and fps is not None
-            and nominal is not None
-            and abs(fps - nominal) <= nominal * 0.001
-        ):
-            fps = nominal
+        fps = probe_frame_rate(video, allow_nominal_fps=allow_nominal_fps)
+        needs_file_probe = remote_probe and needs_local_frame_rate_probe(video)
         enriched.update(
             {
                 "vcodec": video.get("codec_name") or enriched.get("vcodec"),
                 "width": video.get("width") or enriched.get("width"),
                 "height": video.get("height") or enriched.get("height"),
-                "fps": fps or enriched.get("fps"),
+                "fps": None if needs_file_probe else fps or enriched.get("fps"),
                 "dynamic_range": _probe_dynamic_range(video),
             }
         )
@@ -682,9 +662,8 @@ def _normalize_stream(
     )
     height = _positive_int(raw.get("height") or media.get("height"))
     width = _positive_int(raw.get("width") or media.get("width"))
-    # An explicitly unknown per-format rate must not inherit another rendition's
-    # top-level rate. Missing per-format metadata can still use upstream facts.
-    fps = _positive_number(raw["fps"] if "fps" in raw else media.get("fps"))
+    # Top-level fps belongs to yt-dlp's selected rendition, not every format.
+    fps = _positive_number(raw.get("fps"))
     language = raw.get("language") or media.get("language")
     bitrate = raw.get("tbr") or raw.get("vbr") or raw.get("abr")
     try:
@@ -731,16 +710,6 @@ def _first_probe_stream(
         if isinstance(stream, dict) and stream.get("codec_type") == stream_type:
             return stream
     return None
-
-
-def _frame_rate(value: object) -> float | None:
-    text = str(value or "")
-    numerator, separator, denominator = text.partition("/")
-    if not separator:
-        return _positive_number(text)
-    top = _positive_number(numerator)
-    bottom = _positive_number(denominator)
-    return top / bottom if top is not None and bottom is not None else None
 
 
 def _kilobits(value: object) -> float | None:

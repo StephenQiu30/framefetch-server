@@ -212,9 +212,10 @@ class MediaCommands:
         failure_context: ProviderFailureContext | None = None,
     ) -> dict[str, Any]:
         # A throttled CDN must not force inspection to fetch an entire segment.
-        # Only a small clear prefix is needed to identify codecs.
+        # A short audio lead-in can precede the first usable video header.
+        # Keep the probe bounded while allowing that header to arrive.
         failure_context = failure_context or self._failure_context(referer)
-        limit = 8 * 1024
+        limit = 256 * 1024
         data = bytearray()
         try:
             async with httpx.AsyncClient(
@@ -584,6 +585,8 @@ class MediaCommands:
                 "-v",
                 "error",
                 "-xerror",
+                "-err_detect",
+                "explode",
                 "-protocol_whitelist",
                 "file",
                 "-i",
@@ -592,6 +595,10 @@ class MediaCommands:
                 "0:v",
                 "-map",
                 "0:a?",
+                "-fps_mode",
+                "passthrough",
+                "-enc_time_base:v",
+                "-1",
                 "-f",
                 "null",
                 "-",
@@ -720,6 +727,20 @@ class MediaCommands:
                 evidence_kind=FailureEvidenceKind.RUNTIME,
             ) from exc
         if result.returncode != 0:
+            if phase is FailurePhase.VALIDATE:
+                # Local remux/probe/decode output is not a platform response.
+                # Preserve that fact through the canonical Runner error boundary.
+                raise RunnerFailure(
+                    failure_code,
+                    status=422,
+                    phase=phase,
+                    evidence_kind=FailureEvidenceKind.LOCAL_VALIDATION,
+                    evidence={
+                        "kind": "local_validation",
+                        "returncode": result.returncode,
+                        "stderr_truncated": result.stderr_truncated,
+                    },
+                )
             # Close the small race where the sidecar dies after the preflight
             # but before yt-dlp asks it for a token.
             provider_failure = (

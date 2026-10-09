@@ -95,6 +95,8 @@ class RunnerInspectionPipeline:
         cookie_jar: Path | None,
         probe_failures: list[RunnerFailure],
     ) -> MediaInspection:
+        probed_formats: set[int] = set()
+        sampled_formats: set[int] = set()
         payload = await self._commands.inspect(
             source, workspace.path, cookie_jar=cookie_jar
         )
@@ -130,7 +132,7 @@ class RunnerInspectionPipeline:
             )
             payload = enrich_direct_metadata(payload, probe)
         duration = payload.get("duration")
-        if not isinstance(duration, (int, float)) or duration <= 0:
+        if _positive_seconds(duration) is None:
             payload = await self._enrich_sparse_formats(
                 payload,
                 workspace,
@@ -139,9 +141,10 @@ class RunnerInspectionPipeline:
                 probe_authenticated_media=source.profile.probe_authenticated_media,
                 failure_context=failure_context,
                 probe_failures=probe_failures,
+                probed_formats=probed_formats,
             )
             duration = payload.get("duration")
-            if not isinstance(duration, (int, float)) or duration <= 0:
+            if _positive_seconds(duration) is None:
                 payload = await self._enrich_from_probe_sample(
                     payload,
                     source,
@@ -149,6 +152,7 @@ class RunnerInspectionPipeline:
                     cookie_jar=cookie_jar,
                     failure_context=failure_context,
                     probe_failures=probe_failures,
+                    sampled_formats=sampled_formats,
                 )
         formats = payload.get("formats")
         if isinstance(formats, list) and any(_unknown_audio(raw) for raw in formats):
@@ -163,6 +167,7 @@ class RunnerInspectionPipeline:
                 unknown_audio_only=True,
                 failure_context=failure_context,
                 probe_failures=probe_failures,
+                probed_formats=probed_formats,
             )
             streams = normalize_for_settings(payload, self._settings).streams
             if not any(stream.audio_codec_family is not None for stream in streams):
@@ -181,10 +186,33 @@ class RunnerInspectionPipeline:
                 probe_authenticated_media=source.profile.probe_authenticated_media,
                 failure_context=failure_context,
                 probe_failures=probe_failures,
-                prefer_nominal_fps=source.profile.key == "twitch",
+                probed_formats=probed_formats,
             )
+        payload = await self._enrich_sparse_formats(
+            payload,
+            workspace,
+            referer=source.source_url,
+            cookie_jar=cookie_jar,
+            probe_authenticated_media=source.profile.probe_authenticated_media,
+            failure_context=failure_context,
+            probe_failures=probe_failures,
+            unknown_video_only=True,
+            probed_formats=probed_formats,
+        )
         inspection = self._usable_inspection(payload)
         if inspection is not None:
+            if _unresolved_video_formats(payload):
+                sampled = await self._enrich_from_probe_sample(
+                    payload,
+                    source,
+                    workspace,
+                    cookie_jar=cookie_jar,
+                    failure_context=failure_context,
+                    probe_failures=probe_failures,
+                    unresolved_video_only=True,
+                    sampled_formats=sampled_formats,
+                )
+                inspection = self._usable_inspection(sampled) or inspection
             return inspection
         enriched = await self._enrich_sparse_formats(
             payload,
@@ -194,6 +222,7 @@ class RunnerInspectionPipeline:
             probe_authenticated_media=source.profile.probe_authenticated_media,
             failure_context=failure_context,
             probe_failures=probe_failures,
+            probed_formats=probed_formats,
         )
         inspection = self._usable_inspection(enriched)
         if inspection is not None:
@@ -205,8 +234,12 @@ class RunnerInspectionPipeline:
             cookie_jar=cookie_jar,
             failure_context=failure_context,
             probe_failures=probe_failures,
+            sampled_formats=sampled_formats,
         )
-        return normalize_for_settings(sampled, self._settings)
+        inspection = self._usable_inspection(sampled)
+        if inspection is None:
+            raise RunnerFailure("format_unavailable", status=409)
+        return inspection
 
     async def _probe_authoritative_duration(
         self,
@@ -245,7 +278,9 @@ class RunnerInspectionPipeline:
                 duration = None
             if duration is not None:
                 enriched_formats = list(formats)
-                enriched_formats[index] = enrich_format_metadata(value, probe)
+                enriched_formats[index] = enrich_format_metadata(
+                    value, probe, remote_probe=True
+                )
                 enriched_payload = dict(payload)
                 enriched_payload["formats"] = enriched_formats
                 enriched_payload["duration"] = duration
@@ -282,7 +317,8 @@ class RunnerInspectionPipeline:
         unknown_audio_only: bool = False,
         failure_context: ProviderFailureContext,
         probe_failures: list[RunnerFailure],
-        prefer_nominal_fps: bool = False,
+        unknown_video_only: bool = False,
+        probed_formats: set[int] | None = None,
     ) -> dict[str, object]:
         if cookie_jar is not None and not probe_authenticated_media:
             return payload
@@ -290,18 +326,24 @@ class RunnerInspectionPipeline:
         if not isinstance(formats, list):
             return payload
         candidates: list[tuple[int, dict[str, object], str]] = []
+        probed_formats = probed_formats if probed_formats is not None else set()
         for index, value in enumerate(formats):
             if not isinstance(value, dict):
                 continue
             if unknown_audio_only and not _unknown_audio(value):
+                continue
+            if index in probed_formats or (
+                unknown_video_only and not _unknown_video(value)
+            ):
                 continue
             url = value.get("url")
             if payload.get("_framefetch_full_stream") is True:
                 url = value.get("_framefetch_probe_url", url)
             if isinstance(url, str):
                 candidates.append((index, value, url))
-            if len(candidates) == 12:
-                break
+        candidates.sort(key=lambda item: _probe_priority(item[1]))
+        candidates = candidates[: max(0, 12 - len(probed_formats))]
+        probed_formats.update(index for index, _, _ in candidates)
         semaphore = asyncio.Semaphore(4)
 
         async def enrich(
@@ -312,10 +354,13 @@ class RunnerInspectionPipeline:
             try:
                 media_url = safe_media_url(url)
                 async with semaphore:
+                    prefix = (
+                        payload.get("_framefetch_full_stream") is True
+                        and raw.get("_framefetch_probe_url") == url
+                    )
                     probe_command = (
                         self._commands.probe_remote_prefix
-                        if payload.get("_framefetch_full_stream") is True
-                        and raw.get("_framefetch_probe_url") == url
+                        if prefix
                         else self._commands.probe_remote
                     )
                     probe = await probe_command(
@@ -327,7 +372,10 @@ class RunnerInspectionPipeline:
                 return (
                     index,
                     enrich_format_metadata(
-                        raw, probe, prefer_nominal_fps=prefer_nominal_fps
+                        raw,
+                        probe,
+                        allow_nominal_fps=prefix,
+                        remote_probe=not prefix,
                     ),
                     _probe_duration(probe),
                 )
@@ -355,6 +403,7 @@ class RunnerInspectionPipeline:
             probed_duration is not None
             and payload.get("_framefetch_full_stream") is not True
             and not unknown_audio_only
+            and _positive_seconds(payload.get("duration")) is None
         ):
             enriched_payload["duration"] = probed_duration
         return enriched_payload
@@ -368,13 +417,22 @@ class RunnerInspectionPipeline:
         cookie_jar: Path | None,
         failure_context: ProviderFailureContext,
         probe_failures: list[RunnerFailure],
+        sampled_formats: set[int],
+        unresolved_video_only: bool = False,
     ) -> dict[str, object]:
         formats = payload.get("formats")
         if not isinstance(formats, list):
             return payload
         candidates: list[tuple[int, dict[str, object], int | None]] = []
+        unresolved = (
+            _unresolved_video_formats(payload) if unresolved_video_only else None
+        )
         for index, value in enumerate(formats):
             if not isinstance(value, dict):
+                continue
+            if index in sampled_formats or (
+                unresolved is not None and index not in unresolved
+            ):
                 continue
             provider_id = value.get("format_id")
             size = value.get("filesize") or value.get("filesize_approx")
@@ -389,11 +447,17 @@ class RunnerInspectionPipeline:
                     candidates.append((index, value, size_bytes))
         candidates.sort(
             key=lambda item: (
+                *_probe_priority(item[1]),
                 item[2] is None,
                 item[2] if item[2] is not None else 0,
             )
         )
-        for index, raw, _ in candidates[:_MAX_PROBE_SAMPLE_ATTEMPTS]:
+        sampled = dict(payload)
+        enriched_formats = list(formats)
+        for index, raw, _ in candidates[
+            : max(0, _MAX_PROBE_SAMPLE_ATTEMPTS - len(sampled_formats))
+        ]:
+            sampled_formats.add(index)
             try:
                 with TemporaryDirectory(
                     prefix="format-probe-",
@@ -413,17 +477,24 @@ class RunnerInspectionPipeline:
                         probe_workspace,
                         failure_context=failure_context,
                     )
-                enriched_formats = list(formats)
                 enriched_formats[index] = enrich_format_metadata(raw, probe)
-                enriched_payload = dict(payload)
-                enriched_payload["formats"] = enriched_formats
+                sampled["formats"] = enriched_formats
                 probed_duration = _probe_duration(probe)
                 if (
                     probed_duration is not None
                     and payload.get("_framefetch_full_stream") is not True
+                    and _positive_seconds(sampled.get("duration")) is None
                 ):
-                    enriched_payload["duration"] = probed_duration
-                return enriched_payload
+                    sampled["duration"] = probed_duration
+                if (
+                    _positive_seconds(sampled.get("duration")) is not None
+                    and self._usable_inspection(sampled) is not None
+                    and (
+                        not unresolved_video_only
+                        or not _unresolved_video_formats(sampled)
+                    )
+                ):
+                    return sampled
             except RunnerFailure as exc:
                 exc.during(FailurePhase.PROBE_MEDIA)
                 if not _is_soft_probe_failure(exc):
@@ -436,7 +507,7 @@ class RunnerInspectionPipeline:
                     status=503,
                     phase=FailurePhase.PROBE_MEDIA,
                 ) from exc
-        return payload
+        return sampled
 
 
 def _require_generic_source_identity(
@@ -508,8 +579,57 @@ def _probe_duration(probe: dict[str, object]) -> float | None:
     format_info = probe.get("format")
     if not isinstance(format_info, dict):
         return None
+    return _positive_seconds(format_info.get("duration"))
+
+
+def _positive_seconds(value: object) -> float | None:
+    if isinstance(value, bool):
+        return None
     try:
-        duration = float(format_info.get("duration"))  # type: ignore[arg-type]
+        duration = float(value)  # type: ignore[arg-type]
     except (TypeError, ValueError):
         return None
     return duration if math.isfinite(duration) and duration > 0 else None
+
+
+def _unknown_video(raw: object) -> bool:
+    return (
+        isinstance(raw, dict)
+        and raw.get("vcodec") != "none"
+        and (
+            raw.get("vcodec") in (None, "")
+            or any(
+                _positive_seconds(raw.get(key)) is None
+                for key in ("fps", "width", "height")
+            )
+        )
+    )
+
+
+def _probe_priority(raw: dict[str, object]) -> tuple[bool, float, float]:
+    return (
+        raw.get("vcodec") == "none",
+        -(_positive_seconds(raw.get("height")) or 0),
+        -(_positive_seconds(raw.get("width")) or 0),
+    )
+
+
+def _unresolved_video_formats(payload: dict[str, object]) -> set[int]:
+    formats = payload.get("formats")
+    if not isinstance(formats, list):
+        return set()
+    known_dimensions = {
+        (_positive_seconds(raw.get("width")), _positive_seconds(raw.get("height")))
+        for raw in formats
+        if isinstance(raw, dict)
+        and raw.get("vcodec") not in (None, "", "none")
+        and not _unknown_video(raw)
+    }
+    return {
+        index
+        for index, raw in enumerate(formats)
+        if _unknown_video(raw)
+        and isinstance(raw, dict)
+        and (_positive_seconds(raw.get("width")), _positive_seconds(raw.get("height")))
+        not in known_dimensions
+    }

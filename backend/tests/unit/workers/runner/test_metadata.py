@@ -40,11 +40,33 @@ def test_sparse_prefix_uses_valid_rate_without_guessing(avg, nominal, expected):
                 }
             ]
         },
+        allow_nominal_fps=True,
     )
     if expected is None:
         assert enriched["fps"] is None
     else:
         assert enriched["fps"] == pytest.approx(expected)
+
+
+@pytest.mark.parametrize("width,height", [(0, 0), (None, None), (1920, 0)])
+def test_prefix_without_decoded_video_header_does_not_use_timestamp_rate(width, height):
+    enriched = enrich_format_metadata(
+        {"format_id": "hls-1080", "width": 1920, "height": 1080},
+        {
+            "streams": [
+                {
+                    "codec_type": "video",
+                    "codec_name": "h264",
+                    "width": width,
+                    "height": height,
+                    "avg_frame_rate": "0/0",
+                    "r_frame_rate": "90000/1",
+                }
+            ]
+        },
+        allow_nominal_fps=True,
+    )
+    assert enriched["fps"] is None
 
 
 def media_info() -> dict[str, object]:
@@ -503,7 +525,7 @@ def test_enriches_single_sparse_provider_format_with_ffprobe_metadata() -> None:
     assert enriched["tbr"] == pytest.approx(885.064)
 
 
-def test_nominal_clip_rate_is_opt_in_and_preserves_material_average_difference():
+def test_nominal_clip_rate_requires_exact_frame_accounting():
     probe = {
         "streams": [
             {
@@ -514,9 +536,10 @@ def test_nominal_clip_rate_is_opt_in_and_preserves_material_average_difference()
         ]
     }
     assert enrich_format_metadata({}, probe)["fps"] > 30.01
-    assert enrich_format_metadata({}, probe, prefer_nominal_fps=True)["fps"] == 30
+    probe["streams"][0].update(nb_frames="1802", duration_ts=153687, time_base="1/2560")
+    assert enrich_format_metadata({}, probe)["fps"] == 30
     probe["streams"][0]["avg_frame_rate"] = "25/1"
-    assert enrich_format_metadata({}, probe, prefer_nominal_fps=True)["fps"] == 25
+    assert enrich_format_metadata({}, probe)["fps"] == 25
 
 
 def test_ignores_sub_unit_provider_metrics_after_integer_normalization() -> None:
@@ -756,3 +779,64 @@ def test_hls_measured_average_keeps_variable_and_actual_high_frame_rates(
         },
     )
     assert enriched["fps"] == pytest.approx(expected)
+
+
+def test_short_final_sample_has_the_same_cadence_during_inspection_and_delivery():
+    probe = {
+        "streams": [
+            {
+                "codec_type": "video",
+                "codec_name": "h264",
+                "width": 1562,
+                "height": 1550,
+                "avg_frame_rate": "361200/6011",
+                "r_frame_rate": "60/1",
+                "nb_frames": "602",
+                "time_base": "1/12000",
+                "duration_ts": 120220,
+            }
+        ],
+    }
+    assert enrich_format_metadata({}, probe)["fps"] == 60
+
+
+@pytest.mark.parametrize("format_name", ["hls", "mov,mp4", "matroska,webm"])
+def test_unknown_average_never_invents_a_rate_from_timestamp_base(format_name):
+    probe = {
+        "format": {"format_name": format_name},
+        "streams": [
+            {"codec_type": "video", "avg_frame_rate": "0/0", "r_frame_rate": "240/1"}
+        ],
+    }
+    assert enrich_format_metadata({}, probe)["fps"] is None
+
+
+def test_missing_per_format_rate_cannot_inherit_a_different_rendition():
+    payload = media_info()
+    payload["fps"] = 240
+    for raw in payload["formats"]:
+        raw.pop("fps", None)
+    inspection = normalize_metadata(
+        payload, max_duration_seconds=7200, max_candidate_streams=32
+    )
+    assert not build_download_options(inspection.streams, max_options=10)
+
+
+def test_ambiguous_remote_average_clears_advertised_rate_for_local_probe():
+    enriched = enrich_format_metadata(
+        {"fps": 30},
+        {
+            "streams": [
+                {
+                    "codec_type": "video",
+                    "codec_name": "h264",
+                    "width": 1920,
+                    "height": 1080,
+                    "avg_frame_rate": "4613120/153687",
+                    "r_frame_rate": "30/1",
+                }
+            ]
+        },
+        remote_probe=True,
+    )
+    assert enriched["fps"] is None

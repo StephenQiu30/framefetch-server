@@ -50,6 +50,9 @@ class JobSource(Protocol):
     def provider_media_id(self) -> str: ...
 
     @property
+    def duration_seconds(self) -> int: ...
+
+    @property
     def execution_context(self) -> dict[str, object]: ...
 
     @property
@@ -171,6 +174,7 @@ class ExecutionRunner(Protocol):
         *,
         expected_provider_media_id: str,
         expected_extractor_key: str,
+        expected_duration_seconds: float,
         execution_context: ExecutionContext,
         media_kind: MediaKind = MediaKind.VIDEO,
         asset_count: int = 0,

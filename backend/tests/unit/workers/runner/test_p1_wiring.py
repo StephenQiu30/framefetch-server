@@ -469,3 +469,29 @@ def test_engine_revision_invalidates_plans_after_selection_policy_change(
 
     monkeypatch.setattr(Path, "read_bytes", changed)
     assert engine_revision(settings(tmp_path)) != before
+
+
+@pytest.mark.parametrize("filename", ["formats.py", "enums.py", "selection.py"])
+def test_engine_revision_invalidates_shared_download_rules(
+    tmp_path, monkeypatch, filename
+):
+    from pathlib import Path
+
+    from app.workers.runner import version
+
+    rule_root = (
+        Path(version.__file__).parent.parent.parent / "services" / "downloads" / "rules"
+    )
+    read_bytes = Path.read_bytes
+    before = engine_revision(settings(tmp_path))
+
+    def changed(path):
+        data = read_bytes(path)
+        return (
+            data + b"\n# changed shared rule\n"
+            if path == rule_root / filename
+            else data
+        )
+
+    monkeypatch.setattr(Path, "read_bytes", changed)
+    assert engine_revision(settings(tmp_path)) != before

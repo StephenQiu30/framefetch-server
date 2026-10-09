@@ -47,14 +47,16 @@ def engine_revision(settings: RunnerSettings | None = None) -> str:
     facts["chromium"] = CHROMIUM_VERSION
     digest = hashlib.sha256(json.dumps(facts, sort_keys=True).encode())
     root = Path(__file__).resolve().parent
+    app_root = root.parent.parent
     # Changes to selection, validation and layer/proof code invalidate plans.
     paths = [
         *root.glob("*.py"),
         *(root / "plugins").rglob("*.py"),
         *(root / "engine").rglob("*.py"),
         root / "wpc-chromium.sh",
+        *(app_root / "services" / "downloads" / "rules").glob("*.py"),
     ]
     for path in sorted(paths):
-        digest.update(path.relative_to(root).as_posix().encode())
+        digest.update(path.relative_to(app_root).as_posix().encode())
         digest.update(path.read_bytes())
     return digest.hexdigest()

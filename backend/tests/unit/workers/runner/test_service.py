@@ -282,6 +282,8 @@ class FixtureSupervisor:
             output.write_bytes(b"downloaded-stream")
             return result()
         if command[0] == "ffmpeg":
+            if command[-2:] == ("null", "-"):
+                return result()
             Path(command[-1]).write_bytes(b"final-media")
             return result()
         if command[0] == "ffprobe":
@@ -704,17 +706,16 @@ async def test_official_share_decode_cancellation_stops_before_hash_and_delivery
         ("wechat_channels", "public"),
     ],
 )
-async def test_full_decode_gate_does_not_change_other_provider_scopes(
+async def test_full_decode_gate_rejects_corrupt_video_for_every_provider_scope(
     tmp_path, monkeypatch, key, scope
 ):
     supervisor = ClearDecodeSupervisor(mode="returncode")
     service = MediaRunnerService(settings(tmp_path), supervisor=supervisor)
     delivery_profile(service, monkeypatch, key=key, scope=scope)
 
-    response = await service.download(download_request())
-
-    assert response.artifact.sha256 == hashlib.sha256(b"final-media").hexdigest()
-    assert not supervisor.decode_started.is_set()
+    with pytest.raises(RunnerFailure, match="invalid artifact"):
+        await service.download(download_request())
+    assert supervisor.decode_started.is_set()
 
 
 @pytest.mark.parametrize("kind", ["image_gallery", "video_collection"])
@@ -1000,7 +1001,7 @@ async def test_inspect_recovers_missing_duration_from_sparse_probe(
     assert response.streams[0].video_codec_family.value == "h264"
 
 
-async def test_inspect_prefers_downloadable_stream_duration_from_probe(
+async def test_inspect_preserves_original_duration_during_candidate_enrichment(
     tmp_path: Path,
 ) -> None:
     info = split_media_info()
@@ -1017,7 +1018,7 @@ async def test_inspect_prefers_downloadable_stream_duration_from_probe(
 
     response = await service.inspect("https://media.example.com/video")
 
-    assert response.media.duration_seconds == 30
+    assert response.media.duration_seconds == 24
 
 
 def douyin_muxed_info() -> dict[str, object]:
@@ -1603,3 +1604,16 @@ async def test_inspect_recovers_one_tls_disconnect_without_changing_layer(tmp_pa
     assert response.media.extractor_key == "Twitter"
     assert supervisor.inspection_attempts == 2
     assert response.execution_context.resolved_layer == "L1"
+
+
+async def test_download_rejects_changed_duration_before_transfer(tmp_path):
+    info = split_media_info()
+    info["duration"] = 5
+    supervisor = FixtureSupervisor(info)
+    service = MediaRunnerService(settings(tmp_path), supervisor=supervisor)
+    with pytest.raises(RunnerFailure) as caught:
+        await service.download(download_request())
+    assert caught.value.code == "context_changed"
+    assert caught.value.failure.cause_code == "source_duration_changed"
+    assert all("--format" not in argv for argv, _ in supervisor.calls)
+    assert list(tmp_path.iterdir()) == []

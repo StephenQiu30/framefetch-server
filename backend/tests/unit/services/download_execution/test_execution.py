@@ -43,6 +43,7 @@ async def test_success_revalidates_identity_uploads_and_completes(tmp_path) -> N
     download_kwargs = case.runner.download_arguments[3]
     assert download_kwargs["expected_provider_media_id"] == "video-1"
     assert download_kwargs["expected_extractor_key"] == "Controlled"
+    assert download_kwargs["expected_duration_seconds"] == 30
     assert download_kwargs["execution_context"].provider_key == "generic"
     assert case.storage.uploads[0][0] == (f"downloads/{case.job_id}/1/video.mp4")
     assert case.repository.success.sha256 == case.runner.artifact.sha256

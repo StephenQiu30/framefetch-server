@@ -106,6 +106,7 @@ def test_readiness_fails_closed_until_runner_dependencies_are_ready(
                 "url": "https://media.example.com/video",
                 "expected_provider_media_id": "controlled",
                 "expected_extractor_key": "Controlled",
+                "expected_duration_seconds": 30,
                 "execution_context": anonymous_access_context(),
                 "plan": {
                     "height": 1080,
@@ -183,6 +184,7 @@ def test_download_uses_signed_stable_contract(tmp_path: Path) -> None:
         "url": "https://media.example.com/video",
         "expected_provider_media_id": "controlled",
         "expected_extractor_key": "Controlled",
+        "expected_duration_seconds": 30,
         "execution_context": anonymous_access_context(),
         "plan": {
             "height": 1080,
@@ -222,6 +224,7 @@ def test_download_rejects_invalid_semantic_plan_before_service(tmp_path: Path) -
             "url": "https://media.example.com/video",
             "expected_provider_media_id": "controlled",
             "expected_extractor_key": "Controlled",
+            "expected_duration_seconds": 30,
             "execution_context": anonymous_access_context(),
             "plan": {
                 "height": -1,

@@ -146,6 +146,7 @@ class DownloadExecution:
                     plan,
                     provider_media_id=source.provider_media_id,
                     extractor_key=source.extractor_key,
+                    duration_seconds=source.duration_seconds,
                     execution_context=execution_context,
                     media_kind=media_kind,
                     asset_count=_asset_count(source.semantic_plan),

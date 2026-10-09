@@ -313,7 +313,11 @@ class BrowserLayer:
                         probe = await commands.probe_remote(
                             raw["url"], source.workspace.path, referer=updated.referer
                         )
-                    usable.append(enrich_format_metadata(raw, probe))
+                    usable.append(
+                        enrich_format_metadata(
+                            raw, probe, allow_nominal_fps=profile.key == "youku"
+                        )
+                    )
                 except RunnerFailure:
                     # Only a successful native media response proves browser binding.
                     if raw["url"] not in collector.media_urls:

@@ -45,6 +45,7 @@ class FakeRepository:
             provider_hints=hints,
             extractor_key="Controlled",
             provider_media_id="video-1",
+            duration_seconds=30,
             execution_context={
                 "provider_key": "generic",
                 "resolved_layer": "L1",

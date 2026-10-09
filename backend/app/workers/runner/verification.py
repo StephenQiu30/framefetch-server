@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import math
 from dataclasses import dataclass
-from fractions import Fraction
 from typing import Any
 
 from app.services.downloads.rules.enums import (
@@ -14,6 +13,7 @@ from app.services.downloads.rules.enums import (
 from app.services.downloads.rules.formats import DownloadPlan
 from app.workers.runner.codecs import audio_codec_family, video_codec_family
 from app.workers.runner.errors import RunnerFailure
+from app.workers.runner.frame_rate import probe_frame_rate
 
 
 @dataclass(frozen=True, slots=True)
@@ -88,13 +88,13 @@ def verify_probe(
         raise RunnerFailure("invalid_artifact", status=422)
     first_video = video[0]
     try:
-        fps = float(Fraction(str(first_video.get("avg_frame_rate") or "0")))
+        fps = probe_frame_rate(first_video)
+        if fps is None:
+            raise ValueError("missing average frame rate")
         bucket = FpsBucket.from_fps(fps)
     except (ValueError, ZeroDivisionError, OverflowError) as exc:
         raise RunnerFailure("invalid_artifact", status=422) from exc
-    if bucket is not plan.fps_bucket and not _matches_final_sample_cadence(
-        first_video, plan.fps_bucket
-    ):
+    if bucket is not plan.fps_bucket:
         raise RunnerFailure("invalid_artifact", status=422)
     dynamic_range = (
         DynamicRange.HDR
@@ -137,31 +137,6 @@ def verify_probe(
         ):
             raise RunnerFailure("invalid_artifact", status=422)
     return VerifiedProbe(duration, len(video), len(audio))
-
-
-def _matches_final_sample_cadence(video: dict[str, Any], expected: FpsBucket) -> bool:
-    """Allow a shortened final sample only when exact frame counts agree."""
-    ticks = video.get("duration_ts")
-    if type(ticks) is not int or ticks <= 0:
-        return False
-    try:
-        frames = int(str(video.get("nb_frames")))
-        time_base = Fraction(str(video.get("time_base")))
-        nominal = Fraction(str(video.get("r_frame_rate")))
-        average = Fraction(str(video.get("avg_frame_rate")))
-        if frames <= 1 or time_base <= 0 or nominal <= 0 or average <= 0:
-            return False
-        duration = ticks * time_base
-        # Copy remuxing can shorten the last sample without losing any frames.
-        # The average must account for every frame; the discrepancy must stay
-        # strictly below one nominal frame, with the confirmed cadence intact.
-        return (
-            FpsBucket.from_fps(float(nominal)) is expected
-            and average * duration == frames
-            and frames - 1 < nominal * duration <= frames
-        )
-    except (ValueError, ZeroDivisionError, OverflowError):
-        return False
 
 
 def _stream_type(value: object) -> str | None:

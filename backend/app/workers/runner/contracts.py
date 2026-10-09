@@ -224,6 +224,7 @@ class DownloadRequest(ContractModel):
     url: str = Field(min_length=1, max_length=4096)
     expected_provider_media_id: str = Field(min_length=1, max_length=256)
     expected_extractor_key: str = Field(min_length=1, max_length=128)
+    expected_duration_seconds: float = Field(ge=0, allow_inf_nan=False)
     plan: DownloadPlanContract | None = None
     media_kind: MediaKind = MediaKind.VIDEO
     asset_count: int = Field(default=0, ge=0, le=1000)
@@ -233,6 +234,8 @@ class DownloadRequest(ContractModel):
     def validate_media_plan(self) -> DownloadRequest:
         if self.media_kind is MediaKind.VIDEO and self.plan is None:
             raise ValueError("video downloads require a plan")
+        if self.media_kind is MediaKind.VIDEO and self.expected_duration_seconds <= 0:
+            raise ValueError("video downloads require the confirmed source duration")
         if self.media_kind in {
             MediaKind.IMAGE_GALLERY,
             MediaKind.VIDEO_COLLECTION,

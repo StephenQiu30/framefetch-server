@@ -187,6 +187,16 @@ async def test_download_rejects_artifact_outside_shared_workspace(
             json.loads(http_request.content)["execution_context"]
             == context().to_document()
         )
+        assert json.loads(http_request.content)["expected_duration_seconds"] == 30
+        assert http_request.headers["X-Runner-Signature"] == sign_request(
+            SECRET,
+            "POST",
+            "/internal/download",
+            http_request.content,
+            1000,
+            "fixture_nonce_1234567890",
+            runtime_instance_id=INSTANCE,
+        )
         return httpx.Response(
             200,
             json={
@@ -213,6 +223,7 @@ async def test_download_rejects_artifact_outside_shared_workspace(
             request.plan.to_domain(),
             expected_provider_media_id=request.expected_provider_media_id,
             expected_extractor_key=request.expected_extractor_key,
+            expected_duration_seconds=request.expected_duration_seconds,
             execution_context=context(),
         )
         if valid:
@@ -396,6 +407,7 @@ async def test_download_validation_failure_retains_business_error_after_projecti
                 download_request().plan.to_domain(),
                 expected_provider_media_id="controlled",
                 expected_extractor_key="Controlled",
+                expected_duration_seconds=30,
                 execution_context=context(),
             )
     assert caught.value.code == "extractor_broken"
