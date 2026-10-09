@@ -4,7 +4,7 @@ from copy import deepcopy
 from dataclasses import replace
 
 import pytest
-from app.services.downloads.rules.enums import AudioCodecFamily, Container
+from app.services.downloads.rules.enums import AudioCodecFamily, Container, FpsBucket
 from app.workers.runner.errors import RunnerFailure
 from app.workers.runner.verification import verify_probe
 from helpers import download_request
@@ -224,3 +224,83 @@ def test_absent_webm_stream_durations_keep_the_container_duration_check() -> Non
     )
 
     assert verified.duration_seconds == 30
+
+
+def twitter_short_clip_probe():
+    return {
+        "format": {"format_name": "mov,mp4", "duration": "10.019000"},
+        "streams": [
+            {
+                "codec_type": "video",
+                "codec_name": "h264",
+                "width": 1562,
+                "height": 1550,
+                "avg_frame_rate": "361200/6011",
+                "r_frame_rate": "60/1",
+                "nb_frames": "602",
+                "time_base": "1/12000",
+                "duration_ts": 120220,
+                "duration": "10.018333",
+            }
+        ],
+    }
+
+
+def verify_twitter_short_clip(payload):
+    verify_probe(
+        payload,
+        plan=replace(
+            download_request().plan.to_domain(),
+            width=1562,
+            height=1550,
+            fps_bucket=FpsBucket.FPS_60,
+            audio_codec_family=AudioCodecFamily.NONE,
+        ),
+        expected_container=Container.MP4,
+        expected_duration=10.033333,
+        max_duration=7200,
+        tolerance_seconds=3,
+    )
+
+
+def test_short_final_sample_keeps_60fps_cadence_without_changing_frames():
+    verify_twitter_short_clip(twitter_short_clip_probe())
+
+
+@pytest.mark.parametrize(
+    "mutation",
+    [
+        "missing-count",
+        "missing-ticks",
+        "invalid-time-base",
+        "boolean-ticks",
+        "wrong-count",
+        "real-high-fps",
+        "wrong-cadence",
+        "invalid-cadence",
+        "inconsistent-average",
+    ],
+)
+def test_nominal_cadence_cannot_hide_real_fps_mismatch(mutation):
+    payload = twitter_short_clip_probe()
+    video = payload["streams"][0]
+    if mutation == "missing-count":
+        del video["nb_frames"]
+    elif mutation == "missing-ticks":
+        del video["duration_ts"]
+    elif mutation == "invalid-time-base":
+        video["time_base"] = "0/0"
+    elif mutation == "boolean-ticks":
+        video["duration_ts"] = True
+    elif mutation == "wrong-count":
+        video["nb_frames"] = "601"
+    elif mutation == "real-high-fps":
+        video.update(avg_frame_rate="120/1", nb_frames="1200", duration_ts=120000)
+    elif mutation == "wrong-cadence":
+        video["r_frame_rate"] = "30/1"
+    elif mutation == "invalid-cadence":
+        video["r_frame_rate"] = "0/0"
+    else:
+        video["avg_frame_rate"] = "61/1"
+    with pytest.raises(RunnerFailure, match="invalid artifact"):
+        verify_twitter_short_clip(payload)

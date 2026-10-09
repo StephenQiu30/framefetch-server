@@ -106,3 +106,22 @@ def test_dailymotion_restriction_markers(marker, expected):
         expected,
         422,
     )
+
+
+@pytest.mark.parametrize(
+    "message",
+    [
+        b"Unable to download JSON metadata: [SSL: UNEXPECTED_EOF_WHILE_READING]",
+        b"Failed to parse JSON: EOF occurred in violation of protocol (_ssl.c:1010)",
+    ],
+)
+def test_tls_disconnect_is_transient_not_an_extractor_failure(message):
+    context = ProviderFailureContext("x", "https://x.com/user/status/123", True)
+    assert classify_provider_failure(context, message) == ("transient", 503)
+
+
+def test_content_restriction_still_wins_over_tls_disconnect():
+    context = ProviderFailureContext("x", "https://x.com/user/status/123", True)
+    assert classify_provider_failure(
+        context, b"This video has been deleted; [SSL: UNEXPECTED_EOF_WHILE_READING]"
+    ) == ("content_unavailable", 422)

@@ -1588,3 +1588,18 @@ def http_only_ladder(monkeypatch):
         return replace(source, profile=replace(source.profile, ladder=(Layer.L1,)))
 
     monkeypatch.setattr("app.workers.runner.service.provider_request", request)
+
+
+@pytest.mark.usefixtures("http_only_ladder")
+async def test_inspect_recovers_one_tls_disconnect_without_changing_layer(tmp_path):
+    supervisor = ClassifiedFailureThenSuccessSupervisor(
+        {**split_media_info(), "extractor_key": "Twitter"},
+        b"Unable to download JSON metadata: [SSL: UNEXPECTED_EOF_WHILE_READING]",
+    )
+    service = MediaRunnerService(settings(tmp_path), supervisor=supervisor)
+
+    response = await service.inspect("https://x.com/creator/status/123")
+
+    assert response.media.extractor_key == "Twitter"
+    assert supervisor.inspection_attempts == 2
+    assert response.execution_context.resolved_layer == "L1"

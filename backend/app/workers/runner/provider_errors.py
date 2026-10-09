@@ -456,6 +456,8 @@ PROVIDER_FAILURE_RULES: tuple[FailureRule, ...] = (
             b"temporary failure in name resolution",
             b"certificate verify failed",
             b"ssl handshake",
+            b"unexpected_eof_while_reading",
+            b"eof occurred in violation of protocol",
             b"failed to resolve",
             b"network is unreachable",
             b"http error 500",
