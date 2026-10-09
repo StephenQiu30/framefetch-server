@@ -44,9 +44,9 @@ For creators, content researchers and developers who want to manage their own so
 
 ## Quick start
 
-Use `docker-compose.yml` locally and `docker-compose-prod.yml` in production. Both inherit shared services from `docker-compose-common.yml` and override only mode-specific settings. Deploy the Server, then connect Web, Electron or mobile clients. Platform identity follows the Registry declarations through the ordinary Chrome extension.
+Keep two Compose files: `docker-compose.yml` defines all business services for local and production use; `docker-compose-env.yml` independently provisions PostgreSQL, RabbitMQ, Redis and MinIO. Reuse existing infrastructure. Only when it is absent, run `docker compose -f docker-compose-env.yml up -d --wait` explicitly, then configure business `*_HOST` / `*_PORT` values for its published endpoints. Provide Temporal separately. Deploy the Server, then connect Web, Electron or mobile clients. Platform identity follows the Registry declarations through the ordinary Chrome extension.
 
-The business Compose project is named `framefetch`; backend images are `framefetch:local` / `framefetch:prod`. `runner_work` and `browser_profiles` bind to the existing persistent volumes `video-server_runner_work` and `video-server_browser_profiles` by default, preserving task files and browser sessions. Set `RUNNER_WORK_VOLUME_NAME` and `BROWSER_PROFILES_VOLUME_NAME` to use other volumes. Database, queue, object storage and authentication identifiers keep their existing configuration.
+The business Compose project is named `framefetch`; the backend image is `framefetch:local`. `runner_work` and `browser_profiles` bind to the existing persistent volumes `video-server_runner_work` and `video-server_browser_profiles` by default, preserving task files and browser sessions. Set `RUNNER_WORK_VOLUME_NAME` and `BROWSER_PROFILES_VOLUME_NAME` to use other volumes. Database, queue, object storage and authentication identifiers keep their existing configuration.
 
 ### Requirements
 
@@ -104,10 +104,10 @@ In Chrome 120+, enable developer mode and load that unpacked extension into the 
 
 Only the Runner receives `COOKIE_SOURCE_TOKEN`; the extension pairing key is separate. Cookie requests use the exact host/port/path proxy exception, with no redirects or upstream Clash routing. Installation, permissions and operational details are in the [Chinese runtime instructions](README.md#平台身份与升级); the protocol and acceptance boundaries are in [platform identity design](docs/design/15-平台身份.md).
 
-Before upgrading, pause admissions, drain media operations and back up the business database. Apply the current schema.sql, then rebuild the API, worker, session-runner and frontend together. Production:
+Before upgrading, pause admissions, drain media operations and back up the business database. Apply the current schema.sql, then rebuild the API, worker, session-runner and frontend together. In `.env.prod`, set `APP_ENV=production`, `FRONTEND_BUILD_TARGET=runtime`, the actual `SITE_URL` and production secrets. The frontend Dockerfile stage supplies its runtime environment and command. Production uses the same Compose file:
 
 ```bash
-docker compose --env-file .env.prod -f docker-compose-prod.yml up -d --build --wait --remove-orphans
+APP_ENV=production FRONTEND_BUILD_TARGET=runtime docker compose --env-file .env.prod up -d --build --wait --remove-orphans
 ```
 
 ```bash

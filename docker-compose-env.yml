@@ -1,8 +1,8 @@
 name: framefetch-env
 
-# Disposable infrastructure fixture for GitHub CI only.
-# Local development and deployment reuse existing host services.
-# This file is not part of the local project startup procedure.
+# Standalone PostgreSQL, RabbitMQ, Redis and MinIO provisioning.
+# Start explicitly only when those services are not already provided.
+# Business services use docker-compose.yml; Temporal is provided separately.
 
 services:
   postgres:
@@ -15,9 +15,6 @@ services:
       POSTGRES_PASSWORD: "${POSTGRES_PASSWORD:-video}"
     ports:
       - "127.0.0.1:${HOST_POSTGRES_PORT:-15432}:5432"
-    networks:
-      - default
-      - app_net
     volumes:
       - video_env_postgres_data:/var/lib/postgresql
     healthcheck:
@@ -25,25 +22,6 @@ services:
       interval: 5s
       timeout: 5s
       retries: 20
-
-  database-init:
-    image: postgres:18
-    container_name: framefetch-env-database-init
-    restart: "no"
-    environment:
-      POSTGRES_DB: "${POSTGRES_DB:-video}"
-      POSTGRES_USER: "${POSTGRES_USER:-video}"
-      POSTGRES_PASSWORD: "${POSTGRES_PASSWORD:-video}"
-    depends_on:
-      postgres:
-        condition: service_healthy
-    volumes:
-      - ./backend/sql/schema.sql:/schema.sql:ro
-    entrypoint: ["/bin/sh", "-ec"]
-    command:
-      - >-
-        PGPASSWORD="$$POSTGRES_PASSWORD" psql -h postgres -U "$$POSTGRES_USER"
-        -d "$$POSTGRES_DB" -v ON_ERROR_STOP=1 -f /schema.sql
 
   rabbitmq:
     image: rabbitmq:3.13-management-alpine
@@ -57,9 +35,6 @@ services:
     ports:
       - "127.0.0.1:${HOST_RABBITMQ_PORT:-5673}:5672"
       - "127.0.0.1:${HOST_RABBITMQ_MANAGEMENT_PORT:-15673}:15672"
-    networks:
-      - default
-      - app_net
     volumes:
       - video_env_rabbitmq_data:/var/lib/rabbitmq
     healthcheck:
@@ -98,32 +73,6 @@ services:
         declare_user "$${RABBITMQ_API_USER}" "$${RABBITMQ_API_PASS}"
         declare_user "$${RABBITMQ_WORKER_USER}" "$${RABBITMQ_WORKER_PASS}"
         declare_user "$${RABBITMQ_DLQ_USER}" "$${RABBITMQ_DLQ_PASS}"
-        declare_exchange() {
-          $$admin --vhost="$${RABBITMQ_VHOST}" declare exchange name="$$1" type=topic durable=true
-        }
-        declare_queue() {
-          $$admin --vhost="$${RABBITMQ_VHOST}" declare queue name="$$1" durable=true arguments='{"x-message-ttl":86400000,"x-max-length":10000,"x-dead-letter-exchange":"video.events.dead","x-dead-letter-routing-key":"'"$$1"'.dead"}'
-        }
-        declare_dead_queue() {
-          $$admin --vhost="$${RABBITMQ_VHOST}" declare queue name="$$1" durable=true arguments='{"x-max-length":10000}'
-        }
-        declare_binding() {
-          $$admin --vhost="$${RABBITMQ_VHOST}" declare binding source="$$1" destination="$$2" destination_type=queue routing_key="$$3"
-        }
-        declare_exchange video.events
-        declare_exchange video.events.dead
-        declare_queue video.download
-        declare_queue video.analysis-report
-        declare_queue video.import
-        declare_dead_queue video.download.dead
-        declare_dead_queue video.analysis-report.dead
-        declare_dead_queue video.import.dead
-        declare_binding video.events video.download download.requested
-        declare_binding video.events video.analysis-report analysis.report.publish.requested
-        declare_binding video.events video.import content.import.verify.requested
-        declare_binding video.events.dead video.download.dead video.download.dead
-        declare_binding video.events.dead video.analysis-report.dead video.analysis-report.dead
-        declare_binding video.events.dead video.import.dead video.import.dead
 
   redis:
     image: redis:8-alpine
@@ -132,9 +81,6 @@ services:
     command: ["redis-server", "--appendonly", "yes"]
     ports:
       - "127.0.0.1:${HOST_REDIS_PORT:-16380}:6379"
-    networks:
-      - default
-      - app_net
     volumes:
       - video_env_redis_data:/data
     healthcheck:
@@ -155,9 +101,6 @@ services:
     ports:
       - "127.0.0.1:${HOST_MINIO_PORT:-19190}:9000"
       - "127.0.0.1:${HOST_MINIO_CONSOLE_PORT:-19191}:9001"
-    networks:
-      - default
-      - app_net
     volumes:
       - video_env_minio_data:/data
     healthcheck:
@@ -190,6 +133,3 @@ volumes:
   video_env_rabbitmq_data:
   video_env_redis_data:
   video_env_minio_data:
-
-networks:
-  app_net:

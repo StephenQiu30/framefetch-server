@@ -193,12 +193,12 @@ async def test_screenplay_retry_recreates_and_terminal_paths_release_lock(
         max_attempts=3,
     )
     retried = await analysis_db.repository.retry_job_and_enqueue(
-        retry, now=NOW + timedelta(seconds=2)
+        retry, now=NOW + timedelta(seconds=30)
     )
     assert retried.created is True
     assert await count_rows(analysis_db, AnalysisDocumentLockRow) == 1
     cancelled = await analysis_db.repository.cancel_job(
-        command.id, command.owner_hash, NOW + timedelta(seconds=3)
+        command.id, command.owner_hash, NOW + timedelta(seconds=31)
     )
     assert cancelled.status == "cancelled"
     assert await count_rows(analysis_db, AnalysisDocumentLockRow) == 0

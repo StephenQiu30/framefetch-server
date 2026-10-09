@@ -5,6 +5,8 @@ import os
 import subprocess
 from pathlib import Path
 
+from app.core.config import Settings
+from app.workers.runner.settings import RunnerSettings
 from tests.compose import load_compose
 from yt_dlp_plugins.extractor.getpot_bgutil_http import BgUtilHTTPPTP
 
@@ -22,7 +24,6 @@ def test_private_provider_sources_are_excluded_from_docker_build_context() -> No
 def test_pyproject_and_compose_pin_provider_runtime() -> None:
     pyproject = (ROOT / "pyproject.toml").read_text()
     compose = str(load_compose(ROOT.parent / "docker-compose.yml"))
-    production_compose = str(load_compose(ROOT.parent / "docker-compose-prod.yml"))
     supervisor = (
         ROOT / "app" / "workers" / "runner" / "youtube-pot-supervisor.mjs"
     ).read_text()
@@ -34,9 +35,7 @@ def test_pyproject_and_compose_pin_provider_runtime() -> None:
     assert '"bgutil-ytdlp-pot-provider==2.0.0"' in pyproject
     assert "51bab8a0116f4d8004c315706d809782607d5847.tar.gz" in pyproject
     assert image in compose
-    assert image in production_compose
     assert "youtube-pot-supervisor.mjs" in compose
-    assert "youtube-pot-supervisor.mjs" in production_compose
     assert "const FAILURE_THRESHOLD = 3" in supervisor
     assert "expectedVersion" not in supervisor
     assert 'stdio: ["ignore", "ignore", "ignore"]' in supervisor
@@ -48,48 +47,45 @@ def test_pyproject_and_compose_pin_provider_runtime() -> None:
 
 
 def test_youtube_sidecar_and_runners_can_only_egress_through_a_gateway() -> None:
-    for filename in ("docker-compose.yml", "docker-compose-prod.yml"):
-        document = load_compose(ROOT.parent / filename)
-        services = document["services"]
-        networks = document["networks"]
-        sidecar = services["youtube-pot-provider"]
-        assert sidecar["healthcheck"]["test"] == [
-            "CMD",
-            "/usr/local/bin/node",
-            "/opt/framefetch/youtube-pot-supervisor.mjs",
-            "--check-health",
-        ]
-        assert (
-            services["session-runner"]["depends_on"]["youtube-pot-provider"][
-                "condition"
-            ]
-            == "service_healthy"
-        )
+    document = load_compose(ROOT.parent / "docker-compose.yml")
+    services = document["services"]
+    networks = document["networks"]
+    sidecar = services["youtube-pot-provider"]
+    assert sidecar["healthcheck"]["test"] == [
+        "CMD",
+        "/usr/local/bin/node",
+        "/opt/framefetch/youtube-pot-supervisor.mjs",
+        "--check-health",
+    ]
+    assert (
+        services["session-runner"]["depends_on"]["youtube-pot-provider"]["condition"]
+        == "service_healthy"
+    )
 
-        assert set(sidecar["networks"]) == {"youtube_pot_net"}
-        assert networks["youtube_pot_net"]["internal"] is True
-        assert networks["runner_egress_net"]["internal"] is True
-        assert not (networks["proxy_uplink_net"] or {}).get("internal", False)
-        assert "youtube_pot_net" in services["session-runner"]["networks"]
-        assert "youtube_pot_net" in services["egress-proxy"]["networks"]
-        assert "runner_egress_net" in services["egress-proxy"]["networks"]
-        assert "proxy_uplink_net" in services["egress-proxy"]["networks"]
-        assert "youtube_pot_net" not in services["api"]["networks"]
-        assert "proxy_uplink_net" not in services["api"]["networks"]
-        assert "proxy_uplink_net" not in services["session-runner"]["networks"]
-        assert "runner_egress_net" not in sidecar["networks"]
-        assert "proxy_uplink_net" not in sidecar["networks"]
-        assert {
-            name
-            for name, service in services.items()
-            if "proxy_uplink_net" in (service.get("networks") or [])
-        } == {"egress-proxy"}
-        assert sidecar["read_only"] is True
-        assert sidecar["tmpfs"] == ["/tmp:rw,noexec,nosuid,size=16m"]
-        assert (
-            sidecar["environment"]["RUNNER_EGRESS_PROXY"]
-            == (services["session-runner"]["environment"]["RUNNER_GLOBAL_EGRESS_PROXY"])
-        )
+    assert set(sidecar["networks"]) == {"youtube_pot_net"}
+    assert networks["youtube_pot_net"]["internal"] is True
+    assert networks["runner_egress_net"]["internal"] is True
+    assert not (networks["proxy_uplink_net"] or {}).get("internal", False)
+    assert "youtube_pot_net" in services["session-runner"]["networks"]
+    assert "youtube_pot_net" in services["egress-proxy"]["networks"]
+    assert "runner_egress_net" in services["egress-proxy"]["networks"]
+    assert "proxy_uplink_net" in services["egress-proxy"]["networks"]
+    assert "youtube_pot_net" not in services["api"]["networks"]
+    assert "proxy_uplink_net" not in services["api"]["networks"]
+    assert "proxy_uplink_net" not in services["session-runner"]["networks"]
+    assert "runner_egress_net" not in sidecar["networks"]
+    assert "proxy_uplink_net" not in sidecar["networks"]
+    assert {
+        name
+        for name, service in services.items()
+        if "proxy_uplink_net" in (service.get("networks") or [])
+    } == {"egress-proxy"}
+    assert sidecar["read_only"] is True
+    assert sidecar["tmpfs"] == ["/tmp:rw,noexec,nosuid,size=16m"]
+    assert (
+        sidecar["environment"]["RUNNER_EGRESS_PROXY"]
+        == (services["session-runner"]["environment"]["RUNNER_GLOBAL_EGRESS_PROXY"])
+    )
 
 
 def test_pinned_bgutil_forwards_the_runner_proxy_without_proxying_internal_rpc() -> (
@@ -162,10 +158,15 @@ def _supervisor_config_check(
 
 def test_compose_inspection_timeout_matches_the_120_second_design_limit() -> None:
     root = Path(__file__).resolve().parents[3]
-    for filename in ("docker-compose.yml", "docker-compose-prod.yml"):
-        services = load_compose(root / filename)["services"]
-        for role in ("api", "worker"):
-            assert services[role]["environment"]["INSPECT_TIMEOUT_SECONDS"] == (
-                "${INSPECT_TIMEOUT_SECONDS:-120}"
-            )
-    assert "INSPECT_TIMEOUT_SECONDS=120" in (root / ".env.example").read_text()
+    services = load_compose(root / "docker-compose.yml")["services"]
+    for role in ("api", "worker"):
+        assert "INSPECT_TIMEOUT_SECONDS" not in services[role]["environment"]
+    assert (
+        "RUNNER_INSPECT_TIMEOUT_SECONDS"
+        not in services["session-runner"]["environment"]
+    )
+    assert Settings.model_fields["inspect_timeout_seconds"].get_default() == 120
+    assert (
+        RunnerSettings.model_fields["runner_inspect_timeout_seconds"].get_default()
+        == 120
+    )

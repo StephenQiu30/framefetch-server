@@ -4,7 +4,11 @@ from collections.abc import Callable
 from datetime import datetime
 from uuid import UUID
 
-from app.services.downloads.download_models import DownloadCreate, DownloadView
+from app.services.downloads.download_models import (
+    DEFAULT_MAX_ATTEMPTS,
+    DownloadCreate,
+    DownloadView,
+)
 from app.services.downloads.errors import (
     ApplicationError,
     ApplicationErrorCode,
@@ -33,7 +37,7 @@ class CreateDownload:
         fingerprinter: RequestFingerprinter,
         now: Callable[[], datetime],
         new_id: Callable[[], UUID],
-        max_attempts: int,
+        max_attempts: int = DEFAULT_MAX_ATTEMPTS,
     ) -> None:
         if max_attempts <= 0:
             raise ValueError("max attempts must be positive")

@@ -46,7 +46,7 @@ node --test extension/*.test.cjs
 node backend/scripts/check_docs.mjs
 ```
 
-本机检查复用已运行的基础服务，不为验证另起数据库或覆盖 `.env`。涉及运行时、依赖或容器时，额外验证 `docker compose config` 与 `docker compose -f docker-compose-prod.yml config` 可解析，并按需构建镜像。
+本机检查复用已运行的基础服务，不为验证另起数据库或覆盖 `.env`。涉及运行时、依赖或容器时，额外验证 `docker compose config` 与 `docker compose -f docker-compose-env.yml config` 可解析，并用 `APP_ENV=production FRONTEND_BUILD_TARGET=runtime docker compose config` 检查生产配置，并按需构建镜像。
 
 ## CI
 

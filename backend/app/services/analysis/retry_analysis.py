@@ -15,7 +15,13 @@ from app.services.analysis.errors import (
     PersistenceNotFound,
     PersistenceRetryLimited,
 )
-from app.services.analysis.models import AnalysisJobView, AnalysisRetry
+from app.services.analysis.models import (
+    MANUAL_RETRIES_PER_DAY,
+    MAX_RUNS_PER_JOB,
+    MIN_RETRY_INTERVAL_SECONDS,
+    AnalysisJobView,
+    AnalysisRetry,
+)
 from app.services.analysis.ports import AnalysisRepository, AnalysisSkillCatalog
 from app.services.analysis.rules.enums import AnalysisInputKind
 from app.services.analysis.validation import (
@@ -35,9 +41,9 @@ class RetryAnalysis:
         now: Callable[[], datetime],
         new_id: Callable[[], UUID],
         skill_catalog: AnalysisSkillCatalog,
-        max_runs_per_job: int = 10,
-        min_interval_seconds: int = 0,
-        retries_per_day: int = 20,
+        max_runs_per_job: int = MAX_RUNS_PER_JOB,
+        min_interval_seconds: int = MIN_RETRY_INTERVAL_SECONDS,
+        retries_per_day: int = MANUAL_RETRIES_PER_DAY,
     ) -> None:
         self._repository = repository
         self._now = now

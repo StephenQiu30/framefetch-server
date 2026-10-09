@@ -6,13 +6,13 @@ from pathlib import Path
 from urllib.parse import urlsplit
 
 import yaml
+from app.core.config import Settings
 from app.integrations.readiness import EXPECTED_DATABASE_TABLES
 from tests.compose import load_compose
 
 ROOT = Path(__file__).resolve().parents[2]
 ENV_COMPOSE_PATH = ROOT.parent / "docker-compose-env.yml"
 COMPOSE_PATH = ROOT.parent / "docker-compose.yml"
-PROD_COMPOSE_PATH = ROOT.parent / "docker-compose-prod.yml"
 ENV_EXAMPLE_PATH = ROOT.parent / ".env.example"
 SCHEMA_PATH = ROOT / "sql/schema.sql"
 ROOT_README_PATH = ROOT.parent / "README.md"
@@ -77,7 +77,7 @@ def test_environment_templates_do_not_override_duplicate_assignments() -> None:
         r"(?m)^([A-Z][A-Z0-9_]*)=", ENV_EXAMPLE_PATH.read_text(encoding="utf-8")
     )
     assert len(assignments) == len(set(assignments))
-    assert _env_value(ENV_EXAMPLE_PATH, "REQUEST_TIMEOUT_SECONDS") == "180"
+    assert _env_value(ENV_EXAMPLE_PATH, "FRONTEND_BUILD_TARGET") == "development"
 
 
 def test_core_api_boot_does_not_wait_for_session_readiness() -> None:
@@ -91,50 +91,45 @@ def test_core_api_boot_does_not_wait_for_session_readiness() -> None:
     ):
         assert removed not in environment
 
-    for path in (COMPOSE_PATH, PROD_COMPOSE_PATH):
-        services = load_compose(path)["services"]
-        # `docker compose up` starts everything; there are no opt-in profiles.
-        assert not any(config.get("profiles") for config in services.values())
-        for service in ("api", "frontend", "worker"):
-            assert not set(services[service].get("depends_on", {})) & set(
-                ("session-runner",)
-            )
+    services = load_compose(COMPOSE_PATH)["services"]
+    # `docker compose up` starts everything; there are no opt-in profiles.
+    assert not any(config.get("profiles") for config in services.values())
+    for service in ("api", "frontend", "worker"):
+        assert not set(services[service].get("depends_on", {})) & set(
+            ("session-runner",)
+        )
 
 
 def test_frontend_compose_receives_only_required_runtime_configuration() -> None:
     expected = {
         "AUTH_WEB_COOKIE_NAME",
         "BACKEND_ORIGIN",
-        "HOSTNAME",
         "MINIO_ENDPOINT",
         "MINIO_INTERNAL_SECURE",
         "MINIO_PUBLIC_ENDPOINT",
         "MINIO_PUBLIC_SECURE",
-        "NODE_ENV",
-        "PORT",
         "SITE_URL",
         "SITE_INDEXABLE",
     }
-    for path in (COMPOSE_PATH, PROD_COMPOSE_PATH):
-        document = load_compose(path)
-        frontend = document["services"]["frontend"]
-        api = document["services"]["api"]
+    document = load_compose(COMPOSE_PATH)
+    frontend = document["services"]["frontend"]
+    api = document["services"]["api"]
 
-        assert "env_file" not in frontend
-        local_only = {"MINIO_LOCAL_BROWSER_ENDPOINT", "MINIO_LOCAL_BROWSER_SECURE"}
-        assert set(frontend["environment"]) == expected | local_only
-        assert (
-            frontend["networks"]["app_net"]["ipv4_address"]
-            == "${FRONTEND_IPV4_ADDRESS:-10.251.0.10}"
-        )
-        assert "${TRUSTED_PROXY_CIDRS" in api["environment"]["TRUSTED_PROXY_CIDRS"]
-        assert api["environment"]["TRUSTED_WEB_PROXY_IPS"] == (
-            f'["{frontend["networks"]["app_net"]["ipv4_address"]}"]'
-        )
+    assert "env_file" not in frontend
+    local_only = {"MINIO_LOCAL_BROWSER_ENDPOINT", "MINIO_LOCAL_BROWSER_SECURE"}
+    assert set(frontend["environment"]) == expected | local_only
+    assert (
+        frontend["networks"]["app_net"]["ipv4_address"]
+        == "${FRONTEND_IPV4_ADDRESS:-10.251.0.10}"
+    )
+    assert "${TRUSTED_PROXY_CIDRS" in api["environment"]["TRUSTED_PROXY_CIDRS"]
+    assert api["environment"]["TRUSTED_WEB_PROXY_IPS"] == (
+        f'["{frontend["networks"]["app_net"]["ipv4_address"]}"]'
+    )
 
 
 def test_production_analysis_is_opt_in() -> None:
-    compose = load_compose(PROD_COMPOSE_PATH)
+    compose = load_compose(COMPOSE_PATH)
     environment = compose["services"]["api"]["environment"]
     for name in ("ANALYSIS_ENABLED", "SCREENPLAY_ANALYSIS_ENABLED"):
         assert environment[name] == "${" + name + ":-false}"
@@ -210,30 +205,28 @@ def test_current_schema_can_be_applied_repeatedly() -> None:
     assert "'video.import.dead'" in schema
 
 
-def test_download_queue_contract_declares_a_dlq_binding() -> None:
-    compose = ENV_COMPOSE_PATH.read_text(encoding="utf-8")
-
-    assert "declare_queue video.download" in compose
-    assert "declare_queue video.download-intent" not in compose
-    assert (
-        "declare_binding video.events video.download-intent download.intent.requested"
-        not in compose
-    )
-    assert '"x-dead-letter-exchange":"video.events.dead"' in compose
-    assert '"x-dead-letter-routing-key":"' in compose
-    assert "'\"$$1\"'.dead" in compose
-    assert (
-        "declare_binding video.events.dead video.download.dead video.download.dead"
-        in compose
-    )
+def test_compose_does_not_own_business_queues_or_retry_policy() -> None:
+    for path in (COMPOSE_PATH, ENV_COMPOSE_PATH, ENV_EXAMPLE_PATH):
+        document = path.read_text(encoding="utf-8")
+        for token in (
+            "declare_queue",
+            "declare_exchange",
+            "video.events",
+            "video.download",
+            "video.analysis-report",
+            "video.import",
+            "MAX_DOWNLOAD_ATTEMPTS",
+            "ANALYSIS_MAX_RUNS_PER_JOB",
+            "ANALYSIS_MANUAL_RETRIES_PER_DAY",
+            "ANALYSIS_MANUAL_RETRY_MIN_INTERVAL_SECONDS",
+        ):
+            assert token not in document
 
 
 def test_ai_provider_selection_is_not_configured_by_environment() -> None:
     for path in (
         ENV_EXAMPLE_PATH,
         COMPOSE_PATH,
-        PROD_COMPOSE_PATH,
-        ROOT.parent / "docker-compose-common.yml",
     ):
         document = path.read_text(encoding="utf-8")
         for name in (
@@ -308,8 +301,8 @@ def test_database_consumers_use_the_configured_postgres_service() -> None:
         assert "host.docker.internal:host-gateway" in service_config
 
 
-def test_production_compose_uses_the_production_env_and_host_database() -> None:
-    production = yaml.safe_dump(load_compose(PROD_COMPOSE_PATH), sort_keys=False)
+def test_compose_uses_explicit_configuration_and_host_database() -> None:
+    production = yaml.safe_dump(load_compose(COMPOSE_PATH), sort_keys=False)
     api = _service_block(production, "api")
 
     assert "env_file" not in api
@@ -319,7 +312,6 @@ def test_production_compose_uses_the_production_env_and_host_database() -> None:
 
 def test_compose_uses_typed_application_retention_defaults() -> None:
     compose = yaml.safe_dump(load_compose(COMPOSE_PATH), sort_keys=False)
-    production = yaml.safe_dump(load_compose(PROD_COMPOSE_PATH), sort_keys=False)
 
     for variable in (
         "ARTIFACT_TTL_SECONDS",
@@ -328,7 +320,6 @@ def test_compose_uses_typed_application_retention_defaults() -> None:
         "ANALYSIS_REPORT_TTL_SECONDS",
     ):
         assert variable not in compose
-        assert variable not in production
 
 
 def test_api_receives_feature_flags_and_uses_typed_import_defaults() -> None:
@@ -341,38 +332,41 @@ def test_api_receives_feature_flags_and_uses_typed_import_defaults() -> None:
         "SCREENPLAY_ANALYSIS_ENABLED",
         "MEDIA_IMPORT_MAX_BYTES",
         "DOCUMENT_IMPORT_MAX_BYTES",
-        "IMPORT_UPLOAD_SESSION_TTL_SECONDS",
-        "IMPORT_UPLOAD_PART_SIZE_BYTES",
-        "IMPORT_UPLOAD_MAX_PARTS",
-        "IMPORT_UPLOAD_MAX_CONCURRENCY",
-        "IMPORT_RIGHTS_STATEMENT_VERSION",
     ):
         assert variable in api["environment"]
+    for name, expected in {
+        "import_upload_session_ttl_seconds": 900,
+        "import_upload_part_size_bytes": 33554432,
+        "import_upload_max_parts": 1000,
+        "import_upload_max_concurrency": 4,
+        "import_rights_statement_version": "content-rights",
+    }.items():
+        assert name.upper() not in api["environment"]
+        assert Settings.model_fields[name].get_default() == expected
 
 
 def test_background_loops_share_one_private_worker_container() -> None:
-    for path in (COMPOSE_PATH, PROD_COMPOSE_PATH):
-        services = load_compose(path)["services"]
-        # Outbox, download, import and report run in one process.
-        for retired in (
-            "outbox",
-            "worker-download",
-            "worker-import",
-            "worker-report",
-            "provider-canary",
-            "workspace-init",
-            "provider-lease-redis",
-        ):
-            assert retired not in services
-        worker = services["worker"]
-        assert worker["environment"]["SERVICE_ROLE"] == "worker"
-        assert "RABBITMQ_WORKER_USER" in worker["environment"]["RABBITMQ_URL"]
-        assert "RABBITMQ_WORKER_PASS" in worker["environment"]["RABBITMQ_URL"]
-        assert "env_file" not in worker
-        assert "runner_egress_net" in worker["networks"]
-        assert "ports" not in worker
-        assert services["worker"]["networks"] == ["app_net", "runner_egress_net"]
-        assert worker["command"] == ["python", "-m", "app.workers.main"]
+    services = load_compose(COMPOSE_PATH)["services"]
+    # Outbox, download, import and report run in one process.
+    for retired in (
+        "outbox",
+        "worker-download",
+        "worker-import",
+        "worker-report",
+        "provider-canary",
+        "workspace-init",
+        "provider-lease-redis",
+    ):
+        assert retired not in services
+    worker = services["worker"]
+    assert worker["environment"]["SERVICE_ROLE"] == "worker"
+    assert "RABBITMQ_WORKER_USER" in worker["environment"]["RABBITMQ_URL"]
+    assert "RABBITMQ_WORKER_PASS" in worker["environment"]["RABBITMQ_URL"]
+    assert "env_file" not in worker
+    assert "runner_egress_net" in worker["networks"]
+    assert "ports" not in worker
+    assert services["worker"]["networks"] == ["app_net", "runner_egress_net"]
+    assert worker["command"] == ["python", "-m", "app.workers.main"]
 
 
 def test_compose_assigns_each_application_container_its_process_entrypoint() -> None:
@@ -384,31 +378,25 @@ def test_compose_assigns_each_application_container_its_process_entrypoint() -> 
 
 
 def test_compose_isolates_media_dependencies_and_preserves_api_readiness() -> None:
-    for path in (COMPOSE_PATH, PROD_COMPOSE_PATH):
-        compose = load_compose(path)
-        services = compose["services"]
+    compose = load_compose(COMPOSE_PATH)
+    services = compose["services"]
 
-        for service in ("api", "worker"):
-            dependencies = services[service].get("depends_on", {})
-            assert not (
-                {"media-runner", "egress-proxy", *("session-runner",)}
-                & set(dependencies)
-            )
-        assert "127.0.0.1:8111/health/ready" in " ".join(
-            services["api"]["healthcheck"]["test"]
+    for service in ("api", "worker"):
+        dependencies = services[service].get("depends_on", {})
+        assert not (
+            {"media-runner", "egress-proxy", *("session-runner",)} & set(dependencies)
         )
-        assert services["frontend"]["depends_on"]["api"]["condition"] == (
-            "service_healthy"
-        )
-        assert "127.0.0.1:8101/" in " ".join(
-            services["frontend"]["healthcheck"]["test"]
-        )
-        assert "127.0.0.1:19100/health/runtime" in " ".join(
-            services["session-runner"]["healthcheck"]["test"]
-        )
+    assert "127.0.0.1:8111/health/ready" in " ".join(
+        services["api"]["healthcheck"]["test"]
+    )
+    assert services["frontend"]["depends_on"]["api"]["condition"] == ("service_healthy")
+    assert "127.0.0.1:8101/" in " ".join(services["frontend"]["healthcheck"]["test"])
+    assert "127.0.0.1:19100/health/runtime" in " ".join(
+        services["session-runner"]["healthcheck"]["test"]
+    )
 
-        for service in ("worker", "session-runner"):
-            assert services[service]["stop_grace_period"] == "90s"
+    for service in ("worker", "session-runner"):
+        assert services[service]["stop_grace_period"] == "90s"
 
 
 def test_project_documents_container_and_complete_local_entrypoints() -> None:
@@ -460,64 +448,74 @@ def test_compose_pins_shared_runner_workspace_to_the_mounted_container_path() ->
 
 
 def test_anonymous_runner_retains_private_network_and_workspace() -> None:
-    for path in (COMPOSE_PATH, PROD_COMPOSE_PATH):
-        compose = load_compose(path)
-        services = compose["services"]
-        runner = services["session-runner"]
-        assert "session-broker" not in services
-        assert "runner_rpc_net" not in compose["networks"]
-        assert set(runner["networks"]) == {"runner_egress_net", "youtube_pot_net"}
-        assert runner["volumes"] == [
-            "runner_work:/work",
-            "browser_profiles:/var/lib/framefetch-browser",
-        ]
-        assert (
-            runner["environment"]["RUNNER_BROWSER_PROFILE_ROOT"]
-            == "/var/lib/framefetch-browser"
-        )
-        assert runner["shm_size"] == "256m"
-        assert "ports" not in runner
-        assert "DATABASE_URL" not in runner["environment"]
-        assert not any(
-            key.startswith("RUNNER_SESSION_") for key in runner["environment"]
-        )
-        assert runner["read_only"] is True
-        assert "proxy_uplink_net" not in runner["networks"]
-        for service in ("api", "worker"):
-            assert "runner_egress_net" in services[service]["networks"]
+    compose = load_compose(COMPOSE_PATH)
+    services = compose["services"]
+    runner = services["session-runner"]
+    assert "session-broker" not in services
+    assert "runner_rpc_net" not in compose["networks"]
+    assert set(runner["networks"]) == {"runner_egress_net", "youtube_pot_net"}
+    assert runner["volumes"] == [
+        "runner_work:/work",
+        "browser_profiles:/var/lib/framefetch-browser",
+    ]
+    assert (
+        runner["environment"]["RUNNER_BROWSER_PROFILE_ROOT"]
+        == "/var/lib/framefetch-browser"
+    )
+    assert runner["shm_size"] == "256m"
+    assert "ports" not in runner
+    assert "DATABASE_URL" not in runner["environment"]
+    assert not any(key.startswith("RUNNER_SESSION_") for key in runner["environment"])
+    assert runner["read_only"] is True
+    assert "proxy_uplink_net" not in runner["networks"]
+    for service in ("api", "worker"):
+        assert "runner_egress_net" in services[service]["networks"]
 
 
-def test_production_compose_is_the_only_production_topology_file() -> None:
-    assert not (ROOT.parent / "docker-compose-browser.yml").exists()
-    assert not (ROOT.parent / "docker-compose-session-files.yml").exists()
-    assert PROD_COMPOSE_PATH.is_file()
-    assert "-f docker-compose-prod.yml" in ROOT_README_PATH.read_text(encoding="utf-8")
+def test_compose_has_only_business_and_infrastructure_entrypoints() -> None:
+    assert {path.name for path in ROOT.parent.glob("*compose*.y*ml")} == {
+        "docker-compose.yml",
+        "docker-compose-env.yml",
+    }
+    compose = load_compose(COMPOSE_PATH)
+    assert not any("extends" in service for service in compose["services"].values())
+    assert "database-init" not in load_compose(ENV_COMPOSE_PATH)["services"]
+    assert compose["services"]["migrate"]["command"] == [
+        "python",
+        "-m",
+        "app.workers.migrate",
+    ]
+    frontend = compose["services"]["frontend"]
+    assert frontend["build"]["target"] == "${FRONTEND_BUILD_TARGET:-development}"
+    # Dockerfile stages select their own NODE_ENV, workdir and command.
+    assert not {"NODE_ENV"} & frontend["environment"].keys()
+    assert "command" not in frontend
+    assert "working_dir" not in frontend
+    assert "--env-file .env.prod up" in ROOT_README_PATH.read_text(encoding="utf-8")
 
 
 def test_projects_build_and_run_separate_images() -> None:
-    for path in (COMPOSE_PATH, PROD_COMPOSE_PATH):
-        services = load_compose(path)["services"]
-        backend = services["api"]
-        frontend = services["frontend"]
-        assert backend["build"]["context"] == "./backend"
-        assert frontend["build"]["context"] == "./frontend"
-        assert backend["image"] != frontend["image"]
-        assert frontend["healthcheck"]["test"][1] == "node"
+    services = load_compose(COMPOSE_PATH)["services"]
+    backend = services["api"]
+    frontend = services["frontend"]
+    assert backend["build"]["context"] == "./backend"
+    assert frontend["build"]["context"] == "./frontend"
+    assert backend["image"] != frontend["image"]
+    assert frontend["healthcheck"]["test"][1] == "node"
     assert not (ROOT.parent / "Dockerfile").exists()
     assert "frontend-builder" not in (ROOT / "Dockerfile").read_text()
     assert "python:" not in (ROOT.parent / "frontend/Dockerfile").read_text()
 
 
 def test_documentation_is_local_and_not_mounted_by_the_api() -> None:
-    for path in (COMPOSE_PATH, PROD_COMPOSE_PATH):
-        services = load_compose(path)["services"]
-        assert "workspace" not in services
-        api = services["api"]
-        assert "WORKSPACE_CONTENT_DIR" not in api["environment"]
-        assert not any(
-            isinstance(volume, dict) and volume.get("source") == "./docs"
-            for volume in api.get("volumes", [])
-        )
+    services = load_compose(COMPOSE_PATH)["services"]
+    assert "workspace" not in services
+    api = services["api"]
+    assert "WORKSPACE_CONTENT_DIR" not in api["environment"]
+    assert not any(
+        isinstance(volume, dict) and volume.get("source") == "./docs"
+        for volume in api.get("volumes", [])
+    )
     vault = ROOT.parent / "docs"
     assert (vault / "README.md").is_file()
     settings = json.loads((vault / ".obsidian/app.json").read_text())
@@ -530,18 +528,17 @@ def test_documentation_is_local_and_not_mounted_by_the_api() -> None:
 
 
 def test_compose_application_roles_share_the_selected_release_image() -> None:
-    for path, tag in ((COMPOSE_PATH, "local"), (PROD_COMPOSE_PATH, "prod")):
-        services = load_compose(path)["services"]
-        for name, config in services.items():
-            build = config.get("build", {})
-            if build.get("context") != "./backend":
-                continue
-            # Only the session browser has its own target: it adds Chromium.
-            if build.get("target") == "session-browser":
-                assert config["image"] == f"video-session-browser:{tag}", name
-            else:
-                assert "target" not in build, name
-                assert config["image"] == f"framefetch:{tag}", name
+    services = load_compose(COMPOSE_PATH)["services"]
+    for name, config in services.items():
+        build = config.get("build", {})
+        if build.get("context") != "./backend":
+            continue
+        # Only the session browser has its own target: it adds Chromium.
+        if build.get("target") == "session-browser":
+            assert config["image"] == "video-session-browser:local", name
+        else:
+            assert "target" not in build, name
+            assert config["image"] == "framefetch:local", name
 
 
 def test_runtime_base_images_are_pinned_without_host_architecture_override() -> None:
@@ -562,17 +559,16 @@ def test_runtime_base_images_are_pinned_without_host_architecture_override() -> 
 
 
 def test_anonymous_and_guest_execution_services_are_removed():
-    for path in (COMPOSE_PATH, PROD_COMPOSE_PATH):
-        services = load_compose(path)["services"]
-        assert (
-            not {
-                "media-runner",
-                "provider-guest",
-                "provider-guest-init",
-                "douyin-guest-runner",
-            }
-            & services.keys()
-        )
+    services = load_compose(COMPOSE_PATH)["services"]
+    assert (
+        not {
+            "media-runner",
+            "provider-guest",
+            "provider-guest-init",
+            "douyin-guest-runner",
+        }
+        & services.keys()
+    )
 
 
 def test_collaboration_contract_uses_the_final_execution_design() -> None:

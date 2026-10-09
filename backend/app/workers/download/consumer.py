@@ -3,18 +3,17 @@ from __future__ import annotations
 import asyncio
 import logging
 from contextlib import suppress
-from typing import Any, Protocol, cast
+from typing import Protocol
 from uuid import UUID
 
 import aio_pika
-from aio_pika import ExchangeType
 from aio_pika.abc import (
     AbstractIncomingMessage,
     AbstractQueue,
     AbstractRobustConnection,
 )
 from app.integrations.messaging.connection import configured_rabbitmq_url
-from app.integrations.messaging.topology import RabbitMqTopology
+from app.integrations.messaging.topology import RabbitMqTopology, declare_durable_queue
 from app.services.download_execution.models import ExecutionDisposition
 from app.workers.download.message import (
     DownloadMessageError,
@@ -121,37 +120,6 @@ def _replay_count(message: Delivery) -> int:
     return value if type(value) is int and 0 <= value <= 3 else 0
 
 
-async def _declare_download_topology(
-    channel: Any, topology: RabbitMqTopology
-) -> AbstractQueue:
-    """Declare the download queue and its DLX so startup verifies the contract."""
-    binding = topology.download
-    exchange = await channel.declare_exchange(
-        topology.exchange, type=ExchangeType.TOPIC, durable=True
-    )
-    dead_exchange = await channel.declare_exchange(
-        topology.dead_exchange, type=ExchangeType.TOPIC, durable=True
-    )
-    queue = await channel.declare_queue(
-        binding.queue,
-        durable=True,
-        arguments={
-            "x-message-ttl": binding.message_ttl_ms,
-            "x-max-length": binding.max_length,
-            "x-dead-letter-exchange": topology.dead_exchange,
-            "x-dead-letter-routing-key": binding.dead_routing_key,
-        },
-    )
-    dead_queue = await channel.declare_queue(
-        binding.dead_queue,
-        durable=True,
-        arguments={"x-max-length": binding.max_length},
-    )
-    await queue.bind(exchange, routing_key=binding.routing_key)
-    await dead_queue.bind(dead_exchange, routing_key=binding.dead_routing_key)
-    return cast(AbstractQueue, queue)
-
-
 class RabbitMqDownloadConsumer:
     def __init__(
         self,
@@ -207,7 +175,9 @@ class RabbitMqDownloadConsumer:
             async with asyncio.timeout(self._connection_timeout):
                 channel = await connection.channel()
                 await channel.set_qos(prefetch_count=self._prefetch)
-                queue = await _declare_download_topology(channel, self._topology)
+                queue = await declare_durable_queue(
+                    channel, self._topology, self._topology.download
+                )
                 self._queue = queue
                 await self._pool.start()
                 self._consumer_tag = await queue.consume(self._consume)

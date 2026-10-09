@@ -12,7 +12,7 @@ from pamqp.commands import Basic
 
 from app.integrations.messaging.connection import configured_rabbitmq_url
 from app.integrations.messaging.envelope import EventEnvelope
-from app.integrations.messaging.topology import RabbitMqTopology
+from app.integrations.messaging.topology import RabbitMqTopology, declare_durable_queue
 
 
 class PublishNotConfirmed(RuntimeError):
@@ -71,6 +71,8 @@ class RabbitMqPublisher:
                     publisher_confirms=True,
                     on_return_raises=True,
                 )
+                for binding in self._topology.durable_queues:
+                    await declare_durable_queue(channel, self._topology, binding)
                 exchange = await channel.declare_exchange(
                     self._topology.exchange, passive=True
                 )

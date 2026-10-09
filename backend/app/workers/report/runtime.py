@@ -61,13 +61,7 @@ def build_runtime(
     return ReportRuntime(
         consumer=RabbitMqReportConsumer(
             settings.rabbitmq_url,
-            RabbitMqTopology(
-                settings.rabbitmq_exchange,
-                settings.download_queue,
-                settings.download_routing_key,
-                report_queue=settings.analysis_report_queue,
-                report_routing_key=settings.analysis_report_routing_key,
-            ),
+            RabbitMqTopology(),
             publisher,
             connection_timeout=settings.rabbitmq_connection_timeout_seconds,
             prefetch=settings.worker_prefetch,

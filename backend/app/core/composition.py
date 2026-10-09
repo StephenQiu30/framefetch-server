@@ -23,6 +23,7 @@ from app.integrations.analysis_skill_catalog import BuiltinAnalysisSkillCatalog
 from app.integrations.article_discovery.adapter import WeChatArticleDiscoveryAdapter
 from app.integrations.jwt_tokens import JwtTokenService
 from app.integrations.media_runner_factory import session_media_runner
+from app.integrations.messaging.topology import RabbitMqTopology
 from app.integrations.object_storage import MinioObjectStorage
 from app.integrations.passwords import Argon2PasswordHasher
 from app.integrations.provider_status import configured_provider_statuses
@@ -395,7 +396,6 @@ def build_api_runtime(settings: Settings) -> ApiRuntime:
             fingerprinter=fingerprinter,
             now=clock,
             new_id=uuid4,
-            max_attempts=settings.max_download_attempts,
         ),
         delete_download=DeleteDownload(
             store,
@@ -413,7 +413,6 @@ def build_api_runtime(settings: Settings) -> ApiRuntime:
             fingerprinter=fingerprinter,
             now=clock,
             new_id=uuid4,
-            max_attempts=settings.max_download_attempts,
         ),
         issue_download_url=IssueDownloadUrl(
             store,
@@ -450,9 +449,6 @@ def build_api_runtime(settings: Settings) -> ApiRuntime:
             now=clock,
             new_id=uuid4,
             skill_catalog=skill_catalog,
-            max_runs_per_job=settings.analysis_max_runs_per_job,
-            min_interval_seconds=settings.analysis_manual_retry_min_interval_seconds,
-            retries_per_day=settings.analysis_manual_retries_per_day,
         ),
         get_content_source=GetContentSource(analysis_repository),
         list_content_versions=ListContentVersions(analysis_repository),
@@ -527,7 +523,7 @@ def build_api_runtime(settings: Settings) -> ApiRuntime:
         auth_session_store=auth_session_store,
         realtime_consumer=RabbitMqRealtimeConsumer(
             settings.rabbitmq_url,
-            settings.rabbitmq_exchange,
+            RabbitMqTopology().exchange,
             realtime_hub,
             connection_timeout=settings.rabbitmq_connection_timeout_seconds,
             heartbeat=settings.rabbitmq_heartbeat_seconds,

@@ -101,11 +101,7 @@ def build_runtime(settings: Settings, engine: AsyncEngine) -> DownloadWorkerRunt
         ),
         thumbnail_recovery=thumbnail_recovery,
     )
-    topology = RabbitMqTopology(
-        settings.rabbitmq_exchange,
-        settings.download_queue,
-        settings.download_routing_key,
-    )
+    topology = RabbitMqTopology()
     intents = IntentRepository(sessions)
     envelope = FernetUrlEnvelope(
         URLCipher(settings.url_encryption_key.get_secret_value().encode()),

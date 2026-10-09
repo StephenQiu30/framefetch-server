@@ -15,6 +15,8 @@ from app.services.downloads.rules.formats import DownloadPlan
 from app.services.provider_types import ExecutionContext
 from app.services.quotas import UserQuota
 
+DEFAULT_MAX_ATTEMPTS = 3
+
 
 @dataclass(frozen=True, slots=True)
 class DownloadCreate:
@@ -25,7 +27,7 @@ class DownloadCreate:
     idempotency_key: str
     request_fingerprint: str
     semantic_plan: dict[str, object]
-    max_attempts: int = 3
+    max_attempts: int = DEFAULT_MAX_ATTEMPTS
     source_kind: DownloadSourceKind = DownloadSourceKind.REMOTE_PROVIDER
     # A retry may outlive the short-lived inspection record. The worker still
     # re-inspects the provider source before selecting streams or writing an

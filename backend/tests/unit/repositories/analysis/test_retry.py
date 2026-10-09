@@ -55,11 +55,18 @@ async def test_manual_retry_appends_run_and_replays_same_operation(analysis_db) 
         max_attempts=failed.max_attempts,
     )
 
+    with pytest.raises(PersistenceRetryLimited):
+        await analysis_db.repository.retry_job_and_enqueue(
+            command, now=NOW + timedelta(seconds=29)
+        )
+    assert await count_rows(analysis_db, AnalysisRunRow) == 1
+    assert await count_rows(analysis_db, AnalysisRetryOperationRow) == 0
+
     retried = await analysis_db.repository.retry_job_and_enqueue(
-        command, now=NOW + timedelta(seconds=2)
+        command, now=NOW + timedelta(seconds=30)
     )
     replay = await analysis_db.repository.retry_job_and_enqueue(
-        command, now=NOW + timedelta(seconds=3)
+        command, now=NOW + timedelta(seconds=31)
     )
 
     assert retried.created is True and replay.created is False

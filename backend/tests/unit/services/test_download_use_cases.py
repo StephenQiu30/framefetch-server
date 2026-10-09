@@ -139,7 +139,6 @@ def creator(repository: FakeRepository) -> CreateDownload:
         fingerprinter=HmacRequestFingerprinter(b"k" * 32),
         now=lambda: NOW,
         new_id=uuid4,
-        max_attempts=3,
     )
 
 
@@ -149,7 +148,6 @@ def retrier(repository: FakeRepository) -> RetryDownload:
         fingerprinter=HmacRequestFingerprinter(b"k" * 32),
         now=lambda: NOW,
         new_id=uuid4,
-        max_attempts=3,
     )
 
 
@@ -166,6 +164,7 @@ async def test_create_download_persists_job_and_outbox_idempotently() -> None:
     assert first.status is DownloadStatus.QUEUED
     assert repository.outbox_events == 1
     command = repository.download_commands[0]
+    assert command.max_attempts == 3
     assert command.semantic_plan["height"] == 1080
     assert "hints" not in command.semantic_plan
 

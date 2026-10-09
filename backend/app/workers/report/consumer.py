@@ -12,7 +12,7 @@ from aio_pika.abc import (
     AbstractRobustConnection,
 )
 from app.integrations.messaging.connection import configured_rabbitmq_url
-from app.integrations.messaging.topology import RabbitMqTopology
+from app.integrations.messaging.topology import RabbitMqTopology, declare_durable_queue
 from app.workers.report.message import ReportMessageError, parse_report_requested
 from app.workers.report.publisher import ReportPublisher
 
@@ -88,7 +88,7 @@ class RabbitMqReportConsumer:
                 channel = await connection.channel()
                 await channel.set_qos(prefetch_count=self._prefetch)
                 binding = self._topology.report
-                queue = await channel.declare_queue(binding.queue, passive=True)
+                queue = await declare_durable_queue(channel, self._topology, binding)
                 self._queue = queue
                 self._tag = await queue.consume(self._consume)
         except BaseException:

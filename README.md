@@ -44,9 +44,9 @@
 
 ## 快速开始
 
-本机使用 `docker-compose.yml`，生产使用 `docker-compose-prod.yml`，两者从 `docker-compose-common.yml` 继承公共服务配置，只覆盖运行模式差异。先部署 Server，再让浏览器、Electron 或 App 连接。平台身份按 Registry 声明从普通 Chrome 扩展取得，接入方法见下文。
+只维护两份 Compose：`docker-compose.yml` 完整定义业务服务，本机与生产共用；`docker-compose-env.yml` 独立提供 PostgreSQL、RabbitMQ、Redis 和 MinIO。已有基础服务直接复用；仅在没有现成服务的环境显式运行 `docker compose -f docker-compose-env.yml up -d --wait`，再把业务配置中的 `*_HOST`／`*_PORT` 指向其实际地址与发布端口。Temporal 单独提供。先部署 Server，再让浏览器、Electron 或 App 连接。平台身份按 Registry 声明从普通 Chrome 扩展取得，接入方法见下文。
 
-业务 Compose 项目名为 `framefetch`，后端镜像为 `framefetch:local`／`framefetch:prod`。`runner_work` 与 `browser_profiles` 默认绑定现有持久卷 `video-server_runner_work`、`video-server_browser_profiles`，保留任务文件与浏览器会话；其他卷名可通过 `RUNNER_WORK_VOLUME_NAME`、`BROWSER_PROFILES_VOLUME_NAME` 指定。数据库、队列、对象存储与鉴权标识保持其现有配置。
+业务 Compose 项目名为 `framefetch`，后端镜像为 `framefetch:local`。`runner_work` 与 `browser_profiles` 默认绑定现有持久卷 `video-server_runner_work`、`video-server_browser_profiles`，保留任务文件与浏览器会话；其他卷名可通过 `RUNNER_WORK_VOLUME_NAME`、`BROWSER_PROFILES_VOLUME_NAME` 指定。数据库、队列、对象存储与鉴权标识保持其现有配置。
 
 ### 前置条件
 
@@ -67,7 +67,7 @@ test -f .env || cp .env.example .env
 docker compose up -d --build --wait --remove-orphans
 ```
 
-开发时使用 `docker compose up --build --watch`，或在已启动的本地容器上运行 `docker compose watch --no-up` 并保持终端运行。前端代码自动热重载，API／worker 源码自动同步并重启，Runner 保留只读沙箱并自动重建；依赖变化自动构建。需要 Docker Compose 2.32.0 或更新版本，详见 [开发与发布规则](docs/design/12-可靠性与运行.md#发布)。生产部署继续使用下方的生产 Compose。
+开发时使用 `docker compose up --build --watch`，或在已启动的本地容器上运行 `docker compose watch --no-up` 并保持终端运行。前端代码自动热重载，API／worker 源码自动同步并重启，Runner 保留只读沙箱并自动重建；依赖变化自动构建。需要 Docker Compose 2.32.0 或更新版本，详见 [开发与发布规则](docs/design/12-可靠性与运行.md#发布)。生产部署使用同一文件，配置方式见下方生产入口。
 
 产品需求、系统设计与执行计划统一维护在 [docs/](docs/README.md)。将该目录作为 Obsidian 库打开，或用任意文本编辑器修改；版本通过 Git 管理，详见 [文档工作区](PROJECT.md#31-文档工作区)。
 
@@ -97,7 +97,7 @@ uv run --project backend python -m app.workers.bootstrap_admin \
 
 ### 复用已有 Temporal 服务
 
-解析与 Skill 分析连接宿主机已运行的 Temporal。`docker-compose.yml`／`docker-compose-prod.yml` 只启动业务服务；容器 Worker 通过 `TEMPORAL_HOST`／`TEMPORAL_PORT` 连接已有服务，默认 `host.docker.internal:7233`。CLI 与宿主 AI Worker 使用 `TEMPORAL_ADDRESS`，默认 `127.0.0.1:7233`。已有部署使用其他地址时设置对应连接参数，工作进程首次连接时幂等创建 `TEMPORAL_NAMESPACE`（默认 `framefetch`）。
+解析与 Skill 分析连接宿主机已运行的 Temporal。`docker-compose.yml` 只启动业务服务；容器 Worker 通过 `TEMPORAL_HOST`／`TEMPORAL_PORT` 连接已有服务，默认 `host.docker.internal:7233`。CLI 与宿主 AI Worker 使用 `TEMPORAL_ADDRESS`，默认 `127.0.0.1:7233`。已有部署使用其他地址时设置对应连接参数，工作进程首次连接时幂等创建 `TEMPORAL_NAMESPACE`（默认 `framefetch`）。
 
 更新前停止 API 接单并排空解析任务，备份现有业务库，再配套发布 API、worker 和 `migrate` 容器。更新使用 `up --build`，不能只 `start` 旧版已退出的迁移容器。回退也需先排空新执行并恢复匹配的结构备份，不允许两套解析执行者并存。
 
@@ -173,10 +173,10 @@ Compose 仅向 `session-runner` 注入宿主配置中相同的 `COOKIE_SOURCE_TO
 
 Runner 身份调用、RunContext 材料所有权和私有 tmpfs 清理统一见[平台身份](docs/design/15-平台身份.md)与[解析引擎第 10 节](docs/design/14-解析引擎.md#10-模块接口)。真实 Chrome 保活、重连与需要身份的完整文件验收状态见[验证状态](docs/design/14-解析引擎.md#13-验证状态)。
 
-升级前暂停接单并排空媒体操作，备份业务库，幂等执行当前 schema.sql，再配套重建 API、worker、session-runner 与前端。生产入口：
+升级前暂停接单并排空媒体操作，备份业务库，幂等执行当前 schema.sql，再配套重建 API、worker、session-runner 与前端。生产配置使用 `.env.prod`，设置 `APP_ENV=production`、`FRONTEND_BUILD_TARGET=runtime`、实际 `SITE_URL` 与生产密钥；前端运行环境和启动命令由 Dockerfile 的 runtime 阶段提供。生产入口：
 
 ```bash
-docker compose --env-file .env.prod -f docker-compose-prod.yml up -d --build --wait --remove-orphans
+APP_ENV=production FRONTEND_BUILD_TARGET=runtime docker compose --env-file .env.prod up -d --build --wait --remove-orphans
 ```
 
 健康检查：
@@ -359,10 +359,8 @@ docs/                    Obsidian 文档库（产品需求、系统设计与执�
 extension/               Chrome 平台身份扩展
 backend/Dockerfile       API、Worker、Runner 镜像
 frontend/Dockerfile      Next.js 独立镜像
-docker-compose-env.yml   GitHub CI 隔离测试夹具，不用于本机启动
-docker-compose-common.yml 公共业务服务配置
-docker-compose.yml       本机开发与监听差异
-docker-compose-prod.yml  生产业务差异
+docker-compose.yml       业务服务与可选开发监听，本机与生产共用
+docker-compose-env.yml   独立基础设施，已有服务时不启动
 ```
 
 ## 路线图

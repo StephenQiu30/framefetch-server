@@ -82,7 +82,7 @@ async def test_concurrent_different_jobs_share_one_owner_retry_budget(
     results = await asyncio.wait_for(
         asyncio.gather(
             *(
-                repo.retry_job_and_enqueue(command, now=NOW + timedelta(seconds=2))
+                repo.retry_job_and_enqueue(command, now=NOW + timedelta(seconds=30))
                 for command in commands
             ),
             return_exceptions=True,
@@ -111,6 +111,6 @@ async def test_concurrent_different_jobs_share_one_owner_retry_budget(
     # Replay is a single request and must not wait for the concurrency fixture.
     monkeypatch.setattr(retry_module, "lock_admission", original_lock)
     replay = await repo.retry_job_and_enqueue(
-        successful, now=NOW + timedelta(seconds=3)
+        successful, now=NOW + timedelta(seconds=31)
     )
     assert replay.created is False

@@ -40,9 +40,9 @@ class FakeChannel:
         self.exchange_calls = []
         self.queue_calls = []
 
-    async def declare_exchange(self, name, *, passive):
+    async def declare_exchange(self, name, *, passive=False, type=None, durable=False):
         self.exchange_calls.append((name, passive))
-        return self.main
+        return self.dead if name.endswith(".dead") else self.main
 
     async def declare_queue(self, name, *, durable, arguments=None):
         self.queue_calls.append((name, durable, arguments))
@@ -109,8 +109,25 @@ async def test_robust_topology_and_confirmed_mandatory_publish(monkeypatch) -> N
 
     channel = connection.channel_value
     assert connection.channel_calls == [(True, True)]
-    assert channel.exchange_calls == [("video.events", True)]
-    assert channel.queue_calls == []
+    assert channel.exchange_calls[-1] == ("video.events", True)
+    assert [name for name, _, _ in channel.queue_calls] == [
+        "video.download",
+        "video.download.dead",
+        "video.analysis-report",
+        "video.analysis-report.dead",
+        "video.import",
+        "video.import.dead",
+    ]
+    assert [routing_key for _, routing_key in channel.queue.bindings] == [
+        "download.requested",
+        "analysis.report.publish.requested",
+        "content.import.verify.requested",
+    ]
+    assert [routing_key for _, routing_key in channel.dead_queue.bindings] == [
+        "video.download.dead",
+        "video.analysis-report.dead",
+        "video.import.dead",
+    ]
     message, routing_key, mandatory, timeout = channel.main.published[0]
     assert (routing_key, mandatory, timeout) == ("download.requested", True, 10)
     assert message.delivery_mode is DeliveryMode.PERSISTENT

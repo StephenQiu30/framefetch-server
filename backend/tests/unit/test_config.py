@@ -5,6 +5,7 @@ from pathlib import Path
 
 import pytest
 from app.core.config import DEFAULT_URL_ENCRYPTION_KEY, REPOSITORY_ROOT, Settings
+from app.integrations.messaging.topology import RabbitMqTopology
 from cryptography.fernet import Fernet
 from pydantic import SecretStr, ValidationError
 
@@ -428,3 +429,32 @@ def test_environment_file_stays_at_repository_root_after_module_move() -> None:
     repository = Path(__file__).resolve().parents[3]
     assert REPOSITORY_ROOT == repository
     assert Settings.model_config["env_file"] == repository / ".env"
+
+
+def test_business_queue_and_retry_policy_cannot_be_overridden_by_environment(
+    monkeypatch,
+):
+    names = (
+        "rabbitmq_exchange",
+        "download_queue",
+        "download_routing_key",
+        "analysis_report_queue",
+        "analysis_report_routing_key",
+        "import_queue",
+        "import_routing_key",
+        "max_download_attempts",
+        "analysis_max_runs_per_job",
+        "analysis_manual_retry_min_interval_seconds",
+        "analysis_manual_retries_per_day",
+    )
+    for name in names:
+        monkeypatch.setenv(name.upper(), "unexpected-override")
+    settings = Settings(app_env="test", _env_file=None)
+    assert not set(names) & settings.model_dump().keys()
+    topology = RabbitMqTopology()
+    assert topology.exchange == "video.events"
+    assert [binding.queue for binding in topology.durable_queues] == [
+        "video.download",
+        "video.analysis-report",
+        "video.import",
+    ]

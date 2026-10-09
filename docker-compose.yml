@@ -1,16 +1,84 @@
+# Business services; application tuning defaults live in backend settings.
 name: framefetch
 services:
   migrate:
-    extends:
-      file: docker-compose-common.yml
-      service: migrate
-    image: framefetch:local
+    build: &backend-build
+      context: ./backend
+    container_name: framefetch-migrate
+    restart: 'no'
+    read_only: true
+    tmpfs: ['/tmp:rw,noexec,nosuid,size=16m']
+    cap_drop: [ALL]
+    security_opt: ['no-new-privileges:true']
+    networks: [app_net]
+    extra_hosts: ['host.docker.internal:host-gateway']
     environment:
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-video}:${POSTGRES_PASSWORD:-video}@${POSTGRES_HOST:-host.docker.internal}:${POSTGRES_PORT:-5432}/${POSTGRES_DB:-video}
       APP_ENV: ${APP_ENV:-development}
+    command: [python, -m, app.workers.migrate]
+    image: framefetch:local
   api:
-    extends:
-      file: docker-compose-common.yml
-      service: api
+    build: *backend-build
+    container_name: framefetch-api
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    restart: unless-stopped
+    environment:
+      ANALYSIS_ENABLED: ${ANALYSIS_ENABLED:-false}
+      APP_VERSION: ${APP_VERSION:-0.2.0}
+      SMTP_ENABLED: ${SMTP_ENABLED:-false}
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_TLS_MODE: ${SMTP_TLS_MODE:-starttls}
+      SMTP_USERNAME: ${SMTP_USERNAME:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      SMTP_FROM_EMAIL: ${SMTP_FROM_EMAIL:-}
+      AUTH_WEB_COOKIE_NAME: ${AUTH_WEB_COOKIE_NAME:-video_web_session}
+      AUTH_BOOTSTRAP_ADMIN_EMAIL: ${AUTH_BOOTSTRAP_ADMIN_EMAIL:-}
+      AUTH_BOOTSTRAP_ADMIN_SECRET: ${AUTH_BOOTSTRAP_ADMIN_SECRET:-development-admin-bootstrap-secret-change-me}
+      AUTH_JWT_SECRET: ${AUTH_JWT_SECRET:-development-jwt-secret-change-me-32-bytes}
+      DOCUMENT_IMPORT_ENABLED: ${DOCUMENT_IMPORT_ENABLED:-true}
+      DOCUMENT_IMPORT_MAX_BYTES: ${DOCUMENT_IMPORT_MAX_BYTES:-52428800}
+      MEDIA_IMPORT_ENABLED: ${MEDIA_IMPORT_ENABLED:-true}
+      MEDIA_IMPORT_MAX_BYTES: ${MEDIA_IMPORT_MAX_BYTES:-2147483648}
+      METRICS_ACCESS_KEY: ${METRICS_ACCESS_KEY:-development-metrics-access-key-change-me}
+      MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY:-video-access}
+      MINIO_LOCAL_BROWSER_ENDPOINT: ${MINIO_LOCAL_BROWSER_ENDPOINT:-}
+      MINIO_LOCAL_BROWSER_SECURE: ${MINIO_LOCAL_BROWSER_SECURE:-false}
+      MINIO_PUBLIC_SECURE: ${MINIO_PUBLIC_SECURE:-false}
+      MINIO_REGION: ${MINIO_REGION:-us-east-1}
+      MINIO_SECRET_KEY: ${MINIO_SECRET_KEY:-video-secret-change-me}
+      PEERTUBE_ALLOWED_INSTANCES: ${PEERTUBE_ALLOWED_INSTANCES:-[]}
+      QUOTA_LIMITS: ${QUOTA_LIMITS:-{"max_active_per_owner":5,"daily_tasks":50,"daily_bytes":107374182400,"storage_bytes":107374182400,"daily_analysis_attempts":60}}
+      RATE_LIMIT_POLICIES: ${RATE_LIMIT_POLICIES:-{}}
+      REQUEST_FINGERPRINT_SECRET: ${REQUEST_FINGERPRINT_SECRET:-development-fingerprint-secret-change-me}
+      RUNNER_HMAC_SECRET: ${RUNNER_HMAC_SECRET:-development-runner-secret-change-me}
+      SESSION_RUNNER_BASE_URL: http://session-runner:19100
+      SCREENPLAY_ANALYSIS_ENABLED: ${SCREENPLAY_ANALYSIS_ENABLED:-false}
+      URL_ENCRYPTION_KEY: ${URL_ENCRYPTION_KEY:-ZGV2ZWxvcG1lbnQtdXJsLWtleS0zMi1ieXRlcyEhISE=}
+      SERVICE_ROLE: api
+      TRUSTED_PROXY_CIDRS: ${TRUSTED_PROXY_CIDRS:-[]}
+      TRUSTED_WEB_PROXY_IPS: '["${FRONTEND_IPV4_ADDRESS:-10.251.0.10}"]'
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-video}:${POSTGRES_PASSWORD:-video}@${POSTGRES_HOST:-host.docker.internal}:${POSTGRES_PORT:-5432}/${POSTGRES_DB:-video}
+      RABBITMQ_URL: amqp://${RABBITMQ_API_USER:-video-api}:${RABBITMQ_API_PASS:-video-api-secret}@${RABBITMQ_HOST:-host.docker.internal}:${RABBITMQ_PORT:-5672}/${RABBITMQ_VHOST:-video}
+      REDIS_URL: redis://${REDIS_HOST:-host.docker.internal}:${REDIS_PORT:-6379}/0
+      MINIO_ENDPOINT: ${MINIO_HOST:-host.docker.internal}:${MINIO_PORT:-19190}
+      MINIO_PUBLIC_ENDPOINT: ${MINIO_PUBLIC_ENDPOINT:-127.0.0.1:19190}
+      MINIO_BUCKET: ${MINIO_BUCKET:-video-artifacts}
+      MINIO_INTERNAL_SECURE: ${MINIO_INTERNAL_SECURE:-false}
+      RUNNER_EGRESS_PROXY: http://egress-proxy:3128
+      ARTICLE_DISCOVERY_PROXY_URL: http://egress-proxy:3128
+      APP_ENV: ${APP_ENV:-development}
+    extra_hosts: ['host.docker.internal:host-gateway']
+    networks: [app_net, runner_egress_net]
+    healthcheck:
+      test: [CMD, python, -c, 'import urllib.request; urllib.request.urlopen(''http://127.0.0.1:8111/health/ready'', timeout=3)']
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 15s
+    command: [python, -m, app.main]
     develop: &backend-watch
       watch:
       - action: sync+restart
@@ -24,31 +92,46 @@ services:
       - action: rebuild
         path: ./backend/Dockerfile
     image: framefetch:local
-    environment:
-      APP_ENV: ${APP_ENV:-development}
-    ports:
-    - 127.0.0.1:${APP_HOST_PORT:-8111}:8111
+    ports: ['${APP_HOST_BIND:-127.0.0.1}:${APP_HOST_PORT:-8111}:8111']
   frontend:
-    extends:
-      file: docker-compose-common.yml
-      service: frontend
     build:
-      target: development
+      context: ./frontend
       args:
+        SITE_INDEXABLE: ${SITE_INDEXABLE:-false}
         SITE_URL: ${SITE_URL:-http://127.0.0.1:8101}
-    image: framefetch-frontend:local
+      target: ${FRONTEND_BUILD_TARGET:-development}
+    container_name: framefetch-frontend
+    restart: unless-stopped
     environment:
-      NODE_ENV: development
+      AUTH_WEB_COOKIE_NAME: ${AUTH_WEB_COOKIE_NAME:-video_web_session}
+      BACKEND_ORIGIN: http://api:8111
+      MINIO_ENDPOINT: ${MINIO_HOST:-host.docker.internal}:${MINIO_PORT:-19190}
+      MINIO_INTERNAL_SECURE: ${MINIO_INTERNAL_SECURE:-false}
+      MINIO_PUBLIC_ENDPOINT: ${MINIO_PUBLIC_ENDPOINT:-127.0.0.1:19190}
+      MINIO_PUBLIC_SECURE: ${MINIO_PUBLIC_SECURE:-false}
+      MINIO_LOCAL_BROWSER_ENDPOINT: ${MINIO_LOCAL_BROWSER_ENDPOINT:-}
+      MINIO_LOCAL_BROWSER_SECURE: ${MINIO_LOCAL_BROWSER_SECURE:-false}
+      SITE_INDEXABLE: ${SITE_INDEXABLE:-false}
       SITE_URL: ${SITE_URL:-http://127.0.0.1:8101}
-    ports:
-    - 127.0.0.1:${FRONTEND_HOST_PORT:-8101}:8101
+    extra_hosts: ['host.docker.internal:host-gateway']
+    networks:
+      app_net:
+        ipv4_address: ${FRONTEND_IPV4_ADDRESS:-10.251.0.10}
+    depends_on:
+      api:
+        condition: service_healthy
     healthcheck:
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 10s
       test:
       - CMD
       - node
       - -e
-      - 'fetch(''http://127.0.0.1:8101/logo.svg'', {signal: AbortSignal.timeout(3000)}).then(r => process.exit(r.ok ? 0 :
-        1)).catch(() => process.exit(1))'
+      - 'fetch(''http://127.0.0.1:8101/logo.svg'', {signal: AbortSignal.timeout(3000)}).then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))'
+    image: framefetch-frontend:local
+    ports: ['${APP_HOST_BIND:-127.0.0.1}:${FRONTEND_HOST_PORT:-8101}:8101']
     develop:
       watch:
       - action: sync
@@ -74,37 +157,162 @@ services:
       - action: rebuild
         path: ./frontend/Dockerfile
   worker:
-    extends:
-      file: docker-compose-common.yml
-      service: worker
+    build: *backend-build
+    container_name: framefetch-worker
+    restart: unless-stopped
+    stop_grace_period: 90s
+    environment:
+      TEMPORAL_ADDRESS: ${TEMPORAL_HOST:-host.docker.internal}:${TEMPORAL_PORT:-7233}
+      TEMPORAL_NAMESPACE: ${TEMPORAL_NAMESPACE:-framefetch}
+      APP_VERSION: ${APP_VERSION:-0.2.0}
+      DOWNLOAD_WORKER_THREADS: ${DOWNLOAD_WORKER_THREADS:-4}
+      REQUEST_FINGERPRINT_SECRET: ${REQUEST_FINGERPRINT_SECRET:-development-fingerprint-secret-change-me}
+      MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY:-video-access}
+      MINIO_REGION: ${MINIO_REGION:-us-east-1}
+      MINIO_SECRET_KEY: ${MINIO_SECRET_KEY:-video-secret-change-me}
+      PEERTUBE_ALLOWED_INSTANCES: ${PEERTUBE_ALLOWED_INSTANCES:-[]}
+      RUNNER_HMAC_SECRET: ${RUNNER_HMAC_SECRET:-development-runner-secret-change-me}
+      SESSION_RUNNER_BASE_URL: http://session-runner:19100
+      URL_ENCRYPTION_KEY: ${URL_ENCRYPTION_KEY:-ZGV2ZWxvcG1lbnQtdXJsLWtleS0zMi1ieXRlcyEhISE=}
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-video}:${POSTGRES_PASSWORD:-video}@${POSTGRES_HOST:-host.docker.internal}:${POSTGRES_PORT:-5432}/${POSTGRES_DB:-video}
+      MINIO_ENDPOINT: ${MINIO_HOST:-host.docker.internal}:${MINIO_PORT:-19190}
+      MINIO_BUCKET: ${MINIO_BUCKET:-video-artifacts}
+      MINIO_INTERNAL_SECURE: ${MINIO_INTERNAL_SECURE:-false}
+      RUNNER_WORKSPACE_ROOT: /work
+      RUNNER_EGRESS_PROXY: http://egress-proxy:3128
+      DOCUMENT_IMPORT_MAX_BYTES: ${DOCUMENT_IMPORT_MAX_BYTES:-52428800}
+      MEDIA_IMPORT_MAX_BYTES: ${MEDIA_IMPORT_MAX_BYTES:-2147483648}
+      SERVICE_ROLE: worker
+      RABBITMQ_URL: amqp://${RABBITMQ_WORKER_USER:-video-worker}:${RABBITMQ_WORKER_PASS:-video-worker-secret}@${RABBITMQ_HOST:-host.docker.internal}:${RABBITMQ_PORT:-5672}/${RABBITMQ_VHOST:-video}
+      APP_ENV: ${APP_ENV:-development}
+    extra_hosts: ['host.docker.internal:host-gateway']
+    networks: [app_net, runner_egress_net]
+    volumes: ['runner_work:/work']
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    command: [python, -m, app.workers.main]
     develop: *backend-watch
     image: framefetch:local
-    environment:
-      APP_ENV: ${APP_ENV:-development}
   egress-proxy:
-    extends:
-      file: docker-compose-common.yml
-      service: egress-proxy
+    image: ubuntu/squid:6.6-24.04_edge@sha256:8a3baed477e2c282ab8aa5edad442f69873246964f225c5c2ae8364b6610963c
+    container_name: egress-proxy
+    restart: unless-stopped
+    stop_grace_period: 35s
+    tmpfs: ['/tmp:rw,noexec,nosuid,size=16m,mode=1777']
+    entrypoint: [/bin/sh, /etc/squid/policy/start.sh]
+    environment:
+      EGRESS_CN_UPSTREAM_HOST: ${EGRESS_CN_UPSTREAM_HOST:-}
+      EGRESS_CN_UPSTREAM_PORT: ${EGRESS_CN_UPSTREAM_PORT:-7897}
+      EGRESS_GLOBAL_UPSTREAM_HOST: ${EGRESS_GLOBAL_UPSTREAM_HOST:-}
+      EGRESS_GLOBAL_UPSTREAM_PORT: ${EGRESS_GLOBAL_UPSTREAM_PORT:-7898}
+      EGRESS_FALLBACK_UPSTREAM_HOST: ${EGRESS_FALLBACK_UPSTREAM_HOST:-host.docker.internal}
+      EGRESS_FALLBACK_UPSTREAM_PORT: ${EGRESS_FALLBACK_UPSTREAM_PORT:-7897}
+    ports: ['127.0.0.1:${EGRESS_PROXY_HOST_PORT:-13128}:3128', '127.0.0.1:${EGRESS_GLOBAL_PROXY_HOST_PORT:-13129}:3129']
+    extra_hosts: ['host.docker.internal:host-gateway']
+    volumes: ['./backend/egress:/etc/squid/policy:ro']
+    networks: [runner_egress_net, youtube_pot_net, proxy_uplink_net]
+    healthcheck:
+      test:
+      - CMD-SHELL
+      - m=/tmp/squid-policy-loaded; [ -e "$$m" ] || touch -r /proc/1 "$$m" || exit 1; if [ -n "$$(find /etc/squid/policy -name '*.conf' -newer
+        "$$m")" ]; then touch "$$m.next" && squid -k parse -f /etc/squid/policy/squid.conf >/dev/null 2>&1 && squid -k reconfigure -f /etc/squid/policy/squid.conf
+        && mv "$$m.next" "$$m" || exit 1; fi; squid -k check -f /etc/squid/policy/squid.conf
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 5s
   session-runner:
-    extends:
-      file: docker-compose-common.yml
-      service: session-runner
+    build: *backend-build
+    restart: unless-stopped
+    stop_grace_period: 90s
+    shm_size: 256m
+    networks: [runner_egress_net, youtube_pot_net]
+    extra_hosts: ['host.docker.internal:host-gateway']
+    tmpfs:
+    - /tmp:rw,noexec,nosuid,size=512m
+    - /tmp/framefetch-browser:rw,noexec,nosuid,uid=10001,gid=10001,mode=0700,size=256m
+    - /tmp/framefetch-identity:rw,noexec,nosuid,uid=10001,gid=10001,mode=0700,size=16m
+    depends_on:
+      egress-proxy:
+        condition: service_healthy
+      youtube-pot-provider:
+        condition: service_healthy
+    healthcheck:
+      test: [CMD, python, -c, 'import urllib.request; urllib.request.urlopen(''http://127.0.0.1:19100/health/runtime'', timeout=3)']
+      interval: 5s
+      timeout: 5s
+      retries: 24
+      start_period: 5s
+    command:
+    - python
+    - -m
+    - uvicorn
+    - app.workers.runner.main:create_app
+    - --factory
+    - --host
+    - 0.0.0.0
+    - --port
+    - '19100'
+    - --no-access-log
+    container_name: session-runner
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: ['no-new-privileges:true']
+    environment:
+      RUNNER_HMAC_SECRET: ${RUNNER_HMAC_SECRET:-development-runner-secret-change-me}
+      RUNNER_EGRESS_PROXY: http://egress-proxy:3128
+      RUNNER_GLOBAL_EGRESS_PROXY: http://egress-proxy:3129
+      EGRESS_CN_UPSTREAM_HOST: ${EGRESS_CN_UPSTREAM_HOST:-}
+      EGRESS_CN_UPSTREAM_PORT: ${EGRESS_CN_UPSTREAM_PORT:-7897}
+      EGRESS_GLOBAL_UPSTREAM_HOST: ${EGRESS_GLOBAL_UPSTREAM_HOST:-}
+      EGRESS_GLOBAL_UPSTREAM_PORT: ${EGRESS_GLOBAL_UPSTREAM_PORT:-7898}
+      EGRESS_FALLBACK_UPSTREAM_HOST: ${EGRESS_FALLBACK_UPSTREAM_HOST:-host.docker.internal}
+      EGRESS_FALLBACK_UPSTREAM_PORT: ${EGRESS_FALLBACK_UPSTREAM_PORT:-7897}
+      EGRESS_NODE_REVISION: ${EGRESS_NODE_REVISION:-1}
+      RUNNER_CN_EGRESS_IP_ECHO_URL: ${RUNNER_CN_EGRESS_IP_ECHO_URL:-https://ip.3322.net}
+      RUNNER_GLOBAL_EGRESS_IP_ECHO_URL: ${RUNNER_GLOBAL_EGRESS_IP_ECHO_URL:-https://ipinfo.io/ip}
+      RUNNER_WORKSPACE_ROOT: /work
+      RUNNER_MAX_ACTIVE_TASKS: ${SESSION_RUNNER_MAX_ACTIVE_TASKS:-4}
+      RUNNER_BROWSER_ENABLED: ${RUNNER_BROWSER_ENABLED:-true}
+      RUNNER_BROWSER_PROFILE_ROOT: /var/lib/framefetch-browser
+      PEERTUBE_ALLOWED_INSTANCES: ${PEERTUBE_ALLOWED_INSTANCES:-[]}
+      COOKIE_SOURCE_TOKEN: ${COOKIE_SOURCE_TOKEN:-}
+      COOKIE_SOURCE_PORT: '19101'
+      RUNNER_YOUTUBE_POT_BASE_URL: http://youtube-pot-provider:4416
+      APP_ENV: ${APP_ENV:-development}
+    volumes: ['runner_work:/work', 'browser_profiles:/var/lib/framefetch-browser']
     image: framefetch:local
     develop:
       watch:
       - action: rebuild
         path: ./backend
-        ignore:
-        - tests/
-        - sql/
-        - egress/
-        - README.md
-    environment:
-      APP_ENV: ${APP_ENV:-development}
+        ignore: [tests/, sql/, egress/, README.md]
   youtube-pot-provider:
-    extends:
-      file: docker-compose-common.yml
-      service: youtube-pot-provider
+    image: brainicism/bgutil-ytdlp-pot-provider:2.0.0@sha256:ed86b6fdd5e430ddd7c8ce1adb55e1ab54db7c7dbc1bcbf3a82454a85b971164
+    container_name: youtube-pot-provider
+    restart: unless-stopped
+    read_only: true
+    entrypoint: [/usr/local/bin/node, /opt/framefetch/youtube-pot-supervisor.mjs]
+    healthcheck:
+      test: [CMD, /usr/local/bin/node, /opt/framefetch/youtube-pot-supervisor.mjs, --check-health]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    environment:
+      RUNNER_EGRESS_PROXY: http://egress-proxy:3129
+    networks: [youtube_pot_net]
+    volumes:
+    - type: bind
+      source: ./backend/app/workers/runner/youtube-pot-supervisor.mjs
+      target: /opt/framefetch/youtube-pot-supervisor.mjs
+      read_only: true
+      bind:
+        create_host_path: false
+    cap_drop: [ALL]
+    tmpfs: ['/tmp:rw,noexec,nosuid,size=16m']
+    security_opt: ['no-new-privileges:true']
 volumes:
   runner_work:
     name: ${RUNNER_WORK_VOLUME_NAME:-video-server_runner_work}

@@ -2,6 +2,9 @@
 
 from dataclasses import dataclass
 
+from aio_pika import ExchangeType
+from aio_pika.abc import AbstractChannel, AbstractQueue
+
 
 @dataclass(frozen=True, slots=True)
 class DurableQueueTopology:
@@ -28,9 +31,9 @@ class DurableQueueTopology:
 
 @dataclass(frozen=True, slots=True)
 class RabbitMqTopology:
-    exchange: str
-    download_queue: str
-    download_routing_key: str
+    exchange: str = "video.events"
+    download_queue: str = "video.download"
+    download_routing_key: str = "download.requested"
     report_queue: str = "video.analysis-report"
     report_routing_key: str = "analysis.report.publish.requested"
     message_ttl_ms: int = 86_400_000
@@ -99,3 +102,33 @@ class RabbitMqTopology:
     @property
     def imports(self) -> DurableQueueTopology:
         return self.durable_queues[2]
+
+
+async def declare_durable_queue(
+    channel: AbstractChannel, topology: RabbitMqTopology, binding: DurableQueueTopology
+) -> AbstractQueue:
+    """Idempotently apply one business queue, its bounds and dead-letter binding."""
+    exchange = await channel.declare_exchange(
+        topology.exchange, type=ExchangeType.TOPIC, durable=True
+    )
+    dead_exchange = await channel.declare_exchange(
+        topology.dead_exchange, type=ExchangeType.TOPIC, durable=True
+    )
+    queue = await channel.declare_queue(
+        binding.queue,
+        durable=True,
+        arguments={
+            "x-message-ttl": binding.message_ttl_ms,
+            "x-max-length": binding.max_length,
+            "x-dead-letter-exchange": topology.dead_exchange,
+            "x-dead-letter-routing-key": binding.dead_routing_key,
+        },
+    )
+    dead_queue = await channel.declare_queue(
+        binding.dead_queue,
+        durable=True,
+        arguments={"x-max-length": binding.max_length},
+    )
+    await queue.bind(exchange, routing_key=binding.routing_key)
+    await dead_queue.bind(dead_exchange, routing_key=binding.dead_routing_key)
+    return queue

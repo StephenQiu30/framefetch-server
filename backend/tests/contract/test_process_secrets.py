@@ -2,7 +2,6 @@
 
 from pathlib import Path
 
-import pytest
 from tests.compose import load_compose
 
 ROOT = Path(__file__).resolve().parents[3]
@@ -39,9 +38,8 @@ ALLOWED = {
 }
 
 
-@pytest.mark.parametrize("filename", ["docker-compose.yml", "docker-compose-prod.yml"])
-def test_business_roles_use_explicit_scoped_secret_allowlists(filename):
-    services = load_compose(ROOT / filename)["services"]
+def test_business_roles_use_explicit_scoped_secret_allowlists():
+    services = load_compose(ROOT / "docker-compose.yml")["services"]
     for name, allowed in ALLOWED.items():
         service = services[name]
         assert "env_file" not in service

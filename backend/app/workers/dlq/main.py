@@ -20,13 +20,7 @@ async def run(queue_name: str, actor: str, reason: str) -> None:
     url = os.environ.get("RABBITMQ_DLQ_URL")
     if not url:
         raise RuntimeError("RABBITMQ_DLQ_URL is required")
-    topology = RabbitMqTopology(
-        settings.rabbitmq_exchange,
-        settings.download_queue,
-        settings.download_routing_key,
-        report_queue=settings.analysis_report_queue,
-        report_routing_key=settings.analysis_report_routing_key,
-    )
+    topology = RabbitMqTopology()
     engine = create_engine(settings.database_url)
     publisher = RabbitMqPublisher(
         url,

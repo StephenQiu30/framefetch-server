@@ -80,10 +80,9 @@ def test_destination_policy_allows_configured_synthetic_dns_ranges() -> None:
 def test_compose_mounts_single_destination_policy() -> None:
     variable = "EGRESS_DESTINATION_POLICY_FILE"
     mount = "./backend/egress:/etc/squid/policy:ro"
-    for filename in ("docker-compose.yml", "docker-compose-prod.yml"):
-        text = str(load_compose(filename))
-        assert variable not in text
-        assert mount in text
+    text = str(load_compose("docker-compose.yml"))
+    assert variable not in text
+    assert mount in text
 
     example = (REPOSITORY_ROOT / ".env.example").read_text(encoding="utf-8")
     assert variable not in example
@@ -97,33 +96,31 @@ def test_egress_proxy_uses_pinned_squid_without_a_go_build_surface() -> None:
     assert "smokescreen" not in dockerfile
     assert "squid" not in dockerfile
 
-    for filename in ("docker-compose.yml", "docker-compose-prod.yml"):
-        proxy = load_compose(filename)["services"]["egress-proxy"]
-        assert proxy["image"] == SQUID_IMAGE
-        assert "build" not in proxy
-        assert proxy["entrypoint"] == ["/bin/sh", "/etc/squid/policy/start.sh"]
-        assert proxy["tmpfs"] == EXPECTED_TMPFS
-        # A directory mount follows files replaced by git or editors; a
-        # single-file bind mount would keep serving the old inode on Linux.
-        assert proxy["volumes"] == ["./backend/egress:/etc/squid/policy:ro"]
-        kind, script = proxy["healthcheck"]["test"]
-        assert kind == "CMD-SHELL"
-        assert script.endswith("squid -k check -f /etc/squid/policy/squid.conf")
+    proxy = load_compose("docker-compose.yml")["services"]["egress-proxy"]
+    assert proxy["image"] == SQUID_IMAGE
+    assert "build" not in proxy
+    assert proxy["entrypoint"] == ["/bin/sh", "/etc/squid/policy/start.sh"]
+    assert proxy["tmpfs"] == EXPECTED_TMPFS
+    # A directory mount follows files replaced by git or editors; a
+    # single-file bind mount would keep serving the old inode on Linux.
+    assert proxy["volumes"] == ["./backend/egress:/etc/squid/policy:ro"]
+    kind, script = proxy["healthcheck"]["test"]
+    assert kind == "CMD-SHELL"
+    assert script.endswith("squid -k check -f /etc/squid/policy/squid.conf")
 
 
 def test_egress_proxy_reloads_changed_policy_only_after_it_parses() -> None:
     # `compose up` leaves this container running when only a mounted policy
     # file changes; a stale policy silently blocks newly allowed media hosts.
-    for filename in ("docker-compose.yml", "docker-compose-prod.yml"):
-        _, script = load_compose(filename)["services"]["egress-proxy"]["healthcheck"][
-            "test"
-        ]
-        assert "find /etc/squid/policy -name '*.conf' -newer" in script
-        parse = script.index("squid -k parse -f /etc/squid/policy/squid.conf")
-        reload = script.index("squid -k reconfigure -f /etc/squid/policy/squid.conf")
-        commit = script.index('mv "$$m.next" "$$m"')
-        assert parse < reload < commit
-        assert "|| exit 1; fi;" in script
+    _, script = load_compose("docker-compose.yml")["services"]["egress-proxy"][
+        "healthcheck"
+    ]["test"]
+    assert "find /etc/squid/policy -name '*.conf' -newer" in script
+    parse = script.index("squid -k parse -f /etc/squid/policy/squid.conf")
+    reload = script.index("squid -k reconfigure -f /etc/squid/policy/squid.conf")
+    commit = script.index('mv "$$m.next" "$$m"')
+    assert parse < reload < commit
+    assert "|| exit 1; fi;" in script
 
 
 def test_douyin_cold_media_port_remains_domain_scoped() -> None:
@@ -181,17 +178,14 @@ def test_cookie_source_exception_is_exact_direct_and_does_not_log_secrets():
 
 
 def test_identity_token_is_only_in_session_runner_environment():
-    for filename in ("docker-compose.yml", "docker-compose-prod.yml"):
-        services = load_compose(filename)["services"]
-        holders = [
-            name
-            for name, service in services.items()
-            if "COOKIE_SOURCE_TOKEN" in service.get("environment", {})
-        ]
-        assert holders == ["session-runner"]
-        assert (
-            services["session-runner"]["environment"]["COOKIE_SOURCE_PORT"] == "19101"
-        )
+    services = load_compose("docker-compose.yml")["services"]
+    holders = [
+        name
+        for name, service in services.items()
+        if "COOKIE_SOURCE_TOKEN" in service.get("environment", {})
+    ]
+    assert holders == ["session-runner"]
+    assert services["session-runner"]["environment"]["COOKIE_SOURCE_PORT"] == "19101"
 
 
 def render_routes(tmp_path, *, ipv4=None, **environment):
@@ -302,24 +296,23 @@ def test_squid_configuration_rejects_injected_directives_and_invalid_ports(tmp_p
 
 
 def test_compose_runner_and_squid_share_upstream_configuration():
-    for filename in ("docker-compose.yml", "docker-compose-prod.yml"):
-        services = load_compose(filename)["services"]
-        runner = services["session-runner"]["environment"]
-        assert runner["RUNNER_CN_EGRESS_IP_ECHO_URL"] == (
-            "${RUNNER_CN_EGRESS_IP_ECHO_URL:-https://ip.3322.net}"
-        )
-        assert runner["RUNNER_GLOBAL_EGRESS_IP_ECHO_URL"] == (
-            "${RUNNER_GLOBAL_EGRESS_IP_ECHO_URL:-https://ipinfo.io/ip}"
-        )
-        assert "RUNNER_EGRESS_IP_ECHO_URL" not in runner
-        proxy = services["egress-proxy"]["environment"]
-        for name, value in proxy.items():
-            assert runner[name] == value
-        assert runner["RUNNER_GLOBAL_EGRESS_PROXY"] == "http://egress-proxy:3129"
-        assert (
-            services["youtube-pot-provider"]["environment"]["RUNNER_EGRESS_PROXY"]
-            == runner["RUNNER_GLOBAL_EGRESS_PROXY"]
-        )
+    services = load_compose("docker-compose.yml")["services"]
+    runner = services["session-runner"]["environment"]
+    assert runner["RUNNER_CN_EGRESS_IP_ECHO_URL"] == (
+        "${RUNNER_CN_EGRESS_IP_ECHO_URL:-https://ip.3322.net}"
+    )
+    assert runner["RUNNER_GLOBAL_EGRESS_IP_ECHO_URL"] == (
+        "${RUNNER_GLOBAL_EGRESS_IP_ECHO_URL:-https://ipinfo.io/ip}"
+    )
+    assert "RUNNER_EGRESS_IP_ECHO_URL" not in runner
+    proxy = services["egress-proxy"]["environment"]
+    for name, value in proxy.items():
+        assert runner[name] == value
+    assert runner["RUNNER_GLOBAL_EGRESS_PROXY"] == "http://egress-proxy:3129"
+    assert (
+        services["youtube-pot-provider"]["environment"]["RUNNER_EGRESS_PROXY"]
+        == runner["RUNNER_GLOBAL_EGRESS_PROXY"]
+    )
 
 
 def test_squid_peer_prefers_ipv4_when_host_also_has_unroutable_ipv6(tmp_path):

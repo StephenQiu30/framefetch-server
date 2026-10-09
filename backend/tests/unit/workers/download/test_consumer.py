@@ -6,9 +6,9 @@ from uuid import uuid4
 
 import pytest
 from app.integrations.messaging.envelope import EventEnvelope
-from app.integrations.messaging.topology import RabbitMqTopology
+from app.integrations.messaging.topology import RabbitMqTopology, declare_durable_queue
 from app.services.download_execution.models import ExecutionDisposition
-from app.workers.download.consumer import _declare_download_topology, process_delivery
+from app.workers.download.consumer import process_delivery
 
 
 class FakeDelivery:
@@ -126,11 +126,13 @@ class FakeChannel:
 
 
 @pytest.mark.asyncio
-async def test_download_topology_declares_and_binds_the_dead_letter_queue() -> None:
+@pytest.mark.parametrize("kind", ["download", "report", "imports"])
+async def test_business_topology_declares_and_binds_the_dead_letter_queue(kind) -> None:
     channel = FakeChannel()
-    topology = RabbitMqTopology("video.events", "video.download", "download.requested")
+    topology = RabbitMqTopology()
+    binding = getattr(topology, kind)
 
-    await _declare_download_topology(channel, topology)
+    await declare_durable_queue(channel, topology, binding)
 
     assert [name for name, _, _ in channel.exchanges] == [
         "video.events",
@@ -140,14 +142,14 @@ async def test_download_topology_declares_and_binds_the_dead_letter_queue() -> N
         "x-message-ttl": 86_400_000,
         "x-max-length": 10_000,
         "x-dead-letter-exchange": "video.events.dead",
-        "x-dead-letter-routing-key": "video.download.dead",
+        "x-dead-letter-routing-key": binding.dead_routing_key,
     }
     assert channel.queues[1] == (
-        "video.download.dead",
+        binding.dead_queue,
         True,
         {"x-max-length": 10_000},
     )
     assert channel.bindings == [
-        (channel.exchange, "download.requested"),
-        (channel.dead_exchange, "video.download.dead"),
+        (channel.exchange, binding.routing_key),
+        (channel.dead_exchange, binding.dead_routing_key),
     ]

@@ -50,15 +50,7 @@ def build_runtime(
     runner = session_media_runner(settings)
     publisher = RabbitMqPublisher(
         settings.rabbitmq_url,
-        RabbitMqTopology(
-            exchange=settings.rabbitmq_exchange,
-            download_queue=settings.download_queue,
-            download_routing_key=settings.download_routing_key,
-            report_queue=settings.analysis_report_queue,
-            report_routing_key=settings.analysis_report_routing_key,
-            import_queue=settings.import_queue,
-            import_routing_key=settings.import_routing_key,
-        ),
+        RabbitMqTopology(),
         connection_timeout=settings.rabbitmq_connection_timeout_seconds,
         publish_timeout=settings.rabbitmq_publish_timeout_seconds,
         heartbeat=settings.rabbitmq_heartbeat_seconds,

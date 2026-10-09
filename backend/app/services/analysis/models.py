@@ -16,6 +16,10 @@ from app.services.analysis.rules.enums import (
 from app.services.analysis.rules.result_types import AnalysisResult
 from app.services.quotas import UserQuota
 
+MAX_RUNS_PER_JOB = 10
+MIN_RETRY_INTERVAL_SECONDS = 30
+MANUAL_RETRIES_PER_DAY = 20
+
 
 @dataclass(frozen=True, slots=True)
 class AnalysisSkillView:
@@ -162,9 +166,9 @@ class AnalysisRetry:
     trigger: str
     outbox_event_id: UUID
     max_attempts: int
-    max_runs_per_job: int = 10
-    min_interval_seconds: int = 0
-    retries_per_day: int = 20
+    max_runs_per_job: int = MAX_RUNS_PER_JOB
+    min_interval_seconds: int = MIN_RETRY_INTERVAL_SECONDS
+    retries_per_day: int = MANUAL_RETRIES_PER_DAY
     quota: UserQuota = UserQuota()
 
 

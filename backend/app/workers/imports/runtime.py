@@ -103,15 +103,7 @@ def build_runtime(settings: Settings, engine: AsyncEngine) -> ImportWorkerRuntim
         clock=utc_now,
         settings=execution_settings,
     )
-    topology = RabbitMqTopology(
-        exchange=settings.rabbitmq_exchange,
-        download_queue=settings.download_queue,
-        download_routing_key=settings.download_routing_key,
-        report_queue=settings.analysis_report_queue,
-        report_routing_key=settings.analysis_report_routing_key,
-        import_queue=settings.import_queue,
-        import_routing_key=settings.import_routing_key,
-    )
+    topology = RabbitMqTopology()
     return ImportWorkerRuntime(
         consumer=RabbitMqImportConsumer(
             settings.rabbitmq_url,
