@@ -607,10 +607,16 @@ def test_registry_rejects_invalid_content_scope():
         )
 
 
-def test_article_registry_has_no_direct_video_capability() -> None:
+def test_article_registry_requires_an_explicit_video_selection() -> None:
     profile = provider_profile("https://mp.weixin.qq.com/s/article-share")
     assert profile.key == ProviderKey.WECHAT_OFFICIAL_ACCOUNT_ARTICLE
-    assert profile.capabilities == frozenset()
+    assert profile.capabilities == frozenset({ProviderCapability.SINGLE_VIDEO})
+    with pytest.raises(RunnerFailure):
+        provider_request("https://mp.weixin.qq.com/s/article-share")
+    request = provider_request(
+        "https://mp.weixin.qq.com/s/article-share#video=" + "a" * 64
+    )
+    assert request.request_url.endswith("#video=" + "a" * 64)
     ProviderRegistry((profile,))
     with pytest.raises(ValueError, match="incomplete capabilities"):
         ProviderRegistry(

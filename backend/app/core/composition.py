@@ -272,16 +272,17 @@ def build_api_runtime(settings: Settings) -> ApiRuntime:
         new_id=uuid4,
         inspection_ttl=timedelta(seconds=settings.inspection_ttl_seconds),
     )
+    article_adapter = WeChatArticleDiscoveryAdapter(
+        timeout_seconds=settings.article_discovery_timeout_seconds,
+        max_response_bytes=settings.article_discovery_max_response_bytes,
+        max_items=settings.article_discovery_max_items,
+        min_interval_seconds=(settings.article_discovery_min_interval_seconds),
+        proxy_url=settings.article_discovery_proxy_url,
+    )
     source_discovery_use_cases = SourceDiscoveryUseCases(
         create=CreateSourceDiscovery(
             source_discovery_repository,
-            WeChatArticleDiscoveryAdapter(
-                timeout_seconds=settings.article_discovery_timeout_seconds,
-                max_response_bytes=settings.article_discovery_max_response_bytes,
-                max_items=settings.article_discovery_max_items,
-                min_interval_seconds=(settings.article_discovery_min_interval_seconds),
-                proxy_url=settings.article_discovery_proxy_url,
-            ),
+            article_adapter,
             envelope,
             fingerprinter,
             now=clock,
@@ -483,6 +484,8 @@ def build_api_runtime(settings: Settings) -> ApiRuntime:
                 fingerprinter,
                 now=clock,
                 new_id=uuid4,
+                discoveries=source_discovery_repository,
+                article_adapter=article_adapter,
             ),
             history_record_service=HistoryRecordService(
                 SqlAlchemyHistoryRecordRepository(sessions), envelope, fingerprinter

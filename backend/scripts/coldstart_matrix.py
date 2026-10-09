@@ -703,11 +703,10 @@ def run_case(api: Api, case: Case, args: argparse.Namespace, output: Path) -> Js
             "original_completeness": "not_verified",
         }
     try:
+        intent_source: Json = {"input": case.url}
         if case.platform == "wechat_official_account_article":
-            # SourceAdmission deliberately returns an opaque source-* inspection
-            # for articles. It is not the embedded video's work identity. Use the
-            # discovery API and retain a blocked video result until a specific
-            # asset can traverse inspection/download/Artifact verification.
+            # Discovery alone is not a delivery. Select exactly one eligible
+            # native video, then use the same intent/file checks as every platform.
             discovery = api.request(
                 "POST",
                 "/api/source-discoveries",
@@ -741,17 +740,29 @@ def run_case(api: Api, case: Case, args: argparse.Namespace, output: Path) -> Js
                     for item in saved["items"]
                 ],
             }
-            result["qualification_gaps"].append(
-                "article discovery is not complete embedded-video delivery"
-            )
-            raise MatrixFailure(
-                "source_discovery_only",
-                {"cause_code": "embedded_video_delivery_not_implemented"},
-            )
+            candidates = [
+                item
+                for item in saved["items"]
+                if item.get("kind") == "official_account_native"
+                and item.get("status") == "ready"
+                and item.get("decision_hint") == "candidate"
+            ]
+            if len(candidates) != 1:
+                raise MatrixFailure(
+                    "source_discovery_only",
+                    {"cause_code": "article_requires_one_native_video_sample"},
+                )
+            intent_source = {
+                "source": {
+                    "kind": "discovered_item",
+                    "discovery_id": discovery["id"],
+                    "item_ref": candidates[0]["item_ref"],
+                }
+            }
         intent = api.request(
             "POST",
             "/api/download-intents",
-            json={"input": case.url},
+            json=intent_source,
             headers={"Idempotency-Key": uuid4().hex},
         )
         result["intent_id"] = intent["id"]

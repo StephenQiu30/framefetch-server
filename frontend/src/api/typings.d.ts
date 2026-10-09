@@ -1820,7 +1820,8 @@ declare namespace API {
 
   type IntentRequest = {
     /** Input 媒体地址或包含唯一媒体地址的分享文案。 */
-    input: string;
+    input?: string | null;
+    source?: DiscoveredItemInspectionSource | null;
   };
 
   type IntentResponse = {

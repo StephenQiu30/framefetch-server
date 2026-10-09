@@ -153,22 +153,62 @@ describe('inspection result route', () => {
     ).not.toBeInTheDocument();
   });
 
-  it('keeps discovery selection on the result page and replaces it with the selected inspection', async () => {
-    mockHttpResponses(sourceDiscovery, inspection);
+  it('submits the selected discovery item as a persistent parsing intent', async () => {
+    const nativeDiscovery: API.SourceDiscoveryResponse = {
+      ...sourceDiscovery,
+      expires_at: '2099-08-06T11:00:00Z',
+      items: [
+        {
+          ...sourceDiscovery.items[0],
+          kind: 'official_account_native',
+          status: 'ready',
+          decision_hint: 'candidate',
+        },
+      ],
+    };
+    mockHttpResponses(
+      nativeDiscovery,
+      intentFixture({ status: 'queued', inspection_id: null }),
+    );
     renderRoute(`discoveryId=${sourceDiscovery.id}`);
     expect(await screen.findByText(sourceDiscovery.title)).toBeVisible();
-    fireEvent.click(screen.getAllByRole('button', { name: '选择并查看' })[0]);
-    await waitFor(() =>
-      expect(replace).toHaveBeenCalledWith(
-        `/downloads/new?inspectionId=${inspection.id}`,
-      ),
-    );
+    fireEvent.click(screen.getAllByRole('button', { name: '选择并解析' })[0]);
+    await waitFor(() => expect(replace).toHaveBeenCalledWith('/'));
     expect(httpRequests()[1].data).toMatchObject({
       source: {
         kind: 'discovered_item',
         discovery_id: sourceDiscovery.id,
         item_ref: sourceDiscovery.items[0].item_ref,
       },
+    });
+    expect(httpRequests()[1].url).toContain('/download-intents');
+  });
+
+  it('keeps an uncertain selected-item admission recoverable by key without repeating POST', async () => {
+    mockHttpResponses({
+      ...sourceDiscovery,
+      expires_at: '2099-08-06T11:00:00Z',
+      items: [
+        {
+          ...sourceDiscovery.items[0],
+          status: 'ready',
+          decision_hint: 'candidate',
+        },
+      ],
+    });
+    mockHttpError(new ApiError(503, 'request_failed', 'lost', '连接中断'));
+    renderRoute(`discoveryId=${sourceDiscovery.id}`);
+    fireEvent.click(await screen.findByRole('button', { name: '选择并解析' }));
+    await waitFor(() => expect(replace).toHaveBeenCalledWith('/'));
+    const requests = httpRequests();
+    expect(
+      requests.filter((request) => request.method === 'POST'),
+    ).toHaveLength(1);
+    expect(
+      JSON.parse(sessionStorage.getItem('framefetch-active-intent') ?? '{}'),
+    ).toEqual({
+      owner: 'intent-test-owner',
+      key: requests[1].headers?.['Idempotency-Key'],
     });
   });
 

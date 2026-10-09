@@ -1376,27 +1376,27 @@
   {
     "id": "wechat_official_account_article-positive-1",
     "platform": "wechat_official_account_article",
-    "url": "https://mp.weixin.qq.com/s/Pc8D4Hy9CtgLqXzp41J2kw",
-    "expected_media_id": "Pc8D4Hy9CtgLqXzp41J2kw",
+    "url": "https://mp.weixin.qq.com/s/bXUTSRQ_zIvyigWiqw3UfA",
+    "expected_media_id": "wxv_4601001312020021250",
     "kind": "positive",
     "content_scope": "public",
     "needs_identity": false,
-    "duration_seconds": null,
+    "duration_seconds": 992,
     "duration_source": {
-      "url": "https://mp.weixin.qq.com/s/Pc8D4Hy9CtgLqXzp41J2kw",
+      "url": "https://mp.weixin.qq.com/s/bXUTSRQ_zIvyigWiqw3UfA",
       "kind": "platform_page_or_api",
-      "field": "unavailable",
-      "checked_at": null,
-      "status": "unverified",
-      "note": "官方文章候选，匿名请求进入验证码页；视频资产 ID 和完整时长未取得，expected_media_id 暂为文章分享 ID，不能用于验收。"
+      "field": "window.cgiDataNew.video_page_info[s].video_id / mp_video_trans_info[].duration_ms",
+      "checked_at": "2026-10-09T01:04:08.020534+00:00",
+      "status": "verified",
+      "note": "匿名官方页面独立元数据包含精确视频资产 ID，各分档完整时长一致；不使用候选下载文件推断原时长。"
     },
     "availability_source": {
-      "url": "https://mp.weixin.qq.com/s/Pc8D4Hy9CtgLqXzp41J2kw",
+      "url": "https://mp.weixin.qq.com/s/bXUTSRQ_zIvyigWiqw3UfA",
       "kind": "public_page",
-      "field": "public_free_clear_media",
-      "checked_at": null,
-      "status": "unverified",
-      "note": "公开、免费、非 DRM 的完整媒体尚未独立证实；候选不能记通过。"
+      "field": "is_mp_video / is_mp_video_delete / is_mp_video_forbid / official MP4 renditions",
+      "checked_at": "2026-10-09T01:04:08.020534+00:00",
+      "status": "verified",
+      "note": "匿名官方文章无需登录、无付费提示，原生视频标志为1、删除与禁止标志均0，官方 mpvideo.qpic.cn 明文 MP4 候选；完整交付与全片解码以正式矩阵验收为准。"
     },
     "minimum_spec": {
       "width": 320,
@@ -1407,27 +1407,27 @@
   {
     "id": "wechat_official_account_article-positive-2",
     "platform": "wechat_official_account_article",
-    "url": "https://mp.weixin.qq.com/s/aSfT8jOifNQ-l6fcFUnryQ",
-    "expected_media_id": "aSfT8jOifNQ-l6fcFUnryQ",
+    "url": "https://mp.weixin.qq.com/s/JC0XgLZDFaxHhCv_G6ZAaw",
+    "expected_media_id": "wxv_4494939361800847365",
     "kind": "positive",
     "content_scope": "public",
     "needs_identity": false,
-    "duration_seconds": null,
+    "duration_seconds": 103,
     "duration_source": {
-      "url": "https://mp.weixin.qq.com/s/aSfT8jOifNQ-l6fcFUnryQ",
+      "url": "https://mp.weixin.qq.com/s/JC0XgLZDFaxHhCv_G6ZAaw",
       "kind": "platform_page_or_api",
-      "field": "unavailable",
-      "checked_at": null,
-      "status": "unverified",
-      "note": "官方文章候选，匿名请求进入验证码页；视频资产 ID 和完整时长未取得，expected_media_id 暂为文章分享 ID，不能用于验收。"
+      "field": "window.cgiDataNew.video_page_info[s].video_id / mp_video_trans_info[].duration_ms",
+      "checked_at": "2026-10-09T01:04:08.020534+00:00",
+      "status": "verified",
+      "note": "匿名官方页面独立元数据包含精确视频资产 ID，各分档完整时长一致；不使用候选下载文件推断原时长。"
     },
     "availability_source": {
-      "url": "https://mp.weixin.qq.com/s/aSfT8jOifNQ-l6fcFUnryQ",
+      "url": "https://mp.weixin.qq.com/s/JC0XgLZDFaxHhCv_G6ZAaw",
       "kind": "public_page",
-      "field": "public_free_clear_media",
-      "checked_at": null,
-      "status": "unverified",
-      "note": "公开、免费、非 DRM 的完整媒体尚未独立证实；候选不能记通过。"
+      "field": "is_mp_video / is_mp_video_delete / is_mp_video_forbid / official MP4 renditions",
+      "checked_at": "2026-10-09T01:04:08.020534+00:00",
+      "status": "verified",
+      "note": "匿名官方文章无需登录、无付费提示，原生视频标志为1、删除与禁止标志均0，官方 mpvideo.qpic.cn 明文 MP4 候选；完整交付与全片解码以正式矩阵验收为准。"
     },
     "minimum_spec": {
       "width": 320,
@@ -1675,9 +1675,9 @@
       "url": "https://www.dailymotion.com/player/metadata/video/x5kesuj?app=com.dailymotion.neon",
       "kind": "official_player_metadata",
       "field": "public API publication/password/geo + player recorded/private/protected_delivery + full HLS",
-      "checked_at": "2026-10-02T07:31:02.799949+00:00",
-      "status": "unverified",
-      "note": "匿名作品 API private=false/password_protected=false/published=true/status=published/geoblocking=[allow]；同出口 player ID与完整时长吻合，private/is_password_protected/protected_delivery=false，mode=vod/stream_type=recorded/media_type=video。独立清单 HTTP403，尚未证明完整 clear 可交付；待正式 Runner POC 与实际清单检查。"
+      "checked_at": "2026-10-09T01:04:08.020534+00:00",
+      "status": "verified",
+      "note": "匿名官方作品与播放器元数据作品 ID、完整时长吻合；添加官方请求来源头后主清单、有限 VOD 分档清单与首段均 HTTP200/206，未包含加密标签。完整交付以正式矩阵文件验收为准。"
     },
     "minimum_spec": {
       "width": 320,
@@ -1706,9 +1706,9 @@
       "url": "https://www.dailymotion.com/player/metadata/video/x93blhi?app=com.dailymotion.neon",
       "kind": "official_player_metadata",
       "field": "public API publication/password/geo + player recorded/private/protected_delivery + full HLS",
-      "checked_at": "2026-10-02T07:31:02.799949+00:00",
-      "status": "unverified",
-      "note": "匿名作品 API private=false/password_protected=false/published=true/status=published/geoblocking=[allow]；同出口 player ID与完整时长吻合，private/is_password_protected/protected_delivery=false，mode=vod/stream_type=recorded/media_type=video。独立清单 HTTP403，尚未证明完整 clear 可交付；待正式 Runner POC 与实际清单检查。"
+      "checked_at": "2026-10-09T01:04:08.020534+00:00",
+      "status": "verified",
+      "note": "匿名官方作品与播放器元数据作品 ID、完整时长吻合；添加官方请求来源头后主清单、有限 VOD 分档清单与首段均 HTTP200/206，未包含加密标签。完整交付以正式矩阵文件验收为准。"
     },
     "minimum_spec": {
       "width": 320,

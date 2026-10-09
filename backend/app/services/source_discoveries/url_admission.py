@@ -8,6 +8,16 @@ from app.services.public_input import extract_public_url
 _ARTICLE_PATH = re.compile(r"/s/[A-Za-z0-9_-]{6,256}")
 _QUERY_KEYS = frozenset({"__biz", "mid", "idx", "sn", "chksm", "scene"})
 _REQUIRED_QUERY_KEYS = frozenset({"__biz", "mid", "idx", "sn"})
+_SELECTION = re.compile(r"video=([0-9a-f]{64})")
+
+
+def selected_article_source(url: str) -> tuple[str, str]:
+    parsed = urlsplit(url)
+    matched = _SELECTION.fullmatch(parsed.fragment)
+    if matched is None:
+        raise ValueError("article video selection is required")
+    article = canonicalize_article_url(urlunsplit(parsed._replace(fragment="")))
+    return article, matched.group(1)
 
 
 def canonicalize_article_url(url: str) -> str:

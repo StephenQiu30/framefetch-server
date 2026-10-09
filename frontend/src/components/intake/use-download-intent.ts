@@ -25,12 +25,34 @@ import { createUuid } from '@/lib/uuid';
 const referenceKey = 'framefetch-active-intent';
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-export function rememberDownloadIntent(owner: string, id: string) {
-  if (!uuid.test(id)) return;
+export function rememberDownloadIntent(
+  owner: string,
+  reference: string | { key: string } | null,
+) {
+  if (
+    reference &&
+    !uuid.test(typeof reference === 'string' ? reference : reference.key)
+  )
+    return;
   try {
-    sessionStorage.setItem(referenceKey, JSON.stringify({ owner, id }));
+    if (!reference) sessionStorage.removeItem(referenceKey);
+    else
+      sessionStorage.setItem(
+        referenceKey,
+        JSON.stringify({
+          owner,
+          ...(typeof reference === 'string' ? { id: reference } : reference),
+        }),
+      );
   } catch {
-    // History can recover the owner-bound resource again when storage returns.
+    // A pending admission needs its key before remote work can begin.
+    if (reference && typeof reference !== 'string')
+      throw new ApiError(
+        503,
+        'intent_reference_unavailable',
+        '无法保存恢复信息',
+        '请允许此站点使用浏览器存储后重试，以便刷新后恢复任务。',
+      );
   }
 }
 

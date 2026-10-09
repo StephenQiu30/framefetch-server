@@ -4,12 +4,12 @@ from __future__ import annotations
 
 import hashlib
 import html
-import json
 import re
+from dataclasses import replace
 from html.parser import HTMLParser
-from typing import Any
 from urllib.parse import parse_qs, urlsplit
 
+from app.integrations.article_discovery.native_video import native_videos
 from app.services.provider_types import ProviderKey
 from app.services.source_discoveries.models import (
     ArticleDiscoveryCandidate,
@@ -31,7 +31,6 @@ _QQVIDEO_PATHS = (
     re.compile(r"/x/cover/[A-Za-z0-9_-]{4,128}/([A-Za-z0-9_-]{4,64})\.html"),
 )
 _CHANNELS_PATH = re.compile(r"/sph/[A-Za-z0-9_-]{4,256}/?")
-_TRANS_INFO = re.compile(r"\bmp_video_trans_info\b\s*=")
 _RESTRICTED_MARKERS = (
     "环境异常",
     "访问过于频繁",
@@ -127,7 +126,6 @@ def parse_article_html(
     payload: str,
     *,
     max_items: int = 24,
-    max_inline_bytes: int = 512 * 1024,
 ) -> ArticleDiscoveryResult:
     if not payload.strip():
         raise ArticleDiscoveryFailure("article HTML is empty")
@@ -142,15 +140,39 @@ def parse_article_html(
     if not parser.has_article_body:
         raise ArticleDiscoveryFailure("article body is unavailable")
 
-    native_identity = _native_identity_map(payload, max_inline_bytes=max_inline_bytes)
     candidates: list[ArticleDiscoveryCandidate] = []
     seen: set[str] = set()
     for tag, attrs in parser.embeds:
-        candidate = _classify_embed(tag, attrs, native_identity)
+        try:
+            candidate = _classify_embed(tag, attrs)
+        except ValueError as exc:
+            raise ArticleDiscoveryFailure("article embed URL is invalid") from exc
         if candidate.identity_evidence_hash in seen:
             continue
         seen.add(candidate.identity_evidence_hash)
         candidates.append(candidate)
+    for video in native_videos(payload, max_items=max_items):
+        candidate = _candidate(
+            DiscoveryItemKind.OFFICIAL_ACCOUNT_NATIVE,
+            ProviderKey.WECHAT_OFFICIAL_ACCOUNT_ARTICLE,
+            parser.title or "公众号原生视频",
+            f"native:{video.video_id}",
+            DiscoveryDecisionHint.CANDIDATE,
+            DiscoveryItemStatus.READY,
+        )
+        candidate = replace(candidate, duration_ms=video.duration_ms)
+        if candidate.identity_evidence_hash in seen:
+            candidates = [
+                candidate
+                if item.identity_evidence_hash == candidate.identity_evidence_hash
+                else item
+                for item in candidates
+            ]
+        else:
+            seen.add(candidate.identity_evidence_hash)
+            candidates.append(candidate)
+        if len(candidates) > max_items:
+            raise ArticleDiscoveryFailure("article embed limit exceeded")
     return ArticleDiscoveryResult(
         title=_sanitize(parser.title) or "微信公众号文章",
         items=tuple(candidates),
@@ -160,22 +182,16 @@ def parse_article_html(
 def _classify_embed(
     tag: str,
     attrs: dict[str, str],
-    native_identity: dict[str, bool],
 ) -> ArticleDiscoveryCandidate:
     mpvid = attrs.get("data-mpvid") or attrs.get("mpvid") or attrs.get("vid") or ""
     if _MPVID.fullmatch(mpvid):
-        verified = native_identity.get(mpvid, False)
         return _candidate(
             DiscoveryItemKind.OFFICIAL_ACCOUNT_NATIVE,
             ProviderKey.WECHAT_OFFICIAL_ACCOUNT_ARTICLE,
             attrs.get("data-title") or attrs.get("title") or "公众号原生视频",
             f"native:{mpvid}",
-            DiscoveryDecisionHint.CANDIDATE
-            if verified
-            else DiscoveryDecisionHint.UNSUPPORTED,
-            DiscoveryItemStatus.READY
-            if verified
-            else DiscoveryItemStatus.IDENTITY_UNVERIFIED,
+            DiscoveryDecisionHint.UNSUPPORTED,
+            DiscoveryItemStatus.IDENTITY_UNVERIFIED,
         )
 
     src = html.unescape(attrs.get("src") or attrs.get("data-src") or "").strip()
@@ -204,20 +220,36 @@ def _classify_embed(
                 ProviderKey.QQVIDEO,
                 attrs.get("title") or "腾讯视频",
                 f"qqvideo:{media_id}",
-                DiscoveryDecisionHint.UNSUPPORTED,
+                DiscoveryDecisionHint.CANDIDATE,
                 DiscoveryItemStatus.READY,
+                source_url=f"https://v.qq.com/x/page/{media_id}.html",
             )
     if tag == "mp-common-videosnap" or (
         host == "weixin.qq.com" and _CHANNELS_PATH.fullmatch(parsed.path)
     ):
-        identity = attrs.get("data-id") or attrs.get("id") or parsed.path or tag
+        share = (
+            f"https://weixin.qq.com{parsed.path.rstrip('/')}"
+            if host == "weixin.qq.com"
+            and _CHANNELS_PATH.fullmatch(parsed.path)
+            and parsed.scheme in {"", "https"}
+            and parsed.port in {None, 443}
+            and parsed.username is None
+            and parsed.password is None
+            else None
+        )
+        identity = (
+            share or attrs.get("data-id") or attrs.get("id") or parsed.path or tag
+        )
         return _candidate(
             DiscoveryItemKind.WECHAT_CHANNELS,
             ProviderKey.WECHAT_CHANNELS,
             attrs.get("data-title") or attrs.get("title") or "微信视频号内容",
             f"channels:{identity}",
-            DiscoveryDecisionHint.EXPORT_REQUIRED,
+            DiscoveryDecisionHint.CANDIDATE
+            if share
+            else DiscoveryDecisionHint.EXPORT_REQUIRED,
             DiscoveryItemStatus.READY,
+            source_url=share,
         )
     evidence = f"unknown:{tag}:{src[:512]}:{attrs.get('id', '')}"
     return _candidate(
@@ -237,6 +269,8 @@ def _candidate(
     evidence: str,
     hint: DiscoveryDecisionHint,
     status: DiscoveryItemStatus,
+    *,
+    source_url: str | None = None,
 ) -> ArticleDiscoveryCandidate:
     return ArticleDiscoveryCandidate(
         kind=kind,
@@ -246,69 +280,7 @@ def _candidate(
         identity_evidence_hash=hashlib.sha256(evidence.encode()).hexdigest(),
         decision_hint=hint,
         status=status,
-    )
-
-
-def _native_identity_map(payload: str, *, max_inline_bytes: int) -> dict[str, bool]:
-    if len(payload.encode(errors="ignore")) > max_inline_bytes * 8:
-        return {}
-    decoder = json.JSONDecoder()
-    occurrences: dict[str, list[bool]] = {}
-    for marker in _TRANS_INFO.finditer(payload):
-        suffix = html.unescape(payload[marker.end() : marker.end() + max_inline_bytes])
-        stripped = suffix.lstrip()
-        if not stripped.startswith(("[", "{")):
-            continue
-        try:
-            value, _ = decoder.raw_decode(stripped)
-        except json.JSONDecodeError:
-            continue
-        for record in _walk_dicts(value):
-            mpvid = record.get("mpvid")
-            media_id = record.get("media_id")
-            urls = tuple(_walk_strings(record))
-            if not isinstance(mpvid, str) or not _MPVID.fullmatch(mpvid):
-                continue
-            valid = (
-                isinstance(media_id, str)
-                and bool(media_id.strip())
-                and any(_is_qpic_mp4_url(url) for url in urls)
-            )
-            occurrences.setdefault(mpvid, []).append(valid)
-    return {
-        mpvid: len(matches) == 1 and matches[0]
-        for mpvid, matches in occurrences.items()
-    }
-
-
-def _walk_dicts(value: object) -> list[dict[str, Any]]:
-    found: list[dict[str, Any]] = []
-    if isinstance(value, dict):
-        found.append(value)
-        for child in value.values():
-            found.extend(_walk_dicts(child))
-    elif isinstance(value, list):
-        for child in value:
-            found.extend(_walk_dicts(child))
-    return found
-
-
-def _walk_strings(value: object) -> list[str]:
-    if isinstance(value, str):
-        return [value]
-    if isinstance(value, dict):
-        return [item for child in value.values() for item in _walk_strings(child)]
-    if isinstance(value, list):
-        return [item for child in value for item in _walk_strings(child)]
-    return []
-
-
-def _is_qpic_mp4_url(value: str) -> bool:
-    parsed = urlsplit(value)
-    return (
-        parsed.scheme == "https"
-        and (parsed.hostname or "").casefold() == "mpvideo.qpic.cn"
-        and parsed.path.casefold().endswith(".mp4")
+        source_url=source_url,
     )
 
 

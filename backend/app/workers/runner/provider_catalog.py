@@ -3,7 +3,15 @@
 from dataclasses import replace
 from urllib.parse import SplitResult
 
-from app.services.provider_types import BrowserRules, EgressRoute, Layer, PrepareSpec
+from app.services.provider_types import (
+    BrowserRules,
+    EgressRoute,
+    Layer,
+    PrepareSpec,
+    ProviderCapability,
+    ProviderProfileVersion,
+)
+from app.services.source_discoveries.url_admission import selected_article_source
 from app.workers.runner.errors import RunnerFailure
 from app.workers.runner.provider_catalog_core import CORE_PROVIDER_PROFILES
 from app.workers.runner.provider_catalog_public import PUBLIC_PROVIDER_PROFILES
@@ -71,9 +79,11 @@ def _engine_profile(profile: ProviderProfile) -> ProviderProfile:
 
 
 def _article_url(url: str, parsed: SplitResult) -> str:
-    if not parsed.path.startswith("/s/") or parsed.path == "/s/":
-        raise RunnerFailure("provider_unsupported", status=422)
-    return url
+    try:
+        article, identity_hash = selected_article_source(url)
+    except ValueError as exc:
+        raise RunnerFailure("provider_unsupported", status=422) from exc
+    return f"{article}#video={identity_hash}"
 
 
 _ARTICLE = ProviderProfile(
@@ -81,8 +91,9 @@ _ARTICLE = ProviderProfile(
     display_name="微信公众号文章",
     hosts=frozenset({"mp.weixin.qq.com"}),
     normalize_url=_article_url,
-    # An article is a discovery source, not a selectable video rendition.
-    capabilities=frozenset(),
+    # Only an explicitly selected article video can enter the Runner.
+    capabilities=frozenset({ProviderCapability.SINGLE_VIDEO}),
+    version=ProviderProfileVersion.WECHAT_ARTICLE,
 )
 
 

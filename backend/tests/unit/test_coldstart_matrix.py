@@ -1482,10 +1482,9 @@ def test_g4_unverified_capabilities_and_protection_still_block():
     blocked = [
         c
         for c in samples
-        if c.platform == "wechat_official_account_article"
-        or (c.platform in {"qqvideo", "youku"} and c.kind == "protected")
+        if c.platform in {"qqvideo", "youku"} and c.kind == "protected"
     ]
-    assert len(blocked) == 4
+    assert len(blocked) == 2
     assert all(c.qualification_gaps() for c in blocked)
     assert all(c.availability_source.status == "unverified" for c in blocked)
 

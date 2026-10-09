@@ -85,9 +85,13 @@ def test_registry_rejects_incomplete_engine_declarations(changes):
 def test_article_path_boundary():
     registry = current_provider_registry()
     assert (
-        registry.prepare("https://mp.weixin.qq.com/s/example").profile.key
+        registry.prepare(
+            "https://mp.weixin.qq.com/s/example#video=" + "a" * 64
+        ).profile.key
         == "wechat_official_account_article"
     )
+    with pytest.raises(RunnerFailure):
+        registry.prepare("https://mp.weixin.qq.com/s/example")
     with pytest.raises(RunnerFailure):
         registry.prepare("https://mp.weixin.qq.com/cgi-bin/home")
 

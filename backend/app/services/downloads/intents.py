@@ -23,6 +23,16 @@ from app.services.downloads.validation import (
     validate_owner_hash,
 )
 from app.services.quotas import DEFAULT_USER_QUOTA, UserQuota
+from app.services.source_discoveries.ports import (
+    ArticleDiscoveryAdapter,
+    ArticleDiscoveryFailure,
+    SourceDiscoveryRepository,
+)
+from app.services.source_discovery import (
+    DiscoveryDecisionHint,
+    DiscoveryItemKind,
+    DiscoveryItemStatus,
+)
 
 
 class IntentPersistence(Protocol):
@@ -70,6 +80,8 @@ class IntentService:
         *,
         now: Callable[[], datetime],
         new_id: Callable[[], UUID],
+        discoveries: SourceDiscoveryRepository | None = None,
+        article_adapter: ArticleDiscoveryAdapter | None = None,
     ) -> None:
         self._repository = repository
         self._validator = validator
@@ -77,6 +89,57 @@ class IntentService:
         self._fingerprinter = fingerprinter
         self._now = now
         self._new_id = new_id
+        self._discoveries = discoveries
+        self._article_adapter = article_adapter
+
+    async def create_discovered(
+        self,
+        discovery_id: UUID,
+        item_ref: UUID,
+        owner_hash: str,
+        idempotency_key: str,
+        *,
+        quota: UserQuota = DEFAULT_USER_QUOTA,
+    ) -> IntentSnapshot:
+        validate_owner_hash(owner_hash)
+        validate_idempotency_key(idempotency_key)
+        if self._discoveries is None:
+            raise ApplicationError(ApplicationErrorCode.RUNTIME_UNAVAILABLE)
+        selected = await self._discoveries.select_item(
+            discovery_id, item_ref, owner_hash, self._now()
+        )
+        if selected is None:
+            raise ApplicationError(ApplicationErrorCode.NOT_FOUND)
+        if (
+            selected.item.status is not DiscoveryItemStatus.READY
+            or selected.item.decision_hint is not DiscoveryDecisionHint.CANDIDATE
+        ):
+            raise ApplicationError(ApplicationErrorCode.CONTENT_UNAVAILABLE)
+        article = self._cipher.decrypt(selected.discovery.encrypted_url)
+        if selected.item.kind is DiscoveryItemKind.OFFICIAL_ACCOUNT_NATIVE:
+            url = f"{article}#video={selected.item.identity_evidence_hash}"
+        else:
+            if self._article_adapter is None:
+                raise ApplicationError(ApplicationErrorCode.RUNTIME_UNAVAILABLE)
+            try:
+                current = await self._article_adapter.discover(article)
+            except ArticleDiscoveryFailure as exc:
+                raise ApplicationError(
+                    ApplicationErrorCode.ARTICLE_DISCOVERY_FAILED
+                ) from exc
+            matches = [
+                item
+                for item in current.items
+                if item.identity_evidence_hash == selected.item.identity_evidence_hash
+                and item.kind is selected.item.kind
+                and item.source_url is not None
+            ]
+            if len(matches) != 1:
+                raise ApplicationError(ApplicationErrorCode.CONTENT_UNAVAILABLE)
+            target = matches[0].source_url
+            assert target is not None
+            url = target
+        return await self.create(url, owner_hash, idempotency_key, quota=quota)
 
     async def create(
         self,

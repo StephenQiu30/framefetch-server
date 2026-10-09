@@ -24,10 +24,11 @@ def test_static_parser_classifies_embeds_in_dom_order_without_leaking_urls() -> 
       <head><meta property="og:title" content="  安全文章  "></head>
       <body id="js_content">
       <iframe data-mpvid="wxv_native123" title="原生片段"></iframe>
-      <script>window.mp_video_trans_info = [{{
-        "mpvid":"wxv_native123", "media_id":"media-1",
-        "representations":[{{"url":"{signed_url}"}}]
-      }}];</script>
+      <script>window.cgiDataNew = {{video_page_infos: [{{
+        video_id:'wxv_native123', is_mp_video:1, is_mp_video_delete:0,
+        is_mp_video_forbid:0, mp_video_trans_info:[{{url:'{signed_url}',
+        format_id:10002, width:1280, height:720, duration_ms:12000,filesize:10000}}]
+      }}]}};</script>
       <iframe src="//v.qq.com/iframe/preview.html?vid=tencent123"></iframe>
       <mp-common-videosnap data-id="channels-1" data-title="视频号片段" />
       <video src="https://unknown.example/video.mp4?ticket=secret"></video>
@@ -178,3 +179,19 @@ async def test_http_adapter_uses_hardened_proxy_without_local_target_dns() -> No
 def test_http_adapter_rejects_credentialed_proxy() -> None:
     with pytest.raises(ValueError):
         WeChatArticleDiscoveryAdapter(proxy_url="http://user:secret@proxy:3128")
+
+
+def test_valid_channels_share_becomes_candidate_without_preserving_extra_query():
+    item = parse_article_html(
+        '<div id="js_content"><iframe src="https://weixin.qq.com/sph/PublicWork1?ticket=secret"></iframe></div>'
+    ).items[0]
+    assert item.decision_hint is DiscoveryDecisionHint.CANDIDATE
+    assert item.source_url == "https://weixin.qq.com/sph/PublicWork1"
+    assert "ticket" not in repr(item)
+
+
+def test_malformed_channels_port_is_a_discovery_failure():
+    with pytest.raises(ArticleDiscoveryFailure):
+        parse_article_html(
+            '<div id="js_content"><iframe src="https://weixin.qq.com:bad/sph/PublicWork1"></iframe></div>'
+        )

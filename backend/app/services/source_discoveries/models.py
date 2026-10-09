@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime
 from uuid import UUID
 
@@ -22,6 +22,7 @@ class ArticleDiscoveryCandidate:
     identity_evidence_hash: str
     decision_hint: DiscoveryDecisionHint
     status: DiscoveryItemStatus
+    source_url: str | None = field(default=None, repr=False)
 
 
 @dataclass(frozen=True, slots=True)

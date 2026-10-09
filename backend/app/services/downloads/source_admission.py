@@ -17,6 +17,7 @@ from app.services.downloads.rules.inspection import (
     SourceOrigin,
 )
 from app.services.provider_types import ProviderKey
+from app.services.source_discoveries.url_admission import selected_article_source
 
 _ARTICLE_PATH = re.compile(r"/s/[A-Za-z0-9_-]{6,256}")
 _ARTICLE_QUERY_KEYS = frozenset({"__biz", "mid", "idx", "sn", "chksm", "scene"})
@@ -62,6 +63,12 @@ def classify_restricted_source(url: str) -> RestrictedSourceAdmission | None:
     parsed = urlsplit(url)
     host = (parsed.hostname or "").casefold()
     if host == "mp.weixin.qq.com":
+        try:
+            selected_article_source(url)
+        except ValueError:
+            pass
+        else:
+            return None
         valid = _valid_article_url(
             parsed.path, parsed.query, parsed.port, parsed.fragment
         )

@@ -50,6 +50,7 @@ class ProviderProfileVersion(StrEnum):
     XIAOHONGSHU = "xiaohongshu-public"
     KUAISHOU = "kuaishou-public"
     WECHAT_CHANNELS = "wechat-channels-official-share"
+    WECHAT_ARTICLE = "wechat-article-native"
     VIMEO = "vimeo-public"
     DAILYMOTION = "dailymotion-public-video"
     X = "x-public"

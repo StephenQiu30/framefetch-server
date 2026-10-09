@@ -77,9 +77,19 @@ async def create_intent(
     service: Service,
     response: Response,
 ) -> IntentResponse:
-    result = await service.create(
-        body.input, user.owner_hash, idempotency_key, quota=user.admission_quota
-    )
+    if body.source is not None:
+        result = await service.create_discovered(
+            body.source.discovery_id,
+            body.source.item_ref,
+            user.owner_hash,
+            idempotency_key,
+            quota=user.admission_quota,
+        )
+    else:
+        assert body.input is not None
+        result = await service.create(
+            body.input, user.owner_hash, idempotency_key, quota=user.admission_quota
+        )
     response.headers["Location"] = f"/api/download-intents/{result.id}"
     response.headers["Cache-Control"] = "no-store"
     return IntentResponse.from_snapshot(result)

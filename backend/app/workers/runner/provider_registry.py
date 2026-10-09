@@ -142,10 +142,7 @@ class ProviderRegistry:
                 raise ValueError(f"provider {profile.key} has invalid retry policy")
             if (
                 not profile.version
-                or (
-                    not profile.capabilities
-                    and profile.key != ProviderKey.WECHAT_OFFICIAL_ACCOUNT_ARTICLE
-                )
+                or not profile.capabilities
                 or not profile.error_policy_id
             ):
                 raise ValueError(f"provider {profile.key} has incomplete capabilities")

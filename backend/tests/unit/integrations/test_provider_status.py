@@ -79,7 +79,7 @@ def test_wechat_channels_exposes_official_share_delivery_without_verified_suppor
     assert "last_verified_at" not in public.model_dump()
 
 
-def test_official_account_articles_remain_discovery_only():
+def test_official_account_articles_declare_selected_video_downloads():
     article = next(
         item
         for item in configured_provider_statuses()
@@ -87,8 +87,8 @@ def test_official_account_articles_remain_discovery_only():
     )
     public = ProviderStatusResponse.from_view(article)
     assert public.registered
-    assert not public.extractor_exists
-    assert not public.download_supported
-    assert not public.capabilities
+    assert public.extractor_exists
+    assert public.download_supported
+    assert public.capabilities == ("single_video",)
     assert public.identity is ProviderIdentity.NONE
-    assert public.user_action == "支持公开文章视频发现与显式选择。"
+    assert "先选择" in public.user_action

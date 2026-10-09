@@ -364,7 +364,8 @@ def test_provider_status_distinguishes_registered_and_unsupported(
     items = {item["key"]: item for item in response.json()["data"]["items"]}
     assert len(items) == len(declared)
     assert len(response.json()["data"]["items"]) == len(items)
-    assert items["wechat_official_account_article"]["extractor_exists"] is False
+    assert items["wechat_official_account_article"]["extractor_exists"] is True
+    assert items["wechat_official_account_article"]["download_supported"] is True
     for key, item in items.items():
         assert item["registered"] is True
         assert "access_modes" not in item

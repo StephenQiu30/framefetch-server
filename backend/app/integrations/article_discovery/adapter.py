@@ -27,7 +27,7 @@ class WeChatArticleDiscoveryAdapter:
         self,
         *,
         timeout_seconds: float = 12,
-        max_response_bytes: int = 2 * 1024 * 1024,
+        max_response_bytes: int = 4 * 1024 * 1024,
         max_items: int = 24,
         min_interval_seconds: float = 1,
         proxy_url: str | None = None,

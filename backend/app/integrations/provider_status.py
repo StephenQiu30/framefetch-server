@@ -14,14 +14,12 @@ def configured_provider_statuses() -> tuple[ProviderStatusView, ...]:
             key=profile.key,
             display_name=profile.display_name,
             registered=True,
-            extractor_exists=profile.key != ProviderKey.WECHAT_OFFICIAL_ACCOUNT_ARTICLE,
-            capabilities=()
-            if profile.key == ProviderKey.WECHAT_OFFICIAL_ACCOUNT_ARTICLE
-            else tuple(sorted(profile.capabilities, key=str)),
+            extractor_exists=True,
+            capabilities=tuple(sorted(profile.capabilities, key=str)),
             identity=profile.identity,
             status=profile.support_status,
             user_action=(
-                "支持公开文章视频发现与显式选择。"
+                "先选择公开文章中的视频，再解析下载；原生视频须有微信官方明文 MP4。"
                 if profile.key == ProviderKey.WECHAT_OFFICIAL_ACCOUNT_ARTICLE
                 else "视频号需要登录元宝，解析无需打开元宝页面；"
                 "仅交付官方分享链接对应的非加密文件，无法解析时可导入已有文件。"

@@ -27,7 +27,7 @@ enum DiscoveryDecisionCode {
 }
 
 const DISCOVERY_DECISION_LABELS: Record<API.DiscoveryDecisionHint, string> = {
-  [DiscoveryDecisionCode.Candidate]: '已发现，下载能力待验收',
+  [DiscoveryDecisionCode.Candidate]: '选择后解析下载规格',
   [DiscoveryDecisionCode.ExportRequired]: '需要导入自有文件',
   [DiscoveryDecisionCode.Unsupported]: '仅查看支持状态',
 };
@@ -94,7 +94,11 @@ export function SourceDiscoveryWorkspace({
                   <ItemActions className="w-full sm:w-auto">
                     <Button
                       className="w-full sm:w-auto"
-                      disabled={busyItemRef !== null}
+                      disabled={
+                        busyItemRef !== null ||
+                        item.status !== 'ready' ||
+                        item.decision_hint !== 'candidate'
+                      }
                       onClick={() => onSelect(item)}
                       variant="secondary"
                     >
@@ -103,7 +107,7 @@ export function SourceDiscoveryWorkspace({
                       ) : (
                         <ArrowRight aria-hidden data-icon="inline-start" />
                       )}
-                      {busy ? '处理中…' : '选择并查看'}
+                      {busy ? '处理中…' : '选择并解析'}
                     </Button>
                   </ItemActions>
                 </li>

@@ -2,9 +2,10 @@ from datetime import datetime
 from typing import Literal
 from uuid import UUID
 
-from pydantic import Field
+from pydantic import Field, model_validator
 
 from app.schemas.common import StrictModel
+from app.schemas.inspections import DiscoveredItemInspectionSource
 from app.services.downloads.intent_models import (
     IntentHistoryPage,
     IntentSnapshot,
@@ -16,11 +17,19 @@ IntentNextAction = Literal["none", "wait", "refresh_result", "import_file"]
 
 
 class IntentRequest(StrictModel):
-    input: str = Field(
+    input: str | None = Field(
+        default=None,
         min_length=8,
         max_length=4096,
         description="媒体地址或包含唯一媒体地址的分享文案。",
     )
+    source: DiscoveredItemInspectionSource | None = None
+
+    @model_validator(mode="after")
+    def require_one_source(self) -> "IntentRequest":
+        if (self.input is None) == (self.source is None):
+            raise ValueError("exactly one parsing source is required")
+        return self
 
 
 class IntentFailureResponse(StrictModel):

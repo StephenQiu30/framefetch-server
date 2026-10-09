@@ -3,9 +3,12 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useRef, useState } from 'react';
-import { refreshDownloadIntent } from '@/api/downloadIntents';
+import {
+  createDownloadIntent,
+  refreshDownloadIntent,
+} from '@/api/downloadIntents';
 import { createDownload } from '@/api/downloads';
-import { getInspection, inspectMedia } from '@/api/inspections';
+import { getInspection } from '@/api/inspections';
 import { getSourceDiscovery } from '@/api/sourceDiscoveries';
 import { useAuth } from '@/components/auth/auth-provider';
 import InspectionWorkspace from '@/components/intake/inspection-workspace';
@@ -87,15 +90,27 @@ export default function InspectionRoute() {
   }
 
   async function selectItem(item: API.SourceDiscoveryItemResponse) {
-    if (!discovery.data || busy) return;
+    if (
+      !discovery.data ||
+      busy ||
+      !user?.id ||
+      item.status !== 'ready' ||
+      item.decision_hint !== 'candidate' ||
+      Date.parse(discovery.data.expires_at) <= Date.now()
+    )
+      return;
     setBusy(true);
     setBusyItemRef(item.item_ref);
     setError(null);
     const payload = `${discovery.data.id}:${item.item_ref}`;
     if (idempotency.current?.payload !== payload)
       idempotency.current = { payload, key: createUuid() };
+    const requestKey = idempotency.current.key;
+    let submitted = false;
     try {
-      const result = await inspectMedia(
+      rememberDownloadIntent(user.id, { key: requestKey });
+      submitted = true;
+      const result = await createDownloadIntent(
         {
           source: {
             kind: 'discovered_item',
@@ -104,16 +119,30 @@ export default function InspectionRoute() {
           },
         },
         {
-          headers: { 'Idempotency-Key': idempotency.current.key },
+          headers: { 'Idempotency-Key': requestKey },
           timeout: 30_000,
         },
       );
-      queries.setQueryData(privateQueryKey('inspection', result.id), result);
-      router.replace(
-        `/downloads/new?inspectionId=${encodeURIComponent(result.id)}`,
+      queries.setQueryData(
+        privateQueryKey('download-intent', 'id', result.id),
+        result,
       );
+      if (user?.id) rememberDownloadIntent(user.id, result.id);
+      setAttempt({ id: result.id, input: null, submitting: false });
+      router.replace('/');
     } catch (reason) {
-      setError(displayError(reason));
+      const definitive =
+        reason instanceof ApiError &&
+        reason.status >= 400 &&
+        reason.status < 500 &&
+        reason.status !== 408;
+      if (definitive || !submitted) {
+        if (submitted) rememberDownloadIntent(user.id, null);
+        setError(displayError(reason));
+      } else {
+        setAttempt({ key: requestKey, input: null, submitting: false });
+        router.replace('/');
+      }
     } finally {
       setBusy(false);
       setBusyItemRef(null);
