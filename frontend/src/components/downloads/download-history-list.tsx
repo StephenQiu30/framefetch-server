@@ -159,6 +159,7 @@ export default function DownloadHistoryList({
 function HistoryContent({ item }: { item: API.DownloadHistoryItemResponse }) {
   const detailHref = `/downloads/detail?jobId=${encodeURIComponent(item.id)}`;
   const sourceLabel = displaySourceLabel(item);
+  const recovery = downloadRecovery(item);
   return (
     <Item asChild className="flex-nowrap">
       <Link aria-label={item.title} href={detailHref}>
@@ -202,6 +203,11 @@ function HistoryContent({ item }: { item: API.DownloadHistoryItemResponse }) {
             {downloadStatusLabels[item.status]}
             {isActiveDownloadStatus(item.status) ? ` · ${item.progress}%` : ''}
           </Badge>
+          {recovery === 'reparse' ? (
+            <p>媒体信息已变化，需重新解析并确认画质</p>
+          ) : recovery === 'reimport' ? (
+            <p>本地文件需重新导入</p>
+          ) : null}
         </ItemContent>
       </Link>
     </Item>

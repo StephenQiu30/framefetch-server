@@ -87,6 +87,12 @@ export default function DownloadHistoryView() {
   const retryable = selectedItems.filter(
     (item) => downloadRecovery(item) === 'retry',
   );
+  const reparseRequired = selectedItems.filter(
+    (item) => downloadRecovery(item) === 'reparse',
+  );
+  const reimportRequired = selectedItems.filter(
+    (item) => downloadRecovery(item) === 'reimport',
+  );
   async function runBulk(action: 'download' | 'retry' | 'delete') {
     if (actionsBusy || bulkLock.current) return;
     const targets =
@@ -303,45 +309,65 @@ export default function DownloadHistoryView() {
       <DownloadHistoryList
         toolbar={
           items.length > 0 ? (
-            <BulkSelectionBar
-              count={selection.selected.length}
-              busy={actionsBusy}
-              onClear={() => selection.toggleAll(false)}
-            >
-              {downloadable.length > 0 || bulkAction === 'download' ? (
-                <Button
-                  variant="outline"
-                  disabled={actionsBusy || !downloadable.length}
-                  onClick={() => void runBulk('download')}
-                >
-                  {bulkAction === 'download' ? (
-                    <Spinner aria-hidden data-icon="inline-start" />
-                  ) : null}
-                  批量下载（{downloadable.length}）
-                </Button>
+            <div className="space-y-2">
+              <BulkSelectionBar
+                count={selection.selected.length}
+                busy={actionsBusy}
+                onClear={() => selection.toggleAll(false)}
+              >
+                {downloadable.length > 0 || bulkAction === 'download' ? (
+                  <Button
+                    variant="outline"
+                    disabled={actionsBusy || !downloadable.length}
+                    onClick={() => void runBulk('download')}
+                  >
+                    {bulkAction === 'download' ? (
+                      <Spinner aria-hidden data-icon="inline-start" />
+                    ) : null}
+                    批量下载（{downloadable.length}）
+                  </Button>
+                ) : null}
+                {retryable.length > 0 || bulkAction === 'retry' ? (
+                  <Button
+                    variant="outline"
+                    disabled={actionsBusy || !retryable.length}
+                    onClick={() => void runBulk('retry')}
+                  >
+                    {bulkAction === 'retry' ? (
+                      <Spinner aria-hidden data-icon="inline-start" />
+                    ) : null}
+                    批量重试（{retryable.length}）
+                  </Button>
+                ) : null}
+                <DownloadDeleteDialog
+                  active={selectedItems.some((item) =>
+                    isActiveDownloadStatus(item.status),
+                  )}
+                  busy={bulkAction === 'delete'}
+                  disabled={actionsBusy || !selectedItems.length}
+                  count={selectedItems.length}
+                  onDelete={() => runBulk('delete')}
+                />
+              </BulkSelectionBar>
+              {reparseRequired.length > 0 ? (
+                <FieldDescription role="status">
+                  所选 {reparseRequired.length}{' '}
+                  项媒体信息已变化，需重新解析并确认画质，不能直接重试。
+                  <Button asChild variant="link">
+                    <Link href="/">返回首页重新解析</Link>
+                  </Button>
+                </FieldDescription>
               ) : null}
-              {retryable.length > 0 || bulkAction === 'retry' ? (
-                <Button
-                  variant="outline"
-                  disabled={actionsBusy || !retryable.length}
-                  onClick={() => void runBulk('retry')}
-                >
-                  {bulkAction === 'retry' ? (
-                    <Spinner aria-hidden data-icon="inline-start" />
-                  ) : null}
-                  批量重试（{retryable.length}）
-                </Button>
+              {reimportRequired.length > 0 ? (
+                <FieldDescription role="status">
+                  所选 {reimportRequired.length}{' '}
+                  项本地文件需重新导入，不能直接重试。
+                  <Button asChild variant="link">
+                    <Link href="/">返回首页重新导入</Link>
+                  </Button>
+                </FieldDescription>
               ) : null}
-              <DownloadDeleteDialog
-                active={selectedItems.some((item) =>
-                  isActiveDownloadStatus(item.status),
-                )}
-                busy={bulkAction === 'delete'}
-                disabled={actionsBusy || !selectedItems.length}
-                count={selectedItems.length}
-                onDelete={() => runBulk('delete')}
-              />
-            </BulkSelectionBar>
+            </div>
           ) : null
         }
         selection={{

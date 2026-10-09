@@ -533,6 +533,106 @@ describe('download history', () => {
     expect(runtime.push).not.toHaveBeenCalled();
   });
 
+  it('explains why only one of two failed records can retry and retains the other selection', async () => {
+    runtime.getDownloadHistory.mockResolvedValue(
+      history({
+        items: [
+          historyItem({
+            id: 'retryable',
+            status: 'failed',
+            file_available: false,
+            error_code: 'media_validation_failed',
+          }),
+          historyItem({
+            id: 'changed',
+            status: 'failed',
+            file_available: false,
+            error_code: 'context_changed',
+          }),
+        ],
+      }),
+    );
+    runtime.retryDownload.mockResolvedValue({
+      id: 'new-attempt',
+      status: 'queued',
+      version: 1,
+    });
+    render(<DownloadHistoryView />);
+    const selectAll = await screen.findByRole('checkbox', {
+      name: '选择本页可操作记录',
+    });
+    await waitFor(() => expect(selectAll).toBeEnabled());
+    fireEvent.click(selectAll);
+
+    expect(screen.getByText('已选 2 项')).toBeVisible();
+    expect(screen.getByRole('button', { name: '批量删除（2）' })).toBeEnabled();
+    expect(
+      screen.getByText(
+        '所选 1 项媒体信息已变化，需重新解析并确认画质，不能直接重试。',
+      ),
+    ).toBeVisible();
+    expect(
+      screen.getByRole('link', { name: '返回首页重新解析' }),
+    ).toHaveAttribute('href', '/');
+    fireEvent.click(screen.getByRole('button', { name: '批量重试（1）' }));
+
+    await screen.findByText(/已提交重试 1 项，失败 0 项/);
+    expect(runtime.retryDownload).toHaveBeenCalledTimes(1);
+    expect(runtime.retryDownload).toHaveBeenCalledWith(
+      { job_id: 'retryable' },
+      expect.anything(),
+    );
+    const selected = screen.getAllByRole('checkbox', { name: '选择 示例视频' });
+    expect(selected[0]).not.toBeChecked();
+    expect(selected[1]).toBeChecked();
+    expect(screen.getByText('已选 1 项')).toBeVisible();
+    expect(runtime.push).not.toHaveBeenCalled();
+  });
+
+  it('explains required recovery even when no selected record can retry', async () => {
+    runtime.getDownloadHistory.mockResolvedValue(
+      history({
+        items: [
+          historyItem({
+            id: 'changed',
+            status: 'failed',
+            file_available: false,
+            error_code: 'context_changed',
+          }),
+          historyItem({
+            id: 'local',
+            status: 'failed',
+            file_available: false,
+            source_kind: 'browser_import',
+          }),
+        ],
+      }),
+    );
+    render(<DownloadHistoryView />);
+    const selectAll = await screen.findByRole('checkbox', {
+      name: '选择本页可操作记录',
+    });
+    await waitFor(() => expect(selectAll).toBeEnabled());
+    fireEvent.click(selectAll);
+
+    expect(
+      screen.queryByRole('button', { name: /批量重试/ }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByText(
+        '所选 1 项媒体信息已变化，需重新解析并确认画质，不能直接重试。',
+      ),
+    ).toBeVisible();
+    expect(
+      screen.getByText('所选 1 项本地文件需重新导入，不能直接重试。'),
+    ).toBeVisible();
+    expect(
+      screen.getByRole('link', { name: '返回首页重新导入' }),
+    ).toHaveAttribute('href', '/');
+    expect(screen.getByRole('button', { name: '批量删除（2）' })).toBeEnabled();
+    expect(runtime.retryDownload).not.toHaveBeenCalled();
+  });
+
   it('confirms bulk deletion and reports partial failure', async () => {
     runtime.getDownloadHistory.mockResolvedValue(
       history({
