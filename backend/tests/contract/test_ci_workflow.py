@@ -48,14 +48,16 @@ def _assert_quality_gates(workflow: dict) -> None:
     expected = {
         "backend-tests": (
             "sudo apt-get install --yes --no-install-recommends "
-            "redis-server redis-tools",
+            "redis-server redis-tools ffmpeg",
             "command -v redis-server",
             "command -v redis-cli",
+            "command -v ffmpeg",
+            "command -v ffprobe",
             "uv sync --frozen --dev",
             "uv run --frozen ruff check app tests",
             "uv run --frozen ruff format --check app tests",
             "uv run --frozen mypy app",
-            "uv run --frozen pytest -q",
+            "uv run --frozen pytest -q -rs",
         ),
         "frontend-tests": (
             "pnpm install --frozen-lockfile",

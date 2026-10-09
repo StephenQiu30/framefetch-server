@@ -20,7 +20,7 @@ uv sync --frozen --dev
 uv run --frozen ruff check app tests
 uv run --frozen ruff format --check app tests
 uv run --frozen mypy app
-uv run --frozen pytest -q
+uv run --frozen pytest -q -rs
 ```
 
 前端，从 `frontend/` 执行：
@@ -52,7 +52,7 @@ node backend/scripts/check_docs.mjs
 
 文档编写与沉淀遵循 [docs/AGENTS.md](docs/AGENTS.md)。
 
-GitHub Actions 的 `Backend tests`、`Frontend tests` 与 `Docs` 是每次推送和 PR 的必跑检查，任一失败即 CI 失败。前端 Job 从后端源码导出 OpenAPI 并检查生成差异；`Docs` Job 运行身份扩展测试、文档链接与锚点检查。完整 Compose 启停、真实平台下载与发布演练按变更范围在本地验收，不在 CI 执行。
+GitHub Actions 的 `Backend tests`、`Frontend tests` 与 `Docs` 是每次推送和 PR 的必跑检查，任一失败即 CI 失败。前端 Job 从后端源码导出 OpenAPI 并检查生成差异；`Docs` Job 运行身份扩展测试、文档链接与锚点检查。后端 Job 安装 Redis 与 FFmpeg 测试工具，并输出环境或平台限制导致的跳过原因。完整 Compose 启停、真实平台下载与发布演练按变更范围在本地验收，不在 CI 执行。
 
 缓存只复用依赖下载，不跳过锁文件安装、代码生成、测试或构建。main 的 CI 按提交 SHA 独立运行；PR 的新提交会取消同一 PR 的旧运行。
 

@@ -53,12 +53,14 @@ jobs:
           version: "0.11.32"
           enable-cache: true
           cache-dependency-glob: backend/uv.lock
-      - name: Install Redis lease test dependencies
+      - name: Install backend integration test dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install --yes --no-install-recommends redis-server redis-tools
+          sudo apt-get install --yes --no-install-recommends redis-server redis-tools ffmpeg
           command -v redis-server
           command -v redis-cli
+          command -v ffmpeg
+          command -v ffprobe
       - name: Install backend dependencies
         working-directory: backend
         run: uv sync --frozen --dev
@@ -72,7 +74,7 @@ jobs:
         run: uv run --frozen mypy app
       - name: Test backend
         working-directory: backend
-        run: uv run --frozen pytest -q
+        run: uv run --frozen pytest -q -rs
 
   frontend-tests:
     name: Frontend tests
