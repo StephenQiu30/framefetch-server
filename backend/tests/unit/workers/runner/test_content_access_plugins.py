@@ -12,6 +12,7 @@ from app.workers.runner.plugins.yt_dlp_plugins.extractor._content_access import 
 )
 from app.workers.runner.plugins.yt_dlp_plugins.extractor.bilibili_access import (
     _BiliBiliAccessIE,
+    _prefer_admitted_urls,
 )
 from app.workers.runner.plugins.yt_dlp_plugins.extractor.douyin_note import (
     DouyinNoteIE,
@@ -110,6 +111,23 @@ def test_bilibili_free_state_is_preserved() -> None:
 def test_bilibili_preview_formats_cannot_escape(data) -> None:
     with pytest.raises(ExtractorError, match="content_preview_only"):
         _BiliBiliAccessIE().extract_formats(data)
+
+
+def test_bilibili_uses_same_rendition_official_standard_port_backup() -> None:
+    primary = "https://pcdn.bilivideo.cn:4483/video.m4s?sign=fixture"
+    backup = "https://upos.bilivideo.com/video.m4s?sign=fixture"
+    track = {"baseUrl": primary, "backupUrl": ["http://127.0.0.1/a", backup]}
+    data = {"dash": {"audio": [track], "video": [dict(track)]}}
+    resolved = _prefer_admitted_urls(data)
+    assert resolved["dash"]["audio"][0]["baseUrl"] == backup
+    assert resolved["dash"]["video"][0]["baseUrl"] == backup
+    assert data["dash"]["audio"][0]["baseUrl"] == primary
+
+
+def test_bilibili_does_not_rewrite_or_admit_unsafe_backup() -> None:
+    primary = "https://pcdn.bilivideo.cn:4483/video.m4s"
+    data = {"durl": [{"url": primary, "backup_url": ["http://localhost/video"]}]}
+    assert _prefer_admitted_urls(data) == data
 
 
 def test_bilibili_real_extractor_calls_guard_before_further_network(

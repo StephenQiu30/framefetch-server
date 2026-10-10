@@ -90,6 +90,8 @@ class CandidateStream:
     audio_language: str | None = None
     bitrate_kbps: int | None = None
     size_bytes: int | None = None
+    # None means the provider made no usable claim, not watermark-free media.
+    has_watermark: bool | None = None
 
     def __post_init__(self) -> None:
         provider_id = self.provider_id.strip()

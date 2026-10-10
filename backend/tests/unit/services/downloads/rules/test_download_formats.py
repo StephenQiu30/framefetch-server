@@ -109,6 +109,54 @@ def test_stale_or_wrong_hint_is_replaced_by_semantic_match() -> None:
     assert selected.used_provider_hint is False
 
 
+@pytest.mark.parametrize("clean_signal", [False, None])
+def test_watermarked_hint_does_not_override_better_source(
+    clean_signal: bool | None,
+) -> None:
+    selected = select_streams(
+        plan(hints=ProviderHints(video_id="marked")),
+        [
+            muxed("marked", has_watermark=True),
+            muxed("play", has_watermark=clean_signal),
+        ],
+    )
+    assert selected.video.provider_id == "play"
+    assert selected.used_provider_hint is False
+
+
+def test_known_clean_split_is_preferred_over_watermarked_muxed() -> None:
+    selected = select_streams(
+        plan(),
+        [
+            muxed("marked", has_watermark=True),
+            video("clean", has_watermark=False),
+            audio("a"),
+        ],
+    )
+    assert selected.video.provider_id == "clean"
+    assert selected.audio is not None
+    assert selected.audio.provider_id == "a"
+
+
+def test_clean_source_does_not_downgrade_requested_quality() -> None:
+    selected = select_streams(
+        plan(),
+        [
+            muxed("marked", has_watermark=True),
+            muxed("clean", has_watermark=False, height=720, width=1280),
+        ],
+    )
+    assert selected.video.provider_id == "marked"
+
+
+def test_known_clean_source_is_preferred_to_unknown_source() -> None:
+    selected = select_streams(
+        plan(hints=ProviderHints(video_id="unknown")),
+        [muxed("unknown"), muxed("clean", has_watermark=False)],
+    )
+    assert selected.video.provider_id == "clean"
+
+
 def test_selector_never_silently_downgrades_resolution() -> None:
     with pytest.raises(FormatSelectionError) as caught:
         select_streams(plan(), [muxed("720p", height=720, width=1280)])

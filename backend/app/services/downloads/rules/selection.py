@@ -46,20 +46,6 @@ def select_streams(
         and _matches_video(plan, stream)
         and plan.matches_audio(stream)
     ]
-    compatible_muxed = [
-        stream for stream in muxed if _output_for(plan, stream, None) is not None
-    ]
-    if compatible_muxed:
-        chosen = min(compatible_muxed, key=lambda item: _rank(plan, item, "video"))
-        output = _output_for(plan, chosen, None)
-        assert output is not None
-        return StreamSelection(
-            video=chosen,
-            audio=None,
-            output_container=output,
-            used_provider_hint=_used_hints(plan, chosen, None),
-        )
-
     videos = [
         stream
         for stream in available
@@ -70,49 +56,43 @@ def select_streams(
         for stream in available
         if stream.kind is StreamKind.AUDIO and plan.matches_audio(stream)
     ]
+    candidates: list[tuple[CandidateStream, CandidateStream | None]] = [
+        (stream, None) for stream in muxed
+    ]
     if plan.audio_codec_family is AudioCodecFamily.NONE:
-        compatible_silent = [
-            video for video in videos if _output_for(plan, video, None) is not None
-        ]
-        if compatible_silent:
-            chosen = min(
-                compatible_silent,
-                key=lambda item: _rank(plan, item, "video"),
-            )
-            output = _output_for(plan, chosen, None)
-            assert output is not None
-            return StreamSelection(
-                video=chosen,
-                audio=None,
-                output_container=output,
-                used_provider_hint=_used_hints(plan, chosen, None),
-            )
-    pairs = [
-        (video, audio) for video in videos for audio in audios if video is not audio
-    ]
-    compatible_pairs = [
-        pair for pair in pairs if _output_for(plan, pair[0], pair[1]) is not None
-    ]
-    if compatible_pairs:
-        video, audio = min(
-            compatible_pairs,
-            key=lambda pair: (
-                _rank(plan, pair[0], "video"),
-                _rank(plan, pair[1], "audio"),
-            ),
-        )
-        output = _output_for(plan, video, audio)
-        assert output is not None
-        return StreamSelection(
+        candidates.extend((stream, None) for stream in videos)
+    candidates.extend((video, audio) for video in videos for audio in audios)
+    selections = [
+        StreamSelection(
             video=video,
             audio=audio,
             output_container=output,
             used_provider_hint=_used_hints(plan, video, audio),
         )
-
-    if muxed or pairs:
+        for video, audio in candidates
+        if (output := _output_for(plan, video, audio)) is not None
+    ]
+    if selections:
+        # Compare watermark evidence before the muxed preference or stale hints.
+        # Equal evidence retains the existing muxed-first selection semantics.
+        return min(
+            selections,
+            key=lambda item: (
+                _watermark_rank(item.video),
+                item.video.kind is not StreamKind.MUXED,
+                _rank(plan, item.video, "video"),
+                _rank(plan, item.audio, "audio") if item.audio is not None else (),
+            ),
+        )
+    if candidates:
         raise FormatSelectionError(DownloadErrorCode.TRANSCODE_REQUIRED)
     raise FormatSelectionError(DownloadErrorCode.FORMAT_UNAVAILABLE)
+
+
+def _watermark_rank(stream: CandidateStream) -> int:
+    if stream.has_watermark is False:
+        return 0
+    return 2 if stream.has_watermark is True else 1
 
 
 def _matches_video(plan: DownloadPlan, stream: CandidateStream) -> bool:

@@ -682,9 +682,23 @@ def _normalize_stream(
             audio_language=language if has_audio else None,
             bitrate_kbps=_positive_int(bitrate),
             size_bytes=_positive_int(raw.get("filesize") or raw.get("filesize_approx")),
+            has_watermark=_watermark_signal(raw) if has_video else None,
         )
     except (TypeError, ValueError):
         return None
+
+
+def _watermark_signal(raw: dict[str, Any]) -> bool | None:
+    # A top-level flag can describe only the download rendition. Never apply it
+    # to all playback streams, or infer a claim from URLs or numeric preference.
+    explicit = raw.get("has_watermark")
+    note = raw.get("format_note")
+    labelled = isinstance(note, str) and bool(
+        re.search(r"(?:^|[,;(]\s*)watermarked(?:\s*[,;)]|$)", note, re.IGNORECASE)
+    )
+    if labelled or explicit is True:
+        return True
+    return False if explicit is False else None
 
 
 def _positive_number(value: object) -> float | None:

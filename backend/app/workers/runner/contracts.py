@@ -176,6 +176,7 @@ class CandidateStreamContract(ContractModel):
     audio_language: str | None = None
     bitrate_kbps: int | None = None
     size_bytes: int | None = None
+    has_watermark: bool | None = None
 
     @classmethod
     def from_domain(cls, stream: CandidateStream) -> Self:

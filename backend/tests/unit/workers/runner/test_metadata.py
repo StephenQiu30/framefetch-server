@@ -298,6 +298,31 @@ def test_normalizes_ytdlp_formats_into_domain_streams_and_options() -> None:
     }
 
 
+@pytest.mark.parametrize(
+    ("signal", "expected"),
+    [
+        ({"format_note": "Download video, watermarked"}, True),
+        ({"has_watermark": True}, True),
+        ({"has_watermark": False}, False),
+        ({"has_watermark": "false"}, None),
+        ({"preference": -2}, None),
+        ({"format_note": "not watermarked"}, None),
+        ({"format_note": "unwatermarked"}, None),
+        ({}, None),
+    ],
+)
+def test_watermark_signal_is_scoped_to_the_rendition(signal, expected) -> None:
+    payload = media_info()
+    payload["has_watermark"] = True
+    payload["formats"][0].update(signal)
+    inspection = normalize_metadata(
+        payload, max_duration_seconds=7200, max_candidate_streams=200
+    )
+    assert inspection.streams[0].has_watermark is expected
+    assert inspection.streams[1].has_watermark is None
+    assert inspection.streams[2].has_watermark is None
+
+
 def test_image_scrubber_format_does_not_become_a_download_option() -> None:
     payload = media_info()
     formats = payload["formats"]
