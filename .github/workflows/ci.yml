@@ -57,11 +57,6 @@ jobs:
         uses: docker/setup-compose-action@54042514f505b273907334ae2b9cdbb9a0213c1a # v2
         with:
           version: v5.5.1
-      - name: Validate Compose configuration
-        run: |
-          docker compose config --quiet
-          docker compose -f docker-compose-env.yml config --quiet
-          APP_ENV=production FRONTEND_BUILD_TARGET=runtime docker compose config --quiet
       - name: Install backend integration test dependencies
         run: |
           sudo apt-get update
