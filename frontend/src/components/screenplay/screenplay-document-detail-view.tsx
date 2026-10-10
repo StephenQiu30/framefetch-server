@@ -56,9 +56,8 @@ const tocSkeletonKeys = [
 const workspaceClassName = 'mt-8';
 const headerActionsClassName =
   'flex w-full flex-col gap-2 sm:w-auto sm:flex-row';
-const previewColumnClassName = 'min-w-0 lg:overflow-hidden';
-const tocColumnClassName =
-  'order-first min-w-0 lg:order-none lg:overflow-hidden';
+const previewColumnClassName = 'min-w-0';
+const tocColumnClassName = 'order-first min-w-0 lg:order-none';
 
 export default function ScreenplayDocumentDetailView({
   documentId,
@@ -184,7 +183,6 @@ export default function ScreenplayDocumentDetailView({
           <SplitLayout
             className={workspaceClassName}
             columns="sidebar-end"
-            scrollable
             data-testid="screenplay-document-workspace"
           >
             <div className={previewColumnClassName}>
@@ -241,19 +239,13 @@ export function DocumentDetailSkeleton() {
           ))}
         </div>
       </div>
-      <SplitLayout
-        className={workspaceClassName}
-        columns="sidebar-end"
-        scrollable
-      >
-        <div
-          className={`${previewColumnClassName} lg:grid lg:h-full lg:grid-rows-[auto_minmax(0,1fr)_auto]`}
-        >
+      <SplitLayout className={workspaceClassName} columns="sidebar-end">
+        <div className={previewColumnClassName}>
           <div className="flex items-baseline justify-between gap-4">
             <Skeleton className="h-6 w-28" />
             <Skeleton className="h-4 w-20" />
           </div>
-          <div className="mt-4 flex max-h-dvh flex-col gap-6 overflow-hidden">
+          <div className="mt-4 flex flex-col gap-6">
             {['first', 'second', 'third', 'fourth'].map((key) => (
               <div className="flex flex-col gap-3" key={key}>
                 <Skeleton className="h-6 w-3/5" />
@@ -264,13 +256,11 @@ export function DocumentDetailSkeleton() {
             ))}
           </div>
         </div>
-        <div
-          className={`${tocColumnClassName} lg:grid lg:h-full lg:grid-rows-[auto_minmax(0,1fr)]`}
-        >
+        <div className={tocColumnClassName}>
           <div>
             <Skeleton className="h-5 w-16" />
           </div>
-          <div className="mt-3 flex flex-col gap-3 overflow-y-auto">
+          <div className="mt-3 flex flex-col gap-3">
             {tocSkeletonKeys.map((key) => (
               <Skeleton className="h-4 w-full" key={key} />
             ))}

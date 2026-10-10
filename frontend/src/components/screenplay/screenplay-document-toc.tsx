@@ -37,7 +37,7 @@ export function ScreenplayDocumentToc({
   return (
     <NavigationMenu
       aria-labelledby="screenplay-toc-title"
-      className="block max-w-none flex-none lg:grid lg:h-full lg:items-stretch lg:justify-stretch lg:grid-rows-[auto_minmax(0,1fr)] lg:overflow-hidden"
+      className="block max-w-none flex-none"
       orientation="vertical"
       viewport={false}
     >
@@ -52,7 +52,7 @@ export function ScreenplayDocumentToc({
       </div>
 
       {headings.length ? (
-        <div className="mt-3 overflow-y-auto overscroll-contain scrollbar-thin">
+        <div className="mt-3">
           <NavigationMenuList className="w-full flex-none flex-col items-stretch justify-start gap-0.5">
             {headings.map((heading) => (
               <NavigationMenuItem key={heading.id}>

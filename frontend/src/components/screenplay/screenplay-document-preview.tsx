@@ -22,10 +22,7 @@ export function ScreenplayDocumentPreview({
     [document.preview],
   );
   return (
-    <div
-      className="min-w-0 lg:grid lg:h-full lg:grid-rows-[auto_minmax(0,1fr)_auto]"
-      data-testid="screenplay-preview-column"
-    >
+    <div className="min-w-0" data-testid="screenplay-preview-column">
       <div className="flex items-baseline justify-between gap-4">
         <ItemTitle className="line-clamp-none">
           <h2 id="screenplay-preview-title">规范化剧本</h2>
@@ -41,7 +38,7 @@ export function ScreenplayDocumentPreview({
             links={false}
             aria-label="规范化剧本 Markdown 预览"
             tabIndex={0}
-            className="mt-4 max-h-dvh overflow-y-auto overscroll-contain scrollbar-thin focus-visible:outline-2 focus-visible:outline-ring focus-visible:outline-offset-2"
+            className="mt-4 focus-visible:outline-2 focus-visible:outline-ring focus-visible:outline-offset-2"
             data-testid="screenplay-markdown-reader"
           />
           {document.preview_truncated ? (

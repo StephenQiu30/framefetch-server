@@ -12,11 +12,9 @@ const columnVariants = {
 export function SplitLayout({
   className,
   columns = 'equal',
-  scrollable = false,
   ...props
 }: ComponentProps<'div'> & {
   columns?: keyof typeof columnVariants;
-  scrollable?: boolean;
 }) {
   return (
     <div
@@ -24,8 +22,6 @@ export function SplitLayout({
       className={cn(
         'grid min-w-0 items-stretch gap-10 *:min-w-0 lg:gap-14',
         columnVariants[columns],
-        scrollable &&
-          'lg:max-h-dvh lg:grid-rows-[minmax(0,1fr)] lg:overflow-hidden lg:*:min-h-0 lg:*:overflow-hidden',
         className,
       )}
       {...props}
