@@ -442,6 +442,8 @@ def test_business_queue_and_retry_policy_cannot_be_overridden_by_environment(
         "analysis_report_routing_key",
         "import_queue",
         "import_routing_key",
+        "watermark_queue",
+        "watermark_routing_key",
         "max_download_attempts",
         "analysis_max_runs_per_job",
         "analysis_manual_retry_min_interval_seconds",
@@ -457,4 +459,5 @@ def test_business_queue_and_retry_policy_cannot_be_overridden_by_environment(
         "video.download",
         "video.analysis-report",
         "video.import",
+        "video.watermark",
     ]

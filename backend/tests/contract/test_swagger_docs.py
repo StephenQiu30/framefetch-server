@@ -132,6 +132,10 @@ def test_swagger_ui_and_openapi_contract_are_available(tmp_path: Path) -> None:
         "cancelDownload",
         "retryDownload",
         "issueDownloadUrl",
+        "listWatermarkTasks",
+        "createWatermarkTask",
+        "cancelWatermarkTask",
+        "getWatermarkFile",
         "getContentSource",
         "listContentVersions",
         "getAnalysis",
@@ -150,6 +154,9 @@ def test_swagger_ui_and_openapi_contract_are_available(tmp_path: Path) -> None:
     assert all(len(operation["tags"]) == 1 for operation in operations.values())
 
     components = schema["components"]["schemas"]
+    assert "requestBody" not in operations["createWatermarkTask"]
+    assert "WatermarkRequest" not in components
+    assert "parameters" not in components["WatermarkTaskResponse"]["properties"]
     assert components["ProviderIdentity"]["enum"] == ["none", "prefer", "required"]
     assert components["LivenessResponse"]["properties"]["status"]["$ref"] == (
         "#/components/schemas/LivenessStatus"

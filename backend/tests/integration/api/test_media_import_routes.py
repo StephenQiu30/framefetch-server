@@ -257,7 +257,11 @@ def test_media_import_openapi_is_strict_and_has_unique_operations(
         "declared_sha256",
         "declared_origin",
         "rights_accepted",
+        "remove_watermark",
     }
+    assert request["properties"]["remove_watermark"]["type"] == "boolean"
+    assert request["properties"]["remove_watermark"]["default"] is False
+    assert "remove_watermark" not in request["required"]
     serialized = str(paths).casefold()
     assert "minio_import" not in serialized
     assert "upload_id" not in serialized
