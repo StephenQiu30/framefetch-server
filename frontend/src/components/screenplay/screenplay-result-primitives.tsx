@@ -68,7 +68,7 @@ export function Detail({
   );
 }
 
-export function Metric({ label, value }: { label: string; value: string }) {
+export function Metric({ label, value }: { label: string; value: ReactNode }) {
   return (
     <div>
       <ItemDescription className="line-clamp-none">{label}</ItemDescription>

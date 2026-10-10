@@ -1,5 +1,6 @@
 'use client';
 
+import { ArrowRightIcon } from '@phosphor-icons/react';
 import AnalysisReportPreview from '@/components/analysis/analysis-report-preview';
 import {
   languageLabel,
@@ -41,7 +42,14 @@ export default function ScreenplayRewriteResultView({
         <Metric label="输出场景" value={`${result.output_scene_count}`} />
         <Metric
           label="语言"
-          value={`${languageLabel(result.source_language)} → ${languageLabel(result.target_language)}`}
+          value={
+            <span className="inline-flex flex-wrap items-center gap-1">
+              <span>{languageLabel(result.source_language)}</span>
+              <ArrowRightIcon aria-hidden className="size-4 shrink-0" />
+              <span className="sr-only">至</span>
+              <span>{languageLabel(result.target_language)}</span>
+            </span>
+          }
         />
       </div>
       <div className="mt-10 overflow-x-auto">

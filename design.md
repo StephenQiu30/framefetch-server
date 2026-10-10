@@ -9,6 +9,7 @@
 - 技术基础为 Next.js、Tailwind CSS v4、shadcn/ui `radix-nova` 样式与 Radix primitives；`style`、`base` 与图标库以 `frontend/components.json` 为准。
 - 组件通过 shadcn CLI 添加或更新，源码与样式保持官方 registry 默认实现。只有修复明确的可访问性或功能缺陷时才修改组件源码，并在提交中说明原因。
 - 页面优先组合已有组件：Button、Badge、Card、Dialog、DropdownMenu、Field、Input、InputGroup、NavigationMenu、Select、Table、Tabs、Textarea、Tooltip 等；交互状态使用组件自带的 `variant`、`size` 与 Radix 状态属性。
+- 界面图标统一使用 Phosphor 组件，不用 Unicode 字符或 emoji 代替；快捷键字母、正文标点、单位与公式保留文字。装饰图标使用 `aria-hidden`，有独立含义的图标通过可读名称或隐藏文字表达。
 - 页面级 `className` 只负责布局：宽度、网格、排列、间距与响应式位置；不改写组件的颜色、字号、圆角、阴影、高度、内边距或边框。
 - 无边框是唯一的全局样式例外，统一在 `globals.css` 的 `[data-design="borderless"]` 下按组件 `data-slot` 实现；不修改官方组件源码，不在页面分散覆盖。
 
@@ -42,7 +43,7 @@
 
 ## 页面结构
 
-- **站点导航**：左侧为品牌与主导航（首页、下载记录、剧本文档、平台状态），右侧为快捷操作入口、主题切换与账户。快捷操作入口是 secondary Button「搜索或粘贴链接」加 Kbd，只在 `--breakpoint-lg` 以上显示，快捷键在所有页面可用。
+- **站点导航**：左侧为品牌与主导航（首页、下载记录、剧本文档、平台状态），右侧为快捷操作入口、主题切换与账户。快捷操作入口使用 InputGroup、搜索图标与 Kbd，输入框通过 `placeholder="搜索或粘贴链接"` 展示提示，沿用 Input 的占位文字样式；点击、按 Enter 或开始输入时打开快捷操作弹窗，输入内容交给弹窗继续编辑。入口只在 `--breakpoint-lg` 以上显示，快捷键在所有页面可用。
 - **导航**：业务页顶部统一使用 `PageNavigation` 返回导航，保留站内历史返回与直接进入时的上级页面兜底，不展示虚假的路径面包屑；使用指南用官方 Breadcrumb，放在同一高度的 `PageNavigation` 区域。加载、错误与详情状态使用同一结构。
 - **移动导航**：分为工作区、管理、资源三组；管理只对管理员展示；使用指南、自托管部署与关于在匿名与登录状态均可到达。长菜单在视口内滚动，关闭或跳转后焦点回到触发按钮。
 - **登录与注册**：双栏布局，左栏表单垂直居中且最大宽度约 380px，右栏为中性产品说明与只读组件预览，仅在 lg 以上显示。注册步骤按邮箱验证状态显示「验证邮箱 → 设置密码」。页头只展示品牌与主题切换，快捷键入口保持可用。

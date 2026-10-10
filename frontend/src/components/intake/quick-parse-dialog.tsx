@@ -1,9 +1,11 @@
 'use client';
 
 import {
+  ArrowElbowDownLeftIcon,
   BookOpenIcon,
   ChartLineUpIcon,
   ClockCounterClockwiseIcon,
+  CommandIcon,
   FileTextIcon,
   FileVideoIcon,
   HardDrivesIcon,
@@ -36,7 +38,6 @@ import {
   PUBLIC_INPUT_REQUIRED,
 } from '@/components/intake/public-input';
 import { markNavigationPush } from '@/components/layout/navigation-state';
-import { Button } from '@/components/ui/button';
 import {
   Command,
   CommandGroup,
@@ -53,6 +54,11 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { FieldError } from '@/components/ui/field';
+import {
+  InputGroup,
+  InputGroupAddon,
+  InputGroupInput,
+} from '@/components/ui/input-group';
 import { Kbd } from '@/components/ui/kbd';
 
 const publicDestinations = [
@@ -184,15 +190,18 @@ export function QuickParseDialog() {
   );
   const showRegister = Boolean(!user && (!query || '注册账户'.includes(query)));
 
-  const openDialog = useCallback(() => {
-    returnFocus.current =
-      document.activeElement instanceof HTMLElement
-        ? document.activeElement
-        : null;
-    setValue(input);
-    setInvalid(false);
-    setOpen(true);
-  }, [input]);
+  const openDialog = useCallback(
+    (nextValue = input) => {
+      returnFocus.current =
+        document.activeElement instanceof HTMLElement
+          ? document.activeElement
+          : null;
+      setValue(nextValue);
+      setInvalid(false);
+      setOpen(true);
+    },
+    [input],
+  );
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -275,18 +284,31 @@ export function QuickParseDialog() {
 
   return (
     <>
-      <Button
-        aria-haspopup="dialog"
-        aria-keyshortcuts="Meta+K Control+K"
-        aria-label="搜索或粘贴链接"
-        className="w-60 justify-start"
-        onClick={openDialog}
-        variant="secondary"
-      >
-        <MagnifyingGlassIcon aria-hidden data-icon="inline-start" />
-        <span className="flex-1 text-left">搜索或粘贴链接</span>
-        <Kbd>⌘K</Kbd>
-      </Button>
+      <InputGroup className="w-60">
+        <InputGroupInput
+          aria-haspopup="dialog"
+          aria-keyshortcuts="Meta+K Control+K"
+          aria-label="搜索或粘贴链接"
+          onClick={() => openDialog()}
+          onChange={(event) => openDialog(event.currentTarget.value)}
+          onKeyDown={(event) => {
+            if (event.key !== 'Enter') return;
+            event.preventDefault();
+            openDialog();
+          }}
+          placeholder="搜索或粘贴链接"
+          type="search"
+          value=""
+        />
+        <InputGroupAddon>
+          <MagnifyingGlassIcon aria-hidden />
+        </InputGroupAddon>
+        <InputGroupAddon align="inline-end">
+          <Kbd aria-label="Command + K">
+            <CommandIcon aria-hidden />K
+          </Kbd>
+        </InputGroupAddon>
+      </InputGroup>
       <Dialog onOpenChange={setOpen} open={open}>
         <DialogContent
           className="max-h-svh overflow-y-auto overscroll-contain sm:max-w-2xl"
@@ -338,7 +360,9 @@ export function QuickParseDialog() {
                     <CommandItem onSelect={submit} value="解析链接">
                       <LinkSimpleIcon aria-hidden />
                       解析链接
-                      <CommandShortcut>↵</CommandShortcut>
+                      <CommandShortcut aria-label="Enter">
+                        <ArrowElbowDownLeftIcon aria-hidden />
+                      </CommandShortcut>
                     </CommandItem>
                   ) : null}
                   {showVideoUpload ? (

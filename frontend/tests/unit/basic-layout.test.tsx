@@ -100,7 +100,7 @@ describe('BasicLayout', () => {
       </BasicLayout>,
     );
     const quickAction = within(screen.getByRole('banner')).queryByRole(
-      'button',
+      'searchbox',
       { name: '搜索或粘贴链接' },
     );
     expect(quickAction).toBeInTheDocument();
@@ -110,7 +110,7 @@ describe('BasicLayout', () => {
       ...(pathname.startsWith('/user/') ? ['hidden'] : ['hidden', 'lg:block']),
     );
     expect(
-      within(screen.getByRole('contentinfo')).queryByRole('button', {
+      within(screen.getByRole('contentinfo')).queryByRole('searchbox', {
         name: '搜索或粘贴链接',
       }),
     ).not.toBeInTheDocument();
@@ -146,7 +146,7 @@ describe('BasicLayout', () => {
         within(footer).getByText(/请仅处理已获授权内容/),
       ).toBeInTheDocument();
       expect(
-        within(footer).queryByRole('button', { name: '搜索或粘贴链接' }),
+        within(footer).queryByRole('searchbox', { name: '搜索或粘贴链接' }),
       ).not.toBeInTheDocument();
       expect(
         within(footer).queryByRole('navigation', { name: '项目链接' }),

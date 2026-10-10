@@ -47,6 +47,34 @@ describe('quick parse', () => {
     window.history.replaceState({}, '', '/history');
   });
 
+  it('shows a native placeholder and hands header input to the dialog', () => {
+    render(<Harness />);
+    const search = screen.getByRole('searchbox', {
+      name: '搜索或粘贴链接',
+    });
+    expect(search).toHaveAttribute('placeholder', '搜索或粘贴链接');
+    expect(search).toHaveValue('');
+    fireEvent.change(search, { target: { value: '下载记录' } });
+    expect(screen.getByRole('combobox', { name: '链接或页面' })).toHaveValue(
+      '下载记录',
+    );
+    expect(search).toHaveValue('');
+  });
+
+  it('opens from the focused search field with Enter and restores focus', async () => {
+    render(<Harness />);
+    const search = screen.getByRole('searchbox', {
+      name: '搜索或粘贴链接',
+    });
+    search.focus();
+    fireEvent.keyDown(search, { key: 'Enter' });
+    const input = screen.getByRole('combobox', { name: '链接或页面' });
+    expect(input).toHaveFocus();
+    fireEvent.keyDown(input, { key: 'Escape' });
+    await waitFor(() => expect(search).toHaveFocus());
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+  });
+
   it('ignores keydown events without a key and still accepts uppercase K', () => {
     render(<Harness />);
     // Extensions can dispatch a generic Event instead of a KeyboardEvent.
@@ -85,7 +113,7 @@ describe('quick parse', () => {
     identity.authenticated = false;
     navigation.pathname = '/user/register';
     render(<Harness />);
-    fireEvent.click(screen.getByRole('button', { name: '搜索或粘贴链接' }));
+    fireEvent.click(screen.getByRole('searchbox', { name: '搜索或粘贴链接' }));
     fireEvent.click(screen.getByRole('option', { name: '登录后使用' }));
     expect(navigation.push).toHaveBeenCalledWith('/user/login?redirect=%2F');
     expect(httpRequests()).toHaveLength(0);

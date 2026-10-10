@@ -327,6 +327,9 @@ describe('ScreenplayAnalysisPanel', () => {
     ).toBeInTheDocument();
     expect(screen.getByText('Lin Zhou')).toBeInTheDocument();
     expect(screen.getByText('统一人物名译法。')).toBeInTheDocument();
+    expect(screen.getByText('简体中文')).toBeInTheDocument();
+    expect(screen.getByText('English')).toBeInTheDocument();
+    expect(screen.getByText('至')).toHaveClass('sr-only');
     const reportTab = screen.getByRole('tab', { name: '改写正文' });
     fireEvent.mouseDown(reportTab, { button: 0, ctrlKey: false });
     fireEvent.click(reportTab);
