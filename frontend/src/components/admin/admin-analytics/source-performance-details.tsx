@@ -15,7 +15,7 @@ type Source = API.DownloadAnalyticsResponse['sources'][number];
 
 export function SourcePerformanceDetails({ sources }: { sources: Source[] }) {
   return (
-    <div className="mt-7">
+    <div>
       <Table className="table-borderless">
         <TableCaption className="sr-only">各视频源下载表现</TableCaption>
         <TableHeader>

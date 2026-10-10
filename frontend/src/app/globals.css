@@ -268,6 +268,12 @@
     border-color: transparent;
   }
 
+  /* Recharts hides its SVG outline; keep keyboard focus visible on the chart. */
+  [data-usage-analytics] [data-slot="chart"]:has(:focus-visible) {
+    outline: 2px solid var(--ring);
+    outline-offset: 0.25rem;
+  }
+
   /* Shared borderless layout, retaining official interactive states. */
   [data-design="borderless"] [data-media-result-metadata] > [data-slot="item"],
   [data-design="borderless"] .table-borderless [data-slot="item"] {

@@ -18,8 +18,14 @@ describe('administrator usage analytics', () => {
   beforeEach(() => {
     // happy-dom has no layout; give responsive charts real dimensions so
     // assertions cover the rendered SVG rather than only their wrappers.
-    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue(
-      new DOMRect(0, 0, 640, 360),
+    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(
+      function (this: HTMLElement) {
+        // Axis text measurement must stay realistic: treating one label as a
+        // 640px container gives an automatic axis the entire plotting width.
+        return this.id === 'recharts_measurement_span'
+          ? new DOMRect(0, 0, (this.textContent?.length ?? 0) * 7, 14)
+          : new DOMRect(0, 0, 640, 360);
+      },
     );
     runtime.getAdminDownloadAnalytics.mockReset();
     runtime.getAnalysisAnalytics.mockReset();
@@ -56,6 +62,30 @@ describe('administrator usage analytics', () => {
     expect(screen.getByText(/平均视频时长/)).toHaveTextContent('2 分 5 秒');
     expect(screen.queryByRole('progressbar')).not.toBeInTheDocument();
 
+    fireEvent.click(screen.getByRole('button', { name: '下载数据量说明' }));
+    const metricExplanation = screen.getByRole('dialog', {
+      name: '下载数据量说明',
+    });
+    expect(
+      within(metricExplanation).getByText('平均视频时长 2 分 5 秒'),
+    ).toBeInTheDocument();
+    fireEvent.keyDown(metricExplanation, { key: 'Escape' });
+    await waitFor(() =>
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument(),
+    );
+    fireEvent.click(screen.getByRole('button', { name: '统计说明' }));
+    expect(
+      within(screen.getByRole('dialog', { name: '统计说明' })).getByText(
+        /按创建日期（UTC）统计/,
+      ),
+    ).toBeInTheDocument();
+    fireEvent.keyDown(screen.getByRole('dialog', { name: '统计说明' }), {
+      key: 'Escape',
+    });
+    await waitFor(() =>
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument(),
+    );
+
     expect(
       await screen.findByRole(
         'img',
@@ -73,21 +103,34 @@ describe('administrator usage analytics', () => {
       await screen.findByRole('img', { name: '视频来源任务贡献条形图' }),
     ).toBeInTheDocument();
     await waitFor(expectThemeAwareAxisLabels);
+    const dailyTrigger = screen.getByRole('button', {
+      name: '查看每日下载明细',
+    });
+    expect(dailyTrigger).toHaveAttribute('aria-expanded', 'false');
+    expect(
+      screen.queryByRole('table', { name: '每日下载趋势精确数据' }),
+    ).not.toBeInTheDocument();
+    fireEvent.click(dailyTrigger);
     const exactData = screen.getByRole('table', {
       name: '每日下载趋势精确数据',
     });
     expect(
       within(exactData).getByRole('row', { name: /2026-08-09 20 16 2 1/ }),
     ).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: '查看每日成功率明细' }));
     const exactRateData = screen.getByRole('table', {
       name: '每日下载成功率精确数据',
     });
-    // Clip the entire official Table container, otherwise the absolutely
-    // positioned table leaves an inaccessible zero-height scroll region.
-    for (const table of [exactData, exactRateData]) {
-      expect(table.closest('.sr-only')).toContainElement(table.parentElement);
-    }
-    expect(screen.getByText('最近一天 71.4%')).toBeInTheDocument();
+    expect(
+      within(exactRateData).getByRole('row', { name: /2026-08-10 71.4%/ }),
+    ).toBeInTheDocument();
+    fireEvent.click(dailyTrigger);
+    expect(
+      screen.queryByRole('table', { name: '每日下载趋势精确数据' }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByText('最近有任务日 8月10日 · 71.4%'),
+    ).toBeInTheDocument();
 
     expect(screen.getByText('抖音：62.5%')).toBeInTheDocument();
     expect(
@@ -105,11 +148,60 @@ describe('administrator usage analytics', () => {
     expect(
       screen.getByRole('rowheader', { name: /抖音 douyin/ }),
     ).toBeInTheDocument();
-    expect(screen.getAllByText('抖音')).toHaveLength(1);
+    expect(
+      within(
+        screen.getByRole('table', { name: '各视频源下载表现' }),
+      ).getAllByText('抖音'),
+    ).toHaveLength(1);
     expect(screen.getByRole('link', { name: '返回上一步' })).toHaveAttribute(
       'href',
       '/account',
     );
+  });
+
+  it('leaves days without tasks unmeasured and reports the latest sampled day', async () => {
+    runtime.getAdminDownloadAnalytics.mockResolvedValue(
+      analytics({
+        daily: [
+          {
+            date: '2026-08-08',
+            total: 0,
+            succeeded: 0,
+            failed: 0,
+            cancelled: 0,
+          },
+          {
+            date: '2026-08-09',
+            total: 4,
+            succeeded: 0,
+            failed: 4,
+            cancelled: 0,
+          },
+          {
+            date: '2026-08-10',
+            total: 0,
+            succeeded: 0,
+            failed: 0,
+            cancelled: 0,
+          },
+        ],
+      }),
+    );
+    render(<AdminAnalyticsView />);
+    fireEvent.click(
+      await screen.findByRole('button', { name: '查看每日成功率明细' }),
+    );
+    const table = screen.getByRole('table', { name: '每日下载成功率精确数据' });
+    expect(
+      within(table).getByRole('row', { name: /2026-08-08 —（无任务）/ }),
+    ).toBeInTheDocument();
+    expect(
+      within(table).getByRole('row', { name: /2026-08-09 0%/ }),
+    ).toBeInTheDocument();
+    expect(
+      within(table).getByRole('row', { name: /2026-08-10 —（无任务）/ }),
+    ).toBeInTheDocument();
+    expect(screen.getByText('最近有任务日 8月9日 · 0%')).toBeInTheDocument();
   });
 
   it('maps period changes and refresh to the analytics request', async () => {
@@ -221,9 +313,13 @@ describe('administrator usage analytics', () => {
         .nextElementSibling,
     ).toHaveTextContent('5');
     expect(screen.getByText('12 次有效完成记录')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: '统计说明' }));
     expect(
       screen.getByText(/按创建日期（UTC）统计分析执行记录/),
     ).toBeInTheDocument();
+    fireEvent.keyDown(screen.getByRole('dialog', { name: '统计说明' }), {
+      key: 'Escape',
+    });
     expect(
       await screen.findByRole('img', { name: 'AI 分析执行状态环形图' }),
     ).toBeInTheDocument();
@@ -231,6 +327,8 @@ describe('administrator usage analytics', () => {
       await screen.findByRole('img', { name: 'AI 分析输入类型环形图' }),
     ).toBeInTheDocument();
     await waitFor(expectThemeAwareAxisLabels);
+    fireEvent.click(screen.getByRole('button', { name: '查看输入类型明细' }));
+    fireEvent.click(screen.getByRole('button', { name: '查看执行状态明细' }));
     expect(screen.getByLabelText('AI 分析输入类型精确数据')).toHaveTextContent(
       '视频1260%剧本840%',
     );

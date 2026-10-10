@@ -1,16 +1,9 @@
 import {
-  Item,
-  ItemContent,
-  ItemDescription,
-  ItemGroup,
-  ItemTitle,
-} from '@/components/ui/item';
-
-import {
   formatDuration,
   formatInteger,
   formatPercent,
 } from './analytics-format';
+import { AnalyticsMetrics } from './analytics-metrics';
 
 export function AnalysisKpis({
   summary,
@@ -48,26 +41,5 @@ export function AnalysisKpis({
     },
   ];
 
-  return (
-    <ItemGroup className="grid grid-cols-2 gap-x-6 gap-y-6 sm:grid-cols-4">
-      {metrics.map((metric) => (
-        <Item
-          variant="muted"
-          className="min-w-0 items-start"
-          key={metric.label}
-          role="listitem"
-        >
-          <ItemContent className="gap-2">
-            <ItemTitle className="line-clamp-none">{metric.label}</ItemTitle>
-            <ItemTitle className="line-clamp-none">
-              <p className="mt-3 tabular-nums">{metric.value}</p>
-            </ItemTitle>
-            <ItemDescription className="mt-3 line-clamp-none">
-              {metric.detail}
-            </ItemDescription>
-          </ItemContent>
-        </Item>
-      ))}
-    </ItemGroup>
-  );
+  return <AnalyticsMetrics label="AI 分析周期概览" metrics={metrics} />;
 }

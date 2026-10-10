@@ -1,37 +1,33 @@
 import { Skeleton } from '@/components/ui/skeleton';
 
-export function AnalyticsLoading() {
+export function AnalyticsLoading({
+  analysis = false,
+  label = '正在加载下载分析',
+}: {
+  label?: string;
+  analysis?: boolean;
+}) {
   return (
-    <div
-      aria-label="正在加载下载分析"
-      className="flex flex-col gap-8"
-      role="status"
-    >
-      <span className="sr-only">正在加载下载分析</span>
-      <div>
-        <Skeleton className="h-5 w-20" />
-        <Skeleton className="mt-2 h-4 w-48" />
-      </div>
-      <div className="grid grid-cols-2 gap-8 lg:grid-cols-4">
-        {['total', 'rate', 'users', 'bytes'].map((key) => (
-          <div className="flex flex-col gap-3" key={key}>
-            <Skeleton className="h-3 w-20" />
-            <Skeleton className="h-12 w-32" />
-            <Skeleton className="h-3 w-full max-w-40" />
-          </div>
+    <div aria-label={label} className="flex flex-col gap-8" role="status">
+      <span className="sr-only">{label}</span>
+      <div aria-hidden className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+        {['total', 'rate', 'third', 'fourth'].map((key) => (
+          <Skeleton className="h-32 w-full" key={key} />
         ))}
       </div>
-      <Skeleton className="w-full aspect-video md:aspect-[3/1]" />
-      <div className="flex flex-col gap-8">
-        {['status', 'completion', 'sources'].map((key) => (
-          <div key={key}>
-            <Skeleton className="h-6 w-32" />
-            <Skeleton className="mt-2 h-4 w-56 max-w-full" />
-            <Skeleton className="mt-8 w-full aspect-video md:aspect-[3/1]" />
-          </div>
-        ))}
+      <Skeleton aria-hidden className="aspect-[4/3] w-full sm:aspect-[4/1]" />
+      <div
+        aria-hidden
+        className={
+          analysis ? 'grid gap-6 lg:grid-cols-2' : 'grid gap-6 lg:grid-cols-3'
+        }
+      >
+        {(analysis ? ['first', 'second'] : ['first', 'second', 'third']).map(
+          (key) => (
+            <Skeleton className="aspect-[4/3] w-full" key={key} />
+          ),
+        )}
       </div>
-      <Skeleton className="h-80" />
     </div>
   );
 }

@@ -1,7 +1,13 @@
 'use client';
 
-import { ChartBarIcon } from '@phosphor-icons/react';
-import { Bar, BarChart, CartesianGrid, XAxis, YAxis } from 'recharts';
+import {
+  Bar,
+  BarChart,
+  CartesianGrid,
+  LabelList,
+  XAxis,
+  YAxis,
+} from 'recharts';
 import { PageEmptyNotice } from '@/components/layout/page-empty-notice';
 import {
   type ChartConfig,
@@ -9,13 +15,17 @@ import {
   ChartTooltip,
   ChartTooltipContent,
 } from '@/components/ui/chart';
-import { ItemDescription, ItemTitle } from '@/components/ui/item';
 
+import {
+  ANALYTICS_CHART_ASPECT,
+  AnalyticsChartPanel,
+} from './analytics-chart-panel';
 import {
   ANALYTICS_CHART_COLOR,
   formatInteger,
   formatPercent,
 } from './analytics-format';
+import { SourcePerformanceDetails } from './source-performance-details';
 
 type Source = API.DownloadAnalyticsResponse['sources'][number];
 
@@ -39,19 +49,18 @@ export function SourceBreakdown({
       share,
     };
   });
-  const hiddenCount = Math.max(0, sorted.length - visible.length);
 
   return (
-    <div className="w-full">
-      <ItemTitle className="line-clamp-none">
-        <h2 className="flex items-center gap-2" id="source-breakdown-title">
-          <ChartBarIcon aria-hidden />
-          来源贡献
-        </h2>
-      </ItemTitle>
-      <ItemDescription className="line-clamp-none mt-2 max-w-2xl">
-        对比主要视频源的任务量与占比。
-      </ItemDescription>
+    <AnalyticsChartPanel
+      id="source-breakdown"
+      title="来源贡献"
+      detailsLabel={`查看 ${formatInteger(sorted.length)} 个来源`}
+      details={
+        sorted.length > 0 ? (
+          <SourcePerformanceDetails sources={sorted} />
+        ) : undefined
+      }
+    >
       {sorted.length === 0 ? (
         <PageEmptyNotice
           compact
@@ -63,28 +72,35 @@ export function SourceBreakdown({
           <ChartContainer
             aria-describedby="source-breakdown-description"
             aria-label="视频来源任务贡献条形图"
-            className="mt-8 w-full md:aspect-[3/1]"
+            className={ANALYTICS_CHART_ASPECT}
             config={sourceConfig}
             role="img"
           >
-            <BarChart accessibilityLayer data={visible}>
-              <CartesianGrid stroke="var(--border)" vertical={false} />
+            <BarChart
+              accessibilityLayer
+              data={visible}
+              layout="vertical"
+              margin={{ right: 32, top: 12, bottom: 0, left: 0 }}
+            >
+              <CartesianGrid horizontal={false} />
               <XAxis
-                tick={{ fill: 'var(--muted-foreground)' }}
-                axisLine={false}
-                dataKey="name"
-                tickLine={false}
-                tickFormatter={(value) => {
-                  const label = String(value);
-                  return label.length > 10 ? `${label.slice(0, 9)}…` : label;
-                }}
-              />
-              <YAxis
                 tick={{ fill: 'var(--muted-foreground)' }}
                 axisLine={false}
                 allowDecimals={false}
                 tickLine={false}
+                type="number"
+              />
+              <YAxis
+                tick={{ fill: 'var(--muted-foreground)' }}
+                axisLine={false}
+                dataKey="name"
+                tickLine={false}
+                type="category"
                 width="auto"
+                tickFormatter={(value) => {
+                  const label = String(value);
+                  return label.length > 14 ? `${label.slice(0, 13)}…` : label;
+                }}
               />
               <ChartTooltip
                 content={
@@ -111,11 +127,19 @@ export function SourceBreakdown({
                 cursor={{ fill: 'var(--muted)', opacity: 0.7 }}
               />
               <Bar
+                maxBarSize={24}
                 dataKey="total"
                 fill="var(--color-total)"
                 isAnimationActive={false}
-                radius={[3, 3, 0, 0]}
-              />
+                radius={[0, 3, 3, 0]}
+              >
+                <LabelList
+                  dataKey="total"
+                  position="right"
+                  fill="var(--muted-foreground)"
+                  formatter={(value) => formatInteger(Number(value))}
+                />
+              </Bar>
             </BarChart>
           </ChartContainer>
           <p className="sr-only" id="source-breakdown-description">
@@ -130,12 +154,6 @@ export function SourceBreakdown({
           </ol>
         </>
       )}
-      <ItemDescription className="line-clamp-none mt-5 tabular-nums">
-        {formatInteger(sorted.length)} 个来源
-        {hiddenCount > 0
-          ? ` · 其余 ${formatInteger(hiddenCount)} 个可在明细中查看`
-          : ' · 已全部展示'}
-      </ItemDescription>
-    </div>
+    </AnalyticsChartPanel>
   );
 }

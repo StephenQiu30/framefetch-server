@@ -1,7 +1,13 @@
 'use client';
 
-import { Area, AreaChart, CartesianGrid, XAxis } from 'recharts';
-
+import {
+  Bar,
+  CartesianGrid,
+  ComposedChart,
+  Line,
+  XAxis,
+  YAxis,
+} from 'recharts';
 import {
   type ChartConfig,
   ChartContainer,
@@ -10,52 +16,44 @@ import {
   ChartTooltip,
   ChartTooltipContent,
 } from '@/components/ui/chart';
-
+import { ANALYTICS_TREND_ASPECT } from './analytics-chart-panel';
 import { formatShortDate } from './analytics-format';
 
-type DailyPoint = API.DownloadAnalyticsResponse['daily'][number];
+type DailyPoint = { date: string; total: number; succeeded: number };
 
-const trendConfig = {
-  total: { color: 'var(--chart-2)', label: '全部任务' },
-  succeeded: { color: 'var(--chart-1)', label: '成功任务' },
-} satisfies ChartConfig;
-
-export function DailyTrendPlot({ points }: { points: DailyPoint[] }) {
+export function DailyTrendPlot({
+  points,
+  kind = 'downloads',
+}: {
+  points: DailyPoint[];
+  kind?: 'downloads' | 'analysis';
+}) {
+  const trendConfig = {
+    total: {
+      color: 'var(--chart-2)',
+      label: kind === 'downloads' ? '全部任务' : '全部执行',
+    },
+    succeeded: {
+      color: 'var(--chart-1)',
+      label: kind === 'downloads' ? '成功任务' : '成功执行',
+    },
+  } satisfies ChartConfig;
   return (
     <ChartContainer
-      aria-describedby="daily-trend-description"
-      aria-label="每日下载任务交互趋势图"
-      className="w-full md:aspect-[3/1]"
+      aria-label={
+        kind === 'downloads'
+          ? '每日下载任务交互趋势图'
+          : '每日 AI 分析执行趋势图'
+      }
+      className={ANALYTICS_TREND_ASPECT}
       config={trendConfig}
       role="img"
     >
-      <AreaChart accessibilityLayer data={points}>
-        <defs>
-          <linearGradient id="fillTotal" x1="0" y1="0" x2="0" y2="1">
-            <stop
-              offset="5%"
-              stopColor="var(--color-total)"
-              stopOpacity={0.8}
-            />
-            <stop
-              offset="95%"
-              stopColor="var(--color-total)"
-              stopOpacity={0.1}
-            />
-          </linearGradient>
-          <linearGradient id="fillSucceeded" x1="0" y1="0" x2="0" y2="1">
-            <stop
-              offset="5%"
-              stopColor="var(--color-succeeded)"
-              stopOpacity={0.8}
-            />
-            <stop
-              offset="95%"
-              stopColor="var(--color-succeeded)"
-              stopOpacity={0.1}
-            />
-          </linearGradient>
-        </defs>
+      <ComposedChart
+        accessibilityLayer
+        data={points}
+        margin={{ top: 12, right: 12, left: 0, bottom: 0 }}
+      >
         <CartesianGrid vertical={false} />
         <XAxis
           tick={{ fill: 'var(--muted-foreground)' }}
@@ -63,6 +61,14 @@ export function DailyTrendPlot({ points }: { points: DailyPoint[] }) {
           dataKey="date"
           tickFormatter={formatShortDate}
           tickLine={false}
+          minTickGap={32}
+        />
+        <YAxis
+          tick={{ fill: 'var(--muted-foreground)' }}
+          axisLine={false}
+          allowDecimals={false}
+          tickLine={false}
+          width="auto"
         />
         <ChartTooltip
           content={
@@ -70,28 +76,26 @@ export function DailyTrendPlot({ points }: { points: DailyPoint[] }) {
               labelFormatter={(label) => formatShortDate(String(label))}
             />
           }
-          cursor={false}
+          cursor={{ fill: 'var(--muted)' }}
         />
-        {/* Linear segments keep succeeded <= total between daily points;
-            spline smoothing could draw impossible values. */}
-        <Area
+        <Bar
+          maxBarSize={24}
           dataKey="total"
-          fill="url(#fillTotal)"
+          fill="var(--color-total)"
+          fillOpacity={0.5}
           isAnimationActive={false}
-          stroke="var(--color-total)"
-          strokeWidth={2}
-          type="linear"
+          radius={[3, 3, 0, 0]}
         />
-        <Area
+        <Line
           dataKey="succeeded"
-          fill="url(#fillSucceeded)"
           isAnimationActive={false}
           stroke="var(--color-succeeded)"
           strokeWidth={2}
           type="linear"
+          dot={points.length === 1}
         />
-        <ChartLegend content={<ChartLegendContent />} />
-      </AreaChart>
+        <ChartLegend itemSorter={null} content={<ChartLegendContent />} />
+      </ComposedChart>
     </ChartContainer>
   );
 }

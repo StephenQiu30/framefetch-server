@@ -4,14 +4,13 @@ import type { ReactNode } from 'react';
 import { AnalyticsKpis } from '@/components/admin/admin-analytics/analytics-kpis';
 import { AnalyticsLoading } from '@/components/admin/admin-analytics/analytics-states';
 import { DailyTrendChart } from '@/components/admin/admin-analytics/daily-trend-chart';
-import { SourcePerformance } from '@/components/admin/admin-analytics/source-performance';
 import { FeedbackNotice } from '@/components/layout/feedback-notice';
 import { PageEmptyNotice } from '@/components/layout/page-empty-notice';
 import { PageErrorNotice } from '@/components/layout/page-error-notice';
 import { PageHeader } from '@/components/layout/page-header';
 import { PageNavigation } from '@/components/layout/page-navigation';
 import { Button } from '@/components/ui/button';
-import { Item, ItemContent, ItemDescription } from '@/components/ui/item';
+import { ItemDescription } from '@/components/ui/item';
 import {
   Select,
   SelectContent,
@@ -23,6 +22,7 @@ import {
 import { Spinner } from '@/components/ui/spinner';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { formatDateRange } from './analytics-format';
+import { AnalyticsHelp } from './analytics-help';
 import { ChartLoading, DeferredChart } from './deferred-chart';
 
 const CompletionRateChart = dynamic(
@@ -30,18 +30,18 @@ const CompletionRateChart = dynamic(
     import('./completion-rate-chart').then(
       (module) => module.CompletionRateChart,
     ),
-  { loading: ChartLoading },
+  { loading: () => <ChartLoading /> },
 );
 const SourceBreakdown = dynamic(
   () => import('./source-breakdown').then((module) => module.SourceBreakdown),
-  { loading: ChartLoading },
+  { loading: () => <ChartLoading /> },
 );
 const StatusDistributionChart = dynamic(
   () =>
     import('./status-distribution-chart').then(
       (module) => module.StatusDistributionChart,
     ),
-  { loading: ChartLoading },
+  { loading: () => <ChartLoading /> },
 );
 
 const periodLabels = {
@@ -77,8 +77,9 @@ export function AdminAnalyticsScreen({
 }: AdminAnalyticsScreenProps) {
   return (
     <Tabs
+      data-usage-analytics
       aria-busy={loading}
-      className="gap-8"
+      className="gap-6"
       onValueChange={(value) => {
         if (value === 'downloads' || value === 'analysis') onTabChange(value);
       }}
@@ -88,8 +89,8 @@ export function AdminAnalyticsScreen({
         <PageNavigation fallbackHref="/account" />
         <PageHeader
           action={
-            <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-              <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+            <div className="flex items-end gap-2 sm:items-center">
+              <div className="flex min-w-0 flex-1 flex-col gap-2 sm:flex-row sm:items-center">
                 {dateRange ? (
                   <ItemDescription className="line-clamp-none tabular-nums">
                     {formatDateRange(dateRange.start, dateRange.end)}
@@ -120,7 +121,7 @@ export function AdminAnalyticsScreen({
               </div>
               <Button
                 aria-label="刷新使用统计"
-                className="w-full shrink-0 sm:w-auto"
+                className="shrink-0"
                 disabled={loading}
                 onClick={onRetry}
                 type="button"
@@ -135,22 +136,16 @@ export function AdminAnalyticsScreen({
               </Button>
             </div>
           }
-          description="查看下载表现与 AI 分析执行情况。"
           title="使用统计"
         />
       </div>
-      <TabsList aria-label="统计内容">
-        <TabsTrigger value="downloads">下载</TabsTrigger>
-        <TabsTrigger value="analysis">AI 分析</TabsTrigger>
-      </TabsList>
-      <Item variant="muted">
-        <ItemContent>
-          <ItemDescription className="line-clamp-none">
-            图表聚焦后可用左右方向键读取数据；精确数值可在图表明细中查看。AI
-            统计按分析执行记录计数，不代表模型请求次数、Token 或费用。
-          </ItemDescription>
-        </ItemContent>
-      </Item>
+      <div className="flex items-center justify-between gap-3">
+        <TabsList aria-label="统计内容">
+          <TabsTrigger value="downloads">下载</TabsTrigger>
+          <TabsTrigger value="analysis">AI 分析</TabsTrigger>
+        </TabsList>
+        <AnalyticsHelp kind={tab} />
+      </div>
       <TabsContent className="flex flex-col gap-8" value="downloads">
         {downloadContent}
       </TabsContent>
@@ -194,9 +189,6 @@ export function DownloadAnalyticsContent({
         />
       ) : null}
       {loading && !data ? <AnalyticsLoading /> : null}
-      {data && data.summary.total > 0 ? (
-        <DailyTrendChart daily={data.daily} />
-      ) : null}
       {data && data.summary.total === 0 ? (
         <PageEmptyNotice
           title="当前周期还没有下载数据"
@@ -204,14 +196,12 @@ export function DownloadAnalyticsContent({
         />
       ) : null}
       {data && data.summary.total > 0 ? (
-        <div className="flex flex-col gap-8">
+        <>
           <AnalyticsKpis summary={data.summary} />
-          <div className="flex flex-col gap-8">
+          <DailyTrendChart daily={data.daily} />
+          <div className="grid min-w-0 gap-6 lg:grid-cols-3">
             <DeferredChart>
               <StatusDistributionChart summary={data.summary} />
-            </DeferredChart>
-            <DeferredChart>
-              <CompletionRateChart daily={data.daily} />
             </DeferredChart>
             <DeferredChart>
               <SourceBreakdown
@@ -219,9 +209,11 @@ export function DownloadAnalyticsContent({
                 total={data.summary.total}
               />
             </DeferredChart>
+            <DeferredChart>
+              <CompletionRateChart daily={data.daily} />
+            </DeferredChart>
           </div>
-          <SourcePerformance sources={data.sources} />
-        </div>
+        </>
       ) : null}
     </>
   );

@@ -4,9 +4,8 @@ import { PageEmptyNotice } from '@/components/layout/page-empty-notice';
 import { PageErrorNotice } from '@/components/layout/page-error-notice';
 import { SplitLayout } from '@/components/layout/split-layout';
 import { Button } from '@/components/ui/button';
-import { Skeleton } from '@/components/ui/skeleton';
-
 import { AnalysisKpis } from './analysis-kpis';
+import { AnalyticsLoading } from './analytics-states';
 import { ChartLoading, DeferredChart } from './deferred-chart';
 
 const AnalysisTrendChart = dynamic(
@@ -14,14 +13,22 @@ const AnalysisTrendChart = dynamic(
     import('./analysis-trend-chart').then(
       (module) => module.AnalysisTrendChart,
     ),
-  { loading: ChartLoading },
+  { loading: () => <ChartLoading trend /> },
 );
-const AnalysisBreakdownCharts = dynamic(
+const AnalysisStatusChart = dynamic(
   () =>
     import('./analysis-breakdown-charts').then(
-      (module) => module.AnalysisBreakdownCharts,
+      (module) => module.AnalysisStatusChart,
     ),
-  { loading: ChartLoading },
+  { loading: () => <ChartLoading /> },
+);
+
+const AnalysisInputChart = dynamic(
+  () =>
+    import('./analysis-breakdown-charts').then(
+      (module) => module.AnalysisInputChart,
+    ),
+  { loading: () => <ChartLoading /> },
 );
 
 export function AnalysisAnalyticsContent({
@@ -52,7 +59,9 @@ export function AnalysisAnalyticsContent({
           tone="error"
         />
       ) : null}
-      {loading && !data ? <AnalysisAnalyticsLoading /> : null}
+      {loading && !data ? (
+        <AnalyticsLoading analysis label="正在加载 AI 分析统计" />
+      ) : null}
       {data && data.summary.total === 0 ? (
         <PageEmptyNotice
           title="当前周期还没有 AI 分析记录"
@@ -61,55 +70,23 @@ export function AnalysisAnalyticsContent({
       ) : null}
       {data && data.summary.total > 0 ? (
         <>
-          <DeferredChart>
+          <AnalysisKpis summary={data.summary} />
+          <DeferredChart trend>
             <AnalysisTrendChart daily={data.daily} />
           </DeferredChart>
-          <AnalysisKpis summary={data.summary} />
-          <DeferredChart>
-            <AnalysisBreakdownCharts
-              inputs={data.inputs}
-              summary={data.summary}
-            />
-          </DeferredChart>
+          <SplitLayout className="gap-6 lg:gap-6">
+            <DeferredChart>
+              <AnalysisStatusChart summary={data.summary} />
+            </DeferredChart>
+            <DeferredChart>
+              <AnalysisInputChart
+                inputs={data.inputs}
+                total={data.summary.total}
+              />
+            </DeferredChart>
+          </SplitLayout>
         </>
       ) : null}
     </>
-  );
-}
-
-function AnalysisAnalyticsLoading() {
-  return (
-    <div
-      aria-label="正在加载 AI 分析统计"
-      className="flex flex-col gap-8"
-      role="status"
-    >
-      <span className="sr-only">正在加载 AI 分析统计</span>
-      <div aria-hidden>
-        <Skeleton className="h-7 w-32" />
-        <Skeleton className="mt-2 h-6 w-44" />
-        <Skeleton className="mt-6 aspect-video w-full md:aspect-[3/1]" />
-      </div>
-      <div aria-hidden className="grid grid-cols-2 gap-6 sm:grid-cols-4">
-        {['total', 'rate', 'duration', 'active'].map((key) => (
-          <Skeleton className="h-24 w-full" key={key} />
-        ))}
-      </div>
-      <SplitLayout aria-hidden>
-        {['status', 'input'].map((key) => (
-          <div key={key}>
-            <Skeleton className="h-7 w-24" />
-            <div className="mt-6 grid items-center gap-6 sm:grid-cols-2">
-              <Skeleton className="mx-auto aspect-square w-full max-w-xs rounded-full" />
-              <div className="flex flex-col gap-4">
-                {['first', 'second', 'third', 'fourth'].map((row) => (
-                  <Skeleton className="h-5 w-full" key={row} />
-                ))}
-              </div>
-            </div>
-          </div>
-        ))}
-      </SplitLayout>
-    </div>
   );
 }
