@@ -336,18 +336,17 @@ describe('DownloadJobView', () => {
     });
     const click = vi
       .spyOn(HTMLAnchorElement.prototype, 'click')
-      .mockImplementation(() => {});
+      .mockImplementation(function (this: HTMLAnchorElement) {
+        expect(this.getAttribute('href')).toBe(signedVideoUrl.url);
+        expect(this.download).toBe(signedVideoUrl.filename);
+      });
     render(<DownloadJobView jobId={job().id} />);
 
     fireEvent.click(await screen.findByRole('button', { name: '保存到本机' }));
-    await waitFor(() =>
-      expect(
-        document.querySelector<HTMLIFrameElement>(
-          'iframe[data-framefetch-download]',
-        ),
-      ).toHaveAttribute('src', signedVideoUrl.url),
-    );
-    expect(click).not.toHaveBeenCalled();
+    await waitFor(() => expect(click).toHaveBeenCalledOnce());
+    expect(
+      document.querySelector('iframe[data-framefetch-download]'),
+    ).toBeNull();
     expect(window.location.pathname).toBe('/downloads/detail/');
   });
 

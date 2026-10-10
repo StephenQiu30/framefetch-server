@@ -117,7 +117,7 @@ def test_global_errors_keep_status_headers_and_hide_internal_input() -> None:
             ("get", "/api/missing", 404, "not_found"),
             ("post", "/api/limited", 405, "method_not_allowed"),
             ("get", "/api/crash", 500, "internal_error"),
-            ("get", "/api/limited", 429, "rate_limited"),
+            ("get", "/api/limited", 429, "operation_rate_limited"),
         ):
             response = client.request(method, path)
             assert response.status_code == status

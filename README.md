@@ -67,6 +67,8 @@ test -f .env || cp .env.example .env
 docker compose up -d --build --wait --remove-orphans
 ```
 
+已安装宿主平台身份时，安装流程会生成私有的 `.local-runtime/identity/runner.env`；正常 Compose 启动、重建和 watch 会自动把其中的 Runner Bearer 注入 `session-runner`，无需额外命令或手动导出环境变量。首次安装与升级步骤见[平台身份与升级](#平台身份与升级)。未安装身份时该文件可缺省，匿名平台正常运行。
+
 开发时使用 `docker compose up --build --watch`，或在已启动的本地容器上运行 `docker compose watch --no-up` 并保持终端运行。前端代码自动热重载，API／worker 源码自动同步并重启，Runner 保留只读沙箱并自动重建；依赖变化自动构建。需要 Docker Compose 2.32.0 或更新版本，详见 [开发与发布规则](docs/design/12-可靠性与运行.md#发布)。生产部署使用同一文件，配置方式见下方生产入口。
 
 产品需求、系统设计与执行计划统一维护在 [docs/](docs/README.md)。将该目录作为 Obsidian 库打开，或用任意文本编辑器修改；版本通过 Git 管理，详见 [文档工作区](PROJECT.md#31-文档工作区)。
@@ -167,7 +169,11 @@ uv run python -m app.workers.identity.cli check
 
 macOS 扩展目录 `0700`、生成文件 `0600`；Windows 使用当前用户所有的 ACL，仅允许当前用户与 SYSTEM 访问。Windows 在写入密钥前收紧空文件的权限，读取或升级配置前检查访问规则，拒绝符号链接和目录联接。密钥和端口仅写入项目扩展目录的 `config.local.json`；它和生成的 `manifest.json` 均被 gitignore，安装会检查两者未被 Git 跟踪。源码只维护 `manifest.template.json`，不在 web_accessible_resources 中、不进入源码或发行包。**信任边界**：这些权限隔离网页与其他用户，不能隔离同一用户下可读写该目录的恶意进程。扩展和 cookie-source 共享配对密钥；Runner Bearer 是另一份独立凭据，不能复用。双向 HMAC 防止无配对密钥的本机假服务骗取 Cookie；不会赋予内容导出权利或扩大 content_scope。
 
-Compose 仅向 `session-runner` 注入宿主配置中相同的 `COOKIE_SOURCE_TOKEN`（通过调用 Compose 的进程环境传入，禁止输出令牌）；API、worker、egress-proxy 和 bgutil 不持有它。不要把整个宿主身份配置作为容器 env_file，配对密钥不进入任何容器。当前 Compose 与 squid 配套固定使用端口 `19101`，调整端口须同步精确代理 ACL。Runner 身份客户端显式使用受控代理，不使用环境代理、不跟随重定向；squid 只放行该宿主端口的 `POST /cookies` 和 `POST /yuanbao-parse`，强制直连，不经过 Clash／住宅上游。其他宿主端口、私网和 IP 字面量仍被拒绝。身份传输是明文 HTTP，egress-proxy 属于敏感信任组件，配置关闭访问日志、缓存和响应体存储。安装只启动宿主服务，Runner 的配套令牌与重建按运行时锁协议在真实验收时确认。
+Compose 仅向 `session-runner` 加载 `.local-runtime/identity/runner.env`。该文件由 `install` 与宿主服务 `run` 根据独立身份配置生成，只包含 `COOKIE_SOURCE_TOKEN`；API、worker、egress-proxy 和 bgutil 不持有它。目录与文件使用当前用户私有权限，写入时原子替换，生成前检查路径未被 Git 跟踪且已忽略；不打印令牌、不改写项目 `.env` 或 `.env.prod`。配对密钥不写入此文件，也不进入任何容器。不要把整个宿主身份配置作为容器 env_file。
+
+普通 `docker compose up`、`up --build`、`--force-recreate` 和 watch 都读取同一专用文件，不依赖启动终端的 `COOKIE_SOURCE_TOKEN`。已有安装升级只需正常执行一次 `install` 更新宿主服务与生成文件，之后重建无需额外操作。该文件缺省表示未安装身份；需要 Chrome 身份的平台仍须完成上面的安装与连接。文件含独立 Runner Bearer，不应上传、提交或放入发行包，勿输出完整 `docker compose config`／`docker inspect` 的环境内容。
+
+当前 Compose 与 squid 配套固定使用端口 `19101`，调整端口须同步精确代理 ACL。Runner 身份客户端显式使用受控代理，不使用环境代理、不跟随重定向；squid 只放行该宿主端口的 `POST /cookies` 和 `POST /yuanbao-parse`，强制直连，不经过 Clash／住宅上游。其他宿主端口、私网和 IP 字面量仍被拒绝。身份传输是明文 HTTP，egress-proxy 属于敏感信任组件，配置关闭访问日志、缓存和响应体存储。安装只启动宿主服务；业务服务仍由唯一的 `docker-compose.yml` 启动。
 
 扩展使用 20 秒心跳、30 秒 alarm 和上限 30 秒的指数退避，并同步注册启动事件。保活机制依据 [Chrome WebSocket 文档](https://developer.chrome.com/docs/extensions/how-to/web-platform/websockets)；真实关闭 DevTools、睡眠唤醒与各类重启恢复仍须实测。
 

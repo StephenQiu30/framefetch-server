@@ -182,9 +182,14 @@ def test_identity_token_is_only_in_session_runner_environment():
     holders = [
         name
         for name, service in services.items()
-        if "COOKIE_SOURCE_TOKEN" in service.get("environment", {})
+        if service.get("env_file")
+        == [{"path": "./.local-runtime/identity/runner.env", "required": False}]
     ]
     assert holders == ["session-runner"]
+    assert all(
+        "COOKIE_SOURCE_TOKEN" not in service.get("environment", {})
+        for service in services.values()
+    )
     assert services["session-runner"]["environment"]["COOKIE_SOURCE_PORT"] == "19101"
 
 

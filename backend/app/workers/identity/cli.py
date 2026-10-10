@@ -105,6 +105,7 @@ def install(env_file: Path) -> Path:
     ):
         raise ValueError("pairing_key_must_differ_from_runner_token")
     extension = install_extension(settings)
+    publish_runner_environment(settings)
     if sys.platform == "win32":
         manage_service(extension.parent / "backend", env_file)
         return extension
@@ -180,6 +181,38 @@ async def check(settings: CookieSourceSettings) -> int:
     return 0
 
 
+def publish_runner_environment(settings: CookieSourceSettings) -> Path:
+    """Publish only the Runner Bearer for ordinary Compose startup and rebuilds."""
+    root = extension_home().parent
+    destination = root / ".local-runtime/identity/runner.env"
+    relative = destination.relative_to(root).as_posix()
+    tracked = subprocess.run(
+        ["git", "-C", str(root), "ls-files", "--error-unmatch", "--", relative],
+        capture_output=True,
+        timeout=5,
+    )
+    ignored = subprocess.run(
+        ["git", "-C", str(root), "check-ignore", "--quiet", "--", relative],
+        capture_output=True,
+        timeout=5,
+    )
+    if tracked.returncode != 1 or ignored.returncode != 0:
+        raise ValueError("identity_runner_environment_must_be_ignored")
+    private_directory(destination.parent)
+    if destination.exists() or destination.is_symlink():
+        require_private_file(destination)
+    temporary = destination.with_name(f".runner-{secrets.token_hex(8)}.env")
+    try:
+        private_write(
+            temporary,
+            f"COOKIE_SOURCE_TOKEN={settings.cookie_source_token.get_secret_value()}\n",
+        )
+        os.replace(temporary, destination)
+    finally:
+        temporary.unlink(missing_ok=True)
+    return destination
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="帧取宿主身份服务与 Chrome 扩展")
     parser.add_argument("command", choices=("run", "install", "uninstall", "check"))
@@ -199,6 +232,7 @@ def main() -> int:
             settings = configured(env_file)
             if args.command == "check":
                 return asyncio.run(check(settings))
+            publish_runner_environment(settings)
             import uvicorn
             from app.workers.identity.cookie_source import create_app
             from app.workers.identity.yuanbao_parse import (

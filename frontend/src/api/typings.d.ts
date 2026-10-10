@@ -1447,6 +1447,7 @@ declare namespace API {
     | "metrics_unavailable"
     | "not_found"
     | "ok"
+    | "operation_rate_limited"
     | "provider_catalog_conflict"
     | "provider_catalog_not_found"
     | "provider_failure"

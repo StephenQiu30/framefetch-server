@@ -1,9 +1,12 @@
 export function triggerBrowserDownload(url: string, filename = ''): void {
-  const frame = document.createElement('iframe');
-  frame.dataset.framefetchDownload = '';
-  frame.hidden = true;
-  frame.title = filename ? `正在下载：${filename}` : '正在下载文件';
-  frame.src = url;
-  document.body.append(frame);
-  window.setTimeout(() => frame.remove(), 60_000);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = filename;
+  link.hidden = true;
+  document.body.append(link);
+  try {
+    link.click();
+  } finally {
+    link.remove();
+  }
 }

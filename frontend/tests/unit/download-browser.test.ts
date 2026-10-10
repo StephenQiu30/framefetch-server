@@ -4,33 +4,27 @@ import { triggerBrowserDownload } from '@/lib/browser-download';
 
 describe('browser download', () => {
   afterEach(() => {
+    vi.restoreAllMocks();
     vi.useRealTimers();
-    document
-      .querySelectorAll('[data-framefetch-download]')
-      .forEach((element) => {
-        element.remove();
-      });
   });
 
-  it('starts attachment downloads without navigating the current page', () => {
+  it('hands the authenticated file directly to the browser download manager', () => {
     vi.useFakeTimers();
+    const url = '/api/downloads/123/file';
     const click = vi
       .spyOn(HTMLAnchorElement.prototype, 'click')
-      .mockImplementation(() => {});
+      .mockImplementation(function (this: HTMLAnchorElement) {
+        expect(this.getAttribute('href')).toBe(url);
+        expect(this.download).toBe('示例视频.mp4');
+        expect(this.isConnected).toBe(true);
+      });
 
-    triggerBrowserDownload('about:blank#signed-video', '示例视频.mp4');
+    triggerBrowserDownload(url, '示例视频.mp4');
 
-    expect(click).not.toHaveBeenCalled();
-    const frame = document.querySelector<HTMLIFrameElement>(
-      'iframe[data-framefetch-download]',
-    );
-    expect(frame).not.toBeNull();
-    expect(frame?.src).toBe('about:blank#signed-video');
-    expect(frame?.hidden).toBe(true);
-    expect(frame?.title).toBe('正在下载：示例视频.mp4');
-    expect(frame?.isConnected).toBe(true);
-
-    vi.advanceTimersByTime(60_000);
-    expect(frame?.isConnected).toBe(false);
+    expect(click).toHaveBeenCalledOnce();
+    expect(document.querySelector('a[download]')).toBeNull();
+    expect(document.querySelector('iframe')).toBeNull();
+    // A large/slow file must not be aborted by a one-minute frame cleanup.
+    expect(vi.getTimerCount()).toBe(0);
   });
 });

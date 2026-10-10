@@ -115,4 +115,4 @@ def test_rate_limit_returns_problem_details_and_retry_after(tmp_path: Path) -> N
 
     assert response.status_code == 429
     assert response.headers["retry-after"] == "7"
-    assert response.json()["code"] == "rate_limited"
+    assert response.json()["code"] == "operation_rate_limited"

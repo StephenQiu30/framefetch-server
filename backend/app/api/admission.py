@@ -60,7 +60,7 @@ async def enforce_rate_limit(
     except RateLimitExceeded as exc:
         raise AppError(
             status=429,
-            code="rate_limited",
+            code="operation_rate_limited",
             title="Too many requests",
             detail="The operation rate limit has been exceeded.",
             headers={"Retry-After": str(exc.retry_after)},

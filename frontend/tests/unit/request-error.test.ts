@@ -84,7 +84,11 @@ describe('request errors', () => {
       'identity_unavailable',
       '平台登录材料暂不可用，请检查部署主机的登录状态后重新解析。',
     ],
-    ['rate_limited', '操作过于频繁，请稍后再试。'],
+    [
+      'rate_limited',
+      '媒体平台暂时限制了当前网络出口的请求，请稍后重试或检查部署主机的网络出口。',
+    ],
+    ['operation_rate_limited', '操作过于频繁，请稍后再试。'],
     ['context_changed', '媒体执行上下文已变化，请重新解析链接并确认下载规格。'],
     [
       'duration_limit_exceeded',

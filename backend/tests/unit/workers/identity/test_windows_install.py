@@ -62,7 +62,8 @@ def windows_installation(tmp_path, monkeypatch):
         ignore=shutil.ignore_patterns("manifest.json", "config.local.json"),
     )
     (home.parent / ".gitignore").write_text(
-        "/extension/config.local.json\n/extension/manifest.json\n", encoding="utf-8"
+        "/extension/config.local.json\n/extension/manifest.json\n**/.local-runtime/\n",
+        encoding="utf-8",
     )
     subprocess.run(["git", "init", "-q", str(home.parent)], check=True)
     monkeypatch.setattr(extension, "EXTENSION_SOURCE", home)

@@ -163,7 +163,12 @@ def test_all_rejects_warm_identity_service_before_runtime_changes(monkeypatch, c
 
 
 def test_identity_restart_waits_for_authenticated_extension_reconnect(monkeypatch):
-    monkeypatch.setenv("COOKIE_SOURCE_TOKEN", "synthetic-identity-token")
+    monkeypatch.setattr(matrix, "require_private_file", lambda _: None)
+    monkeypatch.setattr(
+        matrix,
+        "dotenv_values",
+        lambda _: {"COOKIE_SOURCE_TOKEN": "synthetic-identity-token"},
+    )
     client = httpx.Client
     elapsed = [0.0]
     monkeypatch.setattr(matrix.time, "monotonic", lambda: elapsed[0])
@@ -191,7 +196,12 @@ def test_identity_restart_waits_for_authenticated_extension_reconnect(monkeypatc
 
 
 def test_identity_reconnect_wait_is_bounded(monkeypatch):
-    monkeypatch.setenv("COOKIE_SOURCE_TOKEN", "synthetic-identity-token")
+    monkeypatch.setattr(matrix, "require_private_file", lambda _: None)
+    monkeypatch.setattr(
+        matrix,
+        "dotenv_values",
+        lambda _: {"COOKIE_SOURCE_TOKEN": "synthetic-identity-token"},
+    )
     client = httpx.Client
     elapsed = [0.0]
     monkeypatch.setattr(matrix.time, "monotonic", lambda: elapsed[0])
@@ -218,7 +228,12 @@ def test_identity_reconnect_wait_is_bounded(monkeypatch):
 
 
 def test_identity_status_rejects_wrong_bearer_without_retry(monkeypatch):
-    monkeypatch.setenv("COOKIE_SOURCE_TOKEN", "synthetic-wrong-token")
+    monkeypatch.setattr(matrix, "require_private_file", lambda _: None)
+    monkeypatch.setattr(
+        matrix,
+        "dotenv_values",
+        lambda _: {"COOKIE_SOURCE_TOKEN": "synthetic-wrong-token"},
+    )
     client = httpx.Client
     monkeypatch.setattr(
         matrix.httpx,
@@ -235,7 +250,12 @@ def test_identity_status_rejects_wrong_bearer_without_retry(monkeypatch):
 
 
 def test_identity_response_after_deadline_cannot_pass(monkeypatch):
-    monkeypatch.setenv("COOKIE_SOURCE_TOKEN", "synthetic-identity-token")
+    monkeypatch.setattr(matrix, "require_private_file", lambda _: None)
+    monkeypatch.setattr(
+        matrix,
+        "dotenv_values",
+        lambda _: {"COOKIE_SOURCE_TOKEN": "synthetic-identity-token"},
+    )
     client = httpx.Client
     elapsed = [0.0]
     monkeypatch.setattr(matrix.time, "monotonic", lambda: elapsed[0])

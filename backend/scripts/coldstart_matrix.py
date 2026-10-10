@@ -27,6 +27,8 @@ from typing import Any
 from uuid import uuid4
 
 import httpx
+from app.workers.identity.permissions import require_private_file
+from dotenv import dotenv_values
 from pydantic import BaseModel, ConfigDict, Field, StrictBool, model_validator
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -283,7 +285,9 @@ def compose_project(output: Path) -> str:
 
 def wait_cookie_source(*, timeout: float = 45) -> float:
     """Wait for authenticated status after restart without fetching Cookies."""
-    token = os.environ.get("COOKIE_SOURCE_TOKEN")
+    environment = ROOT / ".local-runtime/identity/runner.env"
+    require_private_file(environment)
+    token = dotenv_values(environment).get("COOKIE_SOURCE_TOKEN")
     if not token:
         raise MatrixFailure("cookie_source_token_missing")
     started = time.monotonic()

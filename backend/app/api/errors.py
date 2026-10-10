@@ -618,7 +618,7 @@ async def http_error_handler(request: Request, error: Exception) -> JSONResponse
         405: ErrorCode.METHOD_NOT_ALLOWED,
         413: ErrorCode.REQUEST_TOO_LARGE,
         422: ErrorCode.INVALID_REQUEST,
-        429: ErrorCode.RATE_LIMITED,
+        429: ErrorCode.OPERATION_RATE_LIMITED,
     }.get(exception.status_code, ErrorCode.HTTP_ERROR)
     return error_response(
         request,

@@ -1,13 +1,18 @@
 from __future__ import annotations
 
+from datetime import UTC, datetime
 from types import SimpleNamespace
+from unittest.mock import AsyncMock
+from uuid import uuid4
 
 import pytest
 from app.api.admission import RateLimitAdmission, _client_host
 from app.api.deps import get_current_user
 from app.core.config import Settings
+from app.core.errors import AppError
 from app.integrations.rate_limiter import RateLimitExceeded
 from app.main import create_app
+from app.services.auth.models import CurrentUser, UserRole
 from fastapi.testclient import TestClient
 from starlette.requests import Request
 
@@ -76,8 +81,74 @@ def test_all_analysis_creation_routes_enforce_admission(path: str) -> None:
     with TestClient(app) as client:
         response = client.post(path, json={}, headers={"Idempotency-Key": "review"})
     assert response.status_code == 429
-    assert response.json()["code"] == "rate_limited"
+    assert response.json()["code"] == "operation_rate_limited"
     assert response.headers["Retry-After"] == "9"
+
+
+@pytest.mark.parametrize("is_admin", [True, False])
+@pytest.mark.parametrize(
+    ("path", "body"),
+    [
+        ("/api/download-intents", {"input": "https://youtu.be/29BEjrvwwbY"}),
+        ("/api/download-intents/00000000-0000-0000-0000-000000000001/refresh", {}),
+        (
+            "/api/inspections",
+            {"source": {"kind": "public_url", "url": "https://youtu.be/29BEjrvwwbY"}},
+        ),
+    ],
+)
+def test_parse_admission_exempts_admin_even_when_limiter_is_blocked(
+    path: str, body: dict, is_admin: bool
+) -> None:
+    from app.api.deps import get_download_use_cases
+    from app.api.routes.download_intents import get_intent_service
+
+    app = create_app(Settings(app_env="test", _env_file=None))
+    now = datetime.now(UTC)
+    user = CurrentUser(
+        id=uuid4(),
+        username="parser",
+        email="parser@example.com",
+        role=UserRole.ADMIN if is_admin else UserRole.USER,
+        created_at=now,
+        updated_at=now,
+    )
+    app.dependency_overrides[get_current_user] = lambda: user
+    # A downstream failure proves admission passed without touching providers.
+    downstream = AsyncMock(
+        side_effect=AppError(
+            status=409,
+            code="invalid_state",
+            title="Reached parser",
+            detail="Reached parser",
+        )
+    )
+    use_cases = SimpleNamespace(
+        create=downstream, refresh=downstream, inspect_media=downstream
+    )
+    app.dependency_overrides[get_intent_service] = lambda: use_cases
+    app.dependency_overrides[get_download_use_cases] = lambda: use_cases
+    check = AsyncMock(side_effect=RateLimitExceeded(9))
+    app.state.services.rate_limiter = SimpleNamespace(check=check)
+
+    with TestClient(app) as client:
+        response = client.post(
+            path, json=body, headers={"Idempotency-Key": "parse-regression"}
+        )
+
+    if is_admin:
+        assert response.status_code == 409
+        assert response.json()["code"] == "invalid_state"
+        check.assert_not_awaited()
+        downstream.assert_awaited_once()
+    else:
+        assert response.status_code == 429
+        assert response.json()["code"] == "operation_rate_limited"
+        assert response.headers["Retry-After"] == "9"
+        check.assert_awaited_once_with(
+            operation="inspect", owner_hash=user.owner_hash, client_host=None
+        )
+        downstream.assert_not_awaited()
 
 
 def test_costly_routes_declare_admission_and_recovery_routes_remain_available() -> None:

@@ -161,8 +161,9 @@ YouTube 的 L2 只启用 bgutil HTTP PO Token 提供者；L3 只启用 WPC，
 WPC 不复用 Playwright context，也不操作宿主 Chrome。
 共享环境冷启动验收使用 `coldstart_matrix.py --platforms youtube --reuse-cookie-source`，
 复用已经连接的宿主身份服务；该模式只冷启动 API、Worker、Runner，报告如实记录
-宿主服务未重启。Runner 仍须通过环境变量 `COOKIE_SOURCE_TOKEN` 配置该服务的
-独立 Bearer；复用标志不会安装服务、读取配对密钥或绕过身份校验。
+宿主服务未重启。普通 Compose 从安装生成的私有
+`.local-runtime/identity/runner.env` 自动向 Runner 传入独立 Bearer；验收脚本也从同一文件
+读取令牌用于宿主就绪检查，不需要终端导出。复用标志不会安装服务、读取配对密钥或绕过身份校验。
 `--reuse-cookie-source` 只允许与 `--platforms` 一起使用，`--all` 会在构建、重启或创建结果目录前拒绝此组合，避免把宿主热服务当作最终冷启动证据。
 机房出口必须实际注入登录身份，仍须两条独立公开、免费、非 DRM
 正例通过完整文件校验；当前可用性与实测结果见[验证状态](../docs/design/14-解析引擎.md#13-验证状态)。

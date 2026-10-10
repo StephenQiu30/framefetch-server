@@ -35,13 +35,14 @@ def installation(tmp_path, monkeypatch):
     ):
         shutil.copyfile(extension.EXTENSION_SOURCE / name, home / name)
     (home.parent / ".gitignore").write_text(
-        "/extension/config.local.json\n/extension/manifest.json\n"
+        "/extension/config.local.json\n/extension/manifest.json\n**/.local-runtime/\n"
     )
     subprocess.run(["git", "init", "-q", str(home.parent)], check=True)
     subprocess.run(["git", "-C", str(home.parent), "add", "."], check=True)
     original_run = subprocess.run
     monkeypatch.setattr(extension, "EXTENSION_SOURCE", home)
     monkeypatch.setattr(cli, "agent_path", lambda: target)
+    monkeypatch.setattr(cli, "extension_home", lambda: home)
     monkeypatch.setattr(extension, "extension_home", lambda: home)
     run = Mock(return_value=SimpleNamespace(returncode=0))
 
@@ -192,6 +193,71 @@ def test_install_never_edits_project_env(tmp_path):
     with pytest.raises(ValueError, match="separate_env_file"):
         cli.prepare_config(environment)
     assert environment.read_text() == "preserved"
+
+
+def test_install_publishes_private_runner_bearer_without_pairing_or_project_env_changes(
+    installation,
+):
+    environment, _, home, _ = installation
+    project_env = home.parent / ".env"
+    project_env.write_text("PRESERVE_EXISTING_CONFIGURATION=true\n")
+    cli.install(environment)
+    before = environment.read_bytes()
+    settings = cli.configured(environment)
+    generated = home.parent / ".local-runtime/identity/runner.env"
+    assert generated.read_text() == (
+        f"COOKIE_SOURCE_TOKEN={settings.cookie_source_token.get_secret_value()}\n"
+    )
+    assert (
+        settings.cookie_source_pairing_key.get_secret_value()
+        not in generated.read_text()
+    )
+    assert generated.stat().st_mode & 0o777 == 0o600
+    assert generated.parent.stat().st_mode & 0o777 == 0o700
+    assert cli.publish_runner_environment(settings) == generated
+    assert environment.read_bytes() == before
+    assert project_env.read_text() == "PRESERVE_EXISTING_CONFIGURATION=true\n"
+    assert list(generated.parent.iterdir()) == [generated]
+
+
+def test_runner_environment_refreshes_token_atomically(installation):
+    environment, _, _, _ = installation
+    settings = cli.prepare_config(environment)
+    generated = cli.publish_runner_environment(settings)
+    previous = generated.open()
+    try:
+        changed = settings.model_copy(
+            update={"cookie_source_token": SecretStr("n" * 48)}
+        )
+        cli.publish_runner_environment(changed)
+        assert generated.read_text() == f"COOKIE_SOURCE_TOKEN={'n' * 48}\n"
+        token = settings.cookie_source_token.get_secret_value()
+        assert previous.read() == f"COOKIE_SOURCE_TOKEN={token}\n"
+    finally:
+        previous.close()
+
+
+@pytest.mark.parametrize("unsafe", ["symlink", "public_permissions", "tracked"])
+def test_runner_environment_rejects_unsafe_destination(installation, tmp_path, unsafe):
+    environment, _, _, _ = installation
+    settings = cli.prepare_config(environment)
+    generated = cli.publish_runner_environment(settings)
+    original = generated.read_bytes()
+    if unsafe == "symlink":
+        protected = tmp_path / "protected"
+        protected.write_bytes(original)
+        generated.unlink()
+        generated.symlink_to(protected)
+    elif unsafe == "public_permissions":
+        generated.chmod(0o644)
+    else:
+        subprocess.run(
+            ["git", "-C", str(generated.parent), "add", "-f", str(generated)],
+            check=True,
+        )
+    with pytest.raises(ValueError, match="owner_only|must_be_ignored"):
+        cli.publish_runner_environment(settings)
+    assert generated.read_bytes() == original
 
 
 def test_manifest_registry_permissions_and_stable_id():
@@ -373,9 +439,12 @@ def test_host_websocket_limit_accepts_native_parse_envelope(monkeypatch, tmp_pat
         ["cookie-source", "run", "--env-file", str(tmp_path / "identity.env")],
     )
     monkeypatch.setattr(cli, "configured", lambda env_file: settings)
+    publish = Mock()
+    monkeypatch.setattr(cli, "publish_runner_environment", publish)
     run = Mock()
     monkeypatch.setattr(uvicorn, "run", run)
     assert cli.main() == 0
+    publish.assert_called_once_with(settings)
     assert run.call_args.kwargs["ws_max_size"] == YUANBAO_PARSE_MAX_MESSAGE_BYTES
     assert run.call_args.kwargs["host"] == "127.0.0.1"
     assert run.call_args.kwargs["access_log"] is False

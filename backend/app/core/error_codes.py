@@ -63,6 +63,7 @@ class ErrorCode(StrEnum):
     METRICS_UNAVAILABLE = "metrics_unavailable"
     NOT_FOUND = "not_found"
     OK = "ok"
+    OPERATION_RATE_LIMITED = "operation_rate_limited"
     PROVIDER_CATALOG_CONFLICT = "provider_catalog_conflict"
     PROVIDER_CATALOG_NOT_FOUND = "provider_catalog_not_found"
     PROVIDER_FAILURE = "provider_failure"

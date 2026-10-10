@@ -74,7 +74,9 @@ const localizedErrorMessages: Record<string, string> = {
   provider_catalog_conflict: '相同标识的平台配置已经存在。',
   provider_catalog_not_found: '平台配置不存在或已被删除。',
   provider_failure: 'AI 服务未能完成分析，请稍后重试。',
-  rate_limited: '操作过于频繁，请稍后再试。',
+  rate_limited:
+    '媒体平台暂时限制了当前网络出口的请求，请稍后重试或检查部署主机的网络出口。',
+  operation_rate_limited: '操作过于频繁，请稍后再试。',
   rate_limiter_unavailable: '请求限制服务暂时不可用，请稍后重试。',
   request_timeout: '请求处理超时，请稍后重试。',
   request_too_large: '提交内容超过大小限制，请缩小后重试。',
