@@ -69,7 +69,7 @@ docker compose up -d --build --wait --remove-orphans
 
 已安装宿主平台身份时，安装流程会生成私有的 `.local-runtime/identity/runner.env`；正常 Compose 启动、重建和 watch 会自动把其中的 Runner Bearer 注入 `session-runner`，无需额外命令或手动导出环境变量。首次安装与升级步骤见[平台身份与升级](#平台身份与升级)。未安装身份时该文件可缺省，匿名平台正常运行。
 
-开发时使用 `docker compose up --build --watch`，或在已启动的本地容器上运行 `docker compose watch --no-up` 并保持终端运行。前端代码自动热重载，API／worker 源码自动同步并重启，Runner 保留只读沙箱并自动重建；依赖变化自动构建。需要 Docker Compose 2.32.0 或更新版本，详见 [开发与发布规则](docs/design/12-可靠性与运行.md#发布)。生产部署使用同一文件，配置方式见下方生产入口。
+开发时使用 `docker compose up --build --watch`，或在已启动的本地容器上运行 `docker compose watch --no-up` 并保持终端运行。前端代码自动热重载，API／worker 源码自动同步并重启，Runner 保留只读沙箱并自动重建；依赖变化自动构建。本地与 CI 使用已验证的 Docker Compose 5.5.1，详见 [开发与发布规则](docs/design/12-可靠性与运行.md#发布)。生产部署使用同一文件，配置方式见下方生产入口。
 
 产品需求、系统设计与执行计划统一维护在 [docs/](docs/README.md)。将该目录作为 Obsidian 库打开，或用任意文本编辑器修改；版本通过 Git 管理，详见 [文档工作区](PROJECT.md#31-文档工作区)。
 
