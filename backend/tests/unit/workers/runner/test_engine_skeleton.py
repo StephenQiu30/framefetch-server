@@ -262,10 +262,21 @@ def test_matrix_uses_no_runner_imports():
 
     root = Path(__file__).resolve().parents[4]
     tree = ast.parse((root / "scripts/coldstart_matrix.py").read_text())
-    assert not any(
-        isinstance(node, ast.ImportFrom) and node.module and "app" in node.module
+    modules = {
+        node.module
         for node in ast.walk(tree)
-    )
+        if isinstance(node, ast.ImportFrom) and node.module
+    } | {
+        alias.name
+        for node in ast.walk(tree)
+        if isinstance(node, ast.Import)
+        for alias in node.names
+    }
+    # Reuse the host identity file permission check, never parsing, download,
+    # application service or Runner internals in HTTP acceptance.
+    assert {
+        module for module in modules if module == "app" or module.startswith("app.")
+    } <= {"app.workers.identity.permissions"}
     cases = json.loads((root / "scripts/fixtures/coldstart_cases.json").read_text())
     assert cases and all("platform" in case for case in cases)
 

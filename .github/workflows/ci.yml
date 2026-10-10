@@ -53,6 +53,10 @@ jobs:
           version: "0.11.32"
           enable-cache: true
           cache-dependency-glob: backend/uv.lock
+      - name: Configure supported Docker Compose
+        uses: docker/setup-compose-action@54042514f505b273907334ae2b9cdbb9a0213c1a # v2
+        with:
+          version: v2.32.4
       - name: Install backend integration test dependencies
         run: |
           sudo apt-get update
