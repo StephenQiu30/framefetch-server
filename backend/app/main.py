@@ -41,6 +41,7 @@ from app.api.routes.providers import router as providers_router
 from app.api.routes.source_discoveries import router as source_discoveries_router
 from app.api.routes.task_socket import router as task_socket_router
 from app.api.routes.users import router as users_router
+from app.api.routes.watermark import router as watermark_router
 from app.core.config import Settings, get_settings
 from app.core.lifespan import api_lifespan
 from app.core.runtime import ApiRuntime, ApiServices
@@ -88,6 +89,7 @@ def create_app(
     api_router.include_router(source_discoveries_router)
     api_router.include_router(providers_router)
     api_router.include_router(downloads_router)
+    api_router.include_router(watermark_router)
     api_router.include_router(documents_router)
     api_router.include_router(document_analyses_router)
     api_router.include_router(media_imports_router)

@@ -224,7 +224,13 @@ export default function DownloadWorkspace() {
     [queries, router],
   );
   const mediaImport = useMediaImport(openDownload, mediaDeclaredOrigin);
+  const watermarkImport = useMediaImport(openDownload, 'user_file', true);
   const documentImport = useDocumentImport(openDocument);
+
+  useEffect(() => {
+    if (watermarkImport.notice) toast.info(watermarkImport.notice);
+    if (watermarkImport.error) toast.error(watermarkImport.error);
+  }, [watermarkImport.notice, watermarkImport.error]);
 
   useEffect(() => {
     if (mediaImport.notice) toast.info(mediaImport.notice);
@@ -310,6 +316,7 @@ export default function DownloadWorkspace() {
           busy !== null ||
           intent.pending ||
           mediaImport.busy ||
+          watermarkImport.busy ||
           documentImport.busy
         }
         linkForm={
@@ -346,6 +353,21 @@ export default function DownloadWorkspace() {
             onStart={() => void documentImport.start()}
             phase={documentImport.phase}
             progress={documentImport.progress}
+          />
+        }
+        watermarkForm={
+          <MediaUploadForm
+            busy={watermarkImport.busy}
+            canCancel={watermarkImport.canCancel}
+            file={watermarkImport.file}
+            fileInvalid={watermarkImport.fileInvalid}
+            onCancel={() => void watermarkImport.cancel()}
+            onFileSelect={watermarkImport.selectFile}
+            onStart={() => void watermarkImport.start()}
+            phase={watermarkImport.phase}
+            progress={watermarkImport.progress}
+            declaredOrigin="user_file"
+            removeWatermark
           />
         }
         videoForm={

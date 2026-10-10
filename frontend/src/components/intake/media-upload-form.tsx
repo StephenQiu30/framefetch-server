@@ -36,6 +36,7 @@ export function MediaUploadForm({
   phase,
   progress,
   declaredOrigin,
+  removeWatermark = false,
 }: {
   busy: boolean;
   canCancel: boolean;
@@ -47,6 +48,7 @@ export function MediaUploadForm({
   phase: ImportPhase;
   progress: number;
   declaredOrigin: API.DeclaredOrigin;
+  removeWatermark?: boolean;
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
   const descriptionId = useId();
@@ -91,11 +93,13 @@ export function MediaUploadForm({
           ) : (
             <UploadSimple aria-hidden data-icon="inline-start" />
           )}
-          {busy ? '处理中…' : '上传视频'}
+          {busy ? '处理中…' : removeWatermark ? '上传并去水印' : '上传视频'}
         </IntakeSubmitButton>
       </IntakeControlRow>
       <p className="text-sm leading-6 text-muted-foreground" id={descriptionId}>
-        支持 MP4 格式。选择文件后，点击“上传视频”开始导入。
+        {removeWatermark
+          ? '上传 MP4 视频，自动识别并修补水印，保留原片和处理版。当前支持 3 分钟内、1080p 以内的视频。'
+          : '支持 MP4 格式。选择文件后，点击“上传视频”开始导入。'}
       </p>
       <Input
         accept="video/mp4,.mp4"

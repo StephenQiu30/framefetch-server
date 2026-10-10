@@ -49,6 +49,7 @@ function hero(mode: IntakeMode) {
       mode={mode}
       onModeChange={() => undefined}
       screenplayForm={<div>剧本表单</div>}
+      watermarkForm={<div>watermark form</div>}
       videoForm={<div>视频表单</div>}
     />
   );

@@ -21,6 +21,7 @@ type StableKey = { payload: string; value: string };
 export function useMediaImport(
   onComplete: (downloadId: string) => void,
   declaredOrigin: API.DeclaredOrigin = 'user_file',
+  removeWatermark = false,
 ) {
   const [file, setFile] = useState<File | null>(null);
   const [phase, setPhase] = useState<ImportPhase>('idle');
@@ -76,7 +77,7 @@ export function useMediaImport(
     setNotice(null);
     setFileInvalid(false);
     try {
-      const payload = `${file.name}:${file.size}:${file.lastModified}:${file.type}`;
+      const payload = `${file.name}:${file.size}:${file.lastModified}:${file.type}:${declaredOrigin}:${removeWatermark}`;
       if (keyRef.current?.payload !== payload) {
         keyRef.current = { payload, value: createIdempotencyKey() };
       }
@@ -96,6 +97,7 @@ export function useMediaImport(
         },
         run.controller.signal,
         declaredOrigin,
+        removeWatermark,
       );
       if (activeRef.current === run) onComplete(result.download_id);
     } catch (reason) {
@@ -108,7 +110,7 @@ export function useMediaImport(
         setPhase('idle');
       }
     }
-  }, [declaredOrigin, file, onComplete]);
+  }, [declaredOrigin, removeWatermark, file, onComplete]);
 
   const cancel = useCallback(async () => {
     const active = activeRef.current;

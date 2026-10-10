@@ -38,6 +38,10 @@ _DELETED_REPORT_ARTIFACT_STATUS = AnalysisReportArtifactStatus.DELETED.value
 # Workers replace active reservations with bounded artifacts in one transaction.
 ACTIVE_USAGE = text(f"""
 WITH active AS (
+    SELECT owner_hash, 2147483648 AS reserved_bytes FROM watermark_tasks
+    WHERE status IN ('queued','running')
+       OR (status IN ('failed','cancelled') AND object_key IS NOT NULL)
+    UNION ALL
     SELECT owner_hash, 0 AS reserved_bytes FROM download_intents
     WHERE status IN ({_sql_values(ACTIVE_INTENT_STATUSES)})
     UNION ALL
@@ -78,6 +82,8 @@ FROM active
 # remain charged until their physical cleanup records reach the deleted state.
 STORED_BYTES = text(f"""
 SELECT COALESCE(SUM(size_bytes), 0) FROM (
+    SELECT size_bytes FROM watermark_tasks WHERE owner_hash = :owner
+    UNION ALL
     SELECT a.size_bytes FROM artifacts a
     JOIN download_jobs j ON j.id = a.job_id WHERE j.owner_hash = :owner
     UNION ALL

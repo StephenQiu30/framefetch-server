@@ -67,6 +67,18 @@ async def list_stored_files(
 
 
 def _stored_files_statement() -> Any:
+    from app.models.watermark import WatermarkTaskRow
+
+    derivatives = (
+        select(
+            WatermarkTaskRow.source_id.label("source_id"),
+            func.sum(WatermarkTaskRow.size_bytes).label("bytes"),
+            func.count().label("count"),
+        )
+        .where(WatermarkTaskRow.size_bytes > 0)
+        .group_by(WatermarkTaskRow.source_id)
+        .subquery()
+    )
     video_name = func.coalesce(
         MediaImportRow.display_name,
         MediaInspectionRow.title,
@@ -78,10 +90,13 @@ def _stored_files_statement() -> Any:
             literal("video").label("category"),
             video_name.label("name"),
             DownloadJobRow.owner_hash.label("owner_hash"),
-            literal(1).label("object_count"),
-            ArtifactRow.size_bytes.label("size_bytes"),
+            (1 + func.coalesce(derivatives.c.count, 0)).label("object_count"),
+            (ArtifactRow.size_bytes + func.coalesce(derivatives.c.bytes, 0)).label(
+                "size_bytes"
+            ),
             ArtifactRow.created_at.label("created_at"),
         )
+        .outerjoin(derivatives, derivatives.c.source_id == ArtifactRow.id)
         .join(DownloadJobRow, DownloadJobRow.id == ArtifactRow.job_id)
         .outerjoin(
             MediaInspectionRow,

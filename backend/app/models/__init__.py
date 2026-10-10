@@ -45,9 +45,12 @@ from app.models.provider_catalog import ProviderCatalogEntryRow
 from app.models.quota import ResourceAdmissionRow
 from app.models.source_discovery import SourceDiscoveryItemRow, SourceDiscoveryRow
 from app.models.task_event import TaskEventRow
+from app.models.watermark import WatermarkTaskRow, WatermarkWorkerRow
 from app.models.web_session import WebSessionRow
 
 __all__ = [
+    "WatermarkTaskRow",
+    "WatermarkWorkerRow",
     "CreationExportRow",
     "CreationMaterialRow",
     "CreationProjectRow",

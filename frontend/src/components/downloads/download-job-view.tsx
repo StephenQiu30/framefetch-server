@@ -60,6 +60,9 @@ const DownloadVideoPreview = dynamic(
     ),
   },
 );
+const WatermarkPanel = dynamic(
+  () => import('@/components/downloads/watermark-panel'),
+);
 const AnalysisPanel = dynamic(
   () => import('@/components/analysis/analysis-panel'),
   {
@@ -467,6 +470,13 @@ export default function DownloadJobView({
               </Item>
             </aside>
           </SplitLayout>
+          {state.job.status === DownloadStatusCode.Succeeded &&
+          state.job.file_available &&
+          !gallery &&
+          !collection &&
+          duration ? (
+            <WatermarkPanel jobId={state.job.id} />
+          ) : null}
           {state.job.status === DownloadStatusCode.Succeeded ? (
             !gallery && !collection ? (
               <section

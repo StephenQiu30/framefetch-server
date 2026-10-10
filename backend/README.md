@@ -50,6 +50,52 @@ API 在 PostgreSQL 事务内保存 AnalysisJob／Run、固定来源与 Outbox，
 
 内置 `local-codex` 不可删除或改造为第三方结构；模型和线路仅由数据库 Web Profile 决定，`.env` 只保留宿主机 CLI 二进制路径。
 
+## 自动去水印 Worker
+
+URL 视频下载自动进入去水印队列；首页“视频去水印”上传入口复用媒体导入。
+原片保留，处理失败不阻塞原片下载。支持范围、模型校验值与实测效果见
+[视频去水印设计](../docs/design/16-视频去水印.md)和[验收记录](../docs/plan/PLAN-视频去水印.md)。
+推理进程运行在宿主机的独立 Python 3.12 环境，不向 API 镜像安装 PyTorch，
+不使用平台 Cookie。宿主需提供 `ffmpeg`、`ffprobe`，至少 6 GiB 临时磁盘空间。
+
+在 `backend/` 首次准备运行时（已有目录直接复用，不重复 clone）：
+
+```bash
+uv venv --python 3.12 artifacts/watermark-runtime/venv
+uv pip install --python artifacts/watermark-runtime/venv/bin/python -r requirements-watermark.txt
+git clone --filter=blob:none --no-checkout https://github.com/YaoFANGUK/video-subtitle-remover.git artifacts/watermark-runtime/vsr
+git -C artifacts/watermark-runtime/vsr sparse-checkout init --no-cone
+git -C artifacts/watermark-runtime/vsr sparse-checkout set '/backend/' '!/backend/models/'
+git -C artifacts/watermark-runtime/vsr checkout --detach e109b9ddc1d0e8f153199dfa05c1d767546906d8
+git -C artifacts/watermark-runtime/vsr show HEAD:backend/models/sttn-auto/infer_model.pth > artifacts/watermark-runtime/infer_model.pth
+mkdir -p artifacts/watermark-runtime/ocr
+```
+
+OCR 使用 RapidOCR 官方模型仓库的固定 `v3.4.0` 资源。在
+`https://www.modelscope.cn/models/RapidAI/RapidOCR/resolve/v3.4.0/` 下下载
+`onnx/PP-OCRv4/det/ch_PP-OCRv4_det_infer.onnx`、
+`onnx/PP-OCRv4/rec/ch_PP-OCRv4_rec_infer.onnx`、
+`onnx/PP-OCRv4/cls/ch_ppocr_mobile_v2.0_cls_infer.onnx` 与
+`resources/fonts/FZYTK.TTF`，按各自文件名保存到上述 `ocr/` 目录。
+启动时逐项校验 VSR 提交和模型 SHA-256，不匹配则拒绝执行。
+
+先把 `sql/schema.sql` 幂等应用到已有项目库，然后运行：
+
+```bash
+uv run python -m app.workers.watermark \
+  --python artifacts/watermark-runtime/venv/bin/python \
+  --vsr-root artifacts/watermark-runtime/vsr \
+  --model artifacts/watermark-runtime/infer_model.pth \
+  --detector artifacts/watermark-runtime/ocr --device mps
+```
+
+Apple Silicon 使用 `mps`；CPU 可使用 `cpu`，性能证据见验收记录。
+`cuda` 入口需在对应 CUDA 主机验证，当前实测不包含 CUDA。
+Worker 复用现有数据库、MinIO 和 RabbitMQ 配置，生产由宿主进程管理器保持运行。
+RabbitMQ 业务账号需要声明并读写 `video.watermark` / `video.watermark.dead`，
+以及既有业务交换机权限；拓扑由业务代码幂等创建。不运行 Worker 时任务保持等待，
+页面显示服务未连接，重新上线后消费积压。媒体和模型文件均在忽略目录，不提交 Git。
+
 ## 资源准入
 
 Registry 的阶梯、出口、identity 与 content_scope 统一遵循[解析引擎](../docs/design/14-解析引擎.md)。`POST /api/download-intents` 在事务提交后返回 202，Outbox 直接启动单 resolve Activity 的 InspectionWorkflow，ff-inspect 保留两个槽。解析使用 120 秒总期限，业务库保存 generation、当前状态、结果及 ExecutionContext，不保存预算或操作账本；取消传播到 Runner 进程组。下载 Job 继续通过 RabbitMQ lease/heartbeat 执行。解析按每日任务计量、零下载字节；同幂等键重放不重复计量。

@@ -18,7 +18,7 @@ from app.services.quotas import (
 )
 
 AdmissionKind = Literal[
-    "download", "media_import", "document_import", "analysis", "inspection"
+    "download", "media_import", "document_import", "analysis", "inspection", "watermark"
 ]
 
 
@@ -74,6 +74,7 @@ async def reserve(
     policy = quota.apply(policy)
     reserved = {
         "inspection": 0,
+        "watermark": size_bytes or 0,
         "download": policy.download_bytes + policy.thumbnail_bytes,
         "media_import": (size_bytes or 0) + policy.thumbnail_bytes,
         "document_import": (size_bytes or 0) + policy.document_normalized_bytes,

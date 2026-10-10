@@ -63,6 +63,7 @@ def command(
     resource_id: UUID = RESOURCE_ID,
     fingerprint: str = "b" * 64,
     idempotency_key: str = "upload-1",
+    remove_watermark: bool = False,
 ) -> ImportResourceCreate:
     return ImportResourceCreate(
         id=resource_id,
@@ -76,6 +77,7 @@ def command(
         declared_size_bytes=DECLARED_SIZE,
         declared_sha256="c" * 64,
         rights_statement_version="content-rights",
+        remove_watermark=remove_watermark,
     )
 
 
@@ -376,8 +378,12 @@ async def test_wrong_content_kind_and_owner_are_fail_closed(
 
 async def verifying_resource(
     repository: SqlAlchemyMediaImportRepository,
+    *,
+    remove_watermark: bool = False,
 ) -> ImportResourceSnapshot:
-    await repository.create_resource(command(), now=NOW)
+    await repository.create_resource(
+        command(remove_watermark=remove_watermark), now=NOW
+    )
     await repository.begin_upload_attempt(
         RESOURCE_ID,
         OWNER_HASH,
@@ -422,15 +428,17 @@ def verified_artifact() -> VerifiedImportArtifact:
     )
 
 
+@pytest.mark.parametrize("remove_watermark", [False, True])
 async def test_worker_claim_heartbeat_and_completion_are_one_atomic_projection(
     repositories: tuple[
         SqlAlchemyMediaImportRepository,
         SqlAlchemyDownloadRepository,
         async_sessionmaker,
     ],
+    remove_watermark: bool,
 ) -> None:
     repository, _, sessions = repositories
-    verifying = await verifying_resource(repository)
+    verifying = await verifying_resource(repository, remove_watermark=remove_watermark)
     claim = await repository.claim_verification(
         RESOURCE_ID,
         ContentKind.VIDEO,
@@ -498,6 +506,13 @@ async def test_worker_claim_heartbeat_and_completion_are_one_atomic_projection(
     assert await repository.expected_artifact_object_keys() == frozenset(
         {stored.object_key}
     )
+
+    from app.repositories.watermark import WatermarkRepository
+
+    tasks = await WatermarkRepository(sessions).for_job(RESOURCE_ID, OWNER_HASH)
+    assert len(tasks.items) == int(remove_watermark)
+    if remove_watermark:
+        assert tasks.items[0].status == "queued"
 
 
 async def test_worker_validation_failure_is_terminal_and_clears_both_leases(

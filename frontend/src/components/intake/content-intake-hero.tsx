@@ -1,12 +1,12 @@
 'use client';
 
-import { FileText, FileVideo, LinkSimple } from '@phosphor-icons/react';
+import { Eraser, FileText, FileVideo, LinkSimple } from '@phosphor-icons/react';
 import type { ReactNode } from 'react';
 
 import { PageHeader } from '@/components/layout/page-header';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
-export type IntakeMode = 'link' | 'video' | 'screenplay';
+export type IntakeMode = 'link' | 'video' | 'screenplay' | 'watermark';
 
 export function ContentIntakeHero({
   disabled,
@@ -15,6 +15,7 @@ export function ContentIntakeHero({
   onModeChange,
   screenplayForm,
   videoForm,
+  watermarkForm,
 }: {
   disabled: boolean;
   linkForm: ReactNode;
@@ -22,13 +23,18 @@ export function ContentIntakeHero({
   onModeChange: (mode: IntakeMode) => void;
   screenplayForm: ReactNode;
   videoForm: ReactNode;
+  watermarkForm: ReactNode;
 }) {
   return (
     <div className="flex flex-col gap-6">
       <PageHeader
         size="lg"
-        description="粘贴视频页或分享链接，帧取列出可用画质，下载完成后自动校验文件完整性。"
-        title="下载任意公开视频"
+        description={
+          mode === 'watermark'
+            ? '上传本地视频，自动去水印，原片始终保留。'
+            : '粘贴视频页或分享链接，选择画质后下载，自动校验并处理水印。'
+        }
+        title={mode === 'watermark' ? '视频去水印' : '下载任意公开视频'}
       />
 
       <Tabs
@@ -38,7 +44,7 @@ export function ContentIntakeHero({
       >
         <TabsList
           aria-label="选择内容来源"
-          className="max-w-full"
+          className="h-auto max-w-full flex-wrap"
           variant="default"
         >
           <TabsTrigger className="min-w-0" disabled={disabled} value="link">
@@ -57,8 +63,17 @@ export function ContentIntakeHero({
             <FileText aria-hidden />
             剧本文档
           </TabsTrigger>
+          <TabsTrigger
+            className="min-w-0"
+            disabled={disabled}
+            value="watermark"
+          >
+            <Eraser aria-hidden />
+            视频去水印
+          </TabsTrigger>
         </TabsList>
         <TabsContent value="link">{linkForm}</TabsContent>
+        <TabsContent value="watermark">{watermarkForm}</TabsContent>
         <TabsContent value="video">{videoForm}</TabsContent>
         <TabsContent value="screenplay">{screenplayForm}</TabsContent>
       </Tabs>

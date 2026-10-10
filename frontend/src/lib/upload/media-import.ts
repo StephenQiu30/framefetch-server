@@ -29,6 +29,7 @@ export async function importLocalVideo(
   observer: ImportObserver,
   signal: AbortSignal,
   declaredOrigin: API.DeclaredOrigin = 'user_file',
+  removeWatermark = false,
 ): Promise<API.MediaImportResponse> {
   observer.onPhase('hashing');
   observer.onProgress(0);
@@ -46,6 +47,7 @@ export async function importLocalVideo(
       declared_sha256: declaredSha256,
       rights_accepted: true,
       declared_origin: declaredOrigin,
+      remove_watermark: removeWatermark,
     },
     { headers: { 'Idempotency-Key': idempotencyKey } },
   );

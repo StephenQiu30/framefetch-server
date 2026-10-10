@@ -117,16 +117,20 @@ async def test_robust_topology_and_confirmed_mandatory_publish(monkeypatch) -> N
         "video.analysis-report.dead",
         "video.import",
         "video.import.dead",
+        "video.watermark",
+        "video.watermark.dead",
     ]
     assert [routing_key for _, routing_key in channel.queue.bindings] == [
         "download.requested",
         "analysis.report.publish.requested",
         "content.import.verify.requested",
+        "watermark.requested",
     ]
     assert [routing_key for _, routing_key in channel.dead_queue.bindings] == [
         "video.download.dead",
         "video.analysis-report.dead",
         "video.import.dead",
+        "video.watermark.dead",
     ]
     message, routing_key, mandatory, timeout = channel.main.published[0]
     assert (routing_key, mandatory, timeout) == ("download.requested", True, 10)

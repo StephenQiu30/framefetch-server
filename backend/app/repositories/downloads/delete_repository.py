@@ -2,12 +2,12 @@
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timedelta
 from uuid import UUID
 
 from sqlalchemy import select
 
-from app.core.db import utc_now
+from app.core.db import as_utc, utc_now
 from app.models import (
     AnalysisArtifactLockRow,
     ArtifactRow,
@@ -17,6 +17,7 @@ from app.models import (
     MediaImportAttemptRow,
 )
 from app.models.download_intent import DownloadIntentRow
+from app.models.watermark import WatermarkTaskRow
 from app.repositories.errors import RepositoryConflict, RepositoryNotFound
 from app.repositories.repository_base import RepositoryBase
 from app.services.downloads.download_models import (
@@ -50,6 +51,26 @@ class DownloadDeleteRepository(RepositoryBase):
                 .where(ArtifactRow.job_id == job_id)
                 .with_for_update()
             )
+            derivatives = (
+                await session.scalars(
+                    select(WatermarkTaskRow)
+                    .where(WatermarkTaskRow.job_id == job_id)
+                    .with_for_update()
+                )
+            ).all()
+            if any(
+                t.status == "running"
+                or (
+                    t.lease_expires_at is not None
+                    and as_utc(t.lease_expires_at) > now - timedelta(seconds=120)
+                )
+                for t in derivatives
+            ):
+                raise RepositoryConflict("download is locked by watermark processing")
+            for task in derivatives:
+                if task.status == "queued":
+                    task.status = "cancelled"
+                    task.updated_at = now
             if artifact is not None:
                 lock = await session.scalar(
                     select(AnalysisArtifactLockRow.job_id).where(
@@ -91,6 +112,11 @@ class DownloadDeleteRepository(RepositoryBase):
             )
             if artifact is not None:
                 cleanup += (DownloadCleanupRef(artifact.object_key),)
+            cleanup += tuple(
+                DownloadCleanupRef(t.object_key)
+                for t in derivatives
+                if t.object_key is not None
+            )
             if thumbnail is not None:
                 cleanup += (DownloadCleanupRef(thumbnail.object_key),)
             return DownloadDeletionPlan(

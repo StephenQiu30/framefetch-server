@@ -17,7 +17,9 @@ from app.repositories.errors import (
     RepositoryConflict,
     RepositoryNotFound,
 )
+from app.repositories.quota_admission import lock_admission
 from app.repositories.repository_base import RepositoryBase
+from app.repositories.watermark import enqueue_automatic
 from app.services.downloads.download_models import ArtifactSnapshot, JobSnapshot
 from app.services.downloads.rules.artifact_keys import build_artifact_object_key
 
@@ -42,6 +44,11 @@ class CompletionRepository(RepositoryBase):
         _validate_artifact(artifact)
         object_key = build_artifact_object_key(job_id, attempt, artifact.container)
         async with self._sessions() as session, session.begin():
+            owner = await session.scalar(
+                select(DownloadJobRow.owner_hash).where(DownloadJobRow.id == job_id)
+            )
+            if owner is not None:
+                await lock_admission(session, owner)
             row = await session.scalar(
                 select(DownloadJobRow)
                 .where(DownloadJobRow.id == job_id)
@@ -91,6 +98,7 @@ class CompletionRepository(RepositoryBase):
             row.heartbeat_at = now
             row.updated_at = now
             await session.flush()
+            await enqueue_automatic(session, row, stored, self._quota_policy)
             return artifact_snapshot(stored)
 
     async def complete_failure(

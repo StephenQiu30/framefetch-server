@@ -21,6 +21,7 @@ from app.models import (
 )
 from app.repositories.quota_admission import lock_admission, reserve
 from app.repositories.repository_base import RepositoryBase
+from app.repositories.watermark import enqueue_automatic
 from app.services.import_execution.models import (
     ImportVerificationClaim,
     VerifiedImportArtifact,
@@ -88,6 +89,7 @@ class SqlAlchemyMediaImportRepository(RepositoryBase):
                             "source_kind": "browser_import",
                             "container": "mp4",
                             "declared_origin": command.declared_origin.value,
+                            "remove_watermark": command.remove_watermark,
                         },
                         status="running",
                         stage="downloading",
@@ -540,6 +542,13 @@ class SqlAlchemyMediaImportRepository(RepositoryBase):
         _validate_verified_artifact(artifact, bucket)
         object_key = _final_object_key(claim)
         async with self._sessions() as session, session.begin():
+            owner = await session.scalar(
+                select(DownloadJobRow.owner_hash).where(
+                    DownloadJobRow.id == claim.resource_id
+                )
+            )
+            if owner is not None:
+                await lock_admission(session, owner)
             row = await session.scalar(
                 select(MediaImportRow)
                 .where(MediaImportRow.id == claim.resource_id)
@@ -571,22 +580,21 @@ class SqlAlchemyMediaImportRepository(RepositoryBase):
                 raise ImportPersistenceConflict(
                     "media import verification lease was lost"
                 )
-            session.add(
-                ArtifactRow(
-                    id=uuid4(),
-                    job_id=row.id,
-                    attempt=claim.attempt,
-                    bucket=bucket,
-                    object_key=object_key,
-                    sha256=artifact.sha256,
-                    size_bytes=artifact.size_bytes,
-                    duration_ms=artifact.duration_ms,
-                    container=artifact.container,
-                    content_type=artifact.content_type,
-                    media_metadata=artifact.media_metadata,
-                    created_at=now,
-                )
+            stored = ArtifactRow(
+                id=uuid4(),
+                job_id=row.id,
+                attempt=claim.attempt,
+                bucket=bucket,
+                object_key=object_key,
+                sha256=artifact.sha256,
+                size_bytes=artifact.size_bytes,
+                duration_ms=artifact.duration_ms,
+                container=artifact.container,
+                content_type=artifact.content_type,
+                media_metadata=artifact.media_metadata,
+                created_at=now,
             )
+            session.add(stored)
             current.status = ImportStatus.READY.value
             current.error_code = None
             current.finished_at = now
@@ -611,6 +619,8 @@ class SqlAlchemyMediaImportRepository(RepositoryBase):
             job.heartbeat_at = now
             job.updated_at = now
             await session.flush()
+            if job.semantic_plan.get("remove_watermark") is True:
+                await enqueue_automatic(session, job, stored, self._quota_policy)
 
     async def fail_verification(
         self,

@@ -91,6 +91,11 @@ class DeleteDownload:
 
 def _validate_deletion_key(object_key: str, job_id: UUID, attempt: int) -> None:
     escaped = re.escape(str(job_id))
+    if re.fullmatch(
+        rf"watermarks/{escaped}/[0-9a-f]{{8}}-[0-9a-f]{{4}}-[0-9a-f]{{4}}-[0-9a-f]{{4}}-[0-9a-f]{{12}}/[1-9][0-9]*/video\.mp4",
+        object_key,
+    ):
+        return
     attempt_patterns = (
         rf"downloads/{escaped}/([1-9][0-9]*)/video\.[a-z0-9]{{1,16}}",
         rf"quarantine/video/{escaped}/([1-9][0-9]*)/source",

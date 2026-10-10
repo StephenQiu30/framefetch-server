@@ -21,6 +21,7 @@ class MediaImportRequest(StrictModel):
     file_name: str = Field(min_length=1, max_length=512)
     declared_size_bytes: StrictInt = Field(gt=0)
     declared_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
+    remove_watermark: StrictBool = False
     rights_accepted: StrictBool
     declared_origin: DeclaredOrigin = DeclaredOrigin.USER_FILE
 

@@ -105,6 +105,7 @@ class CreateImportResource:
         declared_sha256: str,
         rights_accepted: bool,
         declared_origin: DeclaredOrigin = DeclaredOrigin.USER_FILE,
+        remove_watermark: bool = False,
         quota: UserQuota = DEFAULT_USER_QUOTA,
     ) -> ImportView:
         owner_hash = _validate_owner_hash(owner_hash)
@@ -141,6 +142,7 @@ class CreateImportResource:
                 declared_sha256,
                 self._rights_statement_version,
                 declared_origin.value,
+                str(remove_watermark),
             ),
             content_kind=content_kind,
             source_format=source_format,
@@ -150,6 +152,7 @@ class CreateImportResource:
             declared_sha256=declared_sha256,
             rights_statement_version=self._rights_statement_version,
             declared_origin=declared_origin,
+            remove_watermark=remove_watermark,
             quota=quota,
         )
         try:

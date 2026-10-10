@@ -45,6 +45,13 @@ vi.mock('@/components/downloads/use-video-preview-source', () => ({
   useVideoPreviewSource: () => runtime.preview,
 }));
 
+vi.mock('@/api/downloads', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/api/downloads')>()),
+  // Watermark polling has its own endpoint and must not consume the ordered
+  // download/analysis responses used by this suite.
+  listWatermarkTasks: vi.fn(async () => ({ available: true, items: [] })),
+}));
+
 describe('DownloadJobView', () => {
   afterEach(() => {
     document

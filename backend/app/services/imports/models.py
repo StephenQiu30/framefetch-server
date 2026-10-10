@@ -66,6 +66,7 @@ class ImportResourceCreate:
     declared_sha256: str = field(repr=False)
     rights_statement_version: str
     declared_origin: DeclaredOrigin = DeclaredOrigin.USER_FILE
+    remove_watermark: bool = False
     quota: UserQuota = UserQuota()
 
 

@@ -58,6 +58,7 @@ async def create_media_import(
         declared_sha256=body.declared_sha256,
         rights_accepted=body.rights_accepted,
         declared_origin=body.declared_origin,
+        remove_watermark=body.remove_watermark,
         quota=user.admission_quota,
     )
     response.headers["Location"] = f"/api/media-imports/{view.id}"

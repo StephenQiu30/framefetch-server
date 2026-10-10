@@ -70,7 +70,9 @@ async def _inspection(repository: SqlAlchemyDownloadRepository) -> tuple:
 
 
 @pytest.mark.asyncio
-async def test_job_outbox_lease_progress_and_success_are_atomic(repository) -> None:
+async def test_job_outbox_lease_progress_and_success_are_atomic(
+    repository, postgres_engine
+) -> None:
     inspection_id, format_id, now = await _inspection(repository)
     command = DownloadCreate(
         id=uuid4(),
@@ -171,6 +173,12 @@ async def test_job_outbox_lease_progress_and_success_are_atomic(repository) -> N
         ),
         now=now + timedelta(seconds=10),
     )
+    from app.core.db import create_session_factory
+    from app.repositories.watermark import WatermarkRepository
+
+    watermark = WatermarkRepository(create_session_factory(postgres_engine))
+    tasks = await watermark.for_job(command.id, "a" * 64)
+    assert len(tasks.items) == 1 and tasks.items[0].status == "queued"
     assert artifact.object_key == f"downloads/{command.id}/1/video.mp4"
     assert (await repository.get_job(command.id)).status == "succeeded"
     fetched = await repository.get_artifact(

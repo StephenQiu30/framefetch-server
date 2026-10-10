@@ -1642,7 +1642,7 @@ CREATE TABLE IF NOT EXISTS resource_admissions (
     analysis_attempts INTEGER NOT NULL,
     created_at TIMESTAMPTZ NOT NULL,
     CONSTRAINT ck_admissions_kind CHECK (
-        kind IN ('download','media_import','document_import','analysis','inspection')
+        kind IN ('download','media_import','document_import','analysis','inspection','watermark')
     ),
     CONSTRAINT ck_admissions_bytes CHECK (reserved_bytes >= 0),
     CONSTRAINT ck_admissions_attempts CHECK (analysis_attempts >= 0)
@@ -1650,7 +1650,7 @@ CREATE TABLE IF NOT EXISTS resource_admissions (
 
 ALTER TABLE resource_admissions DROP CONSTRAINT IF EXISTS ck_admissions_kind;
 ALTER TABLE resource_admissions ADD CONSTRAINT ck_admissions_kind
-    CHECK (kind IN ('download','media_import','document_import','analysis','inspection'));
+    CHECK (kind IN ('download','media_import','document_import','analysis','inspection','watermark'));
 ALTER TABLE resource_admissions DROP CONSTRAINT IF EXISTS ck_admissions_bytes;
 ALTER TABLE resource_admissions ADD CONSTRAINT ck_admissions_bytes CHECK (reserved_bytes >= 0);
 CREATE INDEX IF NOT EXISTS ix_admissions_owner_created
@@ -1851,3 +1851,52 @@ CREATE TABLE IF NOT EXISTS creation_exports (
     CONSTRAINT ck_creation_export_bytes CHECK (octet_length(binary_data) BETWEEN 1 AND 67108864),
     CONSTRAINT ck_creation_export_sha CHECK (length(sha256) = 64)
 );
+
+-- Independent video derivatives; original artifacts remain immutable.
+
+CREATE TABLE IF NOT EXISTS watermark_tasks (
+	id UUID NOT NULL,
+	job_id UUID NOT NULL,
+	source_id UUID NOT NULL,
+	source_sha256 VARCHAR(64) NOT NULL,
+	owner_hash VARCHAR(64) NOT NULL,
+	idempotency_key VARCHAR(128) NOT NULL,
+	parameters JSONB NOT NULL,
+	status VARCHAR(16) NOT NULL,
+	attempt INTEGER NOT NULL,
+	lease_owner VARCHAR(128),
+	lease_expires_at TIMESTAMP WITH TIME ZONE,
+	object_key TEXT,
+	size_bytes BIGINT NOT NULL,
+	sha256 VARCHAR(64),
+	error_code VARCHAR(64),
+	created_at TIMESTAMP WITH TIME ZONE NOT NULL,
+	updated_at TIMESTAMP WITH TIME ZONE NOT NULL,
+	PRIMARY KEY (id),
+	CONSTRAINT uq_watermark_idempotency UNIQUE (owner_hash, idempotency_key),
+	CONSTRAINT ck_watermark_status CHECK (status IN ('queued','running','succeeded','unchanged','failed','cancelled')),
+	CONSTRAINT ck_watermark_attempt CHECK (attempt >= 0),
+	CONSTRAINT ck_watermark_size CHECK (size_bytes >= 0),
+	FOREIGN KEY(job_id) REFERENCES download_jobs (id) ON DELETE CASCADE,
+	FOREIGN KEY(source_id) REFERENCES artifacts (id) ON DELETE CASCADE
+)
+
+;
+CREATE INDEX IF NOT EXISTS ix_watermark_job_created ON watermark_tasks (job_id, created_at);
+CREATE UNIQUE INDEX IF NOT EXISTS uq_watermark_active_job ON watermark_tasks (job_id) WHERE status IN ('queued','running');
+
+CREATE TABLE IF NOT EXISTS watermark_workers (
+	id VARCHAR(128) NOT NULL,
+	heartbeat_at TIMESTAMP WITH TIME ZONE NOT NULL,
+	engine VARCHAR(64) NOT NULL,
+	PRIMARY KEY (id)
+)
+
+;
+
+ALTER TABLE watermark_tasks ADD COLUMN IF NOT EXISTS engine VARCHAR(64) NOT NULL DEFAULT 'vsr-sttn-e109b9dd-c8408c9d';
+
+ALTER TABLE watermark_tasks DROP CONSTRAINT IF EXISTS ck_watermark_status;
+ALTER TABLE watermark_tasks ADD CONSTRAINT ck_watermark_status
+    CHECK (status IN ('queued','running','succeeded','unchanged','failed','cancelled'));
+ALTER TABLE watermark_tasks ALTER COLUMN engine SET DEFAULT 'rapidocr-v4-sttn-e109b9dd';

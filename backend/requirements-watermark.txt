@@ -1,0 +1,13 @@
+# Isolated Python 3.12 inference runtime; do not install into the API environment.
+torch==2.7.0
+torchvision==0.22.0
+numpy==2.2.5
+opencv-python==4.11.0.86
+av==17.0.0
+tqdm==4.67.1
+einops==0.8.1
+filesplit==3.0.2
+pyside6-fluent-widgets==1.7.7
+rapidocr==3.4.2
+onnxruntime==1.22.0
+Pillow==12.3.0

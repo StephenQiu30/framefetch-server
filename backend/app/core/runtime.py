@@ -19,6 +19,7 @@ from app.repositories.auth.redis_auth_repository import RedisAuthSessionStore
 from app.repositories.operation_logs import OperationLogStore
 from app.repositories.operational_metrics import OperationalMetrics
 from app.repositories.task_event_store import TaskEventStore
+from app.repositories.watermark import WatermarkRepository
 from app.schemas.engine_catalog import EngineCatalogResponse
 from app.services.ai_providers import AiProviderService
 from app.services.analysis.analytics import GetAnalysisAnalytics
@@ -146,6 +147,7 @@ class DocumentImportUseCases:
 
 @dataclass(slots=True)
 class ApiServices:
+    watermark_repository: WatermarkRepository | None = None
     engine_catalog_reader: Callable[[], Awaitable[EngineCatalogResponse]] | None = None
     intent_service: IntentService | None = None
     history_record_service: HistoryRecordService | None = None

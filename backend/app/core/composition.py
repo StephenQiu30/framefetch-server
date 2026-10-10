@@ -72,6 +72,7 @@ from app.repositories.source_discoveries.repository import (
 )
 from app.repositories.storage_files.repository import SqlAlchemyStorageFileRepository
 from app.repositories.task_event_store import TaskEventStore
+from app.repositories.watermark import WatermarkRepository
 from app.services.ai_providers import AiProviderService
 from app.services.analysis.analytics import GetAnalysisAnalytics
 from app.services.analysis.cancel_analysis import CancelAnalysis
@@ -472,6 +473,9 @@ def build_api_runtime(settings: Settings) -> ApiRuntime:
 
     return ApiRuntime(
         services=ApiServices(
+            watermark_repository=WatermarkRepository(
+                sessions, quota_policy=quota_policy
+            ),
             engine_catalog_reader=runner.engine_catalog,
             intent_service=IntentService(
                 IntentRepository(sessions, quota_policy=quota_policy),

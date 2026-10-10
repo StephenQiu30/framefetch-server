@@ -653,6 +653,24 @@ declare namespace API {
     data: UserResponse;
   };
 
+  type ApiResponseWatermarkListResponse_ = {
+    /** 稳定的业务结果码。 */
+    code: ErrorCode;
+    /** Message 安全的结果说明。 */
+    message: string;
+    /** 成功时为业务数据，错误时为 null。 */
+    data: WatermarkListResponse;
+  };
+
+  type ApiResponseWatermarkTaskResponse_ = {
+    /** 稳定的业务结果码。 */
+    code: ErrorCode;
+    /** Message 安全的结果说明。 */
+    message: string;
+    /** 成功时为业务数据，错误时为 null。 */
+    data: WatermarkTaskResponse;
+  };
+
   type AudioCodecFamily = "none" | "aac" | "opus" | "vorbis" | "other";
 
   type cancelAnalysisParams = {
@@ -669,6 +687,10 @@ declare namespace API {
 
   type cancelDownloadParams = {
     job_id: string;
+  };
+
+  type cancelWatermarkTaskParams = {
+    task_id: string;
   };
 
   type CompatibilityProfile = "balanced" | "quality" | "smallest";
@@ -881,6 +903,10 @@ declare namespace API {
     sort_order: number;
     /** Is Visible */
     is_visible?: boolean;
+  };
+
+  type createWatermarkTaskParams = {
+    job_id: string;
   };
 
   type DeclaredOrigin = "user_file" | "wechat_channels";
@@ -1628,6 +1654,11 @@ declare namespace API {
     discovery_id: string;
   };
 
+  type getWatermarkFileParams = {
+    task_id: string;
+    preview?: boolean;
+  };
+
   type HeadingBlock = {
     /** Id */
     id: string;
@@ -1936,6 +1967,10 @@ declare namespace API {
     is_active?: boolean | null;
   };
 
+  type listWatermarkTasksParams = {
+    job_id: string;
+  };
+
   type LivenessResponse = {
     status: LivenessStatus;
   };
@@ -1977,6 +2012,8 @@ declare namespace API {
     declared_size_bytes: number;
     /** Declared Sha256 */
     declared_sha256: string;
+    /** Remove Watermark */
+    remove_watermark?: boolean;
     /** Rights Accepted */
     rights_accepted: boolean;
     declared_origin?: DeclaredOrigin;
@@ -2964,5 +3001,35 @@ declare namespace API {
     first_seen_ms: number;
     /** Evidence Shot Ids */
     evidence_shot_ids: string[];
+  };
+
+  type WatermarkListResponse = {
+    /** Available */
+    available: boolean;
+    /** Items */
+    items: WatermarkTaskResponse[];
+  };
+
+  type WatermarkTaskResponse = {
+    /** Id */
+    id: string;
+    /** Job Id */
+    job_id: string;
+    /** Status */
+    status:
+      | "queued"
+      | "running"
+      | "succeeded"
+      | "unchanged"
+      | "failed"
+      | "cancelled";
+    /** Attempt */
+    attempt: number;
+    /** Size Bytes */
+    size_bytes: number;
+    /** Error Code */
+    error_code: string | null;
+    /** Created At */
+    created_at: string;
   };
 }

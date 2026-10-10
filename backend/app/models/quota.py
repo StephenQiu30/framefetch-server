@@ -24,7 +24,7 @@ class ResourceAdmissionRow(Base):
         CheckConstraint("analysis_attempts >= 0", name="ck_admissions_attempts"),
         CheckConstraint(
             "kind IN ('download','media_import','document_import',"
-            "'analysis','inspection')",
+            "'analysis','inspection','watermark')",
             name="ck_admissions_kind",
         ),
         Index("ix_admissions_owner_created", "owner_hash", "created_at"),

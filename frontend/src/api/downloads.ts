@@ -128,6 +128,40 @@ export async function getDownloadThumbnail(
   });
 }
 
+/** List Tasks GET /api/downloads/${param0}/watermarks */
+export async function listWatermarkTasks(
+  // 叠加生成的Param类型 (非body参数swagger默认没有生成对象)
+  params: API.listWatermarkTasksParams,
+  options?: RequestOptions
+) {
+  const { job_id: param0, ...queryParams } = params;
+  return request<API.ApiResponseWatermarkListResponse_>(
+    `/api/downloads/${param0}/watermarks`,
+    {
+      method: "GET",
+      params: { ...queryParams },
+      ...(options || {}),
+    }
+  );
+}
+
+/** Create Task POST /api/downloads/${param0}/watermarks */
+export async function createWatermarkTask(
+  // 叠加生成的Param类型 (非body参数swagger默认没有生成对象)
+  params: API.createWatermarkTaskParams,
+  options?: RequestOptions
+) {
+  const { job_id: param0, ...queryParams } = params;
+  return request<API.ApiResponseWatermarkTaskResponse_>(
+    `/api/downloads/${param0}/watermarks`,
+    {
+      method: "POST",
+      params: { ...queryParams },
+      ...(options || {}),
+    }
+  );
+}
+
 /** 查询下载历史 查询当前登录用户的下载历史。 GET /api/downloads/history */
 export async function getDownloadHistory(
   // 叠加生成的Param类型 (非body参数swagger默认没有生成对象)
@@ -149,4 +183,34 @@ export async function getDownloadHistory(
       ...(options || {}),
     }
   );
+}
+
+/** Cancel Task DELETE /api/watermarks/${param0} */
+export async function cancelWatermarkTask(
+  // 叠加生成的Param类型 (非body参数swagger默认没有生成对象)
+  params: API.cancelWatermarkTaskParams,
+  options?: RequestOptions
+) {
+  const { task_id: param0, ...queryParams } = params;
+  return request<any>(`/api/watermarks/${param0}`, {
+    method: "DELETE",
+    params: { ...queryParams },
+    ...(options || {}),
+  });
+}
+
+/** Get File GET /api/watermarks/${param0}/file */
+export async function getWatermarkFile(
+  // 叠加生成的Param类型 (非body参数swagger默认没有生成对象)
+  params: API.getWatermarkFileParams,
+  options?: RequestOptions
+) {
+  const { task_id: param0, ...queryParams } = params;
+  return request<any>(`/api/watermarks/${param0}/file`, {
+    method: "GET",
+    params: {
+      ...queryParams,
+    },
+    ...(options || {}),
+  });
 }

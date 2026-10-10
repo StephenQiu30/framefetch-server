@@ -38,11 +38,15 @@ class RabbitMqTopology:
     report_routing_key: str = "analysis.report.publish.requested"
     message_ttl_ms: int = 86_400_000
     max_length: int = 10_000
+    watermark_queue: str = "video.watermark"
+    watermark_routing_key: str = "watermark.requested"
     import_queue: str = "video.import"
     import_routing_key: str = "content.import.verify.requested"
 
     def __post_init__(self) -> None:
         names = (
+            self.watermark_queue,
+            self.watermark_routing_key,
             self.exchange,
             self.download_queue,
             self.download_routing_key,
@@ -89,6 +93,16 @@ class RabbitMqTopology:
                 self.message_ttl_ms,
                 self.max_length,
             ),
+            self.watermark,
+        )
+
+    @property
+    def watermark(self) -> DurableQueueTopology:
+        return DurableQueueTopology(
+            self.watermark_queue,
+            self.watermark_routing_key,
+            self.message_ttl_ms,
+            self.max_length,
         )
 
     @property
